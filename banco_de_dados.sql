@@ -1,0 +1,507 @@
+-- ============================================================
+-- BANCO DE DADOS — Sistema Fluxograma de Processos
+-- Compatível com Supabase (PostgreSQL)
+-- ============================================================
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  1. TABELA: profiles                                        │
+-- │  Fiscais de Postura que operam o sistema                    │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auth_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    nome VARCHAR(200),
+    full_name VARCHAR(200),
+    cpf VARCHAR(14) UNIQUE NOT NULL,          -- 000.000.000-00
+    matricula VARCHAR(30),                     -- Matrícula do fiscal (ex: 99044459/2)
+    cargo VARCHAR(50) DEFAULT 'Fiscal de Postura',
+    role VARCHAR(50) DEFAULT 'Fiscal de Postura',
+    email VARCHAR(200),
+    avatar_url TEXT,
+    ativo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índice para busca por CPF (login)
+CREATE INDEX IF NOT EXISTS idx_profiles_cpf ON profiles(cpf);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: solicitantes                                       │
+-- │  Pessoas que solicitam o processo (CPF/CNPJ + nome + email) │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS solicitantes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cpf_cnpj VARCHAR(18) UNIQUE NOT NULL,
+    nome VARCHAR(200) NOT NULL,
+    email VARCHAR(200),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_solicitantes_cpf ON solicitantes(cpf_cnpj);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: contribuintes                                      │
+-- │  Dados do contribuinte (do modelo NP - INFORMAÇÕES DO CONT) │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS contribuintes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID,                          -- vinculado depois de criar o processo
+    nome VARCHAR(200) NOT NULL,
+    cpf_cnpj VARCHAR(18),
+    logradouro VARCHAR(300),
+    numero VARCHAR(20),
+    complemento VARCHAR(200),
+    bairro VARCHAR(100),
+    municipio VARCHAR(100),
+    cep VARCHAR(10),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: imoveis                                            │
+-- │  Dados do imóvel (do modelo NP - INFORMAÇÕES DO IMÓVEL)     │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS imoveis (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID,
+    codigo_reduzido VARCHAR(20),              -- Código reduzido do imóvel
+    inscricao_imovel VARCHAR(30),             -- 01.036.00181.00300.00000.0
+    zona VARCHAR(5),                           -- Parte 1 da inscrição
+    setor VARCHAR(5),                          -- Parte 2
+    quadra VARCHAR(10),                        -- Parte 3
+    lote VARCHAR(10),                          -- Parte 4
+    logradouro VARCHAR(300),
+    numero VARCHAR(20),
+    complemento VARCHAR(200),
+    bairro VARCHAR(100),
+    area_total NUMERIC(12,2),                 -- m²
+    testada NUMERIC(12,2),                    -- metros
+    profundidade NUMERIC(12,2),               -- metros
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: infracoes_catalogo                                 │
+-- │  Catálogo fixo dos dispositivos legais transgredidos         │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS infracoes_catalogo (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(20) NOT NULL,              -- Ex: 120000232
+    descricao VARCHAR(300) NOT NULL,          -- Ex: Falta de limpeza e conservação...
+    categoria VARCHAR(50) DEFAULT 'Posturas',
+    ativo BOOLEAN DEFAULT TRUE
+);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: processo_infracoes                                 │
+-- │  Infrações selecionadas para cada processo (N:N)            │
+-- │  Cada infração gera número de notificação diferente         │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS processo_infracoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID NOT NULL,
+    infracao_id INT NOT NULL REFERENCES infracoes_catalogo(id),
+    numero_notificacao VARCHAR(30),           -- Nº único da notificação desta infração
+    valor_multa NUMERIC(12,2),                -- Valor da multa para esta infração
+    descricao_personalizada TEXT,             -- Descrição específica
+    reincidente BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- (índice de CPF já criado acima)
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  2. TABELA: etapas                                          │
+-- │  Catálogo fixo das 32 etapas do fluxograma                 │
+-- │  Inserida uma vez, consultada sempre                        │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS etapas (
+    id SERIAL PRIMARY KEY,
+    numero INT UNIQUE NOT NULL,               -- 1 a 32
+    nome VARCHAR(200) NOT NULL,               -- "Possui Decreto/Notificação"
+    descricao TEXT,                            -- Descrição longa da etapa
+    tipo VARCHAR(30) DEFAULT 'normal',        -- 'inicio', 'normal', 'encerramento'
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  3. TABELA: transicoes                                      │
+-- │  Mapa de transições possíveis entre etapas                  │
+-- │  Representa as setas do Mermaid                             │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS transicoes (
+    id SERIAL PRIMARY KEY,
+    etapa_origem_id INT NOT NULL REFERENCES etapas(id),
+    etapa_destino_id INT NOT NULL REFERENCES etapas(id),
+    condicao VARCHAR(200) NOT NULL,           -- "Possui Decreto? Sim", "Checklist: preenchido"
+    descricao TEXT,                            -- Descrição adicional da condição
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(etapa_origem_id, etapa_destino_id, condicao)
+);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  4. TABELA: processos                                       │
+-- │  Cada processo criado por um fiscal                         │
+-- │  Possui numeração sequencial e pode estar em qualquer etapa │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS processos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero_processo VARCHAR(30) UNIQUE NOT NULL,  -- Ex: "2026/000001"
+    fiscal_id UUID NOT NULL REFERENCES usuarios(id),
+    solicitante_id UUID REFERENCES solicitantes(id),
+    etapa_atual_id INT NOT NULL REFERENCES etapas(id) DEFAULT 1,
+    status VARCHAR(30) DEFAULT 'em_aberto',       -- 'em_aberto', 'finalizado', 'cancelado'
+
+    possui_decreto BOOLEAN,
+    processo_existente BOOLEAN,
+    processo_existente_ref VARCHAR(30),            -- Referência ao processo existente
+
+    -- Dados do fiscal na vistoria
+    data_vistoria DATE,
+    descricao_fiscalizacao TEXT,
+    decreto_url TEXT,                              -- URL do decreto anexado
+
+    -- Campos JSONB para dados dinâmicos extras
+    dados JSONB DEFAULT '{}',
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índices para consultas frequentes
+CREATE INDEX idx_processos_fiscal ON processos(fiscal_id);
+CREATE INDEX idx_processos_etapa ON processos(etapa_atual_id);
+CREATE INDEX idx_processos_status ON processos(status);
+CREATE INDEX idx_processos_numero ON processos(numero_processo);
+
+-- Sequência para numeração automática de processos
+CREATE SEQUENCE IF NOT EXISTS seq_numero_processo START WITH 1 INCREMENT BY 1;
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  5. TABELA: historico_etapas                                │
+-- │  Registra cada movimentação do processo entre etapas        │
+-- │  (audit trail completo)                                     │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS historico_etapas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID NOT NULL REFERENCES processos(id) ON DELETE CASCADE,
+    etapa_de_id INT REFERENCES etapas(id),        -- NULL na criação do processo
+    etapa_para_id INT NOT NULL REFERENCES etapas(id),
+    transicao_id INT REFERENCES transicoes(id),    -- Qual transição foi utilizada
+    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    condicao_aplicada VARCHAR(200),                -- A condição que causou a transição
+    observacao TEXT,                                -- Observação livre do fiscal
+    dados_etapa JSONB DEFAULT '{}',                -- Snapshot dos dados preenchidos na etapa
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_historico_processo ON historico_etapas(processo_id);
+CREATE INDEX idx_historico_data ON historico_etapas(created_at);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  6. TABELA: checklist_itens                                 │
+-- │  Itens de checklist configuráveis por etapa                 │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS checklist_itens (
+    id SERIAL PRIMARY KEY,
+    etapa_id INT NOT NULL REFERENCES etapas(id),
+    descricao VARCHAR(300) NOT NULL,
+    obrigatorio BOOLEAN DEFAULT TRUE,
+    ordem INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  7. TABELA: checklist_respostas                             │
+-- │  Respostas do checklist por processo                        │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS checklist_respostas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID NOT NULL REFERENCES processos(id) ON DELETE CASCADE,
+    checklist_item_id INT NOT NULL REFERENCES checklist_itens(id),
+    preenchido BOOLEAN DEFAULT FALSE,
+    valor TEXT,                                    -- Valor preenchido (se aplicável)
+    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(processo_id, checklist_item_id)
+);
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  8. TABELA: documentos                                      │
+-- │  Documentos gerados ou enviados em cada etapa               │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS documentos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID NOT NULL REFERENCES processos(id) ON DELETE CASCADE,
+    etapa_id INT NOT NULL REFERENCES etapas(id),
+    tipo VARCHAR(100) NOT NULL,               -- 'auto_infracao', 'certidao', 'edital', 'defesa', 'comprovante', etc.
+    nome_arquivo VARCHAR(300),
+    url TEXT,                                  -- URL do arquivo (Cloudinary, Storage, etc.)
+    mime_type VARCHAR(100),
+    tamanho_bytes BIGINT,
+    gerado_automaticamente BOOLEAN DEFAULT FALSE,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_documentos_processo ON documentos(processo_id);
+CREATE INDEX idx_documentos_etapa ON documentos(etapa_id);
+
+-- ============================================================
+-- DADOS INICIAIS: Cadastro das 32 etapas
+-- ============================================================
+INSERT INTO etapas (numero, nome, tipo) VALUES
+    (1,  'Possui Decreto/Notificação',          'inicio'),
+    (2,  'Defesa ou Dilação de Prazo',           'normal'),
+    (3,  'Envio da 1ª Defesa',                   'normal'),
+    (4,  'Comprovante Propriedade',              'normal'),
+    (5,  'Análise Dilação de Prazo',             'normal'),
+    (6,  'Defesa Com Dilação',                   'normal'),
+    (7,  'Análise da Defesa Sem Dilação',        'normal'),
+    (8,  'Fiscal Analisa a Defesa (Pós Dilação)','normal'),
+    (9,  'Envio da Defesa Sem Dilação',          'normal'),
+    (10, 'Certidão Sem Defesa',                  'normal'),
+    (11, 'Gerente antes Infração',               'normal'),
+    (12, 'Gerente antes Auto de Infração',       'normal'),
+    (13, 'Fiscal Analisa a Defesa (1ª)',         'normal'),
+    (14, 'Auto de Infração',                     'normal'),
+    (15, 'Gerente Gera a Multa',                 'normal'),
+    (16, 'Retorno do AR',                        'normal'),
+    (17, 'Gerência Gera o Edital',               'normal'),
+    (18, 'Solicitar Defesa ou Recurso',          'normal'),
+    (19, 'Envio de Defesa ou Pagamento',         'normal'),
+    (20, 'Realizar Pagamento',                   'normal'),
+    (21, 'Fiscal Convocado pelo Jurídico',       'normal'),
+    (22, 'Gerente Convocado pelo Jurídico',      'normal'),
+    (23, 'Parecer Jurídico',                     'normal'),
+    (24, 'Secretário Despacha',                  'normal'),
+    (25, 'Gerente Cumpre o Decreto',             'normal'),
+    (26, 'Fazenda Gera a Multa',                 'normal'),
+    (27, 'Devolvimento para o Setor',            'normal'),
+    (28, 'Certificação do Vencimento',           'encerramento'),
+    (29, 'Fiscal Emite Certidão',                'encerramento'),
+    (30, 'Gerente Localiza o AR',                'normal'),
+    (31, 'Comprovante Pagamento',                'normal'),
+    (32, 'Consulta no Jurídico',                 'encerramento');
+
+-- ============================================================
+-- DADOS INICIAIS: Transições entre etapas (mapa do fluxograma)
+-- ============================================================
+INSERT INTO transicoes (etapa_origem_id, etapa_destino_id, condicao) VALUES
+    -- E1 → saídas
+    ((SELECT id FROM etapas WHERE numero = 1),  (SELECT id FROM etapas WHERE numero = 2),  'Possui Decreto? Não'),
+    ((SELECT id FROM etapas WHERE numero = 1),  (SELECT id FROM etapas WHERE numero = 14), 'Possui Decreto? Sim'),
+    ((SELECT id FROM etapas WHERE numero = 1),  (SELECT id FROM etapas WHERE numero = 14), 'Processo já Existente? Sim'),
+
+    -- E2 → saídas
+    ((SELECT id FROM etapas WHERE numero = 2),  (SELECT id FROM etapas WHERE numero = 4),  'Checklist: preenchido'),
+    ((SELECT id FROM etapas WHERE numero = 2),  (SELECT id FROM etapas WHERE numero = 3),  'Checklist: pendente'),
+
+    -- E3 → saídas
+    ((SELECT id FROM etapas WHERE numero = 3),  (SELECT id FROM etapas WHERE numero = 13), 'Checklist: preenchido'),
+    ((SELECT id FROM etapas WHERE numero = 3),  (SELECT id FROM etapas WHERE numero = 10), 'Checklist: pendente'),
+
+    -- E4 → saídas
+    ((SELECT id FROM etapas WHERE numero = 4),  (SELECT id FROM etapas WHERE numero = 5),  'Checklist: preenchido'),
+    ((SELECT id FROM etapas WHERE numero = 4),  (SELECT id FROM etapas WHERE numero = 7),  'Checklist: pendente'),
+
+    -- E5 → saídas
+    ((SELECT id FROM etapas WHERE numero = 5),  (SELECT id FROM etapas WHERE numero = 6),  'Dilação Aceita'),
+    ((SELECT id FROM etapas WHERE numero = 5),  (SELECT id FROM etapas WHERE numero = 9),  'Dilação Negada'),
+
+    -- E6 → saída
+    ((SELECT id FROM etapas WHERE numero = 6),  (SELECT id FROM etapas WHERE numero = 8),  'Sempre'),
+
+    -- E7 → saídas
+    ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 29), 'Houve Cumprimento? Sim'),
+    ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 14), 'Houve Cumprimento? Não'),
+    ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico'),
+
+    -- E8 → saídas
+    ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 29), 'Defesa Deferida'),
+    ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 14), 'Defesa Indeferida'),
+    ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 12), 'Enviar para Gerente'),
+    ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 32), 'Enviar para Jurídico'),
+
+    -- E9 → saída
+    ((SELECT id FROM etapas WHERE numero = 9),  (SELECT id FROM etapas WHERE numero = 7),  'Sempre'),
+
+    -- E10 → saídas
+    ((SELECT id FROM etapas WHERE numero = 10), (SELECT id FROM etapas WHERE numero = 14), 'Foi resolvido? Não'),
+    ((SELECT id FROM etapas WHERE numero = 10), (SELECT id FROM etapas WHERE numero = 29), 'Foi resolvido? Sim'),
+
+    -- E11 → saídas
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 14), 'Análise do gerente: indeferido'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 29), 'Análise do gerente: deferido'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 3),  'Análise do gerente: dilatar prazo'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico'),
+
+    -- E12 → saídas
+    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 14), 'Análise do gerente: indeferido'),
+    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 29), 'Análise do gerente: deferido'),
+    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 6),  'Análise do gerente: dilatar prazo'),
+    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico'),
+
+    -- E13 → saídas
+    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 14), 'Defesa Deferida'),
+    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 29), 'Defesa Indeferida'),
+    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 11), 'Enviar para Gerente'),
+    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para Jurídico'),
+
+    -- E14 → saída
+    ((SELECT id FROM etapas WHERE numero = 14), (SELECT id FROM etapas WHERE numero = 15), 'Sempre'),
+
+    -- E15 → saída
+    ((SELECT id FROM etapas WHERE numero = 15), (SELECT id FROM etapas WHERE numero = 16), 'Sempre'),
+
+    -- E16 → saídas
+    ((SELECT id FROM etapas WHERE numero = 16), (SELECT id FROM etapas WHERE numero = 30), 'Pendente/Não Voltou'),
+    ((SELECT id FROM etapas WHERE numero = 16), (SELECT id FROM etapas WHERE numero = 17), 'Não Efetivado'),
+    ((SELECT id FROM etapas WHERE numero = 16), (SELECT id FROM etapas WHERE numero = 18), 'Efetivado'),
+
+    -- E17 → saída
+    ((SELECT id FROM etapas WHERE numero = 17), (SELECT id FROM etapas WHERE numero = 18), 'Sempre'),
+
+    -- E18 → saídas
+    ((SELECT id FROM etapas WHERE numero = 18), (SELECT id FROM etapas WHERE numero = 19), 'Checklist preenchido'),
+    ((SELECT id FROM etapas WHERE numero = 18), (SELECT id FROM etapas WHERE numero = 20), 'Checklist pendente'),
+
+    -- E19 → saídas
+    ((SELECT id FROM etapas WHERE numero = 19), (SELECT id FROM etapas WHERE numero = 23), 'Checklist preenchido'),
+    ((SELECT id FROM etapas WHERE numero = 19), (SELECT id FROM etapas WHERE numero = 20), 'Checklist pendente'),
+
+    -- E20 → saída
+    ((SELECT id FROM etapas WHERE numero = 20), (SELECT id FROM etapas WHERE numero = 31), 'Sempre'),
+
+    -- E23 → saídas
+    ((SELECT id FROM etapas WHERE numero = 23), (SELECT id FROM etapas WHERE numero = 22), 'Encaminhar a Gerência'),
+    ((SELECT id FROM etapas WHERE numero = 23), (SELECT id FROM etapas WHERE numero = 21), 'Devolver ao Fiscal'),
+    ((SELECT id FROM etapas WHERE numero = 23), (SELECT id FROM etapas WHERE numero = 24), 'Secretário para Despacho'),
+
+    -- E24 → saída
+    ((SELECT id FROM etapas WHERE numero = 24), (SELECT id FROM etapas WHERE numero = 25), 'Sempre'),
+
+    -- E25 → saída
+    ((SELECT id FROM etapas WHERE numero = 25), (SELECT id FROM etapas WHERE numero = 26), 'Sempre'),
+
+    -- E26 → saída
+    ((SELECT id FROM etapas WHERE numero = 26), (SELECT id FROM etapas WHERE numero = 27), 'Sempre'),
+
+    -- E27 → saídas
+    ((SELECT id FROM etapas WHERE numero = 27), (SELECT id FROM etapas WHERE numero = 19), 'Checklist preenchido'),
+    ((SELECT id FROM etapas WHERE numero = 27), (SELECT id FROM etapas WHERE numero = 20), 'Checklist pendente'),
+
+    -- E30 → saídas
+    ((SELECT id FROM etapas WHERE numero = 30), (SELECT id FROM etapas WHERE numero = 17), 'Não Efetivado'),
+    ((SELECT id FROM etapas WHERE numero = 30), (SELECT id FROM etapas WHERE numero = 18), 'Efetivado'),
+
+    -- E31 → saídas
+    ((SELECT id FROM etapas WHERE numero = 31), (SELECT id FROM etapas WHERE numero = 28), 'Não realizou o pagamento'),
+    ((SELECT id FROM etapas WHERE numero = 31), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico');
+
+-- ============================================================
+-- FUNÇÃO: Gerar número de processo automático (YYYY/NNNNNN)
+-- ============================================================
+CREATE OR REPLACE FUNCTION gerar_numero_processo()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.numero_processo := EXTRACT(YEAR FROM NOW())::TEXT || '/' || LPAD(nextval('seq_numero_processo')::TEXT, 6, '0');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_numero_processo
+    BEFORE INSERT ON processos
+    FOR EACH ROW
+    WHEN (NEW.numero_processo IS NULL)
+    EXECUTE FUNCTION gerar_numero_processo();
+
+-- ============================================================
+-- FUNÇÃO: Atualizar updated_at automaticamente
+-- ============================================================
+CREATE OR REPLACE FUNCTION atualizar_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_updated_at_usuarios
+    BEFORE UPDATE ON usuarios
+    FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
+
+CREATE TRIGGER trg_updated_at_processos
+    BEFORE UPDATE ON processos
+    FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
+
+CREATE TRIGGER trg_updated_at_checklist
+    BEFORE UPDATE ON checklist_respostas
+    FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
+
+-- ============================================================
+-- RLS (Row Level Security) — Supabase
+-- ============================================================
+ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE processos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE historico_etapas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checklist_respostas ENABLE ROW LEVEL SECURITY;
+
+-- Política: Fiscal vê apenas seus próprios dados
+CREATE POLICY "Fiscal vê seus processos" ON processos
+    FOR ALL USING (fiscal_id IN (
+        SELECT id FROM usuarios WHERE auth_id = auth.uid()
+    ));
+
+CREATE POLICY "Fiscal vê seu histórico" ON historico_etapas
+    FOR ALL USING (usuario_id IN (
+        SELECT id FROM usuarios WHERE auth_id = auth.uid()
+    ));
+
+CREATE POLICY "Fiscal vê seus documentos" ON documentos
+    FOR ALL USING (usuario_id IN (
+        SELECT id FROM usuarios WHERE auth_id = auth.uid()
+    ));
+
+CREATE POLICY "Fiscal vê seu checklist" ON checklist_respostas
+    FOR ALL USING (usuario_id IN (
+        SELECT id FROM usuarios WHERE auth_id = auth.uid()
+    ));
+
+-- Etapas e transições são públicas (leitura)
+CREATE POLICY "Etapas públicas" ON etapas FOR SELECT USING (true);
+-- Nota: transições não tem RLS habilitado, ficam públicas por padrão
+
+-- RLS para novas tabelas
+ALTER TABLE solicitantes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contribuintes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE imoveis ENABLE ROW LEVEL SECURITY;
+ALTER TABLE processo_infracoes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Solicitantes acesso autenticado" ON solicitantes FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Contribuintes acesso autenticado" ON contribuintes FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Imoveis acesso autenticado" ON imoveis FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Infracoes acesso autenticado" ON processo_infracoes FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Catalogo infracoes publico" ON infracoes_catalogo FOR SELECT USING (true);
+
+-- ============================================================
+-- DADOS INICIAIS: Catálogo de Infrações (Dispositivos Legais)
+-- ============================================================
+INSERT INTO infracoes_catalogo (codigo, descricao, categoria) VALUES
+    ('120000232', 'Falta de limpeza e conservação de imóvel não edificado',    'Posturas'),
+    ('120000211', 'Inexistência de Cercamento',                                'Posturas'),
+    ('120000226', 'Inexistência de passeio',                                   'Posturas'),
+    ('120000228', 'Reincidência na inexistência de cercamento e/ou passeio',   'Posturas'),
+    ('120000227', 'Reincidência na inexistência de passeio',                   'Posturas'),
+    ('120000229', 'Reconstrução de/ou reparo de muro',                         'Posturas'),
+    ('120000240', 'Reconstrução e/ou reparo de passeio',                       'Posturas'),
+    ('120000233', 'Limpeza de Quintal',                                        'Posturas'),
+    ('120000237', 'Obstáculos em calçadas',                                    'Posturas'),
+    ('120000239', 'Água servida',                                              'Posturas'),
+    ('120000236', 'Estabelecimento sem Alvará',                                'Posturas'),
+    ('120000234', 'Reparos por concessionárias',                               'Posturas'),
+    ('120000230', 'Piso Tátil',                                                'Posturas');

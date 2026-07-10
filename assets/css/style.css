@@ -1,0 +1,177 @@
+:root {
+    --text-color: #f8fafc;
+    --accent-color: #895eed;
+    /* Roxo elegante */
+    --accent-hover: #5718c5;
+    /* Roxo mais escuro */
+    --bg-dark: #0f172a;
+    /* Cinza azulado bem escuro */
+    --bg-darker: #0b1120;
+    --input-border: rgba(255, 255, 255, 0.15);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    background-color: var(--bg-dark);
+    color: var(--text-color);
+}
+
+.login-wrapper {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    /* Fundo com gradiente animado cobrindo a tela toda para o efeito de vidro funcionar */
+    background: linear-gradient(-45deg, #2a008b, #860043, #032255, #100916);
+    background-size: 400% 400%;
+    animation: bgGradientAnim 5s ease infinite;
+}
+
+/* --- LADO DA IMAGEM / DESTAQUE --- */
+@keyframes bgGradientAnim {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.image-section {
+    flex: 1.2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+}
+
+.welcome-msg {
+    color: white;
+    max-width: 1000px;
+}
+
+.welcome-msg h1 {
+    font-size: 3.5rem;
+    font-weight: 700;
+    letter-spacing: -1px;
+    color: #ffffff;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* --- LADO DO FORMULÁRIO --- */
+.form-section {
+    flex: 0.8;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Removido o fundo sólido para ver o vidro fosco */
+}
+
+.glass-container {
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 15%;
+    color: white;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.logo {
+    font-size: 1.8rem;
+    margin-bottom: 3rem;
+    letter-spacing: 2px;
+    color: #ffffff;
+}
+
+.input-box {
+    margin-bottom: 1.8rem;
+    position: relative;
+}
+
+.input-box label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.input-box input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--input-border);
+    padding: 14px 16px;
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.input-box input:focus {
+    border-color: var(--accent-color);
+    background: rgba(139, 92, 246, 0.05);
+    box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 16px;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    margin-top: 20px;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+
+@media (max-width: 900px) {
+    .image-section {
+        display: none;
+    }
+
+    .form-section {
+        flex: 1;
+    }
+
+    .glass-container {
+        padding: 0 10%;
+        border-left: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .glass-container {
+        padding: 0 24px;
+    }
+
+    .logo {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .btn-primary {
+        padding: 14px;
+    }
+}

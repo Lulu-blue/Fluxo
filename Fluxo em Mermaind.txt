@@ -1,0 +1,94 @@
+flowchart TD
+    subgraph Inicio[" "]
+        E1["Possui Decreto/Notificação<br/>Etapa 1"]
+    end
+
+    E1 -->|"Possui Decreto? Não (Etapa 2)"| E2["Defesa ou Dilação de Prazo<br/>Etapa 2"]
+    E1 -->|"Possui Decreto? Sim (Etapa 14)"| E14["Auto de Infração<br/>Etapa 14"]
+    E1 -->|"Processo já Existente? Sim (Etapa 14)"| E14
+
+    E2 -->|"Checklist: preenchido (Etapa 4)"| E4["Comprovante Propriedade<br/>Etapa 4"]
+    E2 -->|"Checklist: pendente (Etapa 3)"| E3["Envio da 1ª Defesa<br/>Etapa 3"]
+
+    E3 -->|"Checklist: preenchido (Etapa 13)"| E13["Fiscal Analisa a Defesa<br/>Etapa 13"]
+    E3 -->|"Checklist: pendente (Etapa 10)"| E10["Certidão Sem Defesa<br/>Etapa 10"]
+
+    E4 -->|"Checklist: preenchido (Etapa 5)"| E5["Análise Dilação de Prazo<br/>Etapa 5"]
+    E4 -->|"Checklist: pendente (Etapa 7)"| E7["Análise da Defesa S...<br/>Etapa 7"]
+
+    E5 -->|"Dilação de Prazo? Dilação Aceita (Etapa 6)"| E6["Defesa Com Dilação<br/>Etapa 6"]
+    E5 -->|"Dilação de Prazo? Dilação Negada (Etapa 9)"| E9["Envio da Defesa Sem...<br/>Etapa 9"]
+
+    E6 -->|"Sempre (Etapa 8)"| E8["Fiscal Analisa a Defesa<br/>Etapa 8"]
+
+    E7 -->|"Houve Cumprimento? Sim (Etapa 29)"| E29["Fiscal Emite Certidão<br/>Etapa 29"]
+    E7 -->|"Houve Cumprimento? Não (Etapa 14)"| E14
+    E7 -->|"Houve Cumprimento? Enviar para o Jurídico (Etapa 32)"| E32["Consulta no Jurídico<br/>Etapa 32"]
+
+    E8 -->|"Defesa deferida ou indeferida? deferida (Etapa 29)"| E29
+    E8 -->|"Defesa deferida ou indeferida? indeferida (Etapa 14)"| E14
+    E8 -->|"Defesa deferida ou indeferida? Enviar para Gerente (Etapa 12)"| E12["Gerente antes Auto de...<br/>Etapa 12"]
+    E8 -->|"Defesa deferida ou indeferida? Enviar para Jurídico (Etapa 32)"| E32
+
+    E9 -->|"Sempre (Etapa 7)"| E7
+
+    E10 -->|"Foi resolvido? Não (Etapa 14)"| E14
+    E10 -->|"Foi resolvido? Sim (Etapa 29)"| E29
+
+    E11["Gerente antes Infração<br/>Etapa 11"] -->|"Análise do gerente: indeferido (Etapa 14)"| E14
+    E11 -->|"Análise do gerente: deferido (Etapa 29)"| E29
+    E11 -->|"Análise do gerente: dilatar prazo (Etapa 3)"| E3
+    E11 -->|"Análise do gerente: Enviar para o Jurídico (Etapa 32)"| E32
+
+    E12 -->|"Análise do gerente: indeferido (Etapa 14)"| E14
+    E12 -->|"Análise do gerente: deferido (Etapa 29)"| E29
+    E12 -->|"Análise do gerente: dilatar Prazo (Etapa 6)"| E6
+    E12 -->|"Análise do gerente: Enviar para o jurídico (Etapa 32)"| E32
+
+    E13 -->|"Defesa Deferida ou Indeferida? Deferida (Etapa 14)"| E14
+    E13 -->|"Defesa Deferida ou Indeferida? Indeferida (Etapa 29)"| E29
+    E13 -->|"Defesa Deferida ou Indeferida? Enviar para Gerente (Etapa 11)"| E11
+    E13 -->|"Defesa Deferida ou Indeferida? Enviar para Jurídico (Etapa 32)"| E32
+
+    E14 -->|"Sempre"| E15["Gerente gera a multa<br/>Etapa 15"]
+
+    E15 -->|"Sempre(Etapa 16)"| E16["Retorno do AR<br/>Etapa 16"]
+
+    E16 -->|"Retorno do AR: Pendente/Não Voltou (Etapa 30)"| E30["Gerente Localiza o AR<br/>Etapa 30"]
+    E16 -->|"Retorno do AR: Não Efetivado (Etapa 17)"| E17["Gerência Gera o edital<br/>Etapa 17"]
+    E16 -->|"Retorno do AR: Efetivado (Etapa 18)"| E18["Solicitar Defesa ou R...<br/>Etapa 18"]
+
+    E17 -->|"Sempre(Etapa 18)"| E18
+
+    E18 -->|"Checklist preenchido (Etapa 19)"| E19["Envio de Defesa ou P...<br/>Etapa 19"]
+    E18 -->|"Checklist pendente (Etapa 20)"| E20["Realizar Pagamento (...)<br/>Etapa 20"]
+
+    E19 -->|"Checklist preenchido (Etapa 23)"| E23["Parecer Jurídico<br/>Etapa 23"]
+    E19 -->|"Checklist pendente (Etapa 20)"| E20
+
+    E20 -->|"Sempre(Etapa 31)"| E31["Comprovante Pagamento<br/>Etapa 31"]
+
+    E23 -->|"Enviar para: Encaminhar a Gerencia (Etapa 22)"| E22["Gerente Convocado pela...<br/>Etapa 22"]
+    E23 -->|"Enviar para: Devolver ao Fiscal (Etapa 21)"| E21["Fiscal Convocado pela...<br/>Etapa 21"]
+    E23 -->|"Enviar para: Secretário para Despacho (Etapa 24)"| E24["Secretário Despacha...<br/>Etapa 24"]
+
+    E24 --> E25["Gerente Cumpre o Decreto...<br/>Etapa 25"]
+
+    E25 -->|"Sempre(Etapa 26)"| E26["Fazenda Gera a Multa<br/>Etapa 26"]
+
+    E26 -->|"Sempre(Etapa 27)"| E27["Devolvimento para o ...<br/>Etapa 27"]
+
+    E27 -->|"Checklist preenchido(Etapa 19)"| E19
+    E27 -->|"Checklist Pendente(Etapa 20)"| E20
+
+    E30 -->|"Destino: Não Efetivado<br/>(Etapa 17)"| E17
+    E30 -->|"Destino: Efetivado<br/>(Etapa 18)"| E18
+
+    E31 -->|"Realizou o Pagamento? Não (Etapa 28)"| E28["Certificação do Vencimento<br/>Etapa 28"]
+    E31 -->|"Realizou o Pagamento? Enviar para o Jurídico<br/>(Etapa 32)"| E32
+
+    style E1 fill:#2d2d2d,color:#fff
+    style E14 fill:#2d2d2d,color:#fff
+    style E15 fill:#2d2d2d,color:#fff
+    style E29 fill:#2d2d2d,color:#fff
+    style E32 fill:#2d2d2d,color:#fff
