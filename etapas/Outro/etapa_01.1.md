@@ -7,9 +7,9 @@ Cria uma nova solicitação
 ## Condições de Saída
 | Condição | Destino |
 |----------|---------|
-| Não possui Decreto | → Etapa 2 (Defesa ou Dilação de Prazo) |
-| Possui Decreto (Sim) | → Etapa 14 (Auto de Infração) |
-| Processo já Existente | → Etapa 14 (Auto de Infração) |
+| So avança para essa etapa se anexar o pdf e o campo Decorrente de Decreto estiver como (Não) | → Etapa 16|
+| So avança para essa etapa se anexar o pdf e o campo Decorrente de Decreto estiver como (Sim) | → Etapa 14 (Auto de Infração) |
+| So avança para essa etapa se anexar o pdf e o campo Processo já existente? estiver como (Sim) | → Etapa 14 (Auto de Infração) |
 
 ## Campos da Tela
 Ao clicar em nova solicitação ele abre a telinha pedindo o primeiro o CPF/CNPJ do solicitante (Verifica se o cpf/cnpj pode existir com base na conta matematica), se não existir na base, ele pede o nome do solicitante e o email se tiver(email não é obrigatório).
@@ -72,5 +72,15 @@ Quarto formulario: Infrações
     - Processo já Existente?(sim ou não, se sim anexa ele)
 
 ## Documentos Gerados
-    Apos inserir todos os dados vai gerar um documento chamado Notificação Preliminar - Protocolo Nº [NUMERO_DO_PROTOCOLO], com os dados preenchidos acima. O ducumento deve ser igual ao modelo "Modelo - Notificação Preliminar.pdf". O usuário deve ter a opção de baixar o documento em PDF ou DOC.
+Apos inserir todos os dados vai gerar um documento chamado Notificação Preliminar - Protocolo Nº [NUMERO_DO_PROTOCOLO], com os dados preenchidos acima. O ducumento deve ser igual ao modelo "Modelo - Notificação Preliminar.pdf". O usuário deve ter a opção de baixar o documento em PDF ou DOC.
     Cada um dos "Quais dispositivos legais foram transgredidos?" selecionados vai gerar um Numero de Notificação DIferente e uma descrição diferente, e antes de gerar o documeto deve pedir os valores da Multa para cada um deles. 
+
+## Observação
+Quando em "Quais dispositivos legais foram transgredidos?" os tipos:
+- Reincidência na Inexistência de Cercamento
+- Reincidência na Inexistência de passeio
+Vai pedir para preencher o campo: N° Auto de Infração expedido anteriormente e Data do Auto de Infração expedido anteriormente
+para preencher os campos no texto:
+"Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa
+respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº
+[NÚMERO DO AUTO DE INFRAÇÃO] em [DATA DO AUTO DE INFRAÇÃO]."

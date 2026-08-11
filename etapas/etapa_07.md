@@ -4,14 +4,15 @@
 O fiscal analisa a defesa sem dilação e verifica se houve cumprimento.
 
 ## Condições de Saída
+Vai depender doque foi preenchido na etapa 2
 | Condição | Destino |
 |----------|---------|
-| Houve Cumprimento? Sim | → Etapa 29 (Fiscal Emite Certidão) |
-| Houve Cumprimento? Não | → Etapa 14 (Auto de Infração) |
+| Houve Cumprimento? Atendida | → Etapa 10 (Certidão Sem Defesa) |
+| Houve Cumprimento? Vencida | → Etapa 10 (Certidão Sem Defesa) |
 | Enviar para o Jurídico | → Etapa 32 (Consulta no Jurídico) |
 
 ## Campos da Tela
-<!-- PREENCHA AQUI -->
+Aparece se foi cumprida ou não e pergunta se quer processeguir ou enviar para o Juridico.
 
 ## Documentos Gerados
 <!-- PREENCHA AQUI -->

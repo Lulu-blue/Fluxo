@@ -1,16 +1,17 @@
 # Etapa 4 — Comprovante Propriedade
 
 ## Descrição
-Etapa de verificação do comprovante de propriedade. O checklist determina se segue para análise de dilação ou análise da defesa sem dilação.
+Etapa de verificação do comprovante de propriedade. 
 
 ## Condições de Saída
 | Condição | Destino |
-|----------|---------|
-| Checklist preenchido | → Etapa 5 (Análise Dilação de Prazo) |
-| Checklist pendente | → Etapa 7 (Análise da Defesa Sem Dilação) |
+| Defesa → vai para envio da 1ª defesa etapa 3
+| Dilação de prazo → vai para analise dilação de prazo etapa 5
+| Atendida → vai para analise de defesa sem dilação etapa 7 (em casos de fallback)
+| Não atendido e vencido → etapa 7 (em casos de fallback)
 
 ## Campos da Tela
-<!-- PREENCHA AQUI -->
+Anexa o comprovante de Propriedade
 
 ## Checklist
 <!-- PREENCHA AQUI -->

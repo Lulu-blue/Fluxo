@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,8 +10,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
-    
+
     <div class="dashboard-layout">
         <!-- Menu Lateral -->
         <aside class="sidebar" id="sidebar">
@@ -20,11 +22,21 @@
             </div>
             <nav class="sidebar-nav">
                 <a href="#" class="active" data-page="solicitacoes">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                    </svg>
                     Solicitações
                 </a>
                 <a href="#" data-page="configuracoes">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
                     Configurações
                 </a>
             </nav>
@@ -37,7 +49,11 @@
                     </div>
                 </div>
                 <button id="btnLogout" class="btn-logout">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
                     Sair
                 </button>
             </div>
@@ -53,16 +69,28 @@
                 </div>
                 <div class="header-actions">
                     <button class="btn-icon" id="btnToggleFilters" title="Mostrar/Esconder Filtros">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                        </svg>
                         Filtros
                     </button>
                     <button class="btn-secondary" id="btnExportCSV">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
                         Exportar CSV
                     </button>
                     <button class="btn-primary" id="btnNovaSolicitacao">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        Nova Solicitação
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        Novo Processo
                     </button>
                 </div>
             </header>
@@ -136,7 +164,8 @@
                         </div>
                         <div class="filter-group">
                             <label for="filtroDescricao">Descrição</label>
-                            <input type="text" id="filtroDescricao" placeholder="Buscar na descrição..." autocomplete="off">
+                            <input type="text" id="filtroDescricao" placeholder="Buscar na descrição..."
+                                autocomplete="off">
                         </div>
                         <div class="filter-group">
                             <label for="filtroCriador">Criado por</label>
@@ -148,11 +177,19 @@
                     </div>
                     <div class="filters-actions">
                         <button class="btn-filter-apply" id="btnAplicarFiltros">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
                             Pesquisar
                         </button>
                         <button class="btn-filter-clear" id="btnLimparFiltros">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
                             Limpar Filtros
                         </button>
                     </div>
@@ -186,9 +223,12 @@
 
                     <!-- Estado vazio -->
                     <div class="empty-state" id="emptyState" style="display: none;">
-                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                        </svg>
                         <h3>Nenhuma solicitação encontrada</h3>
-                        <p>Crie uma nova solicitação ou ajuste os filtros de busca.</p>
+                        <p>Crie um novo processo ou ajuste os filtros de busca.</p>
                     </div>
 
                     <!-- Loading -->
@@ -201,13 +241,19 @@
                 <!-- Paginação -->
                 <div class="pagination" id="pagination">
                     <button class="btn-pagination" id="btnPrevPage" disabled>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
                         Anterior
                     </button>
                     <span class="pagination-info" id="paginationInfo">Página 1 de 1</span>
                     <button class="btn-pagination" id="btnNextPage" disabled>
                         Próxima
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="9 18 15 12 9 6" />
+                        </svg>
                     </button>
                 </div>
             </main>
@@ -216,7 +262,16 @@
             <main class="painel-content" id="secao-configuracoes" style="display: none;">
                 <div class="perfil-card">
                     <div class="perfil-header-banner">
-                        <div class="perfil-avatar-circle" id="perfilAvatarBox">FP</div>
+                        <div class="perfil-avatar-wrapper" onclick="document.getElementById('perfilAvatarInput').click()" title="Clique para alterar foto">
+                            <div class="perfil-avatar-circle" id="perfilAvatarBox">FP</div>
+                            <div class="perfil-avatar-overlay">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                                    <circle cx="12" cy="13" r="4"/>
+                                </svg>
+                            </div>
+                            <input type="file" id="perfilAvatarInput" accept="image/*" style="display:none;" onchange="alterarFotoPerfil(this)">
+                        </div>
                         <div class="perfil-header-info">
                             <h2 id="perfilHeaderNome">Meu Perfil</h2>
                             <p id="perfilHeaderCargo">Fiscal de Postura</p>
@@ -247,8 +302,43 @@
 
                         <div class="form-group fg-full" style="margin-top: 10px;">
                             <button class="btn-primary" onclick="salvarDadosPerfil()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                                    <polyline points="17 21 17 13 7 13 7 21" />
+                                    <polyline points="7 3 7 8 15 8" />
+                                </svg>
                                 Salvar Alterações
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="perfil-card" style="margin-top: 24px;">
+                    <div class="perfil-header-banner">
+                        <div class="perfil-header-info">
+                            <h2 style="color: #ffffff; font-size: 1.25rem;">Segurança e Alteração de Senha</h2>
+                            <p style="color: #cbd5e1;">Atualize sua senha de acesso ao sistema SEMAC</p>
+                        </div>
+                    </div>
+
+                    <div class="perfil-form-grid">
+                        <div class="form-group fg-medium">
+                            <label for="perfilNovaSenha">Nova Senha</label>
+                            <input type="password" id="perfilNovaSenha" placeholder="Digite a nova senha (mín. 6 caracteres)">
+                        </div>
+                        <div class="form-group fg-medium">
+                            <label for="perfilConfirmaSenha">Confirmar Nova Senha</label>
+                            <input type="password" id="perfilConfirmaSenha" placeholder="Repita a nova senha">
+                        </div>
+
+                        <div class="form-group fg-full" style="margin-top: 10px;">
+                            <button class="btn-primary" onclick="alterarSenhaUsuario()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                                Atualizar Senha
                             </button>
                         </div>
                     </div>
@@ -258,90 +348,68 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- MODAL: Nova Solicitação (Etapa 1) — Wizard de 5 passos      -->
+    <!-- MODAL: Novo Processo (Etapa 1) — Wizard de 5 passos      -->
     <!-- ============================================================ -->
     <div class="modal-overlay" id="modalNovaSolicitacao">
         <div class="modal-container">
             <!-- Header do Modal -->
             <div class="modal-header">
                 <div class="modal-title-area">
-                    <h2>Nova Solicitação</h2>
-                    <span class="modal-subtitle" id="modalStepLabel">Passo 1 de 5 — Solicitante</span>
+                    <h2>Novo Processo</h2>
+                    <span class="modal-subtitle" id="modalStepLabel">Passo 1 de 5 — Contribuinte</span>
                 </div>
                 <button class="modal-close" id="btnFecharModal" title="Fechar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                 </button>
             </div>
 
             <!-- Progress Bar -->
             <div class="wizard-progress">
-                <div class="progress-step active" data-step="1"><span>1</span><small>Solicitante</small></div>
+                <div class="progress-step active" data-step="1"><span>1</span><small>Contribuinte</small></div>
                 <div class="progress-line"></div>
-                <div class="progress-step" data-step="2"><span>2</span><small>Contribuinte</small></div>
+                <div class="progress-step" data-step="2"><span>2</span><small>Imóvel</small></div>
                 <div class="progress-line"></div>
-                <div class="progress-step" data-step="3"><span>3</span><small>Imóvel</small></div>
+                <div class="progress-step" data-step="3"><span>3</span><small>Fiscal</small></div>
                 <div class="progress-line"></div>
-                <div class="progress-step" data-step="4"><span>4</span><small>Fiscal</small></div>
+                <div class="progress-step" data-step="4"><span>4</span><small>Infrações</small></div>
                 <div class="progress-line"></div>
-                <div class="progress-step" data-step="5"><span>5</span><small>Infrações</small></div>
+                <div class="progress-step" data-step="5"><span>5</span><small>Relatório Fiscal</small></div>
             </div>
 
             <!-- Corpo do Modal com Scroll -->
             <div class="modal-body">
 
-                <!-- PASSO 1: Solicitante -->
+                <!-- PASSO 1: Dados do Contribuinte -->
                 <div class="wizard-step" id="step1" style="display: block;">
-                    <div class="step-section">
-                        <h3>Identificação do Solicitante</h3>
-                        <p class="step-desc">Informe o CPF ou CNPJ do solicitante. Se já estiver cadastrado, os dados serão preenchidos automaticamente.</p>
-                        <div class="form-row">
-                            <div class="form-group fg-large">
-                                <label for="solCpfCnpj">CPF / CNPJ <span class="required">*</span></label>
-                                <div class="input-with-action">
-                                    <input type="text" id="solCpfCnpj" placeholder="000.000.000-00" maxlength="18" autocomplete="off">
-                                    <button class="btn-inline" id="btnBuscarSolicitante" title="Buscar">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                    </button>
-                                </div>
-                                <span class="input-feedback" id="solCpfFeedback"></span>
-                            </div>
-                        </div>
-                        <div id="solDadosExtras" style="display:none;">
-                            <div class="form-row">
-                                <div class="form-group fg-large">
-                                    <label for="solNome">Nome do Solicitante <span class="required">*</span></label>
-                                    <input type="text" id="solNome" placeholder="Nome completo">
-                                </div>
-                                <div class="form-group fg-medium">
-                                    <label for="solEmail">E-mail <span class="optional">(opcional)</span></label>
-                                    <input type="email" id="solEmail" placeholder="email@exemplo.com">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Anexo BETHA -->
                     <div class="step-section">
                         <h3>Anexo Planilha em XLSX da BETHA</h3>
-                        <p class="step-desc">Importe um arquivo XLSX, CSV ou DOC da BETHA para preencher automaticamente os dados do contribuinte e imóvel.</p>
+                        <p class="step-desc">Importe um arquivo XLSX, CSV ou DOC da BETHA para preencher automaticamente
+                            os dados do contribuinte e imóvel.</p>
                         <div class="upload-area" id="uploadAreaBetha">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                            <p>Arraste o arquivo aqui ou <label for="inputBetha" class="upload-link">clique para selecionar</label></p>
-                            <small>Formatos aceitos: .xlsx, .csv, .doc, .docx</small>
-                            <input type="file" id="inputBetha" accept=".xlsx,.csv,.doc,.docx" hidden>
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
+                                stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                            <p>Arraste o arquivo aqui ou <label for="inputBetha" class="upload-link">clique para
+                                    selecionar</label></p>
+                            <small>Formatos aceitos: .xls, .xlsx, .csv, .doc, .docx</small>
+                            <input type="file" id="inputBetha" accept=".xls,.xlsx,.csv,.doc,.docx" hidden>
                         </div>
                         <div class="upload-file-info" id="bethaFileInfo" style="display:none;">
                             <span class="file-name" id="bethaFileName"></span>
                             <button class="btn-remove-file" id="btnRemoveBetha" title="Remover">✕</button>
                         </div>
                     </div>
-                </div>
-
-                <!-- PASSO 2: Dados do Contribuinte -->
-                <div class="wizard-step" id="step2" style="display: none;">
                     <div class="step-section">
                         <h3>Dados do Contribuinte</h3>
-                        <p class="step-desc">Informações do contribuinte conforme o modelo da Notificação Preliminar.</p>
+                        <p class="step-desc">Informações do contribuinte conforme o modelo da Notificação Preliminar.
+                        </p>
                         <div class="form-row">
                             <div class="form-group fg-large">
                                 <label for="contNome">Nome do Contribuinte <span class="required">*</span></label>
@@ -350,6 +418,7 @@
                             <div class="form-group fg-medium">
                                 <label for="contCpfCnpj">CPF/CNPJ do Contribuinte</label>
                                 <input type="text" id="contCpfCnpj" placeholder="000.000.000-00" maxlength="18">
+                                <div id="contFeedback" class="field-feedback"></div>
                             </div>
                         </div>
                         <div class="form-row">
@@ -385,11 +454,12 @@
                     </div>
                 </div>
 
-                <!-- PASSO 3: Dados do Imóvel -->
-                <div class="wizard-step" id="step3" style="display: none;">
+                <!-- PASSO 2: Dados do Imóvel -->
+                <div class="wizard-step" id="step2" style="display: none;">
                     <div class="step-section">
                         <h3>Dados do Imóvel</h3>
-                        <p class="step-desc">Informações do imóvel fiscalizado. A inscrição será decomposta automaticamente em Zona, Setor, Quadra e Lote.</p>
+                        <p class="step-desc">Informações do imóvel fiscalizado. A inscrição será decomposta
+                            automaticamente em Zona, Setor, Quadra e Lote.</p>
                         <div class="form-row">
                             <div class="form-group fg-small">
                                 <label for="imvCodigo">Código Reduzido</label>
@@ -398,6 +468,7 @@
                             <div class="form-group fg-large">
                                 <label for="imvInscricao">Inscrição do Imóvel</label>
                                 <input type="text" id="imvInscricao" placeholder="01.036.00181.00300.00000.0">
+                                <div id="imvFeedback" class="field-feedback"></div>
                             </div>
                         </div>
                         <!-- Campos decompostos (auto-preenchidos) -->
@@ -444,11 +515,12 @@
                     </div>
                 </div>
 
-                <!-- PASSO 4: Fiscal -->
-                <div class="wizard-step" id="step4" style="display: none;">
+                <!-- PASSO 3: Fiscal -->
+                <div class="wizard-step" id="step3" style="display: none;">
                     <div class="step-section">
                         <h3>Dados do Fiscal</h3>
-                        <p class="step-desc">Dados do fiscal responsável pela vistoria. Nome e matrícula são preenchidos automaticamente.</p>
+                        <p class="step-desc">Dados do fiscal responsável pela vistoria. Nome e matrícula são preenchidos
+                            automaticamente.</p>
                         <div class="form-row">
                             <div class="form-group fg-medium">
                                 <label for="fiscNome">Nome do Fiscal</label>
@@ -465,16 +537,24 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group fg-full">
-                                <label for="fiscDescricao">Descrição da Fiscalização <span class="optional">(opcional)</span></label>
-                                <textarea id="fiscDescricao" rows="3" placeholder="Descreva as observações da fiscalização..."></textarea>
+                                <label for="fiscDescricao">Descrição da Fiscalização <span
+                                        class="optional">(opcional)</span></label>
+                                <textarea id="fiscDescricao" rows="3"
+                                    placeholder="Descreva as observações da fiscalização..."></textarea>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group fg-full">
                                 <label>Imagens da Vistoria <span class="optional">(opcional)</span></label>
                                 <div class="upload-area upload-area-sm" id="uploadAreaImagens">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                                    <p>Arraste imagens ou <label for="inputImagens" class="upload-link">clique para selecionar</label></p>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
+                                        stroke-width="1.5">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                        <circle cx="8.5" cy="8.5" r="1.5" />
+                                        <polyline points="21 15 16 10 5 21" />
+                                    </svg>
+                                    <p>Arraste imagens ou <label for="inputImagens" class="upload-link">clique para
+                                            selecionar</label></p>
                                     <input type="file" id="inputImagens" accept="image/*" multiple hidden>
                                 </div>
                                 <div class="images-preview" id="imagesPreview"></div>
@@ -482,7 +562,8 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group fg-medium">
-                                <label for="fiscDecreto">Decorrente de Decreto de Notificação? <span class="required">*</span></label>
+                                <label for="fiscDecreto">Decorrente de Decreto de Notificação? <span
+                                        class="required">*</span></label>
                                 <select id="fiscDecreto">
                                     <option value="">Selecione...</option>
                                     <option value="nao">Não</option>
@@ -495,8 +576,13 @@
                                 <div class="form-group fg-full">
                                     <label>Anexo do Decreto de Notificação</label>
                                     <div class="upload-area upload-area-sm" id="uploadAreaDecreto">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                        <p><label for="inputDecreto" class="upload-link">Selecionar arquivo do decreto</label></p>
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
+                                            stroke-width="1.5">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                            <polyline points="14 2 14 8 20 8" />
+                                        </svg>
+                                        <p><label for="inputDecreto" class="upload-link">Selecionar arquivo do
+                                                decreto</label></p>
                                         <input type="file" id="inputDecreto" accept=".pdf,.doc,.docx,.jpg,.png" hidden>
                                     </div>
                                     <div class="upload-file-info" id="decretoFileInfo" style="display:none;">
@@ -509,11 +595,12 @@
                     </div>
                 </div>
 
-                <!-- PASSO 5: Infrações -->
-                <div class="wizard-step" id="step5" style="display: none;">
+                <!-- PASSO 4: Infrações -->
+                <div class="wizard-step" id="step4" style="display: none;">
                     <div class="step-section">
                         <h3>Infrações</h3>
-                        <p class="step-desc">Selecione os dispositivos legais transgredidos. Cada seleção gerará uma notificação com número próprio.</p>
+                        <p class="step-desc">Selecione os dispositivos legais transgredidos. Cada seleção gerará uma
+                            notificação com número próprio.</p>
 
                         <div class="form-row">
                             <div class="form-group fg-medium">
@@ -543,22 +630,92 @@
                         </div>
 
                         <div class="form-group fg-full" style="margin-top: 16px;">
-                            <label>Quais dispositivos legais foram transgredidos? <span class="required">*</span></label>
+                            <label>Quais dispositivos legais foram transgredidos? <span
+                                    class="required">*</span></label>
                             <div class="infracoes-list" id="infracoesList">
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000232"><span class="cb-label">Falta de limpeza e conservação de imóvel não edificado</span><span class="cb-code">120000232</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000211"><span class="cb-label">Inexistência de Cercamento</span><span class="cb-code">120000211</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000226"><span class="cb-label">Inexistência de passeio</span><span class="cb-code">120000226</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000228"><span class="cb-label">Reincidência na inexistência de cercamento e/ou passeio</span><span class="cb-code">120000228</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000227"><span class="cb-label">Reincidência na inexistência de passeio</span><span class="cb-code">120000227</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000229"><span class="cb-label">Reconstrução de/ou reparo de muro</span><span class="cb-code">120000229</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000240"><span class="cb-label">Reconstrução e/ou reparo de passeio</span><span class="cb-code">120000240</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000233"><span class="cb-label">Limpeza de Quintal</span><span class="cb-code">120000233</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000237"><span class="cb-label">Obstáculos em calçadas</span><span class="cb-code">120000237</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000239"><span class="cb-label">Água servida</span><span class="cb-code">120000239</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000236"><span class="cb-label">Estabelecimento sem Alvará</span><span class="cb-code">120000236</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000234"><span class="cb-label">Reparos por concessionárias</span><span class="cb-code">120000234</span></label>
-                                <label class="checkbox-card"><input type="checkbox" name="infracao" value="120000230"><span class="cb-label">Piso Tátil</span><span class="cb-code">120000230</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000232"><span class="cb-label">Falta de limpeza e conservação de
+                                        imóvel não edificado</span><span class="cb-code">120000232</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000211"><span class="cb-label">Inexistência de Cercamento</span><span
+                                        class="cb-code">120000211</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000226"><span class="cb-label">Inexistência de passeio</span><span
+                                        class="cb-code">120000226</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000228"><span class="cb-label">Reincidência na inexistência de
+                                        cercamento e/ou passeio</span><span class="cb-code">120000228</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000227"><span class="cb-label">Reincidência na inexistência de
+                                        passeio</span><span class="cb-code">120000227</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000229"><span class="cb-label">Reconstrução de/ou reparo de
+                                        muro</span><span class="cb-code">120000229</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000240"><span class="cb-label">Reconstrução e/ou reparo de
+                                        passeio</span><span class="cb-code">120000240</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000233"><span class="cb-label">Limpeza de Quintal</span><span
+                                        class="cb-code">120000233</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000237"><span class="cb-label">Obstáculos em calçadas</span><span
+                                        class="cb-code">120000237</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000239"><span class="cb-label">Água servida</span><span
+                                        class="cb-code">120000239</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000236"><span class="cb-label">Estabelecimento sem Alvará</span><span
+                                        class="cb-code">120000236</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000234"><span class="cb-label">Reparos por concessionárias</span><span
+                                        class="cb-code">120000234</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000230"><span class="cb-label">Piso Tátil</span><span
+                                        class="cb-code">120000230</span></label>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PASSO 5: Relatório Fiscal -->
+                <div class="wizard-step" id="step5" style="display: none;">
+                    <div class="step-section">
+                        <h3>Relatório Fiscal</h3>
+                        <p class="step-desc">Preencha as informações adicionais para o Relatório Fiscal e edite o texto base se necessário.</p>
+
+                        <div class="form-row">
+                            <div class="form-group fg-large">
+                                <label for="relAtendimento">Para atendimento</label>
+                                <input type="text" id="relAtendimento" class="form-input" placeholder="Ex: Ministério Público">
+                            </div>
+                            <div class="form-group fg-large">
+                                <label for="relAssunto">Assunto (Título da denúncia)</label>
+                                <input type="text" id="relAssunto" class="form-input" placeholder="Ex: Lote vago com mato alto">
+                            </div>
+                            <div class="form-group fg-medium">
+                                <label for="relPA">PA (Opcional)</label>
+                                <input type="text" id="relPA" class="form-input" placeholder="Ex: 1234/2026">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top:16px;">
+                            <label for="relTextoVistoria">Texto do Relatório</label>
+                            <textarea id="relTextoVistoria" class="form-input" rows="4"></textarea>
+                        </div>
+
+                        <div class="form-row" style="margin-top: 20px;">
+                            <button type="button" class="btn-primary" id="btnAbrirEditorRelatorio" style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                                Visualizar / Editar Relatório Fiscal
+                            </button>
+                            <span class="field-feedback" id="feedbackEditorRelatorio" style="margin-left: 12px; align-self: center;"></span>
+                        </div>
+
+                        <div id="previewRelatorioContainer" style="margin-top: 24px; padding: 20px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow-y: auto; max-height: 400px; display: none;">
+                            <!-- O preview do relatório será gerado via JS aqui -->
                         </div>
                     </div>
                 </div>
@@ -568,22 +725,72 @@
             <!-- Footer do Modal -->
             <div class="modal-footer">
                 <button class="btn-secondary" id="btnWizardVoltar" style="display:none;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
                     Voltar
                 </button>
                 <div style="flex:1;"></div>
                 <button class="btn-primary" id="btnWizardAvancar">
                     Avançar
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
                 </button>
                 <button class="btn-primary btn-success" id="btnWizardFinalizar" style="display:none;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                    Finalizar Solicitação
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Gerar Notificação
                 </button>
             </div>
         </div>
     </div>
-    <!-- FIM MODAL -->
+    <!-- FIM MODAL NOVO PROCESSO -->
+
+    <!-- ============================================================ -->
+    <!-- MODAL: Editor de Relatório Fiscal (WYSIWYG)              -->
+    <!-- ============================================================ -->
+    <div class="modal-overlay" id="modalEditorRelatorio" style="display: none; z-index: 2000;">
+        <div class="modal-container modal-editor-container">
+            <div class="modal-header">
+                <div class="modal-title-area">
+                    <h2>Relatório Fiscal — Edição</h2>
+                    <span class="modal-subtitle">Edite o documento diretamente e depois baixe-o</span>
+                </div>
+                <button class="modal-close" id="btnFecharEditorRelatorio" title="Fechar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body modal-editor-body">
+                <!-- Papel A4 editável -->
+                <div id="editorRelatorio" contenteditable="true" class="editor-documento-a4"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btnEditorRelatorioVoltar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Voltar ao Formulário
+                </button>
+                <div style="flex:1;"></div>
+                <button class="btn-primary btn-success" id="btnBaixarRelatorioDoc">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Baixar Relatório (.doc)
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- FIM MODAL EDITOR RELATÓRIO -->
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -592,4 +799,5 @@
     <script src="assets/js/solicitacoes.js"></script>
     <script src="assets/js/nova-solicitacao.js"></script>
 </body>
+
 </html>

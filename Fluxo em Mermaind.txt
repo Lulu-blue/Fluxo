@@ -7,22 +7,23 @@ flowchart TD
     E1 -->|"Possui Decreto? Sim (Etapa 14)"| E14["Auto de Infração<br/>Etapa 14"]
     E1 -->|"Processo já Existente? Sim (Etapa 14)"| E14
 
-    E2 -->|"Checklist: preenchido (Etapa 4)"| E4["Comprovante Propriedade<br/>Etapa 4"]
-    E2 -->|"Checklist: pendente (Etapa 3)"| E3["Envio da 1ª Defesa<br/>Etapa 3"]
+    E2 -->|"Defesa ou Dilação (Etapa 4)"| E4["Comprovante Propriedade<br/>Etapa 4"]
+    E2 -->|"Atendido ou Vencido (Etapa 7)"| E7["Análise da Defesa S...<br/>Etapa 7"]
 
     E3 -->|"Checklist: preenchido (Etapa 13)"| E13["Fiscal Analisa a Defesa<br/>Etapa 13"]
     E3 -->|"Checklist: pendente (Etapa 10)"| E10["Certidão Sem Defesa<br/>Etapa 10"]
 
-    E4 -->|"Checklist: preenchido (Etapa 5)"| E5["Análise Dilação de Prazo<br/>Etapa 5"]
-    E4 -->|"Checklist: pendente (Etapa 7)"| E7["Análise da Defesa S...<br/>Etapa 7"]
+    E4 -->|"Checklist: preenchido, Defesa (Etapa 3)"| E3["Envio da 1ª Defesa<br/>Etapa 3"]
+    E4 -->|"Checklist: preenchido, Dilação (Etapa 5)"| E5["Análise Dilação de Prazo<br/>Etapa 5"]
+    E4 -->|"Fallback (Etapa 7)"| E7["Análise da Defesa S...<br/>Etapa 7"]
 
     E5 -->|"Dilação de Prazo? Dilação Aceita (Etapa 6)"| E6["Defesa Com Dilação<br/>Etapa 6"]
     E5 -->|"Dilação de Prazo? Dilação Negada (Etapa 9)"| E9["Envio da Defesa Sem...<br/>Etapa 9"]
 
     E6 -->|"Sempre (Etapa 8)"| E8["Fiscal Analisa a Defesa<br/>Etapa 8"]
 
-    E7 -->|"Houve Cumprimento? Sim (Etapa 29)"| E29["Fiscal Emite Certidão<br/>Etapa 29"]
-    E7 -->|"Houve Cumprimento? Não (Etapa 14)"| E14
+    E7 -->|"Houve Cumprimento? Sim (Etapa 10)"| E10
+    E7 -->|"Houve Cumprimento? Não (Etapa 10)"| E10
     E7 -->|"Houve Cumprimento? Enviar para o Jurídico (Etapa 32)"| E32["Consulta no Jurídico<br/>Etapa 32"]
 
     E8 -->|"Defesa deferida ou indeferida? deferida (Etapa 29)"| E29

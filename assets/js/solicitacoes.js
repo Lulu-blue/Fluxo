@@ -50,6 +50,63 @@ const STATUS_COLORS = {
     cancelado: '#ef4444'
 };
 
+// ── Helpers para processos com notificações independentes ─────
+function obterNotificacoesProcesso(item) {
+    if (item?.notificacoes && Array.isArray(item.notificacoes)) return item.notificacoes;
+    return item?.dados?.campos?.etapa2?.notificacoes || [];
+}
+
+function numeroEtapaNotificacao(n) {
+    if (n.etapas?.numero) return parseInt(n.etapas.numero, 10);
+    if (n.etapa_atual_id) {
+        // Fallback: se não vier o join de etapas, assume mapeamento direto (em geral id == numero)
+        return parseInt(n.etapa_atual_id, 10);
+    }
+    return parseInt(n.etapa_atual || 2, 10);
+}
+
+function calcularEtapaProcesso(item) {
+    const notificacoes = obterNotificacoesProcesso(item);
+    if (!notificacoes || notificacoes.length === 0) {
+        return parseInt(item?.etapas?.numero || item?.etapa_atual_id || 1, 10);
+    }
+
+    const ativas = notificacoes.filter(n => n.status !== 'atendida');
+    if (ativas.length === 0) return null;
+
+    return ativas.reduce((maior, n) => {
+        const etapa = numeroEtapaNotificacao(n);
+        return etapa > maior ? etapa : maior;
+    }, 0) || parseInt(item?.etapas?.numero || item?.etapa_atual_id || 1, 10);
+}
+
+function montarLinkEtapa(item) {
+    const notificacoes = obterNotificacoesProcesso(item);
+    const etapaNumero = calcularEtapaProcesso(item);
+
+    if (!notificacoes || notificacoes.length === 0) {
+        return `etapa.html?processo=${item.id}&etapa=${etapaNumero || item.etapas?.numero || 1}`;
+    }
+
+    const etapasAtivas = new Set(
+        notificacoes
+            .filter(n => n.status !== 'atendida')
+            .map(n => numeroEtapaNotificacao(n))
+    );
+
+    if (etapasAtivas.size > 1) {
+        // Notificações em etapas diferentes: abre sem índice para mostrar o modal de seleção
+        return `etapa.html?processo=${item.id}`;
+    }
+
+    const primeiraAtiva = notificacoes.findIndex(n => n.status !== 'atendida');
+    if (primeiraAtiva >= 0) {
+        return `etapa.html?processo=${item.id}&notificacao=${primeiraAtiva}`;
+    }
+
+    return `etapa.html?processo=${item.id}`;
+}
+
 // ── Estado da aplicação ─────────────────────────────────────
 let currentPage = 1;
 const pageSize = 20;
@@ -80,84 +137,81 @@ async function verificarSessao() {
             window.location.href = 'index.html';
             return;
         }
-        // Buscar dados do usuário na tabela profiles (ou usuarios como fallback)
-        let tabelaAlvo = 'profiles';
-        let { data: usuario, error: errProf } = await supabaseClient
+        // Buscar dados do usuário na tabela profiles
+        let { data: usuario } = await supabaseClient
             .from('profiles')
-            .select('id, nome, full_name, cargo, role, matricula, cpf, auth_id, email')
+            .select('*')
             .eq('auth_id', session.user.id)
             .maybeSingle();
-
-        if (errProf || !usuario) {
-            let resFb = await supabaseClient
-                .from('usuarios')
-                .select('id, nome, cargo, matricula, cpf, auth_id')
-                .eq('auth_id', session.user.id)
-                .maybeSingle();
-            if (resFb.data) {
-                usuario = resFb.data;
-                tabelaAlvo = 'usuarios';
-            }
-        }
 
         if (!usuario && session.user.email) {
             const cpfLimpo = session.user.email.split('@')[0].replace(/\D/g, '');
             if (cpfLimpo) {
                 let res = await supabaseClient
                     .from('profiles')
-                    .select('id, nome, full_name, cargo, role, matricula, cpf, auth_id, email')
+                    .select('*')
                     .eq('cpf', cpfLimpo)
                     .maybeSingle();
-                if (!res.data) {
-                    res = await supabaseClient
-                        .from('usuarios')
-                        .select('id, nome, cargo, matricula, cpf, auth_id')
-                        .eq('cpf', cpfLimpo)
-                        .maybeSingle();
-                    if (res.data) tabelaAlvo = 'usuarios';
-                }
                 if (!res.data && cpfLimpo.length === 11) {
                     const cpfFormatado = cpfLimpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
                     res = await supabaseClient
                         .from('profiles')
-                        .select('id, nome, full_name, cargo, role, matricula, cpf, auth_id, email')
+                        .select('*')
                         .eq('cpf', cpfFormatado)
                         .maybeSingle();
-                    if (!res.data) {
-                        res = await supabaseClient
-                            .from('usuarios')
-                            .select('id, nome, cargo, matricula, cpf, auth_id')
-                            .eq('cpf', cpfFormatado)
-                            .maybeSingle();
-                        if (res.data) tabelaAlvo = 'usuarios';
-                    }
                 }
                 usuario = res.data;
                 if (usuario && !usuario.auth_id) {
                     await supabaseClient
-                        .from(tabelaAlvo)
+                        .from('profiles')
                         .update({ auth_id: session.user.id })
                         .eq('id', usuario.id);
                 }
             }
         }
 
+        // Se ainda não existir perfil no banco, criar automaticamente para o usuário autenticado
+        if (!usuario && session.user) {
+            const cpfLimpo = session.user.email ? session.user.email.split('@')[0].replace(/\D/g, '') : '';
+            const cpfFormatado = cpfLimpo.length === 11
+                ? cpfLimpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                : (cpfLimpo || '000.000.000-00');
+
+            const novoPerfil = {
+                auth_id: session.user.id,
+                cpf: cpfFormatado,
+                nome: 'Fiscal de Postura',
+                cargo: 'Fiscal de Postura',
+                email: session.user.email
+            };
+
+            const { data: criado } = await supabaseClient
+                .from('profiles')
+                .insert([novoPerfil])
+                .select()
+                .maybeSingle();
+
+            if (criado) {
+                usuario = criado;
+            } else {
+                // Caso não retorne por inserção, cria objeto em memória
+                usuario = novoPerfil;
+            }
+        }
+
         if (usuario) {
-            currentUserId = usuario.id;
+            currentUserId = usuario.id || session.user.id;
             window.currentUserProfile = usuario;
-            window.tabelaPerfilAlvo = tabelaAlvo;
-            const nomeExibicao = usuario.nome || usuario.full_name || 'Usuário';
+            window.tabelaPerfilAlvo = 'profiles';
+            const nomeExibicao = usuario.nome || 'Usuário';
             const elUserName = document.getElementById('userName');
             if (elUserName) elUserName.textContent = nomeExibicao;
 
             const elMatricula = document.getElementById('userMatricula');
             if (elMatricula) elMatricula.textContent = "Matrícula: " + (usuario.matricula || '---');
 
-            const avatar = document.querySelector('.user-avatar');
-            if (avatar) {
-                const initials = nomeExibicao.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-                avatar.textContent = initials;
-            }
+            // Aplicar avatar customizado ou iniciais
+            aplicarAvatarUsuario(usuario, nomeExibicao);
 
             // Preencher campos da aba Configurações
             const pNome = document.getElementById('perfil-nome');
@@ -169,7 +223,13 @@ async function verificarSessao() {
             if (pEmail) pEmail.value = usuario.email || session.user.email || '';
             if (pCpf) pCpf.value = usuario.cpf || '';
             if (pMatricula) pMatricula.value = usuario.matricula || '';
-            if (pCargo) pCargo.value = usuario.cargo || usuario.role || 'Fiscal de Posturas';
+            if (pCargo) pCargo.value = usuario.cargo || 'Fiscal de Postura';
+
+            // Atualizar o banner no topo da aba de configurações se já estiver no DOM
+            const nomeHeader = document.getElementById('perfilHeaderNome');
+            const cargoHeader = document.getElementById('perfilHeaderCargo');
+            if (nomeHeader) nomeHeader.textContent = nomeExibicao;
+            if (cargoHeader) cargoHeader.textContent = usuario.cargo || 'Fiscal de Postura';
         }
     } catch (err) {
         console.error('Erro ao verificar sessão:', err);
@@ -193,8 +253,8 @@ async function carregarSolicitacoes() {
                 created_at,
                 updated_at,
                 fiscal_id,
-                solicitantes ( nome, cpf_cnpj ),
-                etapas ( numero, nome )
+                etapas ( numero, nome ),
+                notificacoes (*, etapas(numero))
             `, { count: 'exact' });
 
         // Aplicar filtros
@@ -204,7 +264,7 @@ async function carregarSolicitacoes() {
             query = query.ilike('numero_processo', `%${filtros.protocolo}%`);
         }
         if (filtros.nome) {
-            query = query.ilike('solicitantes.nome', `%${filtros.nome}%`);
+            query = query.ilike('dados->contribuinte->>nome', `%${filtros.nome}%`);
         }
         if (filtros.status) {
             query = query.eq('status', filtros.status);
@@ -268,14 +328,14 @@ function renderizarTabela(dados) {
     dados.forEach(item => {
         const tr = document.createElement('tr');
 
-        const cpfCnpj = item.solicitantes?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '—';
-        const nomeSolicitante = item.solicitantes?.nome || item.dados?.nome_solicitante || '—';
+        const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '—';
+        const nomeSolicitante = item.dados?.contribuinte?.nome || item.dados?.nome_solicitante || '—';
         const dataInicio = formatarData(item.created_at);
         const dataFinal = item.dados?.data_final ? formatarData(item.dados.data_final) : '—';
         const diasVenc = calcularDiasVencimento(item.dados?.data_final);
         const descricao = item.dados?.descricao || '—';
-        const etapaNumero = item.etapas?.numero || '—';
-        const etapaNome = item.etapas?.nome || ETAPAS_MAP[etapaNumero] || '—';
+        const etapaNumero = item.status === 'cancelado' ? '—' : (calcularEtapaProcesso(item) || '—');
+        const etapaNome = item.status === 'cancelado' ? 'Cancelado' : (etapaNumero === '—' ? 'Concluído' : (item.etapas?.nome || ETAPAS_MAP[etapaNumero] || '—'));
         const statusClass = item.status || 'em_aberto';
 
         tr.innerHTML = `
@@ -291,11 +351,11 @@ function renderizarTabela(dados) {
             </td>
             <td class="col-descricao" title="${descricao}">${truncar(descricao, 40)}</td>
             <td class="col-etapa">
-                <span class="etapa-badge">E${etapaNumero}</span>
+                ${etapaNumero === '—' ? '' : `<span class="etapa-badge">E${etapaNumero}</span>`}
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
             </td>
             <td class="col-acoes">
-                <button class="btn-abrir-processo" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo">
+                <button type="button" class="btn-abrir-processo" onclick="window.location.href='${montarLinkEtapa(item)}'" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Abrir
                 </button>
@@ -304,18 +364,14 @@ function renderizarTabela(dados) {
 
         // Linha de status com cor
         tr.style.borderLeft = `4px solid ${STATUS_COLORS[statusClass] || '#94a3b8'}`;
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) {
+                window.location.href = montarLinkEtapa(item);
+            }
+        });
 
         tabelaBody.appendChild(tr);
-    });
-
-    // Bind botões "Abrir Processo"
-    document.querySelectorAll('.btn-abrir-processo').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const processoId = btn.dataset.id;
-            const etapa = btn.dataset.etapa;
-            // Redireciona para a tela da etapa correspondente
-            window.location.href = `etapa.html?processo=${processoId}&etapa=${etapa}`;
-        });
     });
 }
 
@@ -343,8 +399,8 @@ function exportarCSV() {
     const headers = ['Protocolo', 'CPF/CNPJ', 'Nome do Solicitante', 'Data Início', 'Data Final', 'Dias p/ Vencimento', 'Descrição', 'Etapa'];
 
     const rows = dadosTabela.map(item => {
-        const cpfCnpj = item.solicitantes?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '';
-        const nome = item.solicitantes?.nome || item.dados?.nome_solicitante || '';
+        const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '';
+        const nome = item.dados?.contribuinte?.nome || item.dados?.nome_solicitante || '';
         const dataInicio = formatarData(item.created_at);
         const dataFinal = item.dados?.data_final ? formatarData(item.dados.data_final) : '';
         const diasVenc = calcularDiasVencimento(item.dados?.data_final);
@@ -508,13 +564,12 @@ function bindEventos() {
 
                 // Preencher header banner do perfil
                 if (window.currentUserProfile) {
-                    const box = document.getElementById('perfilAvatarBox');
                     const nomeHeader = document.getElementById('perfilHeaderNome');
                     const cargoHeader = document.getElementById('perfilHeaderCargo');
-                    const n = window.currentUserProfile.nome || window.currentUserProfile.full_name || 'Usuário';
+                    const n = window.currentUserProfile.nome || 'Usuário';
                     if (nomeHeader) nomeHeader.textContent = n;
-                    if (cargoHeader) cargoHeader.textContent = window.currentUserProfile.cargo || window.currentUserProfile.role || 'Fiscal de Postura';
-                    if (box) box.textContent = n.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
+                    if (cargoHeader) cargoHeader.textContent = window.currentUserProfile.cargo || 'Fiscal de Postura';
+                    aplicarAvatarUsuario(window.currentUserProfile, n);
                 }
             } else {
                 if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'block';
@@ -536,32 +591,170 @@ async function salvarDadosPerfil() {
         return;
     }
 
-    const tabela = window.tabelaPerfilAlvo || 'profiles';
-    const profileId = window.currentUserProfile?.id || currentUserId;
-
-    if (!profileId) {
-        alert('Erro: ID do perfil não identificado.');
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+        alert('Sua sessão expirou. Faça login novamente.');
         return;
     }
 
+    const profileId = window.currentUserProfile?.id || currentUserId;
     const updateObj = {
         nome: nome,
         matricula: matricula
     };
-    if (tabela === 'profiles') {
-        updateObj.full_name = nome;
-    }
 
-    const { error } = await supabaseClient
-        .from(tabela)
-        .update(updateObj)
-        .eq('id', profileId);
+    let error;
+
+    if (profileId) {
+        const res = await supabaseClient
+            .from('profiles')
+            .update(updateObj)
+            .eq('id', profileId);
+        error = res.error;
+    } else {
+        // Se ainda não tinha ID, atualiza por auth_id ou cria novo
+        const resUp = await supabaseClient
+            .from('profiles')
+            .update(updateObj)
+            .eq('auth_id', session.user.id);
+
+        error = resUp.error;
+        if (!error && (!resUp.data || resUp.data.length === 0)) {
+            const cpfLimpo = session.user.email ? session.user.email.split('@')[0].replace(/\D/g, '') : '00000000000';
+            const cpfFormatado = cpfLimpo.length === 11
+                ? cpfLimpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+                : cpfLimpo;
+
+            const resIns = await supabaseClient
+                .from('profiles')
+                .insert([{
+                    auth_id: session.user.id,
+                    cpf: cpfFormatado,
+                    nome: nome,
+                    matricula: matricula,
+                    email: session.user.email
+                }]);
+            error = resIns.error;
+        }
+    }
 
     if (error) {
         console.error('Erro ao salvar perfil:', error);
-        alert('Erro ao atualizar o perfil. Verifique as permissões de banco.');
+        alert('Erro ao atualizar o perfil: ' + error.message);
     } else {
         alert('Alterações salvas com sucesso!');
         await verificarSessao();
+    }
+}
+
+// ── Funções de Avatar e Alteração de Senha ─────────────────────────────────
+function aplicarAvatarUsuario(usuario, nomeExibicao) {
+    const avatarSidebar = document.querySelector('.user-avatar');
+    const avatarBox = document.getElementById('perfilAvatarBox');
+    const initials = (nomeExibicao || 'Usuário').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const key = 'user_avatar_' + (usuario?.id || 'default');
+    const savedAvatar = usuario?.avatar_url || localStorage.getItem(key);
+
+    if (savedAvatar) {
+        if (avatarSidebar) {
+            avatarSidebar.style.backgroundImage = `url(${savedAvatar})`;
+            avatarSidebar.style.backgroundSize = 'cover';
+            avatarSidebar.style.backgroundPosition = 'center';
+            avatarSidebar.textContent = '';
+        }
+        if (avatarBox) {
+            avatarBox.style.backgroundImage = `url(${savedAvatar})`;
+            avatarBox.style.backgroundSize = 'cover';
+            avatarBox.style.backgroundPosition = 'center';
+            avatarBox.textContent = '';
+        }
+    } else {
+        if (avatarSidebar) {
+            avatarSidebar.style.backgroundImage = 'none';
+            avatarSidebar.textContent = initials;
+        }
+        if (avatarBox) {
+            avatarBox.style.backgroundImage = 'none';
+            avatarBox.textContent = initials;
+        }
+    }
+}
+
+async function alterarFotoPerfil(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = async function() {
+            const canvas = document.createElement('canvas');
+            const MAX_SIZE = 150;
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+                if (width > MAX_SIZE) {
+                    height *= MAX_SIZE / width;
+                    width = MAX_SIZE;
+                }
+            } else {
+                if (height > MAX_SIZE) {
+                    width *= MAX_SIZE / height;
+                    height = MAX_SIZE;
+                }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const base64Avatar = canvas.toDataURL('image/jpeg', 0.85);
+
+            const profileId = window.currentUserProfile?.id;
+            const key = 'user_avatar_' + (profileId || 'default');
+            localStorage.setItem(key, base64Avatar);
+
+            if (window.currentUserProfile) {
+                window.currentUserProfile.avatar_url = base64Avatar;
+                if (profileId) {
+                    await supabaseClient.from('profiles').update({ avatar_url: base64Avatar }).eq('id', profileId);
+                } else if (window.currentUserProfile.auth_id) {
+                    await supabaseClient.from('profiles').update({ avatar_url: base64Avatar }).eq('auth_id', window.currentUserProfile.auth_id);
+                } else if (window.currentUserProfile.cpf) {
+                    await supabaseClient.from('profiles').update({ avatar_url: base64Avatar }).eq('cpf', window.currentUserProfile.cpf);
+                }
+            }
+            aplicarAvatarUsuario(window.currentUserProfile || {}, document.getElementById('perfilHeaderNome')?.textContent || 'FP');
+            alert('Foto de perfil alterada com sucesso!');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+async function alterarSenhaUsuario() {
+    const novaSenha = document.getElementById('perfilNovaSenha')?.value;
+    const confirmaSenha = document.getElementById('perfilConfirmaSenha')?.value;
+
+    if (!novaSenha || novaSenha.length < 6) {
+        alert('A nova senha deve ter no mínimo 6 caracteres.');
+        return;
+    }
+    if (novaSenha !== confirmaSenha) {
+        alert('As senhas digitadas não coincidem.');
+        return;
+    }
+
+    try {
+        const { error } = await supabaseClient.auth.updateUser({ password: novaSenha });
+        if (error) {
+            alert('Erro ao alterar senha: ' + error.message);
+        } else {
+            alert('Senha alterada com sucesso!');
+            document.getElementById('perfilNovaSenha').value = '';
+            document.getElementById('perfilConfirmaSenha').value = '';
+        }
+    } catch (err) {
+        console.error('Erro na alteração de senha:', err);
+        alert('Erro ao atualizar senha.');
     }
 }

@@ -2,6 +2,24 @@
 -- BANCO DE DADOS — Sistema Fluxograma de Processos
 -- Compatível com Supabase (PostgreSQL)
 -- ============================================================
+-- Se precisar LIMPAR TUDO e recriar do zero, execute primeiro:
+/*
+DROP TABLE IF EXISTS documentos CASCADE;
+DROP TABLE IF EXISTS checklist_respostas CASCADE;
+DROP TABLE IF EXISTS checklist_itens CASCADE;
+DROP TABLE IF EXISTS historico_etapas CASCADE;
+DROP TABLE IF EXISTS processo_infracoes CASCADE;
+DROP TABLE IF EXISTS processos CASCADE;
+DROP TABLE IF EXISTS transicoes CASCADE;
+DROP TABLE IF EXISTS etapas CASCADE;
+DROP TABLE IF EXISTS infracoes_catalogo CASCADE;
+DROP TABLE IF EXISTS imoveis CASCADE;
+DROP TABLE IF EXISTS contribuintes CASCADE;
+DROP TABLE IF EXISTS solicitantes CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS usuarios CASCADE;
+*/
+-- ============================================================
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  1. TABELA: profiles                                        │
@@ -11,11 +29,9 @@ CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     auth_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     nome VARCHAR(200),
-    full_name VARCHAR(200),
     cpf VARCHAR(14) UNIQUE NOT NULL,          -- 000.000.000-00
     matricula VARCHAR(30),                     -- Matrícula do fiscal (ex: 99044459/2)
     cargo VARCHAR(50) DEFAULT 'Fiscal de Postura',
-    role VARCHAR(50) DEFAULT 'Fiscal de Postura',
     email VARCHAR(200),
     avatar_url TEXT,
     ativo BOOLEAN DEFAULT TRUE,
@@ -25,21 +41,6 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 -- Índice para busca por CPF (login)
 CREATE INDEX IF NOT EXISTS idx_profiles_cpf ON profiles(cpf);
-
--- ┌─────────────────────────────────────────────────────────────┐
--- │  TABELA: solicitantes                                       │
--- │  Pessoas que solicitam o processo (CPF/CNPJ + nome + email) │
--- └─────────────────────────────────────────────────────────────┘
-CREATE TABLE IF NOT EXISTS solicitantes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    cpf_cnpj VARCHAR(18) UNIQUE NOT NULL,
-    nome VARCHAR(200) NOT NULL,
-    email VARCHAR(200),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_solicitantes_cpf ON solicitantes(cpf_cnpj);
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  TABELA: contribuintes                                      │
@@ -113,6 +114,47 @@ CREATE TABLE IF NOT EXISTS processo_infracoes (
 -- (índice de CPF já criado acima)
 
 -- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: notificacoes                                       │
+-- │  Cada infração/notificação gerada no processo, com etapa,   │
+-- │  prazo e status independentes.                              │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS notificacoes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID NOT NULL REFERENCES processos(id) ON DELETE CASCADE,
+    processo_infracao_id UUID REFERENCES processo_infracoes(id) ON DELETE SET NULL,
+    numero VARCHAR(50) NOT NULL,              -- Número único da notificação
+    descricao TEXT,                            -- Descrição/dispositivo legal
+    prazo_dias INT DEFAULT 15,
+    data_inicio TIMESTAMPTZ DEFAULT NOW(),
+    data_vencimento TIMESTAMPTZ,
+    status VARCHAR(30) DEFAULT 'pendente',    -- 'pendente', 'atendida', 'defesa', 'dilacao'
+    etapa_atual_id INT REFERENCES etapas(id),  -- Etapa em que a notificação se encontra
+    data_movimentacao TIMESTAMPTZ,
+    dados JSONB DEFAULT '{}',                  -- Campos extras específicos da notificação
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notificacoes_processo ON notificacoes(processo_id);
+CREATE INDEX IF NOT EXISTS idx_notificacoes_status ON notificacoes(status);
+CREATE INDEX IF NOT EXISTS idx_notificacoes_etapa ON notificacoes(etapa_atual_id);
+
+-- Vínculo 1:1 entre infração e notificação
+ALTER TABLE processo_infracoes
+    ADD COLUMN IF NOT EXISTS notificacao_id UUID REFERENCES notificacoes(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_processo_infracoes_notif
+    ON processo_infracoes(notificacao_id) WHERE notificacao_id IS NOT NULL;
+
+-- Vínculo opcional de histórico e documentos com notificação
+ALTER TABLE historico_etapas
+    ADD COLUMN IF NOT EXISTS notificacao_id UUID REFERENCES notificacoes(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_historico_notificacao ON historico_etapas(notificacao_id);
+
+ALTER TABLE documentos
+    ADD COLUMN IF NOT EXISTS notificacao_id UUID REFERENCES notificacoes(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_documentos_notificacao ON documentos(notificacao_id);
+
+-- ┌─────────────────────────────────────────────────────────────┐
 -- │  2. TABELA: etapas                                          │
 -- │  Catálogo fixo das 32 etapas do fluxograma                 │
 -- │  Inserida uma vez, consultada sempre                        │
@@ -149,8 +191,8 @@ CREATE TABLE IF NOT EXISTS transicoes (
 CREATE TABLE IF NOT EXISTS processos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     numero_processo VARCHAR(30) UNIQUE NOT NULL,  -- Ex: "2026/000001"
-    fiscal_id UUID NOT NULL REFERENCES usuarios(id),
-    solicitante_id UUID REFERENCES solicitantes(id),
+    numero_relatorio TEXT,                        -- Ex: "2026/001"
+    fiscal_id UUID NOT NULL REFERENCES profiles(id),
     etapa_atual_id INT NOT NULL REFERENCES etapas(id) DEFAULT 1,
     status VARCHAR(30) DEFAULT 'em_aberto',       -- 'em_aberto', 'finalizado', 'cancelado'
 
@@ -176,8 +218,7 @@ CREATE INDEX idx_processos_etapa ON processos(etapa_atual_id);
 CREATE INDEX idx_processos_status ON processos(status);
 CREATE INDEX idx_processos_numero ON processos(numero_processo);
 
--- Sequência para numeração automática de processos
-CREATE SEQUENCE IF NOT EXISTS seq_numero_processo START WITH 1 INCREMENT BY 1;
+-- Numeração de processos gerenciada via RPC atômica (ver seção de funções abaixo)
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  5. TABELA: historico_etapas                                │
@@ -190,7 +231,7 @@ CREATE TABLE IF NOT EXISTS historico_etapas (
     etapa_de_id INT REFERENCES etapas(id),        -- NULL na criação do processo
     etapa_para_id INT NOT NULL REFERENCES etapas(id),
     transicao_id INT REFERENCES transicoes(id),    -- Qual transição foi utilizada
-    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    usuario_id UUID NOT NULL REFERENCES profiles(id),
     condicao_aplicada VARCHAR(200),                -- A condição que causou a transição
     observacao TEXT,                                -- Observação livre do fiscal
     dados_etapa JSONB DEFAULT '{}',                -- Snapshot dos dados preenchidos na etapa
@@ -223,7 +264,7 @@ CREATE TABLE IF NOT EXISTS checklist_respostas (
     checklist_item_id INT NOT NULL REFERENCES checklist_itens(id),
     preenchido BOOLEAN DEFAULT FALSE,
     valor TEXT,                                    -- Valor preenchido (se aplicável)
-    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    usuario_id UUID NOT NULL REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(processo_id, checklist_item_id)
@@ -243,7 +284,7 @@ CREATE TABLE IF NOT EXISTS documentos (
     mime_type VARCHAR(100),
     tamanho_bytes BIGINT,
     gerado_automaticamente BOOLEAN DEFAULT FALSE,
-    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    usuario_id UUID NOT NULL REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -403,21 +444,82 @@ INSERT INTO transicoes (etapa_origem_id, etapa_destino_id, condicao) VALUES
     ((SELECT id FROM etapas WHERE numero = 31), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico');
 
 -- ============================================================
--- FUNÇÃO: Gerar número de processo automático (YYYY/NNNNNN)
+-- TABELAS E FUNÇÕES: Numeração sequencial atômica unificada
+-- (anti-race-condition, reutilização de números cancelados)
 -- ============================================================
-CREATE OR REPLACE FUNCTION gerar_numero_processo()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.numero_processo := EXTRACT(YEAR FROM NOW())::TEXT || '/' || LPAD(nextval('seq_numero_processo')::TEXT, 6, '0');
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_numero_processo
-    BEFORE INSERT ON processos
-    FOR EACH ROW
-    WHEN (NEW.numero_processo IS NULL)
-    EXECUTE FUNCTION gerar_numero_processo();
+-- Fila única de números disponíveis para reutilização
+CREATE TABLE IF NOT EXISTS numeros_disponiveis (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    categoria TEXT NOT NULL,
+    numero_sequencial TEXT NOT NULL,
+    ano INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(categoria, numero_sequencial, ano)
+);
+ALTER TABLE numeros_disponiveis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "numeros_disponiveis_acesso_total" ON numeros_disponiveis;
+CREATE POLICY "numeros_disponiveis_acesso_total"
+    ON numeros_disponiveis FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Coluna para armazenar o número da certidão na notificação (se aplicável)
+ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS numero_certidao TEXT;
+
+-- RPC: Reserva próximo número de forma atômica por categoria
+CREATE OR REPLACE FUNCTION reservar_numero(p_ano INTEGER, p_categoria TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    v_seq  TEXT;
+    v_prox INTEGER;
+    v_tamanho_pad INTEGER;
+BEGIN
+    IF p_categoria = 'Processo' THEN
+        v_tamanho_pad := 6;
+    ELSE
+        v_tamanho_pad := 3;
+    END IF;
+
+    SELECT numero_sequencial INTO v_seq
+    FROM numeros_disponiveis
+    WHERE ano = p_ano AND categoria = p_categoria
+    ORDER BY LPAD(numero_sequencial, 10, '0')
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED;
+
+    IF v_seq IS NOT NULL THEN
+        DELETE FROM numeros_disponiveis WHERE numero_sequencial = v_seq AND ano = p_ano AND categoria = p_categoria;
+        RETURN p_ano::TEXT || '/' || v_seq;
+    END IF;
+
+    IF p_categoria = 'Processo' THEN
+        SELECT COALESCE(MAX(split_part(numero_processo, '/', 2)::INTEGER), 0) + 1 INTO v_prox
+        FROM processos
+        WHERE numero_processo LIKE p_ano::TEXT || '/%';
+    ELSIF p_categoria = 'Certidão Sem Defesa' THEN
+        SELECT COALESCE(MAX(split_part(numero_certidao, '/', 2)::INTEGER), 0) + 1 INTO v_prox
+        FROM notificacoes
+        WHERE numero_certidao LIKE p_ano::TEXT || '/%';
+    ELSE
+        v_prox := 1;
+    END IF;
+
+    RETURN p_ano::TEXT || '/' || LPAD(v_prox::TEXT, v_tamanho_pad, '0');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- RPC: Devolve número cancelado para a fila
+CREATE OR REPLACE FUNCTION devolver_numero(p_numero TEXT, p_categoria TEXT)
+RETURNS VOID AS $$
+DECLARE
+    v_partes TEXT[];
+BEGIN
+    v_partes := string_to_array(p_numero, '/');
+    IF array_length(v_partes, 1) < 2 THEN RETURN; END IF;
+    INSERT INTO numeros_disponiveis (categoria, numero_sequencial, ano)
+    VALUES (p_categoria, v_partes[2], v_partes[1]::INTEGER)
+    ON CONFLICT (categoria, numero_sequencial, ano) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================
 -- FUNÇÃO: Atualizar updated_at automaticamente
@@ -430,8 +532,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_updated_at_usuarios
-    BEFORE UPDATE ON usuarios
+CREATE TRIGGER trg_updated_at_profiles
+    BEFORE UPDATE ON profiles
     FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
 
 CREATE TRIGGER trg_updated_at_processos
@@ -442,51 +544,55 @@ CREATE TRIGGER trg_updated_at_checklist
     BEFORE UPDATE ON checklist_respostas
     FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
 
+CREATE TRIGGER trg_updated_at_notificacoes
+    BEFORE UPDATE ON notificacoes
+    FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
+
 -- ============================================================
 -- RLS (Row Level Security) — Supabase
 -- ============================================================
-ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Profiles leitura pública" ON profiles;
+DROP POLICY IF EXISTS "Profiles alteração autenticada" ON profiles;
+CREATE POLICY "Profiles leitura pública" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Profiles alteração autenticada" ON profiles FOR ALL USING (auth.uid() IS NOT NULL);
 ALTER TABLE processos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE historico_etapas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documentos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checklist_respostas ENABLE ROW LEVEL SECURITY;
 
--- Política: Fiscal vê apenas seus próprios dados
-CREATE POLICY "Fiscal vê seus processos" ON processos
-    FOR ALL USING (fiscal_id IN (
-        SELECT id FROM usuarios WHERE auth_id = auth.uid()
-    ));
+-- Política: Acesso autenticado a processos, histórico, documentos e checklist
+DROP POLICY IF EXISTS "Fiscal vê seus processos" ON processos;
+DROP POLICY IF EXISTS "Fiscal vê seu histórico" ON historico_etapas;
+DROP POLICY IF EXISTS "Fiscal vê seus documentos" ON documentos;
+DROP POLICY IF EXISTS "Fiscal vê seu checklist" ON checklist_respostas;
+DROP POLICY IF EXISTS "Acesso autenticado processos" ON processos;
+DROP POLICY IF EXISTS "Acesso autenticado historico" ON historico_etapas;
+DROP POLICY IF EXISTS "Acesso autenticado documentos" ON documentos;
+DROP POLICY IF EXISTS "Acesso autenticado checklist" ON checklist_respostas;
 
-CREATE POLICY "Fiscal vê seu histórico" ON historico_etapas
-    FOR ALL USING (usuario_id IN (
-        SELECT id FROM usuarios WHERE auth_id = auth.uid()
-    ));
-
-CREATE POLICY "Fiscal vê seus documentos" ON documentos
-    FOR ALL USING (usuario_id IN (
-        SELECT id FROM usuarios WHERE auth_id = auth.uid()
-    ));
-
-CREATE POLICY "Fiscal vê seu checklist" ON checklist_respostas
-    FOR ALL USING (usuario_id IN (
-        SELECT id FROM usuarios WHERE auth_id = auth.uid()
-    ));
+CREATE POLICY "Acesso autenticado processos" ON processos FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Acesso autenticado historico" ON historico_etapas FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Acesso autenticado documentos" ON documentos FOR ALL USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Acesso autenticado checklist" ON checklist_respostas FOR ALL USING (auth.uid() IS NOT NULL);
 
 -- Etapas e transições são públicas (leitura)
 CREATE POLICY "Etapas públicas" ON etapas FOR SELECT USING (true);
 -- Nota: transições não tem RLS habilitado, ficam públicas por padrão
 
 -- RLS para novas tabelas
-ALTER TABLE solicitantes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contribuintes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE imoveis ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processo_infracoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notificacoes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Solicitantes acesso autenticado" ON solicitantes FOR ALL USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Contribuintes acesso autenticado" ON contribuintes FOR ALL USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Imoveis acesso autenticado" ON imoveis FOR ALL USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Infracoes acesso autenticado" ON processo_infracoes FOR ALL USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Catalogo infracoes publico" ON infracoes_catalogo FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Notificacoes acesso autenticado" ON notificacoes;
+CREATE POLICY "Notificacoes acesso autenticado" ON notificacoes FOR ALL USING (auth.uid() IS NOT NULL);
 
 -- ============================================================
 -- DADOS INICIAIS: Catálogo de Infrações (Dispositivos Legais)
@@ -505,3 +611,94 @@ INSERT INTO infracoes_catalogo (codigo, descricao, categoria) VALUES
     ('120000236', 'Estabelecimento sem Alvará',                                'Posturas'),
     ('120000234', 'Reparos por concessionárias',                               'Posturas'),
     ('120000230', 'Piso Tátil',                                                'Posturas');
+
+-- ============================================================
+-- TABELA: configuracoes_upfmd
+-- Valor da Unidade Padrão Fiscal do Município de Divinópolis (UPFMD)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS configuracoes_upfmd (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    valor NUMERIC(10, 2) NOT NULL DEFAULT 103.00,
+    ano INT NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
+    atualizado_por UUID REFERENCES profiles(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE configuracoes_upfmd ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "UPFMD publico select" ON configuracoes_upfmd;
+DROP POLICY IF EXISTS "UPFMD publico insert" ON configuracoes_upfmd;
+CREATE POLICY "UPFMD publico select" ON configuracoes_upfmd FOR SELECT USING (true);
+CREATE POLICY "UPFMD publico insert" ON configuracoes_upfmd FOR ALL USING (true);
+
+INSERT INTO configuracoes_upfmd (valor, ano)
+VALUES (103.00, EXTRACT(YEAR FROM CURRENT_DATE))
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- MIGRAÇÃO: Notificações legadas do JSONB para tabela própria
+-- ============================================================
+-- Executa apenas para processos que ainda não possuem notificações
+-- na tabela notificacoes mas possuem dados em dados->campos->etapa2->notificacoes.
+DO $$
+DECLARE
+    rec RECORD;
+    notif JSONB;
+    nova_notif_id UUID;
+    etapa_num INT;
+    etapa_db_id INT;
+BEGIN
+    FOR rec IN
+        SELECT id, numero_processo, dados
+        FROM processos
+        WHERE dados->'campos'->'etapa2'->'notificacoes' IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM notificacoes n WHERE n.processo_id = processos.id
+          )
+    LOOP
+        FOR notif IN SELECT * FROM jsonb_array_elements(rec.dados->'campos'->'etapa2'->'notificacoes')
+        LOOP
+            etapa_num := COALESCE((notif->>'etapa_atual')::INT, 2);
+
+            SELECT id INTO etapa_db_id
+            FROM etapas
+            WHERE numero = etapa_num;
+
+            INSERT INTO notificacoes (
+                processo_id,
+                numero,
+                descricao,
+                prazo_dias,
+                data_inicio,
+                data_vencimento,
+                status,
+                etapa_atual_id,
+                data_movimentacao,
+                dados
+            ) VALUES (
+                rec.id,
+                COALESCE(notif->>'numero', rec.numero_processo || '/01'),
+                notif->>'descricao',
+                COALESCE((notif->>'prazo_dias')::INT, 15),
+                COALESCE((notif->>'data_inicio')::TIMESTAMPTZ, rec.created_at),
+                (notif->>'data_vencimento')::TIMESTAMPTZ,
+                COALESCE(notif->>'status', 'pendente'),
+                etapa_db_id,
+                (notif->>'data_movimentacao')::TIMESTAMPTZ,
+                jsonb_build_object('migrado_de_jsonb', true, 'indice_original', notif->>'index')
+            )
+            RETURNING id INTO nova_notif_id;
+
+            -- Vincula infração do processo à notificação (primeira compatível)
+            UPDATE processo_infracoes
+            SET notificacao_id = nova_notif_id
+            WHERE processo_id = rec.id
+              AND notificacao_id IS NULL
+              AND id IN (
+                  SELECT id FROM processo_infracoes
+                  WHERE processo_id = rec.id AND notificacao_id IS NULL
+                  ORDER BY created_at
+                  LIMIT 1
+              );
+        END LOOP;
+    END LOOP;
+END $$;

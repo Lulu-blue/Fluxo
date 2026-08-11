@@ -7,10 +7,11 @@ O fiscal analisa se a dilação de prazo será aceita ou negada.
 | Condição | Destino |
 |----------|---------|
 | Dilação Aceita | → Etapa 6 (Defesa Com Dilação) |
-| Dilação Negada | → Etapa 9 (Envio da Defesa Sem Dilação) |
+| Dilação Negada | → Etapa 7(Envio da Defesa Sem Dilação) |
 
 ## Campos da Tela
-<!-- PREENCHA AQUI -->
+Fiscal vai preencher se foi aceita a dilação ou não
+Informa a decisão e porque foi tomada
 
 ## Documentos Gerados
 <!-- PREENCHA AQUI -->

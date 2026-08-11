@@ -1,20 +1,20 @@
 # Etapa 3 — Envio da 1ª Defesa
 
 ## Descrição
-Etapa de envio da primeira defesa. Possui checklist que determina se segue para análise do fiscal ou para certidão sem defesa.
+Etapa de envio da primeira defesa. 
 
 ## Condições de Saída
 | Condição | Destino |
 |----------|---------|
 | Checklist preenchido | → Etapa 13 (Fiscal Analisa a Defesa) |
-| Checklist pendente | → Etapa 10 (Certidão Sem Defesa) |
+| Checklist pendente ate a data de vencimento da notificação | → Etapa 10 |
 
 ## Campos da Tela
-<!-- PREENCHA AQUI -->
+
 
 ## Checklist
-<!-- PREENCHA AQUI: Quais itens compõem o checklist desta etapa? -->
-
+- Anexo da defesa e vai para a etapa 13
+- Se não anexar ate a data de vencimento vai para etapa 10
 ## Documentos Gerados
 <!-- PREENCHA AQUI -->
 
