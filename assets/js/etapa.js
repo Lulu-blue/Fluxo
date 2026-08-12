@@ -486,7 +486,7 @@ async function inicializarPaginaEtapa() {
     } else {
         configurarAbasPagina();
         
-        if (notificacaoAtual && [3, 4, 5, 7, 10, 29, 33].includes(etapaAtual)) {
+        if (notificacaoAtual && [3, 4, 5, 7, 10, 13, 29, 33].includes(etapaAtual)) {
             renderizarFormularioDinamico(etapaAtual);
         } else if (etapaAtual === 1 && !notificacaoAtual) {
             renderizarFormularioDinamico(1);
@@ -771,6 +771,8 @@ function renderizarFormularioDinamico(etapaNum) {
         const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
         if (btnBaixar) btnBaixar.innerHTML = btnBaixar.innerHTML.replace('Relatório', 'Réplica');
 
+        setTimeout(() => { if(window.gerarReplica) window.gerarReplica(); }, 300);
+
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
                 <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
@@ -794,6 +796,14 @@ function renderizarFormularioDinamico(etapaNum) {
                             <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
                             <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferimento</option>
                             <option value="gerente" ${decisaoAnterior === 'gerente' ? 'selected' : ''}>Manda para o gerente</option>
+                        </select>
+                    </div>
+
+                    <div id="blocoParecerGerente" style="display: ${decisaoAnterior === 'gerente' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Parecer do Fiscal <span style="color:#ef4444;">*</span></label>
+                        <select id="selectParecerGerente" onchange="window.gerarReplica()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                            <option value="nao_favoravel" ${notificacaoAtual?.dados?.etapa13?.parecer !== 'favoravel' ? 'selected' : ''}>Não Favorável</option>
+                            <option value="favoravel" ${notificacaoAtual?.dados?.etapa13?.parecer === 'favoravel' ? 'selected' : ''}>Favorável</option>
                         </select>
                     </div>
 
@@ -874,9 +884,11 @@ function renderizarFormularioDinamico(etapaNum) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : '';
         const tipoNotificacao = notificacaoAtual ? notificacaoAtual.descricao : '';
         const decisaoEtapa7 = notificacaoAtual?.dados?.etapa7?.cumprimento;
+        const historico = notificacaoAtual?.dados?.historico || [];
+        const veioDo13 = historico.length > 0 && historico[historico.length - 1].etapa_de === 13;
         let selNao = 'selected';
         let selSim = '';
-        if (decisaoEtapa7 === 'atendida') {
+        if (decisaoEtapa7 === 'atendida' || veioDo13) {
             selNao = '';
             selSim = 'selected';
         }
@@ -1738,6 +1750,10 @@ async function avancarEtapaPadrao() {
         await avancarEtapa5();
         return;
     }
+    if (etapaAtual === 13) {
+        await avancarEtapa13();
+        return;
+    }
     if (etapaAtual === 7) {
         await avancarEtapa7();
         return;
@@ -1867,6 +1883,52 @@ async function avancarEtapa5() {
     }
     
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, data_vencimento: notificacaoAtual.data_vencimento, status: notificacaoAtual.status });
+    await moverProcessoParaEtapa(proxEtapa, motivo);
+}
+
+async function avancarEtapa13() {
+    if (!processoAtual || !notificacaoAtual) return;
+    
+    const select = document.getElementById('selectDecisaoDilacao');
+    const txtJustificativa = document.getElementById('txtJustificativaDilacao');
+    const selectParecer = document.getElementById('selectParecerGerente');
+    
+    const decisao = select ? select.value : '';
+    const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
+    const parecer = (decisao === 'gerente' && selectParecer) ? selectParecer.value : '';
+
+    if (!decisao) {
+        alert('Por favor, selecione a decisão da defesa (Defere, Indefere, Manda para gerente).');
+        return;
+    }
+
+    if ((decisao === 'indefere' || decisao === 'gerente') && !justificativa) {
+        alert('Por favor, preencha o motivo (justificativa).');
+        return;
+    }
+    
+    mostrarCarregamento('Avançando etapa...');
+
+    notificacaoAtual.dados = notificacaoAtual.dados || {};
+    notificacaoAtual.dados.etapa13 = { decisao, justificativa, parecer, data_decisao: new Date().toISOString() };
+    
+    // Deferido ou Indeferido vão para onde? Presumindo 10 para Indeferido ou 15. Mas por hora: 14 se não mapeado, ou 10/11.
+    // Baseado na documentação: "Manda para a etapa 11" se gerente.
+    let proxEtapa = 10;
+    let motivo = 'Defesa Analisada';
+    
+    if (decisao === 'defere') {
+        proxEtapa = 10; 
+        motivo = 'Defesa Deferida';
+    } else if (decisao === 'indefere') {
+        proxEtapa = 10;
+        motivo = 'Defesa Indeferida';
+    } else if (decisao === 'gerente') {
+        proxEtapa = 11;
+        motivo = 'Análise do Gerente';
+    }
+    
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, status: notificacaoAtual.status });
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
@@ -3285,7 +3347,8 @@ async function obterNotificacoesEtapa2(proc) {
             data_vencimento: dataVencimento,
             status: salva.status || 'pendente',
             etapa_atual: salva.etapa_atual || 2,
-            data_movimentacao: salva.data_movimentacao || null
+            data_movimentacao: salva.data_movimentacao || null,
+            dados: salva.dados || {}
         };
     });
 }
@@ -3309,7 +3372,8 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
             data_vencimento: dataVencimento,
             status: n.status || 'pendente',
             etapa_atual: etapaNumero,
-            data_movimentacao: n.data_movimentacao || null
+            data_movimentacao: n.data_movimentacao || null,
+            dados: n.dados || {}
         };
     });
 }
@@ -3437,7 +3501,7 @@ async function renderizarEtapa2(proc) {
                         <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px;">
                             <input type="radio" name="statusNotif_${n.index}" value="defesa" ${n.status === 'defesa' ? 'checked' : ''} data-index="${n.index}"> Defesa
                         </label>
-                        <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px; ${n.dados?.etapa2_ja_pediu_dilacao ? 'opacity:0.5; cursor:not-allowed;' : ''}">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px; ${n.dados?.etapa2_ja_pediu_dilacao ? 'opacity:0.5; cursor:not-allowed; pointer-events:none;' : ''}">
                             <input type="radio" name="statusNotif_${n.index}" value="dilacao" ${n.status === 'dilacao' ? 'checked' : ''} data-index="${n.index}" ${n.dados?.etapa2_ja_pediu_dilacao ? 'disabled' : ''}> Dilação de Prazo
                         </label>
                     </div>`;
@@ -5635,9 +5699,11 @@ window.toggleOpcoesDilacao = function() {
     const val = document.getElementById('selectDecisaoDilacao')?.value;
     const blocoDias = document.getElementById('blocoDiasDilacao');
     const blocoJustificativa = document.getElementById('blocoJustificativaDilacao');
+    const blocoParecer = document.getElementById('blocoParecerGerente');
     
     if (blocoDias) blocoDias.style.display = (val === 'defere') ? 'block' : 'none';
     if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere' || val === 'gerente') ? 'block' : 'none';
+    if (blocoParecer) blocoParecer.style.display = (val === 'gerente') ? 'block' : 'none';
     
     window.gerarReplica();
 };
@@ -5773,12 +5839,17 @@ window.gerarReplica = async function() {
             textoDecisao = `Senhora Gerente,<br><br>Após análise da dilação/defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
         }
     } else if (etapaAtual === 13) {
+        const parecer = document.getElementById('selectParecerGerente') ? document.getElementById('selectParecerGerente').value : '';
         if (decisao === 'defere') {
             textoDecisao = `Após análise da defesa informamos que seu pedido foi deferido.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
             textoDecisao = `Após análise da defesa informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'gerente') {
-            textoDecisao = `Senhora Gerente,<br><br>Após análise da defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
+            if (parecer === 'favoravel') {
+                textoDecisao = `Senhor(a) Gerente,<br><br>Após análise da defesa informamos que somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
+            } else {
+                textoDecisao = `Senhor(a) Gerente,<br><br>Após análise da defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
+            }
         }
     }
     
