@@ -271,7 +271,7 @@ function validarStep(step) {
             const atendimentoTipo = document.getElementById('relAtendimentoTipo')?.value?.trim();
             const atendimentoValor = document.getElementById('relAtendimentoValor')?.value?.trim();
             const assunto = document.getElementById('relAssunto')?.value?.trim();
-            
+
             if (!atendimentoTipo || !atendimentoValor) {
                 alert('Informe o tipo e o valor para "Para atendimento".');
                 if (!atendimentoTipo) document.getElementById('relAtendimentoTipo')?.focus();
@@ -468,9 +468,24 @@ async function finalizarSolicitacao() {
         if (errProc) {
             console.error('Erro ao inserir processo:', errProc);
             // Devolve os números para a fila caso a inserção falhe
-            await supabaseClient.rpc('devolver_numero', { p_numero: numeroProcesso, p_categoria: 'Processo' }).catch(() => { });
-            await supabaseClient.rpc('devolver_numero', { p_numero: numeroRelatorio, p_categoria: 'Relatório Fiscal' }).catch(() => { });
+            await supabaseClient.rpc('devolver_numero', { p_numero: numeroProcesso, p_categoria: 'Processo' });
+            await supabaseClient.rpc('devolver_numero', { p_numero: numeroRelatorio, p_categoria: 'Relatório Fiscal' });
             throw new Error(errProc?.message || 'Falha ao gravar o processo no banco de dados.');
+        }
+
+        // 5.5 Registrar o Relatório Fiscal na tabela documentos centralizada
+        try {
+            await supabaseClient.from('documentos').insert([{
+                processo_id: procCriado.id,
+                etapa_id: etapaId,
+                tipo: 'Relatório Fiscal',
+                nome_arquivo: `Relatorio_Fiscal_${numeroRelatorio.replace(/[\\/\\\\]/g, '-')}.pdf`,
+                gerado_automaticamente: true,
+                numero_sequencial: numeroRelatorio,
+                usuario_id: profileId
+            }]);
+        } catch (errDoc) {
+            console.error('Erro ao registrar relatório na tabela documentos:', errDoc);
         }
 
         // 6. Inserir registro em 'contribuintes' apenas se ainda não existir
@@ -854,7 +869,7 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
     const atendimentoTipo = document.getElementById('relAtendimentoTipo')?.value || '';
     const atendimentoValor = document.getElementById('relAtendimentoValor')?.value || '';
     const atendimento = (atendimentoTipo + ' ' + atendimentoValor).trim() || 'campo escrito';
-    
+
     const assunto = document.getElementById('relAssunto')?.value || 'colocar aqui o título da denúncia';
     const pa = document.getElementById('relPA')?.value || '';
 
@@ -866,6 +881,19 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
         'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
 
     const paHtml = pa ? `<p style="margin:0;"><strong>PA:</strong> ${pa}</p>` : '';
+
+    const incluirDataHora = document.getElementById('relIncluirDataHora')?.checked;
+    const dataVistoriaRaw = document.getElementById('fiscDataVistoria')?.value;
+    let textoDataHora = '';
+    if (incluirDataHora && dataVistoriaRaw) {
+        const d = new Date(dataVistoriaRaw);
+        const dataStr = d.toLocaleDateString('pt-BR');
+        const horaStr = d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+        textoDataHora = ` no dia ${dataStr} às ${horaStr}`;
+    }
+
+    const inscricaoValor = document.getElementById('imvInscricao')?.value || 'Não informada';
+    const inscricaoLabel = inscricaoValor.replace(/\\D/g, '').length === 14 ? 'CNPJ' : 'Inscrição Imobiliária';
 
     // Coleta das imagens adicionadas no painel
     let htmlImagens = '';
@@ -894,22 +922,22 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
     }
 
     return `
-        <div style="font-family: Calibri, 'Segoe UI', sans-serif; color: black; max-width: 800px; margin: 0 auto; line-height: 1.2; font-size: 10pt; padding: 20px;">
+        <div style="font-family: Calibri, 'Segoe UI', sans-serif; color: black; max-width: 820px; margin: 0 auto; line-height: 1.2; font-size: 10pt; padding: 40px 55px 30px 55px; background: white;">
             <!-- 1. CABEÇALHO IDÊNTICO AO MODELO - NOTIFICAÇÃO PRELIMINAR -->
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-collapse: collapse;">
                 <tr>
-                    <td width="130" rowspan="2" align="center" valign="top" style="padding-right: 2px; width: 130px;">
-                        <img src="${BRASAO_PREFEITURA_BASE64}" alt="Brasão Divinópolis" style="width: 130px; height: auto; display: block; margin: 0 auto;">
+                    <td width="100" rowspan="2" align="center" valign="top" style="padding-right: 12px; width: 100px;">
+                        <img src="${BRASAO_PREFEITURA_BASE64}" alt="Brasão Divinópolis" style="width: 85px; height: auto; display: block; margin: 0 auto;">
                     </td>
                     <td bgcolor="#F78C26" style="background-color: #F78C26; height: 14px; font-size: 1px; line-height: 14px;">&nbsp;</td>
                 </tr>
                 <tr>
-                    <td valign="top" style="padding-top: 10px; font-size: 10pt; color: #000; line-height: 1.35;">
+                    <td valign="top" style="padding-top: 10px; font-size: 9.5pt; color: #000; line-height: 1.4;">
                         <strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>
                         DIRETORIA DE MEIO AMBIENTE<br>
                         GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br>
-                        <span style="font-size: 10pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
-                        <span style="font-size: 10pt;">CEP:35.501-170 Tel: (37) 3229-8176</span>
+                        <span style="font-size: 9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
+                        <span style="font-size: 9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span>
                     </td>
                 </tr>
             </table>
@@ -928,17 +956,33 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
             </div>
 
             <!-- Identificação -->
-            <div style="margin-bottom: 30px;">
+            <div style="margin-bottom: 20px;">
                 <p style="margin:0 0 6px 0;"><strong>Para atendimento:</strong> ${atendimento}</p>
                 <p style="margin:0 0 6px 0;"><strong>Assunto:</strong> ${assunto}</p>
                 <p style="margin:0 0 6px 0;"><strong>Processo:</strong> ${numeroProcessoTBD}</p>
                 ${paHtml ? paHtml.replace('margin:0;', 'margin:0 0 6px 0;') : ''}
             </div>
 
+            <!-- Local da Atuação -->
+            <div style="margin-bottom: 30px;">
+                <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 6px;">Local da Autuação</div>
+                <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.45;">
+                    <tr>
+                        <td width="58%" valign="top">
+                            <div><strong>Logradouro:</strong> ${logradouroImv}, n° ${numeroImv}</div>
+                            <div><strong>Bairro:</strong> ${bairroImv}</div>
+                        </td>
+                        <td width="42%" valign="top">
+                            <div><strong>${inscricaoLabel}:</strong> ${inscricaoValor}</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
             <!-- Corpo -->
             <div style="margin-bottom: 40px; text-align: justify;">
                 <p style="margin:0 0 6px 0;">Prezado(a),</p>
-                <p style="text-indent: 30px; margin:0 0 6px 0;">informamos que em vistoria ao local indicado, Rua ${logradouroImv}, nº${numeroImv} no bairro ${bairroImv}, verificamos que houve ${textoVistoria}.</p>
+                <p style="text-indent: 30px; margin:0 0 6px 0;">informamos que em vistoria${textoDataHora} ao local indicado, verificamos que houve ${textoVistoria}.</p>
                 ${htmlImagens}
                 <p style="text-indent: 30px; margin:0 0 6px 0;">Sem mais para o momento, estamos à disposição para maiores esclarecimentos.</p>
             </div>
@@ -1039,11 +1083,11 @@ async function fecharEditorRelatorio() {
 async function devolverNumerosReservadosEditor() {
     try {
         if (numerosReservadosEditor.processo) {
-            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.processo, p_categoria: 'Processo' }).catch(() => { });
+            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.processo, p_categoria: 'Processo' });
             numerosReservadosEditor.processo = null;
         }
         if (numerosReservadosEditor.relatorio) {
-            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.relatorio, p_categoria: 'Relatório Fiscal' }).catch(() => { });
+            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.relatorio, p_categoria: 'Relatório Fiscal' });
             numerosReservadosEditor.relatorio = null;
         }
     } catch (e) {
@@ -1077,50 +1121,39 @@ async function baixarRelatorioFiscalPdf() {
 
         const estilos = `
             * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
+            body { margin: 0; padding: 0; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
             img { max-width: 100%; height: auto; }
-            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 2cm; } }
+            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
         `;
 
-        // Criar iframe oculto se não existir
-        let iframe = document.getElementById('iframeImpressaoRelatorio');
-        if (!iframe) {
-            iframe = document.createElement('iframe');
-            iframe.id = 'iframeImpressaoRelatorio';
-            iframe.style.position = 'fixed';
-            iframe.style.right = '0';
-            iframe.style.bottom = '0';
-            iframe.style.width = '0px';
-            iframe.style.height = '0px';
-            iframe.style.border = '0';
-            document.body.appendChild(iframe);
-        }
+        const printIframe = document.createElement('iframe');
+        printIframe.style.position = 'absolute';
+        printIframe.style.width = '0';
+        printIframe.style.height = '0';
+        printIframe.style.border = 'none';
+        document.body.appendChild(printIframe);
 
-        const docIframe = iframe.contentWindow || iframe.contentDocument;
-        const doc = docIframe.document || docIframe;
-
-        const tituloOriginal = document.title;
-        document.title = nomeArquivo;
-
-        doc.open();
-        doc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeArquivo}</title><style>${estilos}</style></head><body>${htmlComImagens}</body></html>`);
-        doc.close();
+        const printDoc = printIframe.contentWindow.document;
+        printDoc.open();
+        printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeArquivo}</title><style>${estilos}</style></head><body>${htmlComImagens}</body></html>`);
+        printDoc.close();
 
         // Aguarda renderização e aciona a impressão direta da caixa de diálogo do sistema
         setTimeout(() => {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
+            printIframe.contentWindow.focus();
+            printIframe.contentWindow.print();
+
+            // Fecha o editor após imprimir
+            relatorioEditorAberto = false;
+            const modal = document.getElementById('modalEditorRelatorio');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.classList.remove('open');
+            }
+            document.body.style.overflow = '';
+
             setTimeout(() => {
-                document.title = tituloOriginal;
-                
-                // Fecha o editor após imprimir
-                relatorioEditorAberto = false;
-                const modal = document.getElementById('modalEditorRelatorio');
-                if (modal) {
-                    modal.style.display = 'none';
-                    modal.classList.remove('open');
-                }
-                document.body.style.overflow = '';
+                document.body.removeChild(printIframe);
             }, 1000);
         }, 500);
 
@@ -1479,30 +1512,30 @@ window.adicionarCampoImagemLegenda = function () {
     const fileInput = div.querySelector('.imagem-arquivo');
     const legendaInput = div.querySelector('.imagem-legenda');
 
-    fileInput.addEventListener('change', function(e) {
+    fileInput.addEventListener('change', function (e) {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = function (evt) {
                 fileInput.setAttribute('data-base64', evt.target.result);
                 window.relatorioCustomizadoHTML = null;
-                if(typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+                if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
             };
             reader.readAsDataURL(file);
         } else {
             fileInput.removeAttribute('data-base64');
             window.relatorioCustomizadoHTML = null;
-            if(typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
         }
     });
 
     legendaInput.addEventListener('input', () => {
         window.relatorioCustomizadoHTML = null;
-        if(typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+        if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
     });
-    
+
     window.relatorioCustomizadoHTML = null;
-    if(typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+    if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
 };
 
 window.removerCampoImagemLegenda = function (id) {
@@ -1510,7 +1543,7 @@ window.removerCampoImagemLegenda = function (id) {
     if (el) {
         el.remove();
         window.relatorioCustomizadoHTML = null;
-        if(typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+        if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
     }
 };
 

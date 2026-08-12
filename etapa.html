@@ -789,28 +789,17 @@
                                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
                                 <rect x="6" y="14" width="12" height="8" />
                             </svg>
-                            Imprimir / PDF
+                            Imprimir / PDF (Notificação)
                         </button>
-                        <button id="btnBaixarHtmlEtapa" class="btn-secondary" style="padding:12px 18px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" style="margin-right:6px;">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                <polyline points="7 10 12 15 17 10" />
-                                <line x1="12" y1="15" x2="12" y2="3" />
-                            </svg>
-                            Baixar HTML
-                        </button>
-                        <button id="btnBaixarDocEtapa" class="btn-primary"
+                        <button id="btnBaixarRelatorioPdfEtapa" class="btn-primary"
                             style="padding:12px 18px; background-color:#F78C26; border-color:#F78C26;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" style="margin-right:6px;">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                <polyline points="14 2 14 8 20 8"></polyline>
-                                <line x1="16" y1="13" x2="8" y2="13"></line>
-                                <line x1="16" y1="17" x2="8" y2="17"></line>
-                                <polyline points="10 9 9 9 8 9"></polyline>
+                                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                                <rect x="6" y="14" width="12" height="8"></rect>
                             </svg>
-                            Baixar DOC (Word)
+                            Baixar Relatório (.pdf)
                         </button>
                     </div>
                 </div>
@@ -1122,8 +1111,8 @@
                             <div class="form-group fg-full">
                                 <label for="arRetornoSemSucesso">Notificação efetivada?</label>
                                 <select id="arRetornoSemSucesso" class="form-input">
+                                    <option value="sim" selected>Sim</option>
                                     <option value="nao">Não: Retornou sem chegar ao proprietário</option>
-                                    <option value="sim">Sim</option>
                                 </select>
                             </div>
                         </div>

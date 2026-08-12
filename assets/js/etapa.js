@@ -506,11 +506,8 @@ async function inicializarPaginaEtapa() {
     const btnImprimir = document.getElementById('btnImprimirEtapa');
     if (btnImprimir) btnImprimir.addEventListener('click', imprimirDocumentoOficial);
 
-    const btnBaixarHtml = document.getElementById('btnBaixarHtmlEtapa');
-    if (btnBaixarHtml) btnBaixarHtml.addEventListener('click', baixarDocumentoHTML);
-
-    const btnBaixarDoc = document.getElementById('btnBaixarDocEtapa');
-    if (btnBaixarDoc) btnBaixarDoc.addEventListener('click', baixarDocumentoDOC);
+    const btnBaixarRelatorioPdfEtapa = document.getElementById('btnBaixarRelatorioPdfEtapa');
+    if (btnBaixarRelatorioPdfEtapa) btnBaixarRelatorioPdfEtapa.addEventListener('click', baixarRelatorioFiscalPdfEtapa);
 
     restaurarEstadoSidebarEtapa();
     carregarUsuarioSidebarEtapa();
@@ -713,6 +710,11 @@ function renderizarFormularioDinamico(etapaNum) {
         const decisaoAnterior = notificacaoAtual?.dados?.etapa5?.decisao || '';
         const justificativaAnterior = notificacaoAtual?.dados?.etapa5?.justificativa || '';
 
+        const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
+        if (btnBaixar) btnBaixar.innerHTML = btnBaixar.innerHTML.replace('Relatório', 'Réplica');
+
+        setTimeout(() => { if(window.gerarReplica) window.gerarReplica(); }, 300);
+
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
                 <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
@@ -734,17 +736,78 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
                         <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão da Dilação <span style="color:#ef4444;">*</span></label>
-                        <select id="selectDecisaoDilacao" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                        <select id="selectDecisaoDilacao" onchange="window.toggleOpcoesDilacao()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <option value="">Selecione uma opção...</option>
-                            <option value="aceita" ${decisaoAnterior === 'aceita' ? 'selected' : ''}>Dilação Aceita</option>
-                            <option value="negada" ${decisaoAnterior === 'negada' ? 'selected' : ''}>Dilação Negada</option>
+                            <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
+                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferimento</option>
+                            <option value="gerente" ${decisaoAnterior === 'gerente' ? 'selected' : ''}>Manda para o gerente</option>
                         </select>
                     </div>
 
+                    <div id="blocoDiasDilacao" style="display: ${decisaoAnterior === 'defere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Quantos dias será a dilação?</label>
+                        <input type="number" id="inputDiasDilacao" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white;" value="${notificacaoAtual?.dados?.etapa5?.dias || 0}">
+                    </div>
+
+                    <div id="blocoJustificativaDilacao" style="display: ${(decisaoAnterior === 'indefere' || decisaoAnterior === 'gerente') ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo (pois):</label>
+                        <textarea id="txtJustificativaDilacao" class="form-input" placeholder="Descreva o motivo..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${justificativaAnterior}</textarea>
+                    </div>
+                </div>
+
+                <div style="margin-top:20px;">
+                    <div id="containerImagensForm" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
+                    <div style="display:flex; gap:16px;">
+                        <button type="button" onclick="window.gerarReplica()" class="btn-primary" style="padding:12px 20px;">Gerar/Atualizar Réplica</button>
+                        <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar Imagem</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (etapaNum === 13) {
+        const decisaoAnterior = notificacaoAtual?.dados?.etapa13?.decisao || '';
+        const justificativaAnterior = notificacaoAtual?.dados?.etapa13?.justificativa || '';
+
+        const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
+        if (btnBaixar) btnBaixar.innerHTML = btnBaixar.innerHTML.replace('Relatório', 'Réplica');
+
+        conteudo = `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
+                    <div style="background:#f3e8ff; padding:10px; border-radius:10px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                    </div>
                     <div>
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Justificativa (Opcional)</label>
-                        <textarea id="txtJustificativaDilacao" class="form-input" placeholder="Descreva o motivo pelo qual a dilação foi aceita ou negada..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05); font-family:inherit;">${justificativaAnterior}</textarea>
-                        <p style="margin:6px 0 0 0; font-size:0.8rem; color:#64748b;">A decisão registrada afetará o próximo passo ao avançar a etapa.</p>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Fiscal Analisa a Defesa (1ª)</h3>
+                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a defesa e informe a decisão do fiscal.</p>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr; gap:20px;">
+                    <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão da Defesa <span style="color:#ef4444;">*</span></label>
+                        <select id="selectDecisaoDilacao" onchange="window.toggleOpcoesDilacao()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                            <option value="">Selecione uma opção...</option>
+                            <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
+                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferimento</option>
+                            <option value="gerente" ${decisaoAnterior === 'gerente' ? 'selected' : ''}>Manda para o gerente</option>
+                        </select>
+                    </div>
+
+                    <div id="blocoJustificativaDilacao" style="display: ${(decisaoAnterior === 'indefere' || decisaoAnterior === 'gerente') ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo (pois):</label>
+                        <textarea id="txtJustificativaDilacao" class="form-input" placeholder="Descreva o motivo..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${justificativaAnterior}</textarea>
+                    </div>
+                </div>
+
+                <div style="margin-top:20px;">
+                    <div id="containerImagensForm" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
+                    <div style="display:flex; gap:16px;">
+                        <button type="button" onclick="window.gerarReplica()" class="btn-primary" style="padding:12px 20px;">Gerar/Atualizar Réplica</button>
+                        <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar Imagem</button>
                     </div>
                 </div>
             </div>
@@ -1490,7 +1553,7 @@ function aplicarModoAcesso(modo) {
             // Desabilita todos os controles editáveis da Etapa 1
             const controlesEdicao = document.querySelectorAll('#painelAcoesEtapa1 input, #painelAcoesEtapa1 select, #painelAcoesEtapa1 button, #painelAcoesEtapa1 textarea, #inputValUpfmd, #selectEsquinaCalc');
             controlesEdicao.forEach(el => {
-                if (el.id !== 'btnImprimirEtapa' && el.id !== 'btnBaixarDocEtapa' && el.id !== 'btnBaixarHtmlEtapa') {
+                if (el.id !== 'btnImprimirEtapa' && el.id !== 'btnBaixarRelatorioPdfEtapa') {
                     el.disabled = true;
                 }
             });
@@ -1728,16 +1791,8 @@ async function avancarEtapa4() {
     let motivo = 'Comprovante verificado';
 
     if (notificacaoAtual.status === 'dilacao') {
-        if (anexos.length < 2) {
-            if (!confirm('Você não anexou todos os documentos necessários (Propriedade e Renda). Sem eles, a dilação será automaticamente negada. Deseja avançar sem os documentos e ir direto para a Etapa 7?')) {
-                return;
-            }
-            proxEtapa = 7;
-            motivo = 'Dilação negada automaticamente por falta de documentos';
-        } else {
-            proxEtapa = 5;
-            motivo = 'Documentação de dilação recebida';
-        }
+        proxEtapa = 5;
+        motivo = 'Avançando para análise de dilação';
     } else if (notificacaoAtual.status === 'defesa') {
         if (anexos.length < 1) {
             if (!confirm('Você não anexou o Comprovante de Propriedade. Sem ele, a defesa será negada. Deseja avançar sem o documento e ir direto para a Etapa 7?')) {
@@ -1766,28 +1821,52 @@ async function avancarEtapa5() {
     
     const select = document.getElementById('selectDecisaoDilacao');
     const txtJustificativa = document.getElementById('txtJustificativaDilacao');
+    const inputDias = document.getElementById('inputDiasDilacao');
     
     const decisao = select ? select.value : '';
     const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
+    const dias = inputDias ? parseInt(inputDias.value, 10) : 0;
 
     if (!decisao) {
-        alert('Por favor, selecione se a dilação foi aceita ou negada.');
+        alert('Por favor, selecione a decisão da dilação (Defere, Indefere, Manda para gerente).');
+        return;
+    }
+    
+    if (decisao === 'defere' && (!dias || dias <= 0)) {
+        alert('Por favor, informe a quantidade de dias da dilação.');
+        return;
+    }
+
+    if ((decisao === 'indefere' || decisao === 'gerente') && !justificativa) {
+        alert('Por favor, preencha o motivo (justificativa).');
         return;
     }
     
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
-    notificacaoAtual.dados.etapa5 = { decisao, justificativa, data_decisao: new Date().toISOString() };
-    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+    notificacaoAtual.dados.etapa5 = { decisao, justificativa, dias, data_decisao: new Date().toISOString() };
     
-    let proxEtapa = 7;
-    let motivo = 'Dilação Negada';
-    if (decisao === 'aceita') {
-        proxEtapa = 6;
-        motivo = 'Dilação Aceita';
+    let proxEtapa = 2;
+    let motivo = 'Dilação Deferida';
+    
+    if (decisao === 'defere') {
+        let atualVenc = notificacaoAtual.data_vencimento ? new Date(notificacaoAtual.data_vencimento) : new Date();
+        atualVenc.setDate(atualVenc.getDate() + dias);
+        notificacaoAtual.data_vencimento = atualVenc.toISOString();
+        notificacaoAtual.status = 'pendente';
+        notificacaoAtual.dados.etapa2_ja_pediu_dilacao = true;
+        proxEtapa = 2;
+        motivo = 'Dilação Deferida';
+    } else if (decisao === 'indefere') {
+        proxEtapa = 7;
+        motivo = 'Dilação Indeferida';
+    } else if (decisao === 'gerente') {
+        proxEtapa = 11;
+        motivo = 'Análise do Gerente';
     }
     
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, data_vencimento: notificacaoAtual.data_vencimento, status: notificacaoAtual.status });
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
@@ -2426,7 +2505,10 @@ async function renderizarPainelEtapa1(proc) {
             const nmEl = document.getElementById('nomeArquivoNP');
             if (nmEl) nmEl.textContent = anexoNP.nome || 'notificacao_assinada.pdf';
             const btnVer = document.getElementById('btnVerAnexoNP');
-            if (btnVer) btnVer.href = anexoNP.dataUrl || anexoNP.url;
+            if (btnVer) {
+                btnVer.href = '#';
+                btnVer.onclick = (e) => window.abrirAnexoEmNovaAba(anexoNP.dataUrl || anexoNP.url, e);
+            }
         }
         if (badgeStatus) {
             badgeStatus.textContent = 'Anexado';
@@ -2852,6 +2934,12 @@ function renderizarDocumentoOficial(proc) {
     const container = document.getElementById('containerDocumentoOficial');
     if (!container) return;
 
+    const etapaAtual = parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 1, 10);
+    if (etapaAtual === 5 || etapaAtual === 13) {
+        if (window.gerarReplica) window.gerarReplica();
+        return;
+    }
+
     const d = proc.dados || {};
     const cont = d.contribuinte || {};
     const imv = d.imovel || {};
@@ -3019,18 +3107,18 @@ function renderizarDocumentoOficial(proc) {
                 <!-- 1. CABEÇALHO IDÊNTICO AO MODELO - NOTIFICAÇÃO PRELIMINAR -->
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-collapse: collapse;">
                     <tr>
-                        <td width="145" rowspan="2" align="center" valign="top" style="padding-right: 18px; width: 145px;">
-                            <img src="${window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg'}" alt="Brasão Divinópolis" style="width: 125px; height: auto; display: block; margin: 0 auto;">
+                        <td width="100" rowspan="2" align="center" valign="top" style="padding-right: 12px; width: 100px;">
+                            <img src="${window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg'}" alt="Brasão Divinópolis" style="width: 85px; height: auto; display: block; margin: 0 auto;">
                         </td>
                         <td bgcolor="#F78C26" style="background-color: #F78C26; height: 14px; font-size: 1px; line-height: 14px;">&nbsp;</td>
                     </tr>
                     <tr>
-                        <td valign="top" style="padding-top: 10px; font-size: 11pt; color: #000; line-height: 1.35;">
+                        <td valign="top" style="padding-top: 10px; font-size: 9.5pt; color: #000; line-height: 1.4;">
                             <strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>
                             DIRETORIA DE MEIO AMBIENTE<br>
                             GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br>
-                            <span style="font-size: 10pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
-                            <span style="font-size: 10pt;">CEP:35.501-170 Tel: (37) 3229-8176</span>
+                            <span style="font-size: 9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
+                            <span style="font-size: 9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span>
                         </td>
                     </tr>
                 </table>
@@ -3349,8 +3437,8 @@ async function renderizarEtapa2(proc) {
                         <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px;">
                             <input type="radio" name="statusNotif_${n.index}" value="defesa" ${n.status === 'defesa' ? 'checked' : ''} data-index="${n.index}"> Defesa
                         </label>
-                        <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px;">
-                            <input type="radio" name="statusNotif_${n.index}" value="dilacao" ${n.status === 'dilacao' ? 'checked' : ''} data-index="${n.index}"> Dilação de Prazo
+                        <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px; ${n.dados?.etapa2_ja_pediu_dilacao ? 'opacity:0.5; cursor:not-allowed;' : ''}">
+                            <input type="radio" name="statusNotif_${n.index}" value="dilacao" ${n.status === 'dilacao' ? 'checked' : ''} data-index="${n.index}" ${n.dados?.etapa2_ja_pediu_dilacao ? 'disabled' : ''}> Dilação de Prazo
                         </label>
                     </div>`;
 
@@ -3899,7 +3987,7 @@ async function renderizarEtapa16(proc) {
 
     setVal('arNumero', dadosAR.numero_ar);
     setVal('arDataRecebimento', dadosAR.data_recebimento);
-    setVal('arRetornoSemSucesso', dadosAR.retorno_sem_sucesso || 'nao');
+    setVal('arRetornoSemSucesso', dadosAR.retorno_sem_sucesso || 'sim');
     setVal('arDataUltimaTentativa', dadosAR.data_ultima_tentativa);
     setVal('arMotivoCorreios', dadosAR.motivo_correios);
 
@@ -3921,7 +4009,7 @@ function toggleBlocoRetornoSemSucesso() {
     const select = document.getElementById('arRetornoSemSucesso');
     const bloco = document.getElementById('blocoRetornoSemSucesso');
     if (select && bloco) {
-        bloco.style.display = select.value === 'sim' ? 'block' : 'none';
+        bloco.style.display = select.value === 'nao' ? 'block' : 'none';
     }
 }
 
@@ -3935,7 +4023,10 @@ function renderizarAnexoAR(anexo) {
         if (areaDrop) areaDrop.style.display = 'none';
         if (anexoBox) anexoBox.style.display = '';
         if (nomeEl) nomeEl.textContent = anexo.nome || 'arquivo_anexo';
-        if (btnVer) btnVer.href = anexo.dataUrl || anexo.url;
+        if (btnVer) {
+            btnVer.href = '#';
+            btnVer.onclick = (e) => window.abrirAnexoEmNovaAba(anexo.dataUrl || anexo.url, e);
+        }
     } else {
         if (areaDrop) areaDrop.style.display = '';
         if (anexoBox) anexoBox.style.display = 'none';
@@ -4345,7 +4436,10 @@ function renderizarAnexoEdital(anexo) {
         if (areaDrop) areaDrop.style.display = 'none';
         if (anexoBox) anexoBox.style.display = '';
         if (nomeEl) nomeEl.textContent = anexo.nome || 'edital.pdf';
-        if (btnVer) btnVer.href = anexo.dataUrl || anexo.url;
+        if (btnVer) {
+            btnVer.href = '#';
+            btnVer.onclick = (e) => window.abrirAnexoEmNovaAba(anexo.dataUrl || anexo.url, e);
+        }
         if (badge) {
             badge.textContent = 'Anexado';
             badge.style.background = '#bbf7d0';
@@ -4759,6 +4853,82 @@ async function garantirDocumentoParaExportar() {
         return false;
     }
 }
+// ── Download do Relatório Fiscal em PDF ────────────────────────────
+async function baixarRelatorioFiscalPdfEtapa() {
+    const btn = document.getElementById('btnBaixarRelatorioPdfEtapa');
+    const oldText = btn ? btn.innerHTML : '';
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:8px; display:inline-block; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 1s linear infinite;"></div> Preparando PDF...`;
+    }
+
+    try {
+        if (!processoAtual) {
+            throw new Error("Processo não encontrado.");
+        }
+
+        let htmlComImagens = '';
+        let nomeArquivo = '';
+
+        const etapaAtual = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
+        
+        if (etapaAtual === 5 || etapaAtual === 13) {
+            const containerReplica = document.getElementById('containerDocumentoOficial');
+            if (!containerReplica || !containerReplica.querySelector('div')) {
+                alert('A Réplica ainda não foi gerada. Preencha os dados e clique em "Gerar/Atualizar Réplica".');
+                return;
+            }
+            htmlComImagens = containerReplica.innerHTML;
+            const numReplica = notificacaoAtual?.numero_replica || 'XXX';
+            nomeArquivo = `Replica_${numReplica.replace(/[\/\\]/g, '-')}`;
+        } else {
+            htmlComImagens = processoAtual.dados?.relatorio_fiscal?.html_customizado;
+            if (!htmlComImagens) {
+                alert('Não há relatório fiscal salvo para este processo. O processo pode não ter sido concluído corretamente.');
+                return;
+            }
+            const numeroRelatorio = processoAtual.dados?.relatorio_fiscal?.numero_relatorio || 'XXX';
+            nomeArquivo = `Relatorio_Fiscal_${numeroRelatorio.replace(/[\/\\]/g, '-')}`;
+        }
+
+        const estilos = `
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
+            img { max-width: 100%; height: auto; }
+            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
+        `;
+
+        const printIframe = document.createElement('iframe');
+        printIframe.style.position = 'absolute';
+        printIframe.style.width = '0';
+        printIframe.style.height = '0';
+        printIframe.style.border = 'none';
+        document.body.appendChild(printIframe);
+
+        const printDoc = printIframe.contentWindow.document;
+        printDoc.open();
+        printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeArquivo}</title><style>${estilos}</style></head><body>${htmlComImagens}</body></html>`);
+        printDoc.close();
+
+        setTimeout(() => {
+            printIframe.contentWindow.focus();
+            printIframe.contentWindow.print();
+            setTimeout(() => {
+                document.body.removeChild(printIframe);
+            }, 1000);
+        }, 500);
+
+    } catch (err) {
+        console.error('Erro ao gerar PDF do relatório:', err);
+        alert('Erro ao gerar PDF do relatório: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = oldText;
+        }
+    }
+}
 
 async function imprimirDocumentoOficial() {
     const ok = await garantirDocumentoParaExportar();
@@ -4778,7 +4948,18 @@ async function imprimirDocumentoOficial() {
         : `Processo Nº ${procNum.replace(/[\/\\]/g, '-')}`;
 
     const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg';
-    const conteudoLimpo = prepararConteudoDocumento(docEl.outerHTML, brasaoBase64);
+    
+    // Se for etapa 5, documentoPronto é a Réplica (que ocultamos). 
+    // Precisamos gerar a notificação real para a impressão.
+    const etapaAtual = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
+    let conteudoLimpo = '';
+    
+    if (etapaAtual === 5 || etapaAtual === 13) {
+        conteudoLimpo = gerarHtmlCompativelComWordDoc(processoAtual, brasaoBase64);
+        conteudoLimpo = `<div class="doc-oficial-wrapper"><div class="doc-page-content">${conteudoLimpo}</div></div>`;
+    } else {
+        conteudoLimpo = prepararConteudoDocumento(docEl.outerHTML, brasaoBase64);
+    }
 
     const estilos = `
         * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -4786,7 +4967,7 @@ async function imprimirDocumentoOficial() {
         img { max-width: 100%; height: auto; }
         /* Classes do documento oficial */
         .doc-oficial-wrapper { max-width: 820px; margin: 0 auto; background: #fff; }
-        .doc-page-content { padding: 40px 52px 32px 52px; }
+        .doc-page-content { padding: 40px 55px 32px 55px; }
         .doc-title-section { text-align: center; margin-top: 20px; margin-bottom: 12px; }
         .doc-h1 { font-size: 15.5pt; font-weight: bold; text-transform: uppercase; }
         .doc-h2 { font-size: 12.5pt; margin-top: 2px; }
@@ -4806,7 +4987,7 @@ async function imprimirDocumentoOficial() {
         .receipt-right { border-left: 2px solid #000; padding: 8px 10px; display: flex; flex-direction: column; justify-content: space-between; }
         .receipt-date-slashes { text-align: center; font-size: 14pt; margin-bottom: 12px; }
         .doc-footer-orange-bar { width: 100%; height: 0; border-top: 16px solid #F78C26 !important; background-color: #F78C26 !important; }
-        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 1.5cm; } }
+        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
     `;
 
     // Criar iframe oculto se não existir
@@ -4864,74 +5045,6 @@ function prepararConteudoDocumento(conteudo, brasaoBase64) {
     return divTemp.innerHTML
         .replace(/src="assets\/img\/brasao_semac\.jpeg"/g, `src="${brasaoBase64}"`)
         .replace(/src='assets\/img\/brasao_semac\.jpeg'/g, `src="${brasaoBase64}"`);
-}
-
-// ── Baixar Documento (.HTML formatado com visual de documento) ─────────────
-async function baixarDocumentoHTML() {
-    const ok = await garantirDocumentoParaExportar();
-    if (!ok) return;
-
-    let conteudo = document.getElementById('documentoPronto')?.outerHTML;
-    const procNum = processoAtual?.numero_processo || document.getElementById('etapaProcNumero')?.textContent || '2026-000001';
-    
-    // Se é certidão, usa o número da certidão no nome do arquivo
-    const numCertidaoEl = document.getElementById('inputNumNotificacaoCertidao');
-    const isCertidao = !!numCertidaoEl || !!document.querySelector('#campoLivreCertidao');
-    const _numNotif = numCertidaoEl?.value || notificacaoAtual?.numero || procNum || 'XXX';
-    const _anoAtual = new Date().getFullYear();
-    const _certNum = _numNotif.includes('/') ? _numNotif : `${_numNotif}/${_anoAtual}`;
-    const nomeArquivo = isCertidao
-        ? `Certidão Nº ${_certNum.replace(/[\/\\]/g, '-')}`
-        : `Processo Nº ${procNum.replace(/[\/\\]/g, '-')}`;
-    const numLimpo = nomeArquivo;
-    if (!conteudo) return;
-
-    const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg';
-    conteudo = prepararConteudoDocumento(conteudo, brasaoBase64);
-
-    const fullHtml = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<title>${numLimpo}</title>
-<style>
-body { font-family: Calibri, 'Carlito', Arial, sans-serif !important; padding: 20px; margin: 0 auto; color: #000; max-width: 820px; }
-.doc-page-content { padding: 40px 52px 32px 52px; }
-.doc-title-section { text-align: center; margin-top: 20px; margin-bottom: 12px; }
-.doc-h1 { font-size: 15.5pt; font-weight: bold; text-transform: uppercase; }
-.doc-h2 { font-size: 12.5pt; margin-top: 2px; }
-.doc-data-right { text-align: right; font-size: 11pt; margin-top: 14px; margin-bottom: 16px; }
-.doc-sec-heading { font-size: 11.5pt; font-weight: bold; margin-bottom: 4px; }
-.doc-info-grid { display: grid; grid-template-columns: 1.35fr 1fr; column-gap: 20px; font-size: 11pt; line-height: 1.45; }
-.doc-intro-p { font-size: 11pt; text-align: justify; margin: 22px 0 20px 0; line-height: 1.45; }
-.doc-infracao-bloco { margin: 24px 0; font-size: 11pt; line-height: 1.45; }
-.doc-infracao-titulo { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; }
-.doc-infracao-ul { margin: 8px 0 12px 0; padding-left: 20px; }
-.doc-infracao-ul li { margin-bottom: 4px; }
-.doc-obs-section { margin: 32px 0; font-size: 11pt; line-height: 1.5; }
-.doc-fiscal-sig { text-align: center; margin: 48px auto 40px auto; max-width: 380px; font-size: 11pt; }
-.doc-autuado-receipt { margin-top: 36px; font-size: 11pt; }
-.receipt-box { display: grid; grid-template-columns: 2.2fr 1fr; border: 2px solid #000; height: 96px; }
-.receipt-left { padding: 8px 10px; }
-.receipt-right { border-left: 2px solid #000; padding: 8px 10px; display: flex; flex-direction: column; justify-content: space-between; }
-.receipt-date-slashes { text-align: center; font-size: 14pt; margin-bottom: 12px; }
-.doc-footer-orange-bar { width: 100%; height: 0; border-top: 16px solid #F78C26 !important; background-color: #F78C26 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-</style>
-</head>
-<body>
-${conteudo}
-</body>
-</html>`;
-
-    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${numLimpo}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 }
 
 // ── Gerar HTML compatível com Microsoft Word (.DOC) com Tabelas nativas ──
@@ -5086,18 +5199,18 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         <!-- 1. CABEÇALHO IDÊNTICO AO MODELO - NOTIFICAÇÃO PRELIMINAR -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-collapse: collapse;">
             <tr>
-                <td width="145" rowspan="2" align="center" valign="top" style="padding-right: 18px; width: 145px;">
-                    <img src="${brasaoSrc}" width="125" style="width: 125px; height: auto; display: block; margin: 0 auto;">
+                <td width="100" rowspan="2" align="center" valign="top" style="padding-right: 12px; width: 100px;">
+                    <img src="${brasaoSrc}" width="85" style="width: 85px; height: auto; display: block; margin: 0 auto;">
                 </td>
                 <td bgcolor="#F78C26" style="background-color: #F78C26; height: 14px; font-size: 1px; line-height: 14px;">&nbsp;</td>
             </tr>
             <tr>
-                <td valign="top" style="padding-top: 10px; font-size: 11pt; color: #000; line-height: 1.35;">
+                <td valign="top" style="padding-top: 10px; font-size: 9.5pt; color: #000; line-height: 1.4;">
                     <strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>
                     DIRETORIA DE MEIO AMBIENTE<br>
                     GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br>
-                    <span style="font-size: 10pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
-                    <span style="font-size: 10pt;">CEP:35.501-170 Tel: (37) 3229-8176</span>
+                    <span style="font-size: 9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
+                    <span style="font-size: 9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span>
                 </td>
             </tr>
         </table>
@@ -5195,55 +5308,6 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             </tr>
         </table>
     `;
-}
-
-// ── Baixar em formato Word (.DOC) ─────────────
-async function baixarDocumentoDOC() {
-    const proc = processoAtual || {};
-    const procNum = proc.numero_processo || document.getElementById('etapaProcNumero')?.textContent || '2026-000001';
-
-    // Garante que existe um documento (gera a Notificação se necessário)
-    const ok = await garantirDocumentoParaExportar();
-    if (!ok) return;
-
-    // Se é certidão, usa o número da certidão no nome do arquivo
-    const numCertidaoElDoc = document.getElementById('inputNumNotificacaoCertidao');
-    const isCertidaoDoc = !!numCertidaoElDoc || !!document.querySelector('#campoLivreCertidao');
-    const _numNotif = numCertidaoElDoc?.value || notificacaoAtual?.numero || procNum || 'XXX';
-    const _anoAtual = new Date().getFullYear();
-    const _certNum = _numNotif.includes('/') ? _numNotif : `${_numNotif}/${_anoAtual}`;
-    const numLimpo = isCertidaoDoc
-        ? `Certidão Nº ${_certNum.replace(/[\/\\]/g, '-')}`
-        : procNum.replace(/[\/\\]/g, '-');
-
-    const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg';
-
-    // Se existe documento gerado pela etapa, exporta ele diretamente
-    const docPronto = document.getElementById('documentoPronto');
-    let conteudoWord;
-    
-    const etapaAtual = parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 1, 10);
-    const isEtapa1 = (etapaAtual === 1);
-
-    if (isEtapa1) {
-        conteudoWord = gerarHtmlCompativelComWordDoc(proc, brasaoBase64);
-    } else if (docPronto) {
-        conteudoWord = prepararConteudoDocumento(docPronto.outerHTML, brasaoBase64);
-    } else {
-        conteudoWord = gerarHtmlCompativelComWordDoc(proc, brasaoBase64);
-    }
-
-    const fullDoc = '<html xmlns:o=\'urn:schemas-microsoft-com:office:office\' xmlns:w=\'urn:schemas-microsoft-com:office:word\' xmlns=\'http://www.w3.org/TR/REC-html40\'><head><meta charset="utf-8"><title>' + numLimpo + '</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>@page{size:A4;margin:2cm}body{font-family:Calibri,\'Carlito\',Arial,sans-serif;color:#000;line-height:1.4}table{border-collapse:collapse}</style></head><body>' + conteudoWord + '</body></html>';
-
-    const blob = new Blob([fullDoc], { type: 'application/msword;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = numLimpo + '.doc';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 }
 
 // ── Controle Colapsável do Menu Lateral ────────────────────────────────────
@@ -5407,7 +5471,7 @@ window.gerarCertidaoSemDefesa = async function(auto = false) {
 
     const htmlCertidao = `
         <div id="documentoPronto" style="margin-top: 20px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
-            <div style="padding: 40px 52px 0 52px; background: white; max-width: 820px; margin: 0 auto; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
+            <div style="padding: 40px 55px 0 55px; background: white; max-width: 820px; margin: 0 auto; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
                 <!-- CABEÇALHO: logo + linha laranja + nome da secretaria -->
                 <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 16px;">
                     <div style="display: flex; flex-direction: column; align-items: center; width: 100px; flex-shrink: 0;">
@@ -5535,4 +5599,287 @@ window.avancarEtapa10 = async function() {
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
 
     await moverProcessoParaEtapa(proxEtapa, motivo);
+};
+
+// ── Helper para abrir Base64 no Chrome de forma segura ──
+window.abrirAnexoEmNovaAba = function(urlOuBase64, event) {
+    if (event) event.preventDefault();
+    if (!urlOuBase64 || urlOuBase64 === '#') return;
+
+    if (urlOuBase64.startsWith('data:')) {
+        try {
+            const arr = urlOuBase64.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            const blob = new Blob([u8arr], { type: mime });
+            const blobUrl = URL.createObjectURL(blob);
+            window.open(blobUrl, '_blank');
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        } catch (e) {
+            console.error('Erro ao converter base64 para blob:', e);
+            window.open(urlOuBase64, '_blank');
+        }
+    } else {
+        window.open(urlOuBase64, '_blank');
+    }
+};
+
+// ── Etapa 5: Funções da Dilação e Réplica ──
+
+window.toggleOpcoesDilacao = function() {
+    const val = document.getElementById('selectDecisaoDilacao')?.value;
+    const blocoDias = document.getElementById('blocoDiasDilacao');
+    const blocoJustificativa = document.getElementById('blocoJustificativaDilacao');
+    
+    if (blocoDias) blocoDias.style.display = (val === 'defere') ? 'block' : 'none';
+    if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere' || val === 'gerente') ? 'block' : 'none';
+    
+    window.gerarReplica();
+};
+
+window.contadorImagensReplica = 0;
+
+window.adicionarCampoImagemReplica = function() {
+    window.contadorImagensReplica++;
+    const id = window.contadorImagensReplica;
+    
+    const div = document.createElement('div');
+    div.id = `item-imagem-replica-${id}`;
+    div.style.cssText = 'position:relative; background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; display:flex; gap:16px; align-items:center;';
+    
+    div.innerHTML = `
+        <button type="button" onclick="document.getElementById('item-imagem-replica-${id}').remove()" style="position:absolute; top:-8px; right:-8px; background:#ef4444; color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-weight:bold; font-size:12px; z-index:10; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.1);" title="Remover Imagem">✕</button>
+        <div style="flex:1;">
+            <label style="display:block; font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:4px;">Selecione a Imagem</label>
+            <input type="file" class="replica-imagem-arquivo" accept="image/*" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
+        </div>
+        <div style="flex:2;">
+            <label style="display:block; font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:4px;">Legenda da Imagem</label>
+            <input type="text" class="replica-imagem-legenda" placeholder="Ex: Foto do local..." style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
+        </div>
+    `;
+    
+    document.getElementById('containerImagensForm').appendChild(div);
+};
+
+window.gerarReplica = async function() {
+    if (!processoAtual) return;
+    
+    const d = processoAtual.dados || {};
+    const cont = processoAtual.campos?.contribuinte || d.contribuinte || {};
+    const imovel = processoAtual.campos?.imovel || d.imovel || {};
+    
+    // Obter PA
+    const pa = d.relatorio_fiscal?.pa || d.relatorio_fiscal?.numero_processo_administrativo || 'Não informado';
+    
+    const numNotificacao = notificacaoAtual?.numero || document.getElementById('etapaProcNumero')?.textContent || 'XXX';
+    const imvLogradouro = imovel.logradouro || imovel.rua || '—';
+    const imvNumero = imovel.numero || '—';
+    const numLimpo = numNotificacao.replace(/[\/\\]/g, '-');
+    const motivoInfracao = notificacaoAtual?.descricao || 'Regularização solicitada';
+    
+    // Datas
+    const arData = processoAtual?.campos?.etapa16?.data_insercao_ar || processoAtual?.dados?.campos?.etapa16?.data_insercao_ar || processoAtual?.dados?.etapa16?.data_insercao_ar || notificacaoAtual?.dados?.etapa16?.data_insercao_ar || d.data_insercao_ar || notificacaoAtual?.dados?.etapa16?.data_recebimento || '—';
+    const arDataFmt = arData !== '—' ? new Date(arData.includes('T') ? arData : arData + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    
+    const vencData = notificacaoAtual?.data_vencimento;
+    const vencDataFmt = vencData ? new Date(vencData).toLocaleDateString('pt-BR') : '—';
+
+    // Número da Réplica
+    let numReplica = notificacaoAtual?.dados?.numero_replica || '';
+    const _anoAtual = new Date().getFullYear();
+    
+    if (!numReplica && notificacaoAtual?.id) {
+        try {
+            // Verifica se já existe um documento gerado para esta réplica
+            const { data: docExistente } = await supabaseClient
+                .from('documentos')
+                .select('id, numero_sequencial')
+                .eq('notificacao_id', notificacaoAtual.id)
+                .eq('tipo', 'Réplica')
+                .maybeSingle();
+
+            if (docExistente && docExistente.numero_sequencial) {
+                numReplica = docExistente.numero_sequencial;
+            } else {
+                const { data } = await supabaseClient
+                    .from('documentos')
+                    .select('numero_sequencial')
+                    .eq('tipo', 'Réplica')
+                    .like('numero_sequencial', `${_anoAtual}/%`);
+                    
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        const nr = item.numero_sequencial;
+                        if (nr) {
+                            const partes = nr.split('/');
+                            if (partes.length === 2) {
+                                const val = parseInt(partes[1], 10);
+                                if (!isNaN(val) && val > max) max = val;
+                            }
+                        }
+                    });
+                }
+                numReplica = `${_anoAtual}/${String(max + 1).padStart(3, '0')}`;
+                
+                const usuarioId = typeof perfilAtual !== 'undefined' && perfilAtual?.id ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
+                
+                if (usuarioId) {
+                    await supabaseClient.from('documentos').insert([{
+                        processo_id: processoAtual.id,
+                        notificacao_id: notificacaoAtual.id,
+                        etapa_id: processoAtual.etapa_atual_id || processoAtual.etapa_atual,
+                        tipo: 'Réplica',
+                        nome_arquivo: `Replica_${numReplica.replace(/[\\/\\\\]/g, '-')}.pdf`,
+                        gerado_automaticamente: true,
+                        numero_sequencial: numReplica,
+                        usuario_id: usuarioId
+                    }]);
+                }
+            }
+            
+            // Mantém no JSON para retrocompatibilidade
+            const novosDados = { ...(notificacaoAtual.dados || {}), numero_replica: numReplica };
+            await supabaseClient.from('notificacoes').update({ dados: novosDados }).eq('id', notificacaoAtual.id);
+            notificacaoAtual.dados = novosDados;
+        } catch(e) {
+            console.error('Erro ao gerar numero replica na tabela documentos', e);
+            numReplica = `XXX/${_anoAtual}`;
+        }
+    } else if (!numReplica) {
+        numReplica = `XXX/${_anoAtual}`;
+    }
+
+    const selectDecisao = document.getElementById('selectDecisaoDilacao');
+    const decisao = selectDecisao ? selectDecisao.value : '';
+    const txtJustificativa = document.getElementById('txtJustificativaDilacao') ? document.getElementById('txtJustificativaDilacao').value : '';
+    const dias = document.getElementById('inputDiasDilacao') ? document.getElementById('inputDiasDilacao').value : 0;
+    
+    const etapaAtual = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
+    
+    let textoDecisao = '';
+    if (etapaAtual === 5) {
+        if (decisao === 'defere') {
+            textoDecisao = `Após análise da dilação informamos que seu pedido foi deferido. O prazo foi prorrogado por mais ${dias} dias.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
+        } else if (decisao === 'indefere') {
+            textoDecisao = `Após análise da defesa/dilação informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
+        } else if (decisao === 'gerente') {
+            textoDecisao = `Senhora Gerente,<br><br>Após análise da dilação/defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
+        }
+    } else if (etapaAtual === 13) {
+        if (decisao === 'defere') {
+            textoDecisao = `Após análise da defesa informamos que seu pedido foi deferido.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
+        } else if (decisao === 'indefere') {
+            textoDecisao = `Após análise da defesa informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
+        } else if (decisao === 'gerente') {
+            textoDecisao = `Senhora Gerente,<br><br>Após análise da defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
+        }
+    }
+    
+    const nomeFiscal = typeof perfilAtual !== 'undefined' && perfilAtual?.nome ? perfilAtual.nome : (processoAtual?.profiles?.nome || window.obterPerfilUsuario?.()?.nome || 'Fiscal de Posturas');
+    const matriculaFiscal = typeof perfilAtual !== 'undefined' && perfilAtual?.matricula ? perfilAtual.matricula : (processoAtual?.profiles?.matricula || window.obterPerfilUsuario?.()?.matricula || '');
+    const dataAtual = new Date().toLocaleDateString('pt-BR');
+
+    // Construir Imagens HTML a partir do container form
+    let imgsHTML = '';
+    const formItems = document.querySelectorAll('#containerImagensForm > div');
+    const filesPromises = [];
+    
+    for (const item of formItems) {
+        const fileInput = item.querySelector('.replica-imagem-arquivo');
+        const legendaInput = item.querySelector('.replica-imagem-legenda');
+        const file = fileInput?.files[0];
+        
+        if (file) {
+            const prom = new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const legendaTexto = legendaInput?.value?.trim() || '';
+                    resolve(`
+                        <div style="margin:20px auto; text-align:center; padding:10px; display:inline-block; resize:both; overflow:hidden; max-width:100%; min-width:150px; min-height:150px; border:1px dashed #ccc;">
+                            <img src="${e.target.result}" style="max-width:100%; max-height:400px; display:block; margin:0 auto; border-radius:8px;">
+                            ${legendaTexto ? `<div style="margin-top:10px; font-size:11pt; color:#334155;">${legendaTexto}</div>` : ''}
+                        </div>
+                    `);
+                };
+                reader.readAsDataURL(file);
+            });
+            filesPromises.push(prom);
+        }
+    }
+    
+    const loadedImages = await Promise.all(filesPromises);
+    imgsHTML = loadedImages.join('');
+
+    const htmlReplica = `
+        <div id="documentoPronto" style="margin-top: 20px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
+            <div style="padding: 50px 55px 30px 55px; background: white; max-width: 820px; margin: 0 auto; color: #000;">
+                
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-collapse: collapse;">
+                    <tr>
+                        <td width="100" rowspan="2" align="center" valign="top" style="padding-right: 12px; width: 100px;">
+                            <img src="assets/img/brasao_semac.jpeg" width="85" style="width: 85px; height: auto; display: block; margin: 0 auto;">
+                        </td>
+                        <td bgcolor="#F78C26" style="background-color: #F78C26; height: 14px; font-size: 1px; line-height: 14px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td valign="top" style="padding-top: 10px; font-size: 9.5pt; color: #000; line-height: 1.4;">
+                            <strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>
+                            DIRETORIA DE MEIO AMBIENTE<br>
+                            GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br>
+                            <span style="font-size: 9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
+                            <span style="font-size: 9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span>
+                        </td>
+                    </tr>
+                </table>
+
+                <div style="text-align: center; margin: 28px 0 24px 0;">
+                    <p style="margin: 0; text-align: center; font-size: 12pt;"><strong>RÉPLICA ${numReplica}</strong></p>
+                </div>
+
+                <div style="margin-bottom: 20px; font-size: 11pt; line-height: 1.4;">
+                    <strong>Autuado(a):</strong> ${cont.nome || '—'}<br>
+                    <strong>PA:</strong> ${pa}
+                </div>
+
+                <div style="font-size: 11pt; line-height: 1.6; text-align: justify; margin-bottom: 20px;">
+                    <p style="margin-bottom: 12px; text-indent: 40px;">
+                        O contribuinte acima qualificado, com base no artigo 231 da Lei 6.907/08, diante da notificação ${numNotificacao}, a qual afirma que o imóvel de sua propriedade, situado na Rua/Av ${imvLogradouro} Nº: ${imvNumero}, precisa da(s) seguinte(s) regularização(es): ${motivoInfracao}, cuja notificação foi enviada via Aviso de Recebimento (AR) no dia ${arDataFmt}, com vencimento dia ${vencDataFmt}.
+                    </p>
+                    <p style="margin-bottom: 12px; text-indent: 40px;">
+                        ${textoDecisao}
+                    </p>
+                </div>
+
+                <div style="text-align: right; margin-bottom: 40px; font-size: 11pt;">
+                    Divinópolis/MG, ${dataAtual}
+                </div>
+
+                <div style="text-align: center; margin-top: 60px; padding-bottom: 28px; font-size: 12pt;">
+                    <div style="display: inline-block; min-width: 280px; border-top: 1px solid #000; padding-top: 6px;">
+                        <div>${nomeFiscal}</div>
+                        <div>Fiscal de Posturas</div>
+                        ${matriculaFiscal ? `<div>Matrícula: ${matriculaFiscal}</div>` : ''}
+                    </div>
+                </div>
+
+                <div id="containerImagensReplica" style="margin-top: 20px; text-align:center;">
+                    ${imgsHTML}
+                </div>
+
+                <div style="width: calc(100% + 104px); margin-left: -52px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin-top: 40px;"></div>
+            </div>
+        </div>
+    `;
+    
+    const container = document.getElementById('containerDocumentoOficial');
+    if (container) {
+        container.innerHTML = htmlReplica;
+    }
 };

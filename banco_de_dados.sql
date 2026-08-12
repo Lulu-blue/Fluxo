@@ -284,6 +284,7 @@ CREATE TABLE IF NOT EXISTS documentos (
     mime_type VARCHAR(100),
     tamanho_bytes BIGINT,
     gerado_automaticamente BOOLEAN DEFAULT FALSE,
+    numero_sequencial TEXT,                    -- Ex: "2026/001" (para réplicas, certidões, etc)
     usuario_id UUID NOT NULL REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
