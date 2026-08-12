@@ -18,7 +18,7 @@
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
                 <h2>SISTEMA</h2>
-                <span class="sidebar-subtitle">Fiscalização de Posturas</span>
+                <span class="sidebar-subtitle">Fiscalização de Posturas e Meio Ambiente</span>
             </div>
             <nav class="sidebar-nav">
                 <a href="#" class="active" data-page="solicitacoes">
@@ -262,15 +262,20 @@
             <main class="painel-content" id="secao-configuracoes" style="display: none;">
                 <div class="perfil-card">
                     <div class="perfil-header-banner">
-                        <div class="perfil-avatar-wrapper" onclick="document.getElementById('perfilAvatarInput').click()" title="Clique para alterar foto">
+                        <div class="perfil-avatar-wrapper"
+                            onclick="document.getElementById('perfilAvatarInput').click()"
+                            title="Clique para alterar foto">
                             <div class="perfil-avatar-circle" id="perfilAvatarBox">FP</div>
                             <div class="perfil-avatar-overlay">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                                    <circle cx="12" cy="13" r="4"/>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5">
+                                    <path
+                                        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                    <circle cx="12" cy="13" r="4" />
                                 </svg>
                             </div>
-                            <input type="file" id="perfilAvatarInput" accept="image/*" style="display:none;" onchange="alterarFotoPerfil(this)">
+                            <input type="file" id="perfilAvatarInput" accept="image/*" style="display:none;"
+                                onchange="alterarFotoPerfil(this)">
                         </div>
                         <div class="perfil-header-info">
                             <h2 id="perfilHeaderNome">Meu Perfil</h2>
@@ -325,7 +330,8 @@
                     <div class="perfil-form-grid">
                         <div class="form-group fg-medium">
                             <label for="perfilNovaSenha">Nova Senha</label>
-                            <input type="password" id="perfilNovaSenha" placeholder="Digite a nova senha (mín. 6 caracteres)">
+                            <input type="password" id="perfilNovaSenha"
+                                placeholder="Digite a nova senha (mín. 6 caracteres)">
                         </div>
                         <div class="form-group fg-medium">
                             <label for="perfilConfirmaSenha">Confirmar Nova Senha</label>
@@ -334,9 +340,10 @@
 
                         <div class="form-group fg-full" style="margin-top: 10px;">
                             <button class="btn-primary" onclick="alterarSenhaUsuario()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                 </svg>
                                 Atualizar Senha
                             </button>
@@ -462,11 +469,14 @@
                             automaticamente em Zona, Setor, Quadra e Lote.</p>
                         <div class="form-row">
                             <div class="form-group fg-small">
-                                <label for="imvCodigo">Código Reduzido</label>
+                                <label for="imvCodigo">Código Reduzido <span class="optional">(opcional)</span></label>
                                 <input type="text" id="imvCodigo" placeholder="Ex: 87361">
                             </div>
                             <div class="form-group fg-large">
-                                <label for="imvInscricao">Inscrição do Imóvel</label>
+                                <label for="imvInscricao">Inscrição do Imóvel / CNPJ <a href="#"
+                                        onclick="puxarCnpjContribuinte(event)"
+                                        style="font-size:0.75rem; color:var(--accent-color); float:right; text-decoration:none; margin-top: 2px;">Puxar
+                                        do Contribuinte</a></label>
                                 <input type="text" id="imvInscricao" placeholder="01.036.00181.00300.00000.0">
                                 <div id="imvFeedback" class="field-feedback"></div>
                             </div>
@@ -531,8 +541,9 @@
                                 <input type="text" id="fiscMatricula" readonly class="input-readonly">
                             </div>
                             <div class="form-group fg-small">
-                                <label for="fiscDataVistoria">Data da Vistoria <span class="required">*</span></label>
-                                <input type="date" id="fiscDataVistoria">
+                                <label for="fiscDataVistoria">Data e Hora da Vistoria <span
+                                        class="required">*</span></label>
+                                <input type="datetime-local" id="fiscDataVistoria">
                             </div>
                         </div>
                         <div class="form-row">
@@ -545,19 +556,15 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group fg-full">
-                                <label>Imagens da Vistoria <span class="optional">(opcional)</span></label>
-                                <div class="upload-area upload-area-sm" id="uploadAreaImagens">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
-                                        stroke-width="1.5">
-                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                                        <circle cx="8.5" cy="8.5" r="1.5" />
-                                        <polyline points="21 15 16 10 5 21" />
-                                    </svg>
-                                    <p>Arraste imagens ou <label for="inputImagens" class="upload-link">clique para
-                                            selecionar</label></p>
-                                    <input type="file" id="inputImagens" accept="image/*" multiple hidden>
+                                <label>Imagens da Vistoria com Legenda <span class="optional">(opcional)</span></label>
+                                <div id="container-imagens-legenda"
+                                    style="display: flex; flex-direction: column; gap: 10px;">
+                                    <button type="button" class="btn-inline"
+                                        style="align-self: flex-start; padding: 6px 12px; font-size: 0.8rem;"
+                                        onclick="adicionarCampoImagemLegenda()">+ Adicionar Imagem e Legenda</button>
+                                    <div id="lista-imagens-legenda"
+                                        style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;"></div>
                                 </div>
-                                <div class="images-preview" id="imagesPreview"></div>
                             </div>
                         </div>
                         <div class="form-row">
@@ -681,16 +688,28 @@
                 <div class="wizard-step" id="step5" style="display: none;">
                     <div class="step-section">
                         <h3>Relatório Fiscal</h3>
-                        <p class="step-desc">Preencha as informações adicionais para o Relatório Fiscal e edite o texto base se necessário.</p>
+                        <p class="step-desc">Preencha as informações adicionais para o Relatório Fiscal e edite o texto
+                            base se necessário.</p>
 
                         <div class="form-row">
                             <div class="form-group fg-large">
-                                <label for="relAtendimento">Para atendimento</label>
-                                <input type="text" id="relAtendimento" class="form-input" placeholder="Ex: Ministério Público">
+                                <label for="relAtendimentoTipo">Para atendimento</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <select id="relAtendimentoTipo" class="form-input" style="flex: 1; min-width: 0;">
+                                        <option value="" disabled selected>Selecione...</option>
+                                        <option value="Protocolo">Protocolo</option>
+                                        <option value="Denúncia">Denúncia</option>
+                                        <option value="Comunicação Interna">Comunicação Interna</option>
+                                        <option value="Ofício">Ofício</option>
+                                    </select>
+                                    <input type="text" id="relAtendimentoValor" class="form-input"
+                                        placeholder="Nº / Descrição" style="flex: 1; min-width: 0;">
+                                </div>
                             </div>
                             <div class="form-group fg-large">
                                 <label for="relAssunto">Assunto (Título da denúncia)</label>
-                                <input type="text" id="relAssunto" class="form-input" placeholder="Ex: Lote vago com mato alto">
+                                <input type="text" id="relAssunto" class="form-input"
+                                    placeholder="Ex: Lote vago com mato alto">
                             </div>
                             <div class="form-group fg-medium">
                                 <label for="relPA">PA (Opcional)</label>
@@ -698,23 +717,36 @@
                             </div>
                         </div>
 
-                        <div class="form-group" style="margin-top:16px;">
-                            <label for="relTextoVistoria">Texto do Relatório</label>
+                        <div class="form-group" style="margin-top:16px; margin-bottom: 8px;">
+                            <label
+                                style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; font-size: 0.85rem;">
+                                <input type="checkbox" id="relIncluirDataHora" checked
+                                    style="width: 16px; height: 16px; accent-color: var(--accent-color);">
+                                Incluir Data e Hora da Vistoria na introdução
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="relTextoVistoria">Texto do Relatório (Descreva as transgressões)</label>
                             <textarea id="relTextoVistoria" class="form-input" rows="4"></textarea>
                         </div>
 
+
                         <div class="form-row" style="margin-top: 20px;">
-                            <button type="button" class="btn-primary" id="btnAbrirEditorRelatorio" style="display: flex; align-items: center; gap: 8px;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <button type="button" class="btn-primary" id="btnAbrirEditorRelatorio"
+                                style="display: flex; align-items: center; gap: 8px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
                                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                                 </svg>
                                 Visualizar / Editar Relatório Fiscal
                             </button>
-                            <span class="field-feedback" id="feedbackEditorRelatorio" style="margin-left: 12px; align-self: center;"></span>
+                            <span class="field-feedback" id="feedbackEditorRelatorio"
+                                style="margin-left: 12px; align-self: center;"></span>
                         </div>
 
-                        <div id="previewRelatorioContainer" style="margin-top: 24px; padding: 20px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow-y: auto; max-height: 400px; display: none;">
+                        <div id="previewRelatorioContainer"
+                            style="margin-top: 24px; padding: 20px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow-y: auto; max-height: 400px; display: none;">
                             <!-- O preview do relatório será gerado via JS aqui -->
                         </div>
                     </div>
@@ -779,13 +811,13 @@
                     Voltar ao Formulário
                 </button>
                 <div style="flex:1;"></div>
-                <button class="btn-primary btn-success" id="btnBaixarRelatorioDoc">
+                <button class="btn-primary btn-success" id="btnBaixarRelatorioPdf">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" />
-                        <line x1="12" y1="15" x2="12" y2="3" />
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
                     </svg>
-                    Baixar Relatório (.doc)
+                    Baixar Relatório (.pdf)
                 </button>
             </div>
         </div>
