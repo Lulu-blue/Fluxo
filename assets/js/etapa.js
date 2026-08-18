@@ -164,7 +164,7 @@ async function adicionarHistoricoNotificacao(notif, etapaDe, etapaPara, condicao
             .from('notificacoes')
             .update({ dados: notifDados })
             .eq('id', notif.id);
-        
+
         notif.dados = notifDados;
     } catch (err) {
         console.error('Erro ao adicionar histórico JSON na notificação:', err);
@@ -231,7 +231,7 @@ async function criarNotificacoesDoProcesso(proc) {
                 const descCat = inf.infracoes_catalogo?.descricao || '';
                 const descNotif = notif.descricao || '';
                 return descCat.toLowerCase().includes(descNotif.toLowerCase()) ||
-                       descNotif.toLowerCase().includes(descCat.toLowerCase());
+                    descNotif.toLowerCase().includes(descCat.toLowerCase());
             }) || infracoes[0];
 
             await supabaseClient
@@ -373,7 +373,7 @@ const ETAPAS_MAP = {
 const ETAPAS_POR_CARGO = {
     'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
     'Administrativo de Posturas': [16, 17],
-    'Gerente': [11, 12, 15, 17, 22, 25, 30],
+    'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
     'Secretário': [24],
     'Jurídico': [23],
     'Fazenda': [26]
@@ -485,8 +485,8 @@ async function inicializarPaginaEtapa() {
         configurarEventosEtapa30();
     } else {
         configurarAbasPagina();
-        
-        if (notificacaoAtual && [3, 4, 5, 7, 10, 13, 29, 33].includes(etapaAtual)) {
+
+        if (notificacaoAtual && [3, 4, 5, 7, 10, 11, 13, 29, 33].includes(etapaAtual)) {
             renderizarFormularioDinamico(etapaAtual);
         } else if (etapaAtual === 1 && !notificacaoAtual) {
             renderizarFormularioDinamico(1);
@@ -523,11 +523,11 @@ function renderizarFormularioDinamico(etapaNum) {
         formDiv.id = 'formDinamicoContainer';
         areaForm.appendChild(formDiv);
     }
-    
+
     // Configurações de abas para Notificações vs Processo Padrão
     const btnTabDoc = document.querySelector('.tab-button[data-tab="tabDocumentoOficial"]');
     const btnTabEdit = document.querySelector('.tab-button[data-tab="tabEditarProcesso"]');
-    
+
     if (notificacaoAtual && etapaNum !== 1) {
         if (btnTabDoc) btnTabDoc.textContent = `Ações da Notificação`;
         if (btnTabEdit) btnTabEdit.style.display = 'none';
@@ -555,7 +555,7 @@ function renderizarFormularioDinamico(etapaNum) {
     `;
 
     let conteudo = '';
-    
+
     if (etapaNum === 1) {
         conteudo = `
             <!-- Painel da Etapa 1: Controle de Multas & Anexo da Notificação Assinada -->
@@ -690,8 +690,24 @@ function renderizarFormularioDinamico(etapaNum) {
             `;
         }
 
+        const hist = notificacaoAtual?.dados?.historico || [];
+        const veioDoGerente = hist.length > 0 && hist[hist.length - 1].etapa_de === 11;
+        let alertaGerenteHtml = '';
+        if (veioDoGerente && notificacaoAtual?.dados?.etapa11?.justificativa) {
+            alertaGerenteHtml = `
+                <div style="background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:12px; margin-bottom:15px; display:flex; gap:12px;">
+                    <span style="font-size:1.5rem;">⚠️</span>
+                    <div>
+                        <div style="font-weight:800; color:#991b1b; font-size:1rem; margin-bottom:4px;">Atenção: O Gerente retornou esta defesa para reanálise do Fiscal</div>
+                        <div style="font-size:0.95rem; color:#7f1d1d; font-weight:500;"><strong>Motivo do Gerente:</strong> ${notificacaoAtual.dados.etapa11.justificativa}</div>
+                    </div>
+                </div>
+            `;
+        }
+
         conteudo = `
             <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Defesa Apresentada</h3>
+            ${alertaGerenteHtml}
             ${prazoHtml}
             <p style="font-size:0.95rem; color:#475569;">Por favor, anexe o documento de defesa abaixo. Você pode anexar mais de um arquivo.</p>
             ${uploadHtml('Clique para selecionar ou arraste os documentos de defesa aqui')}
@@ -700,7 +716,7 @@ function renderizarFormularioDinamico(etapaNum) {
         const veioDeDilacao = notificacaoAtual?.status === 'dilacao';
         const docText = veioDeDilacao ? 'Comprovante de Propriedade e Comprovante de Renda' : 'Comprovante de Propriedade';
         const pText = veioDeDilacao ? 'Anexe os comprovantes de propriedade e de renda abaixo. É necessário no mínimo 2 documentos.' : 'Anexe o comprovante de propriedade abaixo.';
-        
+
         conteudo = `
             <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">${docText}</h3>
             <p style="font-size:0.95rem; color:#475569;">${pText}</p>
@@ -713,7 +729,7 @@ function renderizarFormularioDinamico(etapaNum) {
         const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
         if (btnBaixar) btnBaixar.innerHTML = btnBaixar.innerHTML.replace('Relatório', 'Réplica');
 
-        setTimeout(() => { if(window.gerarReplica) window.gerarReplica(); }, 300);
+        setTimeout(() => { if (window.gerarReplica) window.gerarReplica(); }, 300);
 
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
@@ -764,6 +780,97 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
             </div>
         `;
+    } else if (etapaNum === 11) {
+        const decisaoAnterior = notificacaoAtual?.dados?.etapa11?.decisao || '';
+        const justificativaAnterior = notificacaoAtual?.dados?.etapa11?.justificativa || '';
+        const dataVencimentoAnterior = notificacaoAtual?.dados?.etapa11?.dataVencimento || '';
+
+        let anexosHtml = '';
+
+        // 1) Replica (Etapa 13)
+        anexosHtml += `
+            <div style="background:white; border:1px solid #cbd5e1; padding:16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">Réplica (PDF)</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Parecer do Fiscal (Etapa 13)</p></div>
+                <button type="button" onclick="baixarDocUnico('replica')" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
+            </div>
+        `;
+
+        // 2) Defesa (Etapa 3)
+        const anexosDefesa = notificacaoAtual?.dados?.etapa3?.anexos || [];
+        anexosDefesa.forEach((anexo, idx) => {
+            anexosHtml += `
+            <div style="background:white; border:1px solid #cbd5e1; padding:16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Defesa (Etapa 3)</p></div>
+                <button type="button" onclick="window.abrirAnexoNotificacao('etapa3', ${idx})" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
+            </div>
+            `;
+        });
+
+        // 3) Comprovante de Renda/Propriedade (Etapa 4)
+        const anexosRenda = notificacaoAtual?.dados?.etapa4?.anexos || [];
+        anexosRenda.forEach((anexo, idx) => {
+            anexosHtml += `
+            <div style="background:white; border:1px solid #cbd5e1; padding:16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Comprovante Renda/Prop. (Etapa 4)</p></div>
+                <button type="button" onclick="window.abrirAnexoNotificacao('etapa4', ${idx})" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
+            </div>
+            `;
+        });
+
+        conteudo = `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
+                    <div style="background:#fef3c7; padding:10px; border-radius:10px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Gerente Analisa Defesa (2ª)</h3>
+                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Analise os documentos e dê o veredito final.</p>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:24px; padding:16px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;">
+                    <h4 style="margin:0 0 12px 0; color:#334155;">Documentos Principais e Auxiliares</h4>
+                    <div style="display:grid; grid-template-columns:1fr; gap:12px;">
+                        ${anexosHtml}
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr; gap:20px;">
+                    <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão do Gerente <span style="color:#ef4444;">*</span></label>
+                        <select id="selectDecisaoGerente" onchange="window.toggleOpcoesGerente()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                            <option value="">Selecione uma opção...</option>
+                            <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Deferido</option>
+                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferido</option>
+                            <option value="dilatar" ${decisaoAnterior === 'dilatar' ? 'selected' : ''}>Dilatar Prazo</option>
+                            <option value="retorna_fiscal" ${decisaoAnterior === 'retorna_fiscal' ? 'selected' : ''}>Mandar de volta para o fiscal analisar novamente a defesa</option>
+                        </select>
+                    </div>
+
+                    <div id="blocoDataDilacaoGerente" style="display: ${decisaoAnterior === 'dilatar' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Nova data de vencimento <span style="color:#ef4444;">*</span></label>
+                        <input type="date" id="inputDataDilacaoGerente" class="form-input" value="${dataVencimentoAnterior}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b;" />
+                    </div>
+
+                    <div id="blocoCertidaoGerente" style="display: ${decisaoAnterior === 'defere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Gerar Certidão de Encerramento (Etapa 10) antes de encerrar o processo? <span style="color:#ef4444;">*</span></label>
+                        <select id="selectGerarCertidaoGerente" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b;">
+                            <option value="sim" ${notificacaoAtual?.dados?.etapa11?.passar_certidao !== false ? 'selected' : ''}>Sim, passar pela Etapa 10 para gerar a Certidão</option>
+                            <option value="nao" ${notificacaoAtual?.dados?.etapa11?.passar_certidao === false ? 'selected' : ''}>Não, encerrar diretamente o processo</option>
+                        </select>
+                    </div>
+
+                    <div id="blocoJustificativaGerente" style="display: ${decisaoAnterior ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo da Decisão <span style="color:#ef4444;">*</span></label>
+                        <textarea id="txtJustificativaGerente" class="form-input" placeholder="Escreva o motivo..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${justificativaAnterior}</textarea>
+                    </div>
+                </div>
+            </div>
+        `;
     } else if (etapaNum === 13) {
         const decisaoAnterior = notificacaoAtual?.dados?.etapa13?.decisao || '';
         const justificativaAnterior = notificacaoAtual?.dados?.etapa13?.justificativa || '';
@@ -771,7 +878,27 @@ function renderizarFormularioDinamico(etapaNum) {
         const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
         if (btnBaixar) btnBaixar.innerHTML = btnBaixar.innerHTML.replace('Relatório', 'Réplica');
 
-        setTimeout(() => { if(window.gerarReplica) window.gerarReplica(); }, 300);
+        setTimeout(() => { if (window.gerarReplica) window.gerarReplica(); }, 300);
+
+        let anexosEtapa13Html = '';
+        const anexosDefesa13 = notificacaoAtual?.dados?.etapa3?.anexos || [];
+        anexosDefesa13.forEach((anexo, idx) => {
+            anexosEtapa13Html += `
+            <div style="background:white; border:1px solid #cbd5e1; padding:12px 16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Defesa (Etapa 3)</p></div>
+                <button type="button" onclick="window.abrirAnexoNotificacao('etapa3', ${idx})" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
+            </div>
+            `;
+        });
+        const anexosRenda13 = notificacaoAtual?.dados?.etapa4?.anexos || [];
+        anexosRenda13.forEach((anexo, idx) => {
+            anexosEtapa13Html += `
+            <div style="background:white; border:1px solid #cbd5e1; padding:12px 16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Comprovante Renda/Prop. (Etapa 4)</p></div>
+                <button type="button" onclick="window.abrirAnexoNotificacao('etapa4', ${idx})" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
+            </div>
+            `;
+        });
 
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
@@ -787,6 +914,13 @@ function renderizarFormularioDinamico(etapaNum) {
                         <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a defesa e informe a decisão do fiscal.</p>
                     </div>
                 </div>
+
+                ${anexosEtapa13Html ? `
+                <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px;">
+                    <h4 style="margin:0 0 12px 0; color:#334155; font-size:0.95rem; font-weight:700;">Documentos Apresentados na Defesa:</h4>
+                    ${anexosEtapa13Html}
+                </div>
+                ` : ''}
 
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
@@ -884,15 +1018,79 @@ function renderizarFormularioDinamico(etapaNum) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : '';
         const tipoNotificacao = notificacaoAtual ? notificacaoAtual.descricao : '';
         const decisaoEtapa7 = notificacaoAtual?.dados?.etapa7?.cumprimento;
-        const historico = notificacaoAtual?.dados?.historico || [];
-        const veioDo13 = historico.length > 0 && historico[historico.length - 1].etapa_de === 13;
+        const decisaoEtapa13 = notificacaoAtual?.dados?.etapa13?.decisao;
+        const decisaoEtapa11 = notificacaoAtual?.dados?.etapa11?.decisao;
+        const passarCertidaoEtapa11 = notificacaoAtual?.dados?.etapa11?.passar_certidao;
+
         let selNao = 'selected';
         let selSim = '';
-        if (decisaoEtapa7 === 'atendida' || veioDo13) {
+        if (decisaoEtapa7 === 'atendida' || decisaoEtapa13 === 'defere' || (decisaoEtapa11 === 'defere' && passarCertidaoEtapa11 !== false)) {
             selNao = '';
             selSim = 'selected';
         }
+
+        let mensagemGerenteHtml = '';
+        if (notificacaoAtual?.dados?.etapa11) {
+            const e11 = notificacaoAtual.dados.etapa11;
+            const dataDecisaoStr = e11.data_decisao ? new Date(e11.data_decisao).toLocaleString('pt-BR') : '';
+            if (e11.decisao === 'indefere') {
+                mensagemGerenteHtml = `
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-left: 6px solid #ef4444; border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(239,68,68,0.06);">
+                    <div style="display: flex; align-items: flex-start; gap: 14px;">
+                        <div style="background: #fee2e2; padding: 10px; border-radius: 10px; flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                        </div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 6px 0; color: #991b1b; font-size: 1.05rem; font-weight: 700;">
+                                Decisão do Gerente: INDEFERIDO
+                            </h4>
+                            <p style="margin: 0 0 8px 0; color: #7f1d1d; font-size: 0.9rem; font-weight: 500;">
+                                O gerente analisou a defesa e decidiu pelo <strong>indeferimento</strong>.
+                            </p>
+                            <div style="background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #fca5a5; font-size: 0.88rem; color: #1e293b;">
+                                <strong style="color: #991b1b;">Motivo / Justificativa do Gerente:</strong>
+                                <p style="margin: 4px 0 0 0; color: #334155; white-space: pre-wrap;">${e11.justificativa || 'Sem justificativa informada.'}</p>
+                            </div>
+                            ${dataDecisaoStr ? `<span style="display: inline-block; margin-top: 8px; font-size: 0.78rem; color: #991b1b; font-weight: 600;">Data da Decisão: ${dataDecisaoStr}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+                `;
+            } else if (e11.decisao === 'defere' && e11.passar_certidao) {
+                mensagemGerenteHtml = `
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 6px solid #16a34a; border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(22,163,74,0.06);">
+                    <div style="display: flex; align-items: flex-start; gap: 14px;">
+                        <div style="background: #dcfce7; padding: 10px; border-radius: 10px; flex-shrink: 0;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 6px 0; color: #14532d; font-size: 1.05rem; font-weight: 700;">
+                                Decisão do Gerente: DEFERIDO (Gerar Certidão de Encerramento)
+                            </h4>
+                            <p style="margin: 0 0 8px 0; color: #166534; font-size: 0.9rem; font-weight: 500;">
+                                O gerente <strong>deferiu</strong> a defesa e solicitou passar pela emissão da Certidão de Encerramento antes de encerrar o processo.
+                            </p>
+                            <div style="background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #86efac; font-size: 0.88rem; color: #1e293b;">
+                                <strong style="color: #14532d;">Motivo / Justificativa do Gerente:</strong>
+                                <p style="margin: 4px 0 0 0; color: #334155; white-space: pre-wrap;">${e11.justificativa || 'Sem justificativa informada.'}</p>
+                            </div>
+                            ${dataDecisaoStr ? `<span style="display: inline-block; margin-top: 8px; font-size: 0.78rem; color: #14532d; font-weight: 600;">Data da Decisão: ${dataDecisaoStr}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+        }
+
         conteudo = `
+            ${mensagemGerenteHtml}
             <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
                 <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
                     <div style="background:#f3e8ff; padding:10px; border-radius:10px;">
@@ -905,8 +1103,8 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Certidão Sem Defesa</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Emissão de certidão para notificação com prazo expirado sem apresentação de defesa.</p>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Certidão Sem Defesa / Encerramento</h3>
+                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Emissão de certidão para notificação com prazo expirado ou encerramento após análise do gerente.</p>
                     </div>
                 </div>
 
@@ -941,7 +1139,7 @@ function renderizarFormularioDinamico(etapaNum) {
     } else if (etapaNum === 33) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
-        
+
         let encerramento = hist.find(h => h.etapa_para === 'encerrada' || h.status === 'encerrada');
         const dataEnc = encerramento ? new Date(encerramento.data).toLocaleString('pt-BR') : 'Data não registrada';
         const usuEnc = encerramento ? encerramento.usuario : 'Sistema';
@@ -1027,7 +1225,7 @@ function renderizarFormularioDinamico(etapaNum) {
     } else if (etapaNum === 29) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
-        
+
         let histHtml = '';
         if (hist.length > 0) {
             histHtml = '<table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:0.85rem;">' +
@@ -1115,6 +1313,7 @@ function renderizarFormularioDinamico(etapaNum) {
     }
 
     formDiv.innerHTML = conteudo;
+    setTimeout(() => { if (window.atualizarInterfaceNotificacoes) window.atualizarInterfaceNotificacoes(); }, 150);
 
     const areaDrop = formDiv.querySelector('#areaDropGenerico');
     const inputAnexo = formDiv.querySelector('#inputAnexoGenerico');
@@ -1139,13 +1338,13 @@ function renderizarFormularioDinamico(etapaNum) {
         const renderizarListaAnexos = () => {
             const listaDiv = formDiv.querySelector('#listaAnexosGenericos');
             listaDiv.innerHTML = '';
-            
+
             const etapaKey = `etapa${etapaNum}`;
             const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
             targetObj[etapaKey] = targetObj[etapaKey] || {};
-            
+
             let anexos = targetObj[etapaKey].anexos || [];
-            
+
             // Migrar anexo legado único para array
             const anexoAntigo = targetObj[etapaKey].anexo;
             if (anexoAntigo && anexos.length === 0) {
@@ -1165,10 +1364,23 @@ function renderizarFormularioDinamico(etapaNum) {
                 const item = document.createElement('div');
                 item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1;';
                 item.innerHTML = `
-                    <span style="font-size:0.9rem; color:#334155; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:85%;" title="${a.nome}">${a.nome}</span>
-                    <button type="button" class="btn-excluir-anexo" data-index="${i}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:1.2rem; line-height:1; padding:0 5px;" title="Remover anexo">×</button>
+                    <span style="font-size:0.9rem; color:#334155; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:65%;" title="${a.nome}">${a.nome}</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button type="button" class="btn-ver-anexo" data-index="${i}" style="padding:4px 10px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; font-size:0.8rem; cursor:pointer;">Visualizar</button>
+                        <button type="button" class="btn-excluir-anexo" data-index="${i}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:1.2rem; line-height:1; padding:0 5px;" title="Remover anexo">×</button>
+                    </div>
                 `;
                 listaDiv.appendChild(item);
+            });
+
+            listaDiv.querySelectorAll('.btn-ver-anexo').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    const targetAnexo = anexos[idx];
+                    if (targetAnexo && (targetAnexo.base64 || targetAnexo.url || targetAnexo.dataUrl)) {
+                        window.abrirAnexoEmNovaAba(targetAnexo.base64 || targetAnexo.url || targetAnexo.dataUrl, e, targetAnexo.nome);
+                    }
+                });
             });
 
             listaDiv.querySelectorAll('.btn-excluir-anexo').forEach(btn => {
@@ -1212,10 +1424,10 @@ function renderizarFormularioDinamico(etapaNum) {
         inputAnexo.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files);
             if (!files.length) return;
-            
+
             const listaDiv = formDiv.querySelector('#listaAnexosGenericos');
             listaDiv.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">Carregando arquivo(s)...</div>';
-            
+
             const readPromises = files.map(file => new Promise(resolve => {
                 const reader = new FileReader();
                 reader.onload = (ev) => resolve({
@@ -1227,14 +1439,14 @@ function renderizarFormularioDinamico(etapaNum) {
                 });
                 reader.readAsDataURL(file);
             }));
-            
+
             const newAnexos = await Promise.all(readPromises);
-            
+
             const etapaKey = `etapa${etapaNum}`;
             const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
             targetObj[etapaKey] = targetObj[etapaKey] || {};
             targetObj[etapaKey].anexos = targetObj[etapaKey].anexos || [];
-            
+
             const anexosAtuais = targetObj[etapaKey].anexos;
             const anexosFiltrados = newAnexos.filter(newAnexo => {
                 const existe = anexosAtuais.some(a => a.nome === newAnexo.nome);
@@ -1243,14 +1455,14 @@ function renderizarFormularioDinamico(etapaNum) {
                 }
                 return !existe;
             });
-            
+
             if (anexosFiltrados.length > 0) {
                 targetObj[etapaKey].anexos = [...anexosAtuais, ...anexosFiltrados];
                 await salvarAnexosGenericosDb();
             }
             renderizarListaAnexos();
         });
-        
+
         renderizarListaAnexos();
     }
 
@@ -1408,19 +1620,46 @@ async function carregarProcessoCompleto(processoId) {
         const params = new URLSearchParams(window.location.search);
         const notificacaoId = params.get('notificacao');
         if (notificacaoId && proc.notificacoes) {
-            notificacaoAtual = proc.notificacoes.find(n => n.id === notificacaoId);
+            notificacaoAtual = proc.notificacoes.find(n => n.id === notificacaoId) || null;
+        } else {
+            notificacaoAtual = null;
         }
 
         // O campo etapa_atual_id é o ID interno da tabela etapas; usamos o número para renderização.
         const etapaRelacionada = notificacaoAtual ? (Array.isArray(notificacaoAtual.etapas) ? notificacaoAtual.etapas[0] : notificacaoAtual.etapas) : (Array.isArray(proc.etapas) ? proc.etapas[0] : proc.etapas);
-        const etapaAtual = notificacaoAtual 
+        const etapaAtual = notificacaoAtual
             ? parseInt(etapaRelacionada?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
             : parseInt(etapaRelacionada?.numero || proc.etapa_atual || proc.etapa_atual_id || 1, 10);
-            
+
         proc.etapa_atual = etapaAtual;
         if (notificacaoAtual) proc.etapa_atual_id = notificacaoAtual.etapa_atual_id;
-        
+
+        // Marca a notificação como lida automaticamente ao abrir a página do processo
+        let alterouLida = false;
+        if (notificacaoAtual?.dados?.notificacoes_menu) {
+            notificacaoAtual.dados.notificacoes_menu.forEach(n => {
+                if (!n.lida) { n.lida = true; alterouLida = true; }
+            });
+        }
+        if (proc?.dados?.notificacoes_menu) {
+            proc.dados.notificacoes_menu.forEach(n => {
+                if (!n.lida) { n.lida = true; alterouLida = true; }
+            });
+        }
+        if (proc?.notificacoes) {
+            proc.notificacoes.forEach(sub => {
+                if (sub?.dados?.notificacoes_menu) {
+                    sub.dados.notificacoes_menu.forEach(n => {
+                        if (!n.lida) { n.lida = true; alterouLida = true; }
+                    });
+                }
+            });
+        }
+
         processoAtual = proc;
+        if (alterouLida && typeof salvarNotificacoesMenuNoBanco === 'function') {
+            salvarNotificacoesMenuNoBanco();
+        }
         console.log('[DEBUG] carregarProcessoCompleto — etapa_atual_id:', proc.etapa_atual_id, '| etapa_atual:', proc.etapa_atual, '| etapas:', proc.etapas);
 
         preencherCabecalhoPagina(proc);
@@ -1750,6 +1989,10 @@ async function avancarEtapaPadrao() {
         await avancarEtapa5();
         return;
     }
+    if (etapaAtual === 11) {
+        await avancarEtapa11();
+        return;
+    }
     if (etapaAtual === 13) {
         await avancarEtapa13();
         return;
@@ -1784,7 +2027,7 @@ async function avancarEtapa3() {
     mostrarCarregamento('Avançando etapa...');
 
     const anexosSalvos = notificacaoAtual.dados?.etapa3?.anexos || [];
-    
+
     if (anexosSalvos.length > 0) {
         await moverProcessoParaEtapa(13, 'Defesa enviada');
     } else {
@@ -1801,7 +2044,7 @@ async function avancarEtapa3() {
 
 async function avancarEtapa4() {
     if (!processoAtual || !notificacaoAtual) return;
-    
+
     const anexos = notificacaoAtual.dados?.etapa4?.anexos || [];
     let proxEtapa = 7;
     let motivo = 'Comprovante verificado';
@@ -1834,11 +2077,11 @@ async function avancarEtapa4() {
 
 async function avancarEtapa5() {
     if (!processoAtual || !notificacaoAtual) return;
-    
+
     const select = document.getElementById('selectDecisaoDilacao');
     const txtJustificativa = document.getElementById('txtJustificativaDilacao');
     const inputDias = document.getElementById('inputDiasDilacao');
-    
+
     const decisao = select ? select.value : '';
     const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
     const dias = inputDias ? parseInt(inputDias.value, 10) : 0;
@@ -1847,7 +2090,7 @@ async function avancarEtapa5() {
         alert('Por favor, selecione a decisão da dilação (Defere, Indefere, Manda para gerente).');
         return;
     }
-    
+
     if (decisao === 'defere' && (!dias || dias <= 0)) {
         alert('Por favor, informe a quantidade de dias da dilação.');
         return;
@@ -1857,15 +2100,20 @@ async function avancarEtapa5() {
         alert('Por favor, preencha o motivo (justificativa).');
         return;
     }
-    
+
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
     notificacaoAtual.dados.etapa5 = { decisao, justificativa, dias, data_decisao: new Date().toISOString() };
-    
+
+    // Atualiza/Gera e salva a Réplica HTML no banco antes de mover de etapa
+    if (typeof window.gerarReplica === 'function') {
+        await window.gerarReplica();
+    }
+
     let proxEtapa = 2;
     let motivo = 'Dilação Deferida';
-    
+
     if (decisao === 'defere') {
         let atualVenc = notificacaoAtual.data_vencimento ? new Date(notificacaoAtual.data_vencimento) : new Date();
         atualVenc.setDate(atualVenc.getDate() + dias);
@@ -1881,18 +2129,18 @@ async function avancarEtapa5() {
         proxEtapa = 11;
         motivo = 'Análise do Gerente';
     }
-    
+
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, data_vencimento: notificacaoAtual.data_vencimento, status: notificacaoAtual.status });
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
 async function avancarEtapa13() {
     if (!processoAtual || !notificacaoAtual) return;
-    
+
     const select = document.getElementById('selectDecisaoDilacao');
     const txtJustificativa = document.getElementById('txtJustificativaDilacao');
     const selectParecer = document.getElementById('selectParecerGerente');
-    
+
     const decisao = select ? select.value : '';
     const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
     const parecer = (decisao === 'gerente' && selectParecer) ? selectParecer.value : '';
@@ -1906,38 +2154,129 @@ async function avancarEtapa13() {
         alert('Por favor, preencha o motivo (justificativa).');
         return;
     }
-    
+
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
     notificacaoAtual.dados.etapa13 = { decisao, justificativa, parecer, data_decisao: new Date().toISOString() };
-    
-    // Deferido ou Indeferido vão para onde? Presumindo 10 para Indeferido ou 15. Mas por hora: 14 se não mapeado, ou 10/11.
-    // Baseado na documentação: "Manda para a etapa 11" se gerente.
+
+    // Atualiza/Gera e salva a Réplica HTML no banco antes de mover de etapa
+    if (typeof window.gerarReplica === 'function') {
+        await window.gerarReplica();
+    }
+
     let proxEtapa = 10;
     let motivo = 'Defesa Analisada';
-    
+
     if (decisao === 'defere') {
-        proxEtapa = 10; 
-        motivo = 'Defesa Deferida';
+        proxEtapa = 10;
+        motivo = 'Defesa Deferida pelo Fiscal (encaminhado para Certidão)';
     } else if (decisao === 'indefere') {
         proxEtapa = 10;
-        motivo = 'Defesa Indeferida';
+        motivo = 'Defesa Indeferida pelo Fiscal';
     } else if (decisao === 'gerente') {
         proxEtapa = 11;
         motivo = 'Análise do Gerente';
     }
-    
+
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, status: notificacaoAtual.status });
+    await moverProcessoParaEtapa(proxEtapa, motivo);
+}
+
+async function avancarEtapa11() {
+    if (!processoAtual || !notificacaoAtual) return;
+
+    const select = document.getElementById('selectDecisaoGerente');
+    const txtJustificativa = document.getElementById('txtJustificativaGerente');
+    const inputData = document.getElementById('inputDataDilacaoGerente');
+    const selectCertidao = document.getElementById('selectGerarCertidaoGerente');
+
+    const decisao = select ? select.value : '';
+    const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
+    const dataVencimento = inputData ? inputData.value : '';
+    const passarCertidao = (decisao === 'defere' && selectCertidao) ? (selectCertidao.value === 'sim') : false;
+
+    if (!decisao) {
+        alert('Por favor, selecione uma decisão.');
+        return;
+    }
+
+    if (!justificativa) {
+        alert('Por favor, preencha o motivo da decisão.');
+        return;
+    }
+
+    if (decisao === 'dilatar' && !dataVencimento) {
+        alert('Por favor, informe a nova data de vencimento.');
+        return;
+    }
+
+    mostrarCarregamento('Avançando etapa...');
+
+    notificacaoAtual.dados = notificacaoAtual.dados || {};
+    notificacaoAtual.dados.etapa11 = { decisao, justificativa, dataVencimento, passar_certidao: passarCertidao, data_decisao: new Date().toISOString() };
+
+    let proxEtapa = 10;
+    let motivo = 'Gerente Analisou Defesa';
+
+    if (decisao === 'defere') {
+        if (passarCertidao) {
+            proxEtapa = 10;
+            motivo = 'Defesa Deferida pelo Gerente (encaminhado para Certidão)';
+
+            // Notificação no menu para o fiscal responsável (criador do processo)
+            const novaNotificacaoMenu = {
+                id: 'notif_' + Date.now(),
+                tipo: 'gerente_deferiu_certidao',
+                titulo: 'Gerente Deferiu e Solicitou Certidão de Encerramento',
+                mensagem: `O gerente deferiu a defesa do processo ${processoAtual.numero_processo} (Notificação ${notificacaoAtual.numero}) e decidiu gerar a Certidão de Encerramento antes de encerrar o processo.`,
+                decisao: 'Deferido',
+                opcao: 'Gerar Certidão de Encerramento',
+                motivo: justificativa,
+                numero_processo: processoAtual.numero_processo,
+                numero_notificacao: notificacaoAtual.numero,
+                processo_id: processoAtual.id,
+                notificacao_id: notificacaoAtual.id,
+                fiscal_id: processoAtual.fiscal_id,
+                data: new Date().toISOString(),
+                lida: false
+            };
+
+            notificacaoAtual.dados.notificacoes_menu = notificacaoAtual.dados.notificacoes_menu || [];
+            notificacaoAtual.dados.notificacoes_menu.unshift(novaNotificacaoMenu);
+
+            processoAtual.dados = processoAtual.dados || {};
+            processoAtual.dados.notificacoes_menu = processoAtual.dados.notificacoes_menu || [];
+            processoAtual.dados.notificacoes_menu.unshift(novaNotificacaoMenu);
+        } else {
+            proxEtapa = 29;
+            motivo = 'Defesa Deferida pelo Gerente (Encerrado diretamente)';
+        }
+    } else if (decisao === 'indefere') {
+        proxEtapa = 10;
+        motivo = 'Defesa Indeferida pelo Gerente';
+    } else if (decisao === 'dilatar') {
+        proxEtapa = 2;
+        motivo = 'Gerente Dilatou Prazo';
+
+        notificacaoAtual.data_vencimento = dataVencimento + 'T23:59:59Z';
+        // Impede que o fiscal peça nova dilação na Etapa 2
+        notificacaoAtual.dados.etapa2_ja_pediu_dilacao = true;
+    } else if (decisao === 'retorna_fiscal') {
+        proxEtapa = 3;
+        motivo = 'Gerente retornou para reanálise do Fiscal (' + justificativa + ')';
+    }
+
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, data_vencimento: notificacaoAtual.data_vencimento, status: notificacaoAtual.status });
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
 async function avancarEtapa7() {
     if (!processoAtual || !notificacaoAtual) return;
-    
+
     const select = document.getElementById('selectCumprimento');
     const selectJuridico = document.getElementById('selectJuridico');
-    
+
     const decisao = select ? select.value : '';
     const vaiParaJuridico = selectJuridico ? selectJuridico.value : 'nao';
 
@@ -1945,7 +2284,7 @@ async function avancarEtapa7() {
         alert('Por favor, selecione uma opção de cumprimento.');
         return;
     }
-    
+
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
@@ -1958,7 +2297,7 @@ async function avancarEtapa7() {
 
     let proxEtapa = 10;
     let motivo = 'Não Cumprido (Vencida)';
-    
+
     if (vaiParaJuridico === 'sim') {
         proxEtapa = 32;
         motivo = 'Enviar para o Jurídico';
@@ -1968,7 +2307,7 @@ async function avancarEtapa7() {
             motivo = 'Cumprido (Atendida)';
         }
     }
-    
+
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
@@ -1990,7 +2329,7 @@ async function finalizarEBaixarZipNotificacao() {
         const zip = new JSZip();
         const numNotifLimpo = notificacaoAtual.numero.replace(/[\/\\]/g, '-');
         const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || '';
-        
+
         // 1. Gerar documento da Notificação Preliminar (DOC)
         const conteudoWord = gerarHtmlCompativelComWordDoc(processoAtual, brasaoBase64);
         const fullDoc = '<html xmlns:o=\'urn:schemas-microsoft-com:office:office\' xmlns:w=\'urn:schemas-microsoft-com:office:word\' xmlns=\'http://www.w3.org/TR/REC-html40\'><head><meta charset="utf-8"><title>' + numNotifLimpo + '</title><style>@page{size:A4;margin:2cm}body{font-family:Calibri,\'Carlito\',Arial,sans-serif;color:#000;line-height:1.4}table{border-collapse:collapse}</style></head><body>' + conteudoWord + '</body></html>';
@@ -2049,7 +2388,7 @@ async function finalizarEBaixarZipNotificacao() {
                     dados: notifDados
                 })
                 .eq('id', notificacaoAtual.id);
-            
+
             // Voltar para a Etapa 2
             window.location.href = `etapa.html?processo=${processoAtual.id}`;
         } else {
@@ -2063,7 +2402,7 @@ async function finalizarEBaixarZipNotificacao() {
     }
 }
 
-window.baixarDocUnico = async function(tipo) {
+window.baixarDocUnico = async function (tipo) {
     if (!notificacaoAtual || !processoAtual) return;
     mostrarCarregamento(`Gerando ${tipo}...`);
     try {
@@ -2110,6 +2449,48 @@ window.baixarDocUnico = async function(tipo) {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        } else if (tipo === 'replica') {
+            if (window.gerarReplica) {
+                await window.gerarReplica();
+            }
+            const containerReplica = document.getElementById('containerDocumentoOficial');
+            const htmlComImagens = (containerReplica && containerReplica.innerHTML && containerReplica.innerHTML.trim() !== '')
+                ? containerReplica.innerHTML
+                : (notificacaoAtual?.dados?.html_replica || '');
+
+            if (!htmlComImagens || htmlComImagens.trim() === '') {
+                alert('A Réplica ainda não foi gerada para esta notificação.');
+                return;
+            }
+            const numReplica = notificacaoAtual?.dados?.numero_replica || 'XXX';
+            const nomeArquivo = `Replica_${numReplica.replace(/[\/\\]/g, '-')}`;
+
+            const estilos = `
+                * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
+                img { max-width: 100%; height: auto; }
+                @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
+            `;
+
+            const printIframe = document.createElement('iframe');
+            printIframe.style.position = 'absolute';
+            printIframe.style.width = '0';
+            printIframe.style.height = '0';
+            printIframe.style.border = 'none';
+            document.body.appendChild(printIframe);
+
+            const printDoc = printIframe.contentWindow.document;
+            printDoc.open();
+            printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeArquivo}</title><style>${estilos}</style></head><body>${htmlComImagens}</body></html>`);
+            printDoc.close();
+
+            setTimeout(() => {
+                printIframe.contentWindow.focus();
+                printIframe.contentWindow.print();
+                setTimeout(() => {
+                    document.body.removeChild(printIframe);
+                }, 1000);
+            }, 500);
         }
     } catch (e) {
         console.error('Erro ao baixar documento único:', e);
@@ -2211,7 +2592,7 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
                 .eq('id', notificacaoAtual.id);
 
             if (notifErr) throw notifErr;
-            
+
             notificacaoAtual.dados = notifDados;
 
             const { error: histErr } = await supabaseClient
@@ -2786,7 +3167,7 @@ function preencherCabecalhoPagina(proc) {
 
     const elBadgeNum = document.getElementById('etapaNumBadge');
     if (elBadgeNum) {
-        const numEtapaExibida = notificacaoAtual 
+        const numEtapaExibida = notificacaoAtual
             ? (notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || 2)
             : (proc.etapa_atual || proc.etapa_atual_id || 1);
         elBadgeNum.textContent = `Etapa ${numEtapaExibida}`;
@@ -2796,7 +3177,7 @@ function preencherCabecalhoPagina(proc) {
     if (elBadgeSt) {
         const rawStatus = proc.status || 'em_aberto';
         const stLow = rawStatus.toLowerCase();
-        
+
         // Mapeamento amigável do status
         const statusMap = {
             'em_aberto': 'Em Aberto',
@@ -2806,13 +3187,13 @@ function preencherCabecalhoPagina(proc) {
             'finalizado': 'Finalizado',
             'cancelado': 'Cancelado'
         };
-        
+
         const friendlyStatus = statusMap[stLow] || rawStatus;
         elBadgeSt.textContent = friendlyStatus;
-        
+
         let bg = '#dcfce7'; // green default (finalizado / concluido)
         let color = '#166534';
-        
+
         if (stLow === 'em_aberto' || stLow === 'em_andamento') {
             bg = '#eff6ff'; // blue
             color = '#1e40af';
@@ -3429,13 +3810,13 @@ async function renderizarEtapa2(proc) {
                 const card = document.createElement('div');
                 card.className = 'card-notificacao-etapa2';
                 card.dataset.index = n.index;
-                
+
                 // Verifica se a notificação já avançou para outra etapa
                 const etapaNotif = parseInt(n.etapas?.numero || n.etapa_atual_id || n.etapa_atual || 2, 10);
                 const jaAvancou = etapaNotif > 2;
 
                 card.style.cssText = 'background:white; border:1px solid #e2e8f0; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; transition:all 0.2s ease;';
-                
+
                 if (jaAvancou) {
                     card.style.cursor = 'pointer';
                     if (n.status === 'encerrada') {
@@ -3477,7 +3858,7 @@ async function renderizarEtapa2(proc) {
                         <span>📅 Prazo: ${new Date(n.data_vencimento).toLocaleDateString('pt-BR')}</span>
                         <span style="${infoPrazo.vencido ? 'color:#991b1b; font-weight:600;' : 'color:#166534; font-weight:600;'}">(${infoPrazo.texto})</span>
                     </div>`;
-                    
+
                 let textoMotivo = '';
                 if (n.status === 'atendida') textoMotivo = 'Houve Cumprimento (Atendida)';
                 else if (n.status === 'encerrada') textoMotivo = 'Notificação Encerrada / Finalizada';
@@ -3486,7 +3867,7 @@ async function renderizarEtapa2(proc) {
                 else if (n.status === 'dilacao') textoMotivo = 'Dilação de Prazo Solicitada';
                 else textoMotivo = 'Motivo não especificado';
 
-                const controlesHtml = jaAvancou ? 
+                const controlesHtml = jaAvancou ?
                     `<div style="font-size:0.9rem; color:#1e40af; font-weight:600; padding:8px; background:#eff6ff; border-radius:8px; text-align:center;">
                         Esta notificação avançou e está na Etapa ${etapaNotif}. Clique para abrir.
                         <div style="font-size:0.82rem; color:#475569; margin-top:4px; font-weight:normal;">Avançou pois: <b>${textoMotivo}</b></div>
@@ -3729,7 +4110,7 @@ async function avancarEtapa2() {
 
             if (deveMover && n.id) {
                 const etapaDeId = n.etapa_atual_id || etapa2Id;
-                
+
                 const notifDados = { ...(n.dados || {}) };
                 notifDados.historico = notifDados.historico || [];
                 notifDados.historico.push({
@@ -4911,7 +5292,7 @@ async function garantirDocumentoParaExportar() {
         renderizarDocumentoOficial(processoAtual);
         ocultarCarregamento();
         return !!container.querySelector('#documentoPronto');
-    } catch(e) {
+    } catch (e) {
         ocultarCarregamento();
         console.error('Erro ao gerar documento para exportar:', e);
         return false;
@@ -4932,29 +5313,13 @@ async function baixarRelatorioFiscalPdfEtapa() {
             throw new Error("Processo não encontrado.");
         }
 
-        let htmlComImagens = '';
-        let nomeArquivo = '';
-
-        const etapaAtual = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
-        
-        if (etapaAtual === 5 || etapaAtual === 13) {
-            const containerReplica = document.getElementById('containerDocumentoOficial');
-            if (!containerReplica || !containerReplica.querySelector('div')) {
-                alert('A Réplica ainda não foi gerada. Preencha os dados e clique em "Gerar/Atualizar Réplica".');
-                return;
-            }
-            htmlComImagens = containerReplica.innerHTML;
-            const numReplica = notificacaoAtual?.numero_replica || 'XXX';
-            nomeArquivo = `Replica_${numReplica.replace(/[\/\\]/g, '-')}`;
-        } else {
-            htmlComImagens = processoAtual.dados?.relatorio_fiscal?.html_customizado;
-            if (!htmlComImagens) {
-                alert('Não há relatório fiscal salvo para este processo. O processo pode não ter sido concluído corretamente.');
-                return;
-            }
-            const numeroRelatorio = processoAtual.dados?.relatorio_fiscal?.numero_relatorio || 'XXX';
-            nomeArquivo = `Relatorio_Fiscal_${numeroRelatorio.replace(/[\/\\]/g, '-')}`;
+        const htmlComImagens = processoAtual.dados?.relatorio_fiscal?.html_customizado;
+        if (!htmlComImagens) {
+            alert('Não há relatório fiscal salvo para este processo.');
+            return;
         }
+        const numeroRelatorio = processoAtual.dados?.relatorio_fiscal?.numero_relatorio || 'XXX';
+        const nomeArquivo = `Relatorio_Fiscal_${numeroRelatorio.replace(/[\/\\]/g, '-')}`;
 
         const estilos = `
             * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -5012,17 +5377,13 @@ async function imprimirDocumentoOficial() {
         : `Processo Nº ${procNum.replace(/[\/\\]/g, '-')}`;
 
     const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg';
-    
-    // Se for etapa 5, documentoPronto é a Réplica (que ocultamos). 
-    // Precisamos gerar a notificação real para a impressão.
-    const etapaAtual = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
+
     let conteudoLimpo = '';
-    
-    if (etapaAtual === 5 || etapaAtual === 13) {
+    if (isCertidao && docEl) {
+        conteudoLimpo = prepararConteudoDocumento(docEl.outerHTML, brasaoBase64);
+    } else {
         conteudoLimpo = gerarHtmlCompativelComWordDoc(processoAtual, brasaoBase64);
         conteudoLimpo = `<div class="doc-oficial-wrapper"><div class="doc-page-content">${conteudoLimpo}</div></div>`;
-    } else {
-        conteudoLimpo = prepararConteudoDocumento(docEl.outerHTML, brasaoBase64);
     }
 
     const estilos = `
@@ -5447,7 +5808,7 @@ async function carregarUsuarioSidebarEtapa() {
 
 window.toggleSidebarEtapa = toggleSidebarEtapa;
 
-window.gerarCertidaoSemDefesa = async function(auto = false) {
+window.gerarCertidaoSemDefesa = async function (auto = false) {
     if (!processoAtual) return;
 
     const numNotificacao = document.getElementById('inputNumNotificacaoCertidao').value || notificacaoAtual?.numero || '';
@@ -5471,8 +5832,8 @@ window.gerarCertidaoSemDefesa = async function(auto = false) {
     const inscricao = imv.inscricao || '';
 
     // Data de vistoria
-    const dataVistoriaFmt = fisc.data_vistoria 
-        ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR') 
+    const dataVistoriaFmt = fisc.data_vistoria
+        ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR')
         : new Date().toLocaleDateString('pt-BR');
 
     // Data Ciencia
@@ -5483,7 +5844,7 @@ window.gerarCertidaoSemDefesa = async function(auto = false) {
     if (dataRecebimento) {
         const dCiencia = new Date(dataRecebimento.includes('T') ? dataRecebimento : dataRecebimento + 'T12:00:00');
         dataCienciaFmt = dCiencia.toLocaleDateString('pt-BR');
-        
+
         const dDefesa = new Date(dCiencia);
         dDefesa.setDate(dDefesa.getDate() + 10);
         dataDefesaFmt = dDefesa.toLocaleDateString('pt-BR');
@@ -5529,8 +5890,8 @@ window.gerarCertidaoSemDefesa = async function(auto = false) {
 
     const selectResolvido = document.getElementById('selectResolvidoCertidao');
     const isResolvido = selectResolvido ? selectResolvido.value === 'sim' : false;
-    const textoCumprimento = isResolvido 
-        ? `certificamos que houve o cumprimento da obrigação:` 
+    const textoCumprimento = isResolvido
+        ? `certificamos que houve o cumprimento da obrigação:`
         : `certificamos não cumprimento da obrigação:`;
 
     const htmlCertidao = `
@@ -5632,9 +5993,9 @@ window.gerarCertidaoSemDefesa = async function(auto = false) {
     }
 };
 
-window.avancarEtapa10 = async function() {
+window.avancarEtapa10 = async function () {
     if (!processoAtual || !notificacaoAtual) return;
-    
+
     const select = document.getElementById('selectResolvidoCertidao');
     const resolvido = select ? select.value : '';
 
@@ -5647,7 +6008,7 @@ window.avancarEtapa10 = async function() {
 
     let proxEtapa = 14;
     let motivo = 'Não Cumprido (Certidão Sem Defesa)';
-    
+
     if (resolvido === 'sim') {
         proxEtapa = 29;
         motivo = 'Cumprido (Certidão Sem Defesa)';
@@ -5666,14 +6027,15 @@ window.avancarEtapa10 = async function() {
 };
 
 // ── Helper para abrir Base64 no Chrome de forma segura ──
-window.abrirAnexoEmNovaAba = function(urlOuBase64, event) {
-    if (event) event.preventDefault();
+window.abrirAnexoEmNovaAba = function (urlOuBase64, event, nomeArquivo) {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
     if (!urlOuBase64 || urlOuBase64 === '#') return;
 
     if (urlOuBase64.startsWith('data:')) {
         try {
             const arr = urlOuBase64.split(',');
-            const mime = arr[0].match(/:(.*?);/)[1];
+            const mimeMatch = arr[0].match(/:(.*?);/);
+            const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
             const bstr = atob(arr[1]);
             let n = bstr.length;
             const u8arr = new Uint8Array(n);
@@ -5682,42 +6044,78 @@ window.abrirAnexoEmNovaAba = function(urlOuBase64, event) {
             }
             const blob = new Blob([u8arr], { type: mime });
             const blobUrl = URL.createObjectURL(blob);
-            window.open(blobUrl, '_blank');
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+            const win = window.open(blobUrl, '_blank');
+            if (!win) {
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.target = '_blank';
+                if (nomeArquivo) a.download = nomeArquivo;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
         } catch (e) {
             console.error('Erro ao converter base64 para blob:', e);
-            window.open(urlOuBase64, '_blank');
+            alert('Não foi possível abrir o anexo base64.');
         }
     } else {
         window.open(urlOuBase64, '_blank');
     }
 };
 
+window.abrirAnexoNotificacao = function (etapaKey, index) {
+    const anexos = notificacaoAtual?.dados?.[etapaKey]?.anexos || [];
+    const anexo = anexos[index];
+    if (!anexo) {
+        alert('Anexo não encontrado.');
+        return;
+    }
+    const content = anexo.base64 || anexo.url || anexo.dataUrl;
+    if (!content) {
+        alert('Conteúdo do anexo indisponível.');
+        return;
+    }
+    window.abrirAnexoEmNovaAba(content, null, anexo.nome);
+};
+
 // ── Etapa 5: Funções da Dilação e Réplica ──
 
-window.toggleOpcoesDilacao = function() {
+window.toggleOpcoesGerente = function () {
+    const val = document.getElementById('selectDecisaoGerente')?.value;
+    const blocoData = document.getElementById('blocoDataDilacaoGerente');
+    const blocoJust = document.getElementById('blocoJustificativaGerente');
+    const blocoCertidao = document.getElementById('blocoCertidaoGerente');
+
+    if (blocoData) blocoData.style.display = (val === 'dilatar') ? 'block' : 'none';
+    if (blocoCertidao) blocoCertidao.style.display = (val === 'defere') ? 'block' : 'none';
+    if (blocoJust) blocoJust.style.display = (val !== '') ? 'block' : 'none';
+};
+
+window.toggleOpcoesDilacao = function () {
     const val = document.getElementById('selectDecisaoDilacao')?.value;
     const blocoDias = document.getElementById('blocoDiasDilacao');
     const blocoJustificativa = document.getElementById('blocoJustificativaDilacao');
     const blocoParecer = document.getElementById('blocoParecerGerente');
-    
+
     if (blocoDias) blocoDias.style.display = (val === 'defere') ? 'block' : 'none';
     if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere' || val === 'gerente') ? 'block' : 'none';
     if (blocoParecer) blocoParecer.style.display = (val === 'gerente') ? 'block' : 'none';
-    
+
     window.gerarReplica();
 };
 
 window.contadorImagensReplica = 0;
 
-window.adicionarCampoImagemReplica = function() {
+window.adicionarCampoImagemReplica = function () {
     window.contadorImagensReplica++;
     const id = window.contadorImagensReplica;
-    
+
     const div = document.createElement('div');
     div.id = `item-imagem-replica-${id}`;
     div.style.cssText = 'position:relative; background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:8px; display:flex; gap:16px; align-items:center;';
-    
+
     div.innerHTML = `
         <button type="button" onclick="document.getElementById('item-imagem-replica-${id}').remove()" style="position:absolute; top:-8px; right:-8px; background:#ef4444; color:white; border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; font-weight:bold; font-size:12px; z-index:10; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.1);" title="Remover Imagem">✕</button>
         <div style="flex:1;">
@@ -5729,37 +6127,50 @@ window.adicionarCampoImagemReplica = function() {
             <input type="text" class="replica-imagem-legenda" placeholder="Ex: Foto do local..." style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
         </div>
     `;
-    
+
     document.getElementById('containerImagensForm').appendChild(div);
 };
 
-window.gerarReplica = async function() {
+window.gerarReplica = async function () {
     if (!processoAtual) return;
-    
+
+    const etapaAtual = notificacaoAtual
+        ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
+        : parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
+
+    // Se NÃO for etapa de edição da réplica (5 ou 13) e já existir o HTML da Réplica no banco, renderiza o salvo:
+    if (![5, 13].includes(etapaAtual) && notificacaoAtual?.dados?.html_replica) {
+        const container = document.getElementById('containerDocumentoOficial');
+        if (container) {
+            container.innerHTML = notificacaoAtual.dados.html_replica;
+        }
+        return;
+    }
+
     const d = processoAtual.dados || {};
     const cont = processoAtual.campos?.contribuinte || d.contribuinte || {};
     const imovel = processoAtual.campos?.imovel || d.imovel || {};
-    
+
     // Obter PA
     const pa = d.relatorio_fiscal?.pa || d.relatorio_fiscal?.numero_processo_administrativo || 'Não informado';
-    
+
     const numNotificacao = notificacaoAtual?.numero || document.getElementById('etapaProcNumero')?.textContent || 'XXX';
     const imvLogradouro = imovel.logradouro || imovel.rua || '—';
     const imvNumero = imovel.numero || '—';
     const numLimpo = numNotificacao.replace(/[\/\\]/g, '-');
     const motivoInfracao = notificacaoAtual?.descricao || 'Regularização solicitada';
-    
+
     // Datas
     const arData = processoAtual?.campos?.etapa16?.data_insercao_ar || processoAtual?.dados?.campos?.etapa16?.data_insercao_ar || processoAtual?.dados?.etapa16?.data_insercao_ar || notificacaoAtual?.dados?.etapa16?.data_insercao_ar || d.data_insercao_ar || notificacaoAtual?.dados?.etapa16?.data_recebimento || '—';
     const arDataFmt = arData !== '—' ? new Date(arData.includes('T') ? arData : arData + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-    
+
     const vencData = notificacaoAtual?.data_vencimento;
     const vencDataFmt = vencData ? new Date(vencData).toLocaleDateString('pt-BR') : '—';
 
     // Número da Réplica
     let numReplica = notificacaoAtual?.dados?.numero_replica || '';
     const _anoAtual = new Date().getFullYear();
-    
+
     if (!numReplica && notificacaoAtual?.id) {
         try {
             // Verifica se já existe um documento gerado para esta réplica
@@ -5778,7 +6189,7 @@ window.gerarReplica = async function() {
                     .select('numero_sequencial')
                     .eq('tipo', 'Réplica')
                     .like('numero_sequencial', `${_anoAtual}/%`);
-                    
+
                 let max = 0;
                 if (data && data.length > 0) {
                     data.forEach(item => {
@@ -5793,9 +6204,9 @@ window.gerarReplica = async function() {
                     });
                 }
                 numReplica = `${_anoAtual}/${String(max + 1).padStart(3, '0')}`;
-                
+
                 const usuarioId = typeof perfilAtual !== 'undefined' && perfilAtual?.id ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
-                
+
                 if (usuarioId) {
                     await supabaseClient.from('documentos').insert([{
                         processo_id: processoAtual.id,
@@ -5809,12 +6220,12 @@ window.gerarReplica = async function() {
                     }]);
                 }
             }
-            
+
             // Mantém no JSON para retrocompatibilidade
             const novosDados = { ...(notificacaoAtual.dados || {}), numero_replica: numReplica };
             await supabaseClient.from('notificacoes').update({ dados: novosDados }).eq('id', notificacaoAtual.id);
             notificacaoAtual.dados = novosDados;
-        } catch(e) {
+        } catch (e) {
             console.error('Erro ao gerar numero replica na tabela documentos', e);
             numReplica = `XXX/${_anoAtual}`;
         }
@@ -5823,14 +6234,16 @@ window.gerarReplica = async function() {
     }
 
     const selectDecisao = document.getElementById('selectDecisaoDilacao');
-    const decisao = selectDecisao ? selectDecisao.value : '';
-    const txtJustificativa = document.getElementById('txtJustificativaDilacao') ? document.getElementById('txtJustificativaDilacao').value : '';
-    const dias = document.getElementById('inputDiasDilacao') ? document.getElementById('inputDiasDilacao').value : 0;
-    
-    const etapaAtual = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
-    
+    const d13 = notificacaoAtual?.dados?.etapa13 || {};
+    const d5 = notificacaoAtual?.dados?.etapa5 || {};
+
+    const decisao = selectDecisao ? selectDecisao.value : (d13.decisao || d5.decisao || '');
+    const txtJustificativa = document.getElementById('txtJustificativaDilacao') ? document.getElementById('txtJustificativaDilacao').value : (d13.justificativa || d5.justificativa || '');
+    const dias = document.getElementById('inputDiasDilacao') ? document.getElementById('inputDiasDilacao').value : (d5.dias || 0);
+    const parecer = document.getElementById('selectParecerGerente') ? document.getElementById('selectParecerGerente').value : (d13.parecer || '');
+
     let textoDecisao = '';
-    if (etapaAtual === 5) {
+    if (etapaAtual === 5 || d5.decisao) {
         if (decisao === 'defere') {
             textoDecisao = `Após análise da dilação informamos que seu pedido foi deferido. O prazo foi prorrogado por mais ${dias} dias.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
@@ -5838,8 +6251,7 @@ window.gerarReplica = async function() {
         } else if (decisao === 'gerente') {
             textoDecisao = `Senhora Gerente,<br><br>Após análise da dilação/defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
         }
-    } else if (etapaAtual === 13) {
-        const parecer = document.getElementById('selectParecerGerente') ? document.getElementById('selectParecerGerente').value : '';
+    } else if (etapaAtual === 13 || etapaAtual === 11 || d13.decisao) {
         if (decisao === 'defere') {
             textoDecisao = `Após análise da defesa informamos que seu pedido foi deferido.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
@@ -5852,7 +6264,7 @@ window.gerarReplica = async function() {
             }
         }
     }
-    
+
     const nomeFiscal = typeof perfilAtual !== 'undefined' && perfilAtual?.nome ? perfilAtual.nome : (processoAtual?.profiles?.nome || window.obterPerfilUsuario?.()?.nome || 'Fiscal de Posturas');
     const matriculaFiscal = typeof perfilAtual !== 'undefined' && perfilAtual?.matricula ? perfilAtual.matricula : (processoAtual?.profiles?.matricula || window.obterPerfilUsuario?.()?.matricula || '');
     const dataAtual = new Date().toLocaleDateString('pt-BR');
@@ -5861,12 +6273,12 @@ window.gerarReplica = async function() {
     let imgsHTML = '';
     const formItems = document.querySelectorAll('#containerImagensForm > div');
     const filesPromises = [];
-    
+
     for (const item of formItems) {
         const fileInput = item.querySelector('.replica-imagem-arquivo');
         const legendaInput = item.querySelector('.replica-imagem-legenda');
         const file = fileInput?.files[0];
-        
+
         if (file) {
             const prom = new Promise((resolve) => {
                 const reader = new FileReader();
@@ -5884,7 +6296,7 @@ window.gerarReplica = async function() {
             filesPromises.push(prom);
         }
     }
-    
+
     const loadedImages = await Promise.all(filesPromises);
     imgsHTML = loadedImages.join('');
 
@@ -5948,9 +6360,190 @@ window.gerarReplica = async function() {
             </div>
         </div>
     `;
-    
+
     const container = document.getElementById('containerDocumentoOficial');
     if (container) {
         container.innerHTML = htmlReplica;
     }
+
+    if (notificacaoAtual && htmlReplica) {
+        notificacaoAtual.dados = notificacaoAtual.dados || {};
+        notificacaoAtual.dados.html_replica = htmlReplica;
+        notificacaoAtual.dados.numero_replica = numReplica;
+
+        try {
+            await supabaseClient
+                .from('notificacoes')
+                .update({ dados: notificacaoAtual.dados })
+                .eq('id', notificacaoAtual.id);
+        } catch (e) {
+            console.error('Erro ao salvar html_replica no banco:', e);
+        }
+    }
 };
+
+/* ── Central de Notificações no Menu ─────────────────────── */
+window.toggleDropdownNotificacoes = function () {
+    const dropdown = document.getElementById('dropdownNotificacoes');
+    if (!dropdown) return;
+    if (dropdown.style.display === 'none' || !dropdown.style.display) {
+        dropdown.style.display = 'block';
+        window.atualizarInterfaceNotificacoes();
+    } else {
+        dropdown.style.display = 'none';
+    }
+};
+
+window.atualizarInterfaceNotificacoes = function () {
+    const listDiv = document.getElementById('listaNotificacoesMenu');
+    const badgeEl = document.getElementById('badgeContadorNotificacoes');
+    if (!listDiv) return;
+
+    let todanotifs = [];
+    const setKeys = new Set();
+
+    const addNotif = (n) => {
+        if (!n) return;
+        const key = (n.data || '') + (n.titulo || '') + (n.mensagem || '');
+        if (!setKeys.has(key)) {
+            setKeys.add(key);
+            todanotifs.push(n);
+        }
+    };
+
+    (notificacaoAtual?.dados?.notificacoes_menu || []).forEach(addNotif);
+    (processoAtual?.dados?.notificacoes_menu || []).forEach(addNotif);
+    (processoAtual?.notificacoes || []).forEach(notif => {
+        (notif?.dados?.notificacoes_menu || []).forEach(addNotif);
+    });
+
+    todanotifs.sort((a, b) => new Date(b.data) - new Date(a.data));
+
+    if (badgeEl) {
+        const naoLidas = todanotifs.filter(n => !n.lida).length;
+        if (naoLidas > 0) {
+            badgeEl.textContent = naoLidas;
+            badgeEl.style.display = 'inline-block';
+        } else {
+            badgeEl.style.display = 'none';
+        }
+    }
+
+    if (todanotifs.length === 0) {
+        listDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8; font-size: 0.85rem;">Nenhuma notificação registrada.</div>';
+        return;
+    }
+
+    let html = '';
+    todanotifs.forEach((n, idx) => {
+        const isNova = !n.lida;
+        html += `
+        <div style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: ${isNova ? '#f0f9ff' : '#ffffff'}; transition: background 0.2s;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">${n.titulo}</span>
+                    <span style="font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; ${isNova ? 'background:#dbeafe; color:#1d4ed8;' : 'background:#f1f5f9; color:#64748b;'}">
+                        ${isNova ? 'NOVA' : 'Antiga'}
+                    </span>
+                </div>
+                <span style="font-size: 0.72rem; color: #94a3b8;">${n.data ? new Date(n.data).toLocaleDateString('pt-BR') : ''}</span>
+            </div>
+            <p style="margin: 0 0 6px 0; font-size: 0.82rem; color: #475569; line-height: 1.4;">${n.mensagem}</p>
+            ${n.motivo ? `<div style="background:#f8fafc; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:0.8rem; color:#334155; margin-bottom:8px;"><strong>Motivo do Gerente:</strong> ${n.motivo}</div>` : ''}
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                <span style="font-size:0.75rem; font-weight:600; color:#2563eb;">Proc: ${n.numero_processo || ''}</span>
+                <div style="display:flex; gap:6px;">
+                    ${isNova ? `<button type="button" onclick="window.marcarNotificacaoLida(${idx})" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:4px 10px; border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer;">Ciente</button>` : ''}
+                    <button type="button" onclick="window.removerNotificacaoMenu(${idx})" style="background:#fff1f2; color:#e11d48; border:1px solid #fecdd3; padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer;" title="Excluir notificação">Excluir</button>
+                </div>
+            </div>
+        </div>
+        `;
+    });
+    listDiv.innerHTML = html;
+};
+
+async function salvarNotificacoesMenuNoBanco() {
+    try {
+        if (notificacaoAtual?.id) {
+            await supabaseClient
+                .from('notificacoes')
+                .update({ dados: notificacaoAtual.dados })
+                .eq('id', notificacaoAtual.id);
+        }
+        if (processoAtual?.id) {
+            await supabaseClient
+                .from('processos')
+                .update({ dados: processoAtual.dados })
+                .eq('id', processoAtual.id);
+        }
+    } catch (e) {
+        console.error('Erro ao atualizar notificações no banco:', e);
+    }
+}
+
+window.marcarNotificacaoLida = async function (idx) {
+    if (notificacaoAtual?.dados?.notificacoes_menu?.[idx]) {
+        notificacaoAtual.dados.notificacoes_menu[idx].lida = true;
+    }
+    if (processoAtual?.dados?.notificacoes_menu?.[idx]) {
+        processoAtual.dados.notificacoes_menu[idx].lida = true;
+    }
+    (processoAtual?.notificacoes || []).forEach(notif => {
+        if (notif?.dados?.notificacoes_menu?.[idx]) {
+            notif.dados.notificacoes_menu[idx].lida = true;
+        }
+    });
+    window.atualizarInterfaceNotificacoes();
+    await salvarNotificacoesMenuNoBanco();
+};
+
+window.removerNotificacaoMenu = async function (idx) {
+    if (notificacaoAtual?.dados?.notificacoes_menu) {
+        notificacaoAtual.dados.notificacoes_menu.splice(idx, 1);
+    }
+    if (processoAtual?.dados?.notificacoes_menu) {
+        processoAtual.dados.notificacoes_menu.splice(idx, 1);
+    }
+    (processoAtual?.notificacoes || []).forEach(notif => {
+        if (notif?.dados?.notificacoes_menu) {
+            notif.dados.notificacoes_menu.splice(idx, 1);
+        }
+    });
+    window.atualizarInterfaceNotificacoes();
+    await salvarNotificacoesMenuNoBanco();
+};
+
+window.marcarTodasNotificacoesLidas = async function () {
+    (notificacaoAtual?.dados?.notificacoes_menu || []).forEach(n => n.lida = true);
+    (processoAtual?.dados?.notificacoes_menu || []).forEach(n => n.lida = true);
+    (processoAtual?.notificacoes || []).forEach(notif => {
+        (notif?.dados?.notificacoes_menu || []).forEach(n => n.lida = true);
+    });
+    window.atualizarInterfaceNotificacoes();
+    await salvarNotificacoesMenuNoBanco();
+};
+
+window.limparAntigasNotificacoesMenu = async function () {
+    if (notificacaoAtual?.dados?.notificacoes_menu) {
+        notificacaoAtual.dados.notificacoes_menu = notificacaoAtual.dados.notificacoes_menu.filter(n => !n.lida);
+    }
+    if (processoAtual?.dados?.notificacoes_menu) {
+        processoAtual.dados.notificacoes_menu = processoAtual.dados.notificacoes_menu.filter(n => !n.lida);
+    }
+    (processoAtual?.notificacoes || []).forEach(notif => {
+        if (notif?.dados?.notificacoes_menu) {
+            notif.dados.notificacoes_menu = notif.dados.notificacoes_menu.filter(n => !n.lida);
+        }
+    });
+    window.atualizarInterfaceNotificacoes();
+    await salvarNotificacoesMenuNoBanco();
+};
+
+document.addEventListener('click', function (e) {
+    const btn = document.getElementById('btnMenuNotificacoes');
+    const dropdown = document.getElementById('dropdownNotificacoes');
+    if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});

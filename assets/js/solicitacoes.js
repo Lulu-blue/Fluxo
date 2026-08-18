@@ -301,6 +301,7 @@ async function carregarSolicitacoes() {
         renderizarTabela(dadosTabela);
         atualizarPaginacao();
         atualizarContador();
+        setTimeout(() => { if (window.atualizarInterfaceNotificacoesPainel) window.atualizarInterfaceNotificacoesPainel(); }, 150);
 
     } catch (err) {
         console.error('Erro ao carregar solicitações:', err);
@@ -758,3 +759,151 @@ async function alterarSenhaUsuario() {
         alert('Erro ao atualizar senha.');
     }
 }
+
+/* ── Central de Notificações no Painel ───────────────────── */
+window.toggleDropdownNotificacoesPainel = function () {
+    const dropdown = document.getElementById('dropdownNotificacoesPainel');
+    if (!dropdown) return;
+    if (dropdown.style.display === 'none' || !dropdown.style.display) {
+        dropdown.style.display = 'block';
+        window.atualizarInterfaceNotificacoesPainel();
+    } else {
+        dropdown.style.display = 'none';
+    }
+};
+
+window.atualizarInterfaceNotificacoesPainel = function () {
+    const listDiv = document.getElementById('listaNotificacoesMenuPainel');
+    const badgeEl = document.getElementById('badgeContadorNotificacoesPainel');
+    if (!listDiv) return;
+
+    let todanotifs = [];
+    (dadosTabela || []).forEach(item => {
+        const procNotifs = item?.dados?.notificacoes_menu || [];
+        procNotifs.forEach(n => todanotifs.push(n));
+        (item?.notificacoes || []).forEach(notif => {
+            const subNotifs = notif?.dados?.notificacoes_menu || [];
+            subNotifs.forEach(n => todanotifs.push(n));
+        });
+    });
+
+    todanotifs.sort((a, b) => new Date(b.data) - new Date(a.data));
+
+    if (badgeEl) {
+        const naoLidas = todanotifs.filter(n => !n.lida).length;
+        if (naoLidas > 0) {
+            badgeEl.textContent = naoLidas;
+            badgeEl.style.display = 'inline-block';
+        } else {
+            badgeEl.style.display = 'none';
+        }
+    }
+
+    if (todanotifs.length === 0) {
+        listDiv.innerHTML = '<div style="padding: 20px; text-align: center; color: #94a3b8; font-size: 0.85rem;">Nenhuma notificação registrada.</div>';
+        return;
+    }
+
+    let html = '';
+    todanotifs.forEach((n, idx) => {
+        const isNova = !n.lida;
+        html += `
+        <div style="padding: 12px 16px; border-bottom: 1px solid #f1f5f9; background: ${isNova ? '#f0f9ff' : '#ffffff'}; transition: background 0.2s;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">${n.titulo}</span>
+                    <span style="font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; ${isNova ? 'background:#dbeafe; color:#1d4ed8;' : 'background:#f1f5f9; color:#64748b;'}">
+                        ${isNova ? 'NOVA' : 'Antiga'}
+                    </span>
+                </div>
+                <span style="font-size: 0.72rem; color: #94a3b8;">${n.data ? new Date(n.data).toLocaleDateString('pt-BR') : ''}</span>
+            </div>
+            <p style="margin: 0 0 6px 0; font-size: 0.82rem; color: #475569; line-height: 1.4;">${n.mensagem}</p>
+            ${n.motivo ? `<div style="background:#f8fafc; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:0.8rem; color:#334155; margin-bottom:8px;"><strong>Motivo do Gerente:</strong> ${n.motivo}</div>` : ''}
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                <span style="font-size:0.75rem; font-weight:600; color:#2563eb;">Proc: ${n.numero_processo || ''}</span>
+                <div style="display:flex; gap:6px;">
+                    ${n.processo_id ? `<button type="button" onclick="window.abrirNotificacaoEPromoverLida('${n.processo_id}', '${n.notificacao_id || ''}', ${idx})" style="background:#2563eb; color:white; border:none; padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer;">Ver Processo</button>` : ''}
+                    <button type="button" onclick="window.removerNotificacaoPainel('${n.processo_id || ''}', ${idx})" style="background:#fff1f2; color:#e11d48; border:1px solid #fecdd3; padding:4px 8px; border-radius:6px; font-size:0.75rem; font-weight:600; cursor:pointer;" title="Excluir notificação">Excluir</button>
+                </div>
+            </div>
+        </div>
+        `;
+    });
+    listDiv.innerHTML = html;
+};
+
+window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId, idx) {
+    const item = (dadosTabela || []).find(i => i.id === processoId);
+    if (item && item.dados?.notificacoes_menu) {
+        if (idx !== undefined && item.dados.notificacoes_menu[idx]) {
+            item.dados.notificacoes_menu[idx].lida = true;
+        } else {
+            item.dados.notificacoes_menu.forEach(n => n.lida = true);
+        }
+        try {
+            await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+        } catch (e) {
+            console.error('Erro ao marcar notificação como lida:', e);
+        }
+    }
+    let url = `etapa.html?processo=${processoId}`;
+    if (notificacaoId) {
+        url += `&notificacao=${notificacaoId}`;
+    }
+    window.location.href = url;
+};
+
+window.marcarTodasNotificacoesLidasPainel = async function () {
+    (dadosTabela || []).forEach(async (item) => {
+        if (item?.dados?.notificacoes_menu) {
+            item.dados.notificacoes_menu.forEach(n => n.lida = true);
+            if (item.id) {
+                try {
+                    await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+                } catch (e) {
+                    console.error('Erro ao atualizar processo:', e);
+                }
+            }
+        }
+    });
+    window.atualizarInterfaceNotificacoesPainel();
+};
+
+window.limparAntigasNotificacoesPainel = async function () {
+    (dadosTabela || []).forEach(async (item) => {
+        if (item?.dados?.notificacoes_menu) {
+            const antes = item.dados.notificacoes_menu.length;
+            item.dados.notificacoes_menu = item.dados.notificacoes_menu.filter(n => !n.lida);
+            if (item.dados.notificacoes_menu.length !== antes && item.id) {
+                try {
+                    await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+                } catch (e) {
+                    console.error('Erro ao atualizar processo:', e);
+                }
+            }
+        }
+    });
+    window.atualizarInterfaceNotificacoesPainel();
+};
+
+window.removerNotificacaoPainel = async function (processoId, idx) {
+    const item = (dadosTabela || []).find(i => i.id === processoId);
+    if (item && item.dados?.notificacoes_menu) {
+        item.dados.notificacoes_menu.splice(idx, 1);
+        try {
+            await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+        } catch (e) {
+            console.error('Erro ao excluir notificação:', e);
+        }
+    }
+    window.atualizarInterfaceNotificacoesPainel();
+};
+
+document.addEventListener('click', function (e) {
+    const btn = document.getElementById('btnMenuNotificacoesPainel');
+    const dropdown = document.getElementById('dropdownNotificacoesPainel');
+    if (btn && dropdown && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});

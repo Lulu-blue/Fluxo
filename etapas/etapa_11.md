@@ -15,10 +15,10 @@ obs: todos eles devem ter um campo de texto para escrever o motivo da decisão.
 ## Condições de Saída
 | Condição | Destino |
 |----------|---------|
-| Análise: Indeferido | → Etapa 14 (Auto de Infração) |
-| Análise: Deferido | → Etapa 10 (Fiscal Emite Certidão) |
+| Análise: Indeferido | → Etapa 10 (Certidão Sem Defesa - Marcado como Não) |
+| Análise: Deferido | → Etapa 29 (Fiscal Emite Certidão) |
 | Análise: Dilatar prazo | → Etapa 2 |
-|Mandar de volta para o fiscal para ele analisar novamente a defesa| → Etapa 3 (A defesa ja anexada mas com o motivo em destaque para o fiscal ler antes de avançar a etapa novamente)|
+|Mandar de volta para o fiscal para ele analisar novamente a defesa| → Etapa 3 (A defesa ja anexada mas com o motivo em destaque para o fiscal analisar antes de avançar a etapa novamente)|
 
 ## Campos da Tela
 <!-- PREENCHA AQUI -->

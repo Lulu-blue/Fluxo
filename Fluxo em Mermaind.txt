@@ -36,7 +36,7 @@ flowchart TD
     E10 -->|"Foi resolvido? Não (Etapa 14)"| E14
     E10 -->|"Foi resolvido? Sim (Etapa 29)"| E29
 
-    E11["Gerente antes Infração<br/>Etapa 11"] -->|"Análise do gerente: indeferido (Etapa 14)"| E14
+    E11["Gerente antes Infração<br/>Etapa 11"] -->|"Análise do gerente: indeferido (Etapa 10)"| E10
     E11 -->|"Análise do gerente: deferido (Etapa 29)"| E29
     E11 -->|"Análise do gerente: dilatar prazo (Etapa 3)"| E3
     E11 -->|"Análise do gerente: Enviar para o Jurídico (Etapa 32)"| E32
@@ -46,8 +46,8 @@ flowchart TD
     E12 -->|"Análise do gerente: dilatar Prazo (Etapa 6)"| E6
     E12 -->|"Análise do gerente: Enviar para o jurídico (Etapa 32)"| E32
 
-    E13 -->|"Defesa Deferida ou Indeferida? Deferida (Etapa 14)"| E14
-    E13 -->|"Defesa Deferida ou Indeferida? Indeferida (Etapa 29)"| E29
+    E13 -->|"Defesa Deferida ou Indeferida? Deferida (Etapa 29)"| E29
+    E13 -->|"Defesa Deferida ou Indeferida? Indeferida (Etapa 10)"| E10
     E13 -->|"Defesa Deferida ou Indeferida? Enviar para Gerente (Etapa 11)"| E11
     E13 -->|"Defesa Deferida ou Indeferida? Enviar para Jurídico (Etapa 32)"| E32
 

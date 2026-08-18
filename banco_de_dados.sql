@@ -339,32 +339,34 @@ INSERT INTO transicoes (etapa_origem_id, etapa_destino_id, condicao) VALUES
     ((SELECT id FROM etapas WHERE numero = 1),  (SELECT id FROM etapas WHERE numero = 14), 'Processo já Existente? Sim'),
 
     -- E2 → saídas
-    ((SELECT id FROM etapas WHERE numero = 2),  (SELECT id FROM etapas WHERE numero = 4),  'Checklist: preenchido'),
-    ((SELECT id FROM etapas WHERE numero = 2),  (SELECT id FROM etapas WHERE numero = 3),  'Checklist: pendente'),
+    ((SELECT id FROM etapas WHERE numero = 2),  (SELECT id FROM etapas WHERE numero = 4),  'Defesa ou Dilação de Prazo'),
+    ((SELECT id FROM etapas WHERE numero = 2),  (SELECT id FROM etapas WHERE numero = 7),  'Notificação Atendida ou Vencida'),
 
     -- E3 → saídas
-    ((SELECT id FROM etapas WHERE numero = 3),  (SELECT id FROM etapas WHERE numero = 13), 'Checklist: preenchido'),
-    ((SELECT id FROM etapas WHERE numero = 3),  (SELECT id FROM etapas WHERE numero = 10), 'Checklist: pendente'),
+    ((SELECT id FROM etapas WHERE numero = 3),  (SELECT id FROM etapas WHERE numero = 13), 'Defesa Anexada (Checklist preenchido)'),
+    ((SELECT id FROM etapas WHERE numero = 3),  (SELECT id FROM etapas WHERE numero = 10), 'Prazo Vencido Sem Defesa (Checklist pendente)'),
 
     -- E4 → saídas
-    ((SELECT id FROM etapas WHERE numero = 4),  (SELECT id FROM etapas WHERE numero = 5),  'Checklist: preenchido'),
-    ((SELECT id FROM etapas WHERE numero = 4),  (SELECT id FROM etapas WHERE numero = 7),  'Checklist: pendente'),
+    ((SELECT id FROM etapas WHERE numero = 4),  (SELECT id FROM etapas WHERE numero = 3),  'Envio da 1ª Defesa'),
+    ((SELECT id FROM etapas WHERE numero = 4),  (SELECT id FROM etapas WHERE numero = 5),  'Análise Dilação de Prazo'),
+    ((SELECT id FROM etapas WHERE numero = 4),  (SELECT id FROM etapas WHERE numero = 7),  'Sem Comprovante / Atendida / Vencida'),
 
     -- E5 → saídas
-    ((SELECT id FROM etapas WHERE numero = 5),  (SELECT id FROM etapas WHERE numero = 6),  'Dilação Aceita'),
-    ((SELECT id FROM etapas WHERE numero = 5),  (SELECT id FROM etapas WHERE numero = 9),  'Dilação Negada'),
+    ((SELECT id FROM etapas WHERE numero = 5),  (SELECT id FROM etapas WHERE numero = 2),  'Dilação Aceita'),
+    ((SELECT id FROM etapas WHERE numero = 5),  (SELECT id FROM etapas WHERE numero = 7),  'Dilação Negada'),
+    ((SELECT id FROM etapas WHERE numero = 5),  (SELECT id FROM etapas WHERE numero = 11), 'Análise do Gerente'),
 
     -- E6 → saída
     ((SELECT id FROM etapas WHERE numero = 6),  (SELECT id FROM etapas WHERE numero = 8),  'Sempre'),
 
     -- E7 → saídas
-    ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 29), 'Houve Cumprimento? Sim'),
-    ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 14), 'Houve Cumprimento? Não'),
+    ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 10), 'Houve Cumprimento? Sim'),
+    ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 10), 'Houve Cumprimento? Não'),
     ((SELECT id FROM etapas WHERE numero = 7),  (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico'),
 
     -- E8 → saídas
     ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 29), 'Defesa Deferida'),
-    ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 14), 'Defesa Indeferida'),
+    ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 10), 'Defesa Indeferida'),
     ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 12), 'Enviar para Gerente'),
     ((SELECT id FROM etapas WHERE numero = 8),  (SELECT id FROM etapas WHERE numero = 32), 'Enviar para Jurídico'),
 
@@ -376,20 +378,22 @@ INSERT INTO transicoes (etapa_origem_id, etapa_destino_id, condicao) VALUES
     ((SELECT id FROM etapas WHERE numero = 10), (SELECT id FROM etapas WHERE numero = 29), 'Foi resolvido? Sim'),
 
     -- E11 → saídas
-    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 14), 'Análise do gerente: indeferido'),
-    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 29), 'Análise do gerente: deferido'),
-    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 3),  'Análise do gerente: dilatar prazo'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 10), 'Análise do gerente: deferido (com certidão)'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 29), 'Análise do gerente: deferido (sem certidão)'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 10), 'Análise do gerente: indeferido'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 2),  'Análise do gerente: dilatar prazo'),
+    ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 3),  'Análise do gerente: retornar ao fiscal'),
     ((SELECT id FROM etapas WHERE numero = 11), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico'),
 
     -- E12 → saídas
-    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 14), 'Análise do gerente: indeferido'),
+    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 10), 'Análise do gerente: indeferido'),
     ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 29), 'Análise do gerente: deferido'),
-    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 6),  'Análise do gerente: dilatar prazo'),
+    ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 2),  'Análise do gerente: dilatar prazo'),
     ((SELECT id FROM etapas WHERE numero = 12), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para o Jurídico'),
 
     -- E13 → saídas
-    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 14), 'Defesa Deferida'),
-    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 29), 'Defesa Indeferida'),
+    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 10), 'Defesa Deferida'),
+    ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 10), 'Defesa Indeferida'),
     ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 11), 'Enviar para Gerente'),
     ((SELECT id FROM etapas WHERE numero = 13), (SELECT id FROM etapas WHERE numero = 32), 'Enviar para Jurídico'),
 

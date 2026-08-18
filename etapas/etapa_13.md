@@ -11,7 +11,7 @@ Vai aparecer as 3 opções para o fiscal
 
 - Indeferimento
     - Campo de texto para escrever o motivo do indeferimento. "pois: "
-    - Vai para a etapa 14
+    - Vai para a etapa 10 (marcado automaticamente como Não)
 
 - Manda para o gerente
     - Seleciona se é favorável ou não.
