@@ -504,6 +504,10 @@ BEGIN
         SELECT COALESCE(MAX(split_part(numero_certidao, '/', 2)::INTEGER), 0) + 1 INTO v_prox
         FROM notificacoes
         WHERE numero_certidao LIKE p_ano::TEXT || '/%';
+    ELSIF p_categoria = 'Auto de Infração' THEN
+        SELECT COALESCE(MAX(split_part(numero, '/', 2)::INTEGER), 0) + 1 INTO v_prox
+        FROM autos_infracao
+        WHERE numero LIKE p_ano::TEXT || '/%';
     ELSE
         v_prox := 1;
     END IF;
@@ -707,6 +711,37 @@ BEGIN
         END LOOP;
     END LOOP;
 END $$;
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: autos_infracao                                     │
+-- │  Registra Autos de Infração gerados no sistema             │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS autos_infracao (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID NOT NULL REFERENCES processos(id) ON DELETE CASCADE,
+    notificacao_id UUID REFERENCES notificacoes(id) ON DELETE SET NULL,
+    usuario_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    numero VARCHAR(50) NOT NULL UNIQUE,
+    notificacao_anterior_numero VARCHAR(50),
+    proveniente_decreto BOOLEAN DEFAULT FALSE,
+    prazo_dias INT DEFAULT 20,
+    data_emissao TIMESTAMPTZ DEFAULT NOW(),
+    data_vencimento TIMESTAMPTZ,
+    status VARCHAR(30) DEFAULT 'emitido',
+    etapa_atual_id INT REFERENCES etapas(id),
+    dados JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_autos_infracao_processo ON autos_infracao(processo_id);
+CREATE INDEX IF NOT EXISTS idx_autos_infracao_notificacao ON autos_infracao(notificacao_id);
+CREATE INDEX IF NOT EXISTS idx_autos_infracao_usuario ON autos_infracao(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_autos_infracao_numero ON autos_infracao(numero);
+
+-- Permissões de Acesso
+ALTER TABLE autos_infracao DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE autos_infracao TO anon, authenticated, service_role;
 
 -- ┌─────────────────────────────────────────────────────────────┐
 -- │  TABELA: chats_interface_juridica                           │

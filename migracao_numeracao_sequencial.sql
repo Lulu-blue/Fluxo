@@ -77,6 +77,10 @@ BEGIN
         SELECT COALESCE(MAX(split_part(numero_certidao, '/', 2)::INTEGER), 0) + 1 INTO v_prox
         FROM notificacoes
         WHERE numero_certidao LIKE p_ano::TEXT || '/%';
+    ELSIF p_categoria = 'Auto de Infração' THEN
+        SELECT COALESCE(MAX(split_part(numero, '/', 2)::INTEGER), 0) + 1 INTO v_prox
+        FROM autos_infracao
+        WHERE numero LIKE p_ano::TEXT || '/%';
     ELSIF p_categoria = 'Relatório Fiscal' THEN
         SELECT COALESCE(MAX(split_part(numero_relatorio, '/', 2)::INTEGER), 0) + 1 INTO v_prox
         FROM processos

@@ -409,9 +409,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!isNaN(parsed) && notificacoes[parsed]) {
                 indiceFinal = parsed;
             } else {
-                const idxPorId = notificacoes.findIndex(n => 
-                    String(n.id) === String(paramNotif) || 
-                    String(n.notificacao_id) === String(paramNotif) || 
+                const idxPorId = notificacoes.findIndex(n =>
+                    String(n.id) === String(paramNotif) ||
+                    String(n.notificacao_id) === String(paramNotif) ||
                     String(n.numero) === String(paramNotif) ||
                     String(n.numero_notificacao) === String(paramNotif)
                 );
@@ -1696,9 +1696,9 @@ async function carregarProcessoCompleto(processoId) {
                 notificacaoAtual = proc.notificacoes[parsed];
                 proc.notificacaoSelecionada = parsed;
             } else {
-                const foundIdx = proc.notificacoes.findIndex(n => 
-                    String(n.id) === String(notificacaoParam) || 
-                    String(n.notificacao_id) === String(notificacaoParam) || 
+                const foundIdx = proc.notificacoes.findIndex(n =>
+                    String(n.id) === String(notificacaoParam) ||
+                    String(n.notificacao_id) === String(notificacaoParam) ||
                     String(n.numero) === String(notificacaoParam) ||
                     String(n.numero_notificacao) === String(notificacaoParam)
                 );
@@ -6136,37 +6136,147 @@ window.avancarEtapa10 = async function () {
 // ETAPA 14 — AUTO DE INFRAÇÃO (Geração de Documento Oficial)
 // ============================================================================
 
-window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc) {
-    const dispLow = (infracaoDesc || '').toLowerCase();
-    const upfmdVal = window.valorUpfmdAtual || 103.00;
-    const testada = parseFloat(fisc?.testada_metros || 10);
-    const area = parseFloat(fisc?.area_lote_m2 || 300);
+window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
+    const p = proc || processoAtual || {};
+    const dispItem = infracaoDesc || notificacaoAtual?.descricao || fisc?.infracao || 'Limpeza de Quintal';
+    const dispLow = (dispItem || '').toLowerCase();
 
-    let leiArtigo = 'Lei 7.174/2010 pelo descumprimento dos dispositivos: Artigo 1º, § 1º e Artigo 2º, III, sob pena do Artigo 3º, III';
-    let multaTexto = `MULTA NO VALOR 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${(10 * upfmdVal).toFixed(2).replace('.', ',')}.`;
+    const upfmdVal = window.valorUpfmdAtual || parseFloat(p?.campos?.upfmd_utilizado) || 103.00;
 
-    if (dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
-        leiArtigo = 'Lei 7.174/2010 pelo descumprimento dos dispositivos: Artigo 1º e Artigo 2º, III, sob pena do Artigo 3º, IV';
-        const valMulta = (0.15 * upfmdVal * area).toFixed(2).replace('.', ',');
-        multaTexto = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: R$ ${valMulta}.`;
-    } else if (dispLow.includes('limpeza de quintal')) {
-        leiArtigo = 'Lei 6.907/2008 pelo descumprimento dos artigos 14 e 15, sob pena do Artigo 18';
-        const valMulta = (10 * upfmdVal).toFixed(2).replace('.', ',');
-        multaTexto = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valMulta}.`;
-    } else if (dispLow.includes('passeio') || dispLow.includes('muro') || dispLow.includes('cercamento')) {
-        leiArtigo = 'Lei 7.174/2010 pelo descumprimento dos artigos 1º e 2º, III, sob pena do Artigo 3º, III';
-        const valMulta = (0.5 * upfmdVal * testada).toFixed(2).replace('.', ',');
-        multaTexto = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valMulta}.`;
-    } else if (dispLow.includes('obstáculo') || dispLow.includes('calçada') || dispLow.includes('água servida')) {
-        leiArtigo = 'Lei 6.907/2008 pelo descumprimento do Artigo 6°, sob pena do Artigo 11';
-        const valMulta = (10 * upfmdVal).toFixed(2).replace('.', ',');
-        multaTexto = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valMulta}.`;
+    const { areaNum, testadaNum, profundidadeNum, temEsquina } = window.obterDadosImovelParaCalculo
+        ? window.obterDadosImovelParaCalculo(p)
+        : { areaNum: parseFloat(fisc?.area_lote_m2 || 288), testadaNum: parseFloat(fisc?.testada_metros || 12), profundidadeNum: 0, temEsquina: false };
+
+    const numAI = p?.campos?.auto_infracao_anterior_numero || notificacaoAtual?.dados?.etapa14?.numero_auto_infracao || 'XXXX';
+    const dataAI = p?.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
+
+    let idxNotif = 0;
+    if (p?.notificacoes && Array.isArray(p.notificacoes) && notificacaoAtual) {
+        const foundIdx = p.notificacoes.findIndex(n => String(n.id) === String(notificacaoAtual.id));
+        if (foundIdx >= 0) idxNotif = foundIdx;
     }
 
+    // Pega o valor numérico padrão usando a função da Notificação Preliminar
+    const defMulta = window.calcularValorNumDefaultMulta
+        ? window.calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmdVal)
+        : 10 * upfmdVal;
+
+    const customMulta = p?.campos?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multa_customizada;
+    const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
+        ? parseFloat(customMulta)
+        : defMulta;
+
+    const valFormatado = valMultaFinal.toFixed(2).replace('.', ',');
+
+    let leiBase = 'Lei 7.174/2010';
+    let dispositivoTexto = '';
+    let multaTextoHeader = '';
+    let obsFiscal = '';
+
+    // 1) SUBPROCESSO – Falta de limpeza e conservação de imóvel não edificado
+    if (dispLow.includes('120000232') || (dispLow.includes('limpeza') && dispLow.includes('não edificado'))) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+
+    // 4) SUBPROCESSO – Reincidência na inexistência de cercamento
+    } else if (dispLow.includes('120000228') || (dispLow.includes('reincidência') && dispLow.includes('cercamento'))) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 2º, I, da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+        obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+
+    // 5) SUBPROCESSO – Reincidência na inexistência de passeio
+    } else if (dispLow.includes('120000227') || (dispLow.includes('reincidência') && dispLow.includes('passeio'))) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: R$ ${valFormatado} (valor dobrado em face da reincidência na infração).`;
+        obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+
+    // 2) SUBPROCESSO – Inexistência de cercamento
+    } else if (dispLow.includes('120000211') || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 1º da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+
+    // 3) SUBPROCESSO – Inexistência de passeio
+    } else if (dispLow.includes('120000226') || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+
+    // 6) SUBPROCESSO – Reconstrução e/ou reparos em muro
+    } else if (dispLow.includes('120000229') || (dispLow.includes('reconstrução') && dispLow.includes('muro')) || (dispLow.includes('reparo') && dispLow.includes('muro'))) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 2º, II, da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+
+    // 7) SUBPROCESSO – Reconstrução e/ou reparos passeio
+    } else if (dispLow.includes('120000240') || (dispLow.includes('reconstrução') && dispLow.includes('passeio')) || (dispLow.includes('reparo') && dispLow.includes('passeio'))) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+
+    // 8) SUBPROCESSO – Muro em má conservação ou danificado
+    } else if (dispLow.includes('má conservação') || dispLow.includes('danificado')) {
+        leiBase = 'Lei 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+
+    // 9) SUBPROCESSO – Limpeza de quintal
+    } else if (dispLow.includes('120000233') || dispLow.includes('limpeza de quintal') || dispLow.includes('quintal')) {
+        leiBase = 'Lei nº 6.907/2008';
+        dispositivoTexto = 'infração aos artigos 14 e 15 da Lei nº 6.907/2008.';
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+
+    // 10) SUBPROCESSO – Obstáculos em calçadas
+    } else if (dispLow.includes('120000237') || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
+        leiBase = 'Lei nº 6.907/2008';
+        dispositivoTexto = 'infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+
+    // 11) SUBPROCESSO – Água servida
+    } else if (dispLow.includes('120000239') || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
+        leiBase = 'Lei nº 6.907/2008';
+        dispositivoTexto = 'infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+
+    // 12) SUBPROCESSO – Estabelecimento sem alvará
+    } else if (dispLow.includes('120000236') || dispLow.includes('alvará') || dispLow.includes('alvara')) {
+        leiBase = 'Lei nº 6.907/2008';
+        dispositivoTexto = 'infração ao artigo 190 da Lei nº 6.907/2008.';
+        multaTextoHeader = `MULTA NO VALOR DE: 50 UPFMD atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+
+    // 13) SUBPROCESSO – Reparos por concessionárias
+    } else if (dispLow.includes('120000234') || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
+        leiBase = 'Lei nº 6.907/2008 e Lei nº 7.174/2010';
+        dispositivoTexto = 'infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.';
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+
+    // 14) SUBPROCESSO – Piso Tátil
+    } else if (dispLow.includes('120000230') || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
+        leiBase = 'Lei nº 6.907/2008';
+        dispositivoTexto = 'infração ao artigo 106, IV, da Lei 6.907/2008.';
+        multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+
+    // Fallback
+    } else {
+        dispositivoTexto = `infração à legislação municipal vigente.`;
+        multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+    }
+
+    const textoCompleto = `
+        <p style="margin: 0 0 10px 0; text-align: justify;">
+            O motivo da infração é baseado na ${leiBase} pelo descumprimento dos dispositivos: <strong>${dispositivoTexto}</strong>
+        </p>
+        <p style="margin: 0 0 10px 0; text-align: justify;">
+            ${multaTextoHeader}
+        </p>
+        ${obsFiscal ? `<p style="margin: 4px 0 0 0; text-align: justify; font-style: italic; font-size: 10pt;">${obsFiscal}</p>` : ''}
+    `;
+
     return {
-        leiArtigo: leiArtigo,
-        multaTexto: multaTexto,
-        textoCompleto: `O motivo da infração é baseado na ${leiArtigo}. <strong>${multaTexto}</strong>`
+        textoCompleto
     };
 };
 
@@ -6178,19 +6288,30 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     const imv = d.imovel || {};
     const fisc = d.fiscal || {};
 
-    const nomeAutuado = cont.nome || 'Cicrano de Tal da Silva Júnior';
-    const cpfCnpj = cont.cpf_cnpj || 'XXXXXXXXXXXXXXXXXXX';
+    const nomeAutuado = cont.nome || 'Não informado';
+    const cpfCnpj = cont.cpf_cnpj || 'Não informado';
 
     // Endereço Autuado
-    const endAutuadoLog = cont.logradouro || cont.endereco || 'Rua Belas Orquídeas Silvestres Cheirosas';
-    const endAutuadoNum = cont.numero ? `Nº: ${cont.numero}` : 'Nº: XXXX';
-    const endAutuadoBairro = cont.bairro ? `Bairro: ${cont.bairro}` : 'Bairro: Jardins Suspensos da Babilônia';
-    const endAutuadoCep = cont.cep ? `CEP: ${cont.cep}` : 'CEP: XXXXX-XXX';
+    const endAutuadoLog = cont.logradouro || cont.endereco || 'Não informado';
+    const endAutuadoNumVal = cont.numero || 'Não informado';
+    const endAutuadoBairroVal = cont.bairro || 'Não informado';
+    const endAutuadoCepVal = cont.cep || 'Não informado';
 
     // Imóvel Fiscalizado
-    const imvRua = imv.logradouro || imv.rua || 'Rua Abobrinhas Suculentas';
+    const imvRua = imv.logradouro || imv.rua || 'Não informado';
     const imvNum = imv.numero || 'XXXX';
-    const imvBairro = imv.bairro || 'Lobos Uivantes Cinzentos';
+    const imvBairro = imv.bairro || 'Não informado';
+
+    // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Zona, Quadra, Lote)
+    let zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
+    if (imv.inscricao) {
+        const parts = imv.inscricao.replace(/\s/g, '').split('.');
+        if (parts.length >= 4) {
+            zona = parts[0] || 'XXX';
+            quadra = parts[2] || 'XXXX';
+            lote = parts[3] || 'XXXXX';
+        }
+    }
 
     // Data de vistoria
     const dataVistoriaFmt = fisc.data_vistoria
@@ -6202,29 +6323,83 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     const matriculaFiscal = perfilAtual?.matricula || fisc.matricula || 'XXXXXXX';
     const _anoAtual = new Date().getFullYear();
 
-    // Número do Auto de Infração: sequencial atômico próprio
-    let numAutoInfracao = notificacaoAtual?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '';
+    // Número do Auto de Infração: sequencial atômico próprio da tabela autos_infracao
+    let numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '';
 
     if (!numAutoInfracao && (notificacaoAtual?.id || processoAtual?.id)) {
         try {
-            const { data: numReservado, error: errRes } = await supabaseClient
-                .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Auto de Infração' });
-
-            if (errRes || !numReservado) {
-                console.warn('Falha ao reservar número de Auto de Infração:', errRes?.message);
-                numAutoInfracao = `${_anoAtual}/XXX`;
+            // Tenta consultar registro prévio na tabela autos_infracao
+            let queryAuto = supabaseClient.from('autos_infracao').select('*');
+            if (notificacaoAtual?.id) {
+                queryAuto = queryAuto.eq('notificacao_id', notificacaoAtual.id);
             } else {
-                numAutoInfracao = numReservado;
-                if (notificacaoAtual?.id) {
-                    await supabaseClient
-                        .from('notificacoes')
-                        .update({ numero_auto_infracao: numAutoInfracao })
-                        .eq('id', notificacaoAtual.id);
-                    notificacaoAtual.numero_auto_infracao = numAutoInfracao;
+                queryAuto = queryAuto.eq('processo_id', processoAtual.id);
+            }
+            const { data: autoExistente } = await queryAuto.maybeSingle();
+
+            if (autoExistente && autoExistente.numero) {
+                numAutoInfracao = autoExistente.numero;
+            } else {
+                const { data: numReservado, error: errRes } = await supabaseClient
+                    .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Auto de Infração' });
+
+                if (errRes || !numReservado) {
+                    console.warn('Falha ao reservar número de Auto de Infração:', errRes?.message);
+                    numAutoInfracao = `${_anoAtual}/XXX`;
+                } else {
+                    numAutoInfracao = numReservado;
+
+                    const provenienteDecreto = !!(
+                        processoAtual?.dados?.campos?.etapa1?.proveniente_decreto ||
+                        processoAtual?.dados?.proveniente_decreto ||
+                        processoAtual?.proveniente_decreto
+                    );
+
+                    const dataEmissao = new Date();
+                    const dataVenc = new Date();
+                    dataVenc.setDate(dataVenc.getDate() + 20);
+
+                    // Insere registro na tabela própria autos_infracao
+                    const { error: errInsertAuto } = await supabaseClient
+                        .from('autos_infracao')
+                        .insert({
+                            processo_id: processoAtual.id,
+                            notificacao_id: notificacaoAtual?.id || null,
+                            usuario_id: perfilAtual?.id || null,
+                            numero: numAutoInfracao,
+                            notificacao_anterior_numero: notificacaoAtual?.numero || null,
+                            proveniente_decreto: provenienteDecreto,
+                            prazo_dias: 20,
+                            data_emissao: dataEmissao.toISOString(),
+                            data_vencimento: dataVenc.toISOString(),
+                            status: 'emitido',
+                            etapa_atual_id: 14,
+                            dados: {
+                                infracao_descricao: document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || '',
+                                autuado_nome: nomeAutuado,
+                                autuado_cpf_cnpj: cpfCnpj,
+                                fiscal_nome: nomeFiscal,
+                                fiscal_matricula: matriculaFiscal
+                            }
+                        });
+
+                    if (errInsertAuto) {
+                        console.warn('Aviso ao salvar auto na tabela autos_infracao:', errInsertAuto.message);
+                    }
+
+                    if (notificacaoAtual?.id) {
+                        notificacaoAtual.dados = notificacaoAtual.dados || {};
+                        notificacaoAtual.dados.numero_auto_infracao = numAutoInfracao;
+                        await supabaseClient
+                            .from('notificacoes')
+                            .update({ dados: notificacaoAtual.dados })
+                            .eq('id', notificacaoAtual.id);
+                    }
                 }
             }
+            if (notificacaoAtual) notificacaoAtual.numero_auto_infracao = numAutoInfracao;
         } catch (e) {
-            console.warn('Erro ao reservar Auto de Infração:', e);
+            console.warn('Erro ao processar Auto de Infração na tabela:', e);
             numAutoInfracao = `${_anoAtual}/XXX`;
         }
     } else if (!numAutoInfracao) {
@@ -6234,7 +6409,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     const inputInfracao = document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || 'Limpeza de Quintal';
     const inputNotifNum = document.getElementById('inputNumNotifAutoInfracao')?.value || notificacaoAtual?.numero || processoAtual.numero_processo || 'XXXX';
 
-    const dadosLegais = window.obterDadosLegaisEValoresAuto(inputInfracao, fisc);
+    const dadosLegais = window.obterDadosLegaisEValoresAuto(inputInfracao, fisc, processoAtual);
 
     const htmlAuto = `
         <div id="documentoPronto" style="margin-top: 20px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
@@ -6255,22 +6430,45 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </div>
 
                 <!-- TÍTULO -->
-                <div style="text-align: center; margin-top: 15px; margin-bottom: 20px;">
-                    <div style="font-size: 14pt; font-weight: bold; color: #000; text-transform: uppercase;">AUTO DE INFRAÇÃO AMBIENTAL Nº ${numAutoInfracao}</div>
+                <div style="text-align: center; margin-top: 15px; margin-bottom: 12px;">
+                    <div style="font-size: 14pt; font-weight: bold; color: #000; text-transform: uppercase;">AUTO DE INFRAÇÃO Nº ${numAutoInfracao}</div>
                     <div style="font-size: 11pt; font-weight: bold; color: #000;">Fiscalização de Posturas</div>
                 </div>
+                <div style="text-align: right; font-size: 11pt; margin-bottom: 18px;">Divinópolis- MG ${dataAtualFmt}</div>
 
-                <!-- CORPO DO AUTO DE INFRAÇÃO -->
-                <div style="font-size: 11pt; line-height: 1.6; color: #000;">
-                    <!-- DADOS DO PROPRIETÁRIO / AUTUADO -->
-                    <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 16px; margin-bottom: 18px; border-radius: 6px;">
-                        <div><strong>Estabelecimento/Proprietário:</strong> ${nomeAutuado}</div>
-                        <div><strong>CNPJ/CPF:</strong> ${cpfCnpj}</div>
-                        <div><strong>Endereço:</strong> ${endAutuadoLog} &nbsp;&nbsp; <strong>${endAutuadoNum}</strong></div>
-                        <div><strong>${endAutuadoBairro}</strong> &nbsp;&nbsp; <strong>${endAutuadoCep}</strong> &nbsp;&nbsp; Divinópolis - MG</div>
-                        <div style="text-align: right; margin-top: 4px; font-weight: 600;">Divinópolis - MG ${dataAtualFmt}</div>
+                <!-- 1. INFORMAÇÕES DO CONTRIBUINTE -->
+                <div class="doc-sec-heading">Informações do Contribuinte</div>
+                <div class="doc-info-grid">
+                    <div>
+                        <div><strong>Contribuinte:</strong> ${nomeAutuado}</div>
+                        <div><strong>Logradouro:</strong> ${endAutuadoLog}</div>
+                        <div><strong>CEP:</strong> ${endAutuadoCepVal}</div>
+                        <div><strong>Município:</strong> Divinópolis</div>
                     </div>
+                    <div>
+                        <div><strong>CPF/CNPJ:</strong> ${cpfCnpj}</div>
+                        <div><strong>Bairro:</strong> ${endAutuadoBairroVal}</div>
+                        <div><strong>Número:</strong> ${endAutuadoNumVal}</div>
+                    </div>
+                </div>
 
+                <!-- 2. INFORMAÇÕES DO IMÓVEL -->
+                <div class="doc-sec-heading" style="margin-top: 18px;">Informações do imóvel</div>
+                <div class="doc-info-grid">
+                    <div>
+                        <div><strong>Inscrição:</strong> ${imv.inscricao || 'XX.XXX.XXXX.XXXXX'}</div>
+                        <div><strong>Logradouro:</strong> ${imvRua}, n° ${imvNum}</div>
+                        <div><strong>Bairro:</strong> ${imvBairro}</div>
+                    </div>
+                    <div>
+                        <div><strong>Zona:</strong> ${zona}</div>
+                        <div><strong>Quadra:</strong> ${quadra}</div>
+                        <div><strong>Lote:</strong> ${lote}</div>
+                    </div>
+                </div>
+
+                <!-- CORPO DO AUTO DE INFRAÇÃO (FISCAL DE POSTURAS — NÃO DECRETO) -->
+                <div style="font-size: 11pt; line-height: 1.6; color: #000; margin-top: 20px;">
                     <p style="margin: 0 0 14px 0; text-align: justify;">
                         O imóvel, situado na <strong>${imvRua}, n° ${imvNum}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
                     </p>
@@ -6297,9 +6495,9 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     </div>
                 </div>
 
-                <!-- RECIBO DO AUTUADO (Bloco idêntico ao da Notificação Preliminar) -->
+                <!-- RECIBO DO AUTUADO -->
                 <div style="margin-top: 30px; font-size: 11pt;">
-                    <div style="margin-bottom: 6px;">Recebi 2° via da presente Notificação Preliminar da qual fico ciente;</div>
+                    <div style="margin-bottom: 6px;">Recebi 2° via do presente Auto de Infração do qual fico ciente;</div>
                     <table width="100%" cellpadding="10" cellspacing="0" border="1" style="border-collapse: collapse; border: 2px solid #000; font-size: 11pt;">
                         <tr>
                             <td width="68%" valign="top" style="border: 2px solid #000; height: 80px;">
@@ -6335,15 +6533,31 @@ window.avancarEtapa14 = async function () {
 
     mostrarCarregamento('Avançando para Etapa 15 (Gerente Gera a Multa)...');
 
-    const numAuto = notificacaoAtual.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
+    const numAuto = notificacaoAtual.numero_auto_infracao || notificacaoAtual.dados?.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
+    notificacaoAtual.dados.numero_auto_infracao = numAuto;
     notificacaoAtual.dados.etapa14 = {
         data_emissao: new Date().toISOString(),
         numero_auto_infracao: numAuto,
         usuario_emissor: perfilAtual?.nome || 'Fiscal de Posturas'
     };
-    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, numero_auto_infracao: numAuto });
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+
+    // Atualiza tabela própria autos_infracao
+    try {
+        await supabaseClient
+            .from('autos_infracao')
+            .update({
+                status: 'enviado_gerencia',
+                etapa_atual_id: 15,
+                updated_at: new Date().toISOString()
+            })
+            .eq('processo_id', processoAtual.id)
+            .eq('numero', numAuto);
+    } catch (e) {
+        console.warn('Aviso ao atualizar etapa na tabela autos_infracao:', e);
+    }
 
     await moverProcessoParaEtapa(15, 'Auto de Infração Emitido');
 };
