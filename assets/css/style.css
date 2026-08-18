@@ -1,13 +1,13 @@
 :root {
     --text-color: #f8fafc;
-    --accent-color: #895eed;
-    /* Roxo elegante */
-    --accent-hover: #5718c5;
-    /* Roxo mais escuro */
-    --bg-dark: #0f172a;
-    /* Cinza azulado bem escuro */
-    --bg-darker: #0b1120;
-    --input-border: rgba(255, 255, 255, 0.15);
+    --accent-color: #80A1D4;       /* Wisteria Blue */
+    --accent-hover: #6888bc;       /* Wisteria Blue Escuro */
+    --accent-aqua: #75C9C8;        /* Pearl Aqua */
+    --accent-periwinkle: #C0B9DD;  /* Periwinkle */
+    --accent-lavender: #DED9E2;    /* Lavender */
+    --bg-dark: #2b3a58;
+    --bg-darker: #1e293b;
+    --input-border: rgba(222, 217, 226, 0.25);
 }
 
 * {
@@ -28,10 +28,9 @@ body {
     display: flex;
     height: 100vh;
     width: 100vw;
-    /* Fundo com gradiente animado cobrindo a tela toda para o efeito de vidro funcionar */
-    background: linear-gradient(-45deg, #2a008b, #860043, #032255, #100916);
+    background: linear-gradient(-45deg, #2b3a58, #465a82, #80A1D4, #75C9C8);
     background-size: 400% 400%;
-    animation: bgGradientAnim 5s ease infinite;
+    animation: bgGradientAnim 8s ease infinite;
 }
 
 /* --- LADO DA IMAGEM / DESTAQUE --- */

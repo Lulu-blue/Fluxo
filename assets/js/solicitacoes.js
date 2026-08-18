@@ -45,9 +45,9 @@ const STATUS_LABELS = {
 };
 
 const STATUS_COLORS = {
-    em_aberto: '#3b82f6',
-    finalizado: '#10b981',
-    cancelado: '#ef4444'
+    em_aberto: '#80A1D4',
+    finalizado: '#75C9C8',
+    cancelado: '#F8A4A4'
 };
 
 // ── Helpers para processos com notificações independentes ─────
@@ -472,13 +472,13 @@ function renderizarTabela(dados, cargoFiltro) {
 
                         return `
                         <div onclick="event.stopPropagation(); window.abrirNotificacaoEPromoverLida('${item.id}', '${targetParam}')" 
-                             style="background: white; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; padding: 10px 16px; border-radius: 8px; font-size: 0.8rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); cursor: pointer; transition: all 0.2s ease;"
-                             onmouseenter="this.style.borderColor='#2563eb'; this.style.boxShadow='0 4px 12px rgba(37,99,235,0.15)'"
-                             onmouseleave="this.style.borderColor='#cbd5e1'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'"
+                             style="background: white; border: 1px solid #DED9E2; border-left: 5px solid #80A1D4; padding: 10px 16px; border-radius: 8px; font-size: 0.8rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); cursor: pointer; transition: all 0.2s ease;"
+                             onmouseenter="this.style.borderColor='#80A1D4'; this.style.boxShadow='0 4px 12px rgba(128,161,212,0.18)'"
+                             onmouseleave="this.style.borderColor='#DED9E2'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'"
                              title="Clique para abrir esta notificação específica">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <strong style="color: #1e293b; font-size: 0.84rem;">Notificação #${numNotif}</strong>
-                                <span style="font-size: 0.72rem; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 4px;">Sua Etapa — Clique para abrir</span>
+                                <span style="font-size: 0.72rem; background: #F0F4FA; color: #3B5888; border: 1px solid #C0B9DD; font-weight: 700; padding: 2px 8px; border-radius: 4px;">Sua Etapa — Clique para abrir</span>
                             </div>
                             <div style="display: flex; gap: 24px; color: #475569; font-size: 0.78rem; flex-wrap: wrap;">
                                 <span><strong style="color: #64748b;">Etapa:</strong> E${eNum} (${eNome})</span>
@@ -488,7 +488,7 @@ function renderizarTabela(dados, cargoFiltro) {
                     }).join('');
 
                     trDet.innerHTML = `
-                        <td colspan="9" style="padding: 6px 16px 14px 16px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                        <td colspan="9" style="padding: 6px 16px 14px 16px; background: #F7F4EA; border-bottom: 2px solid #DED9E2;">
                             <div style="display: flex; flex-direction: column; gap: 8px;">
                                 ${boxes}
                             </div>

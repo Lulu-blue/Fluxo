@@ -1151,6 +1151,52 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
             </div>
         `;
+    } else if (etapaNum === 14) {
+        const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : (processoAtual.numero_processo || 'Desconhecido');
+        const tipoInfracao = notificacaoAtual?.descricao || processoAtual?.dados?.fiscal?.infracao || 'Limpeza de Quintal';
+
+        conteudo = `
+            <div style="background:white; border:1px solid #DED9E2; border-radius:12px; padding:24px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #DED9E2; padding-bottom:16px;">
+                    <div style="background:#FDF2F2; border:1px solid #F8A4A4; padding:12px; border-radius:12px;">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B93838" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="12" y1="18" x2="12" y2="12"></line>
+                            <line x1="9" y1="15" x2="15" y2="15"></line>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Etapa 14 — Auto de Infração</h3>
+                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Emissão do Auto de Infração para Notificação Preliminar não cumprida.</p>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+                    <div>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Nº da Notificação Preliminar</label>
+                        <input type="text" id="inputNumNotifAutoInfracao" class="form-input" value="${numNotificacao}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #DED9E2; background:#F7F4EA; font-size:0.95rem; color:#1e293b;" readonly />
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Infração Constatada</label>
+                        <input type="text" id="inputInfracaoAutoInfracao" class="form-input" value="${tipoInfracao}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #DED9E2; background:white; font-size:0.95rem; color:#1e293b;" />
+                    </div>
+                </div>
+
+                <div style="background:#F0F4FA; border:1px solid #C0B9DD; padding:16px; border-radius:10px; margin-bottom:20px; display:flex; flex-direction:column; gap:10px;">
+                    <button type="button" onclick="gerarAutoDeInfracao()" style="padding:12px 20px; background:#80A1D4; color:white; border:none; border-radius:8px; font-weight:600; font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(128, 161, 212, 0.3); transition:all 0.2s;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Atualizar Auto de Infração
+                    </button>
+                    <p style="margin:0; font-size:0.8rem; color:#475569; text-align:center;">O documento será gerado com cabeçalho oficial da SEMAC, numeração sequencial própria e penalidades legais.</p>
+                </div>
+
+                <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px;">
+                    <span>ℹ️</span>
+                    <span>Ao clicar em <strong>"Avançar Etapa"</strong>, o Auto de Infração será registrado e o processo seguirá automaticamente para a <strong>Etapa 15 (Gerente Gera a Multa)</strong>.</span>
+                </div>
+            </div>
+        `;
     } else if (etapaNum === 33) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
@@ -1492,6 +1538,16 @@ function renderizarFormularioDinamico(etapaNum) {
             if (inpNum) inpNum.addEventListener('input', () => window.gerarCertidaoSemDefesa(true));
             if (inpTipo) inpTipo.addEventListener('input', () => window.gerarCertidaoSemDefesa(true));
             if (selectRes) selectRes.addEventListener('change', () => window.gerarCertidaoSemDefesa(true));
+        }, 150);
+    }
+
+    if (etapaNum === 14) {
+        setTimeout(() => {
+            if (typeof window.gerarAutoDeInfracao === 'function') {
+                window.gerarAutoDeInfracao(true);
+            }
+            const inpInfr = formDiv.querySelector('#inputInfracaoAutoInfracao');
+            if (inpInfr) inpInfr.addEventListener('input', () => window.gerarAutoDeInfracao(true));
         }, 150);
     }
 }
@@ -2038,6 +2094,10 @@ async function avancarEtapaPadrao() {
     }
     if (etapaAtual === 10) {
         await avancarEtapa10();
+        return;
+    }
+    if (etapaAtual === 14) {
+        await avancarEtapa14();
         return;
     }
     if (etapaAtual === 16) {
@@ -3412,9 +3472,20 @@ function renderizarDocumentoOficial(proc) {
     const container = document.getElementById('containerDocumentoOficial');
     if (!container) return;
 
-    const etapaAtual = parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 1, 10);
+    const etapaAtual = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
+        ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || proc?.etapa_atual || proc?.etapa_atual_id || 1, 10)
+        : parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 1, 10);
+
     if (etapaAtual === 5 || etapaAtual === 13) {
         if (window.gerarReplica) window.gerarReplica();
+        return;
+    }
+    if (etapaAtual === 10) {
+        if (window.gerarCertidaoSemDefesa) window.gerarCertidaoSemDefesa();
+        return;
+    }
+    if (etapaAtual === 14) {
+        if (window.gerarAutoDeInfracao) window.gerarAutoDeInfracao();
         return;
     }
 
@@ -3850,18 +3921,18 @@ async function renderizarEtapa2(proc) {
                 const etapaNotif = parseInt(n.etapas?.numero || n.etapa_atual_id || n.etapa_atual || 2, 10);
                 const jaAvancou = etapaNotif > 2;
 
-                card.style.cssText = 'background:white; border:1px solid #e2e8f0; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; transition:all 0.2s ease;';
+                card.style.cssText = 'background:white; border:1px solid #DED9E2; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; transition:all 0.2s ease;';
 
                 if (jaAvancou) {
                     card.style.cursor = 'pointer';
                     if (n.status === 'encerrada') {
-                        card.style.border = '2px solid #10b981';
-                        card.addEventListener('mouseenter', () => { card.style.borderColor = '#059669'; card.style.boxShadow = '0 4px 12px rgba(16,185,129,0.15)'; });
-                        card.addEventListener('mouseleave', () => { card.style.borderColor = '#10b981'; card.style.boxShadow = 'none'; });
+                        card.style.border = '2px solid #75C9C8';
+                        card.addEventListener('mouseenter', () => { card.style.borderColor = '#5eb5b4'; card.style.boxShadow = '0 4px 12px rgba(117,201,200,0.2)'; });
+                        card.addEventListener('mouseleave', () => { card.style.borderColor = '#75C9C8'; card.style.boxShadow = 'none'; });
                     } else {
-                        card.style.border = '2px solid #3b82f6';
-                        card.addEventListener('mouseenter', () => { card.style.borderColor = '#7c3aed'; card.style.boxShadow = '0 4px 12px rgba(124,58,237,0.15)'; });
-                        card.addEventListener('mouseleave', () => { card.style.borderColor = '#3b82f6'; card.style.boxShadow = 'none'; });
+                        card.style.border = '2px solid #80A1D4';
+                        card.addEventListener('mouseenter', () => { card.style.borderColor = '#6888bc'; card.style.boxShadow = '0 4px 12px rgba(128,161,212,0.2)'; });
+                        card.addEventListener('mouseleave', () => { card.style.borderColor = '#80A1D4'; card.style.boxShadow = 'none'; });
                     }
                     card.addEventListener('click', (e) => {
                         if (!e.target.closest('button')) {
@@ -3870,28 +3941,28 @@ async function renderizarEtapa2(proc) {
                     });
                 } else {
                     card.style.cursor = 'pointer';
-                    card.addEventListener('mouseenter', () => { card.style.borderColor = '#7c3aed'; card.style.boxShadow = '0 4px 12px rgba(124,58,237,0.10)'; });
-                    card.addEventListener('mouseleave', () => { card.style.borderColor = '#e2e8f0'; card.style.boxShadow = 'none'; });
+                    card.addEventListener('mouseenter', () => { card.style.borderColor = '#C0B9DD'; card.style.boxShadow = '0 4px 12px rgba(192,185,221,0.2)'; });
+                    card.addEventListener('mouseleave', () => { card.style.borderColor = '#DED9E2'; card.style.boxShadow = 'none'; });
                 }
 
                 let statusBadge = '';
-                if (n.status === 'encerrada') statusBadge = '<span style="background:#e5e7eb; color:#374151; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Encerrada</span>';
-                else if (n.status === 'atendida') statusBadge = '<span style="background:#bbf7d0; color:#166534; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Atendida</span>';
-                else if (n.status === 'defesa') statusBadge = '<span style="background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Defesa</span>';
-                else if (n.status === 'dilacao') statusBadge = '<span style="background:#fef9c3; color:#854d0e; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Dilação</span>';
-                else if (infoPrazo.vencido) statusBadge = '<span style="background:#fecaca; color:#991b1b; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Vencida</span>';
-                else statusBadge = '<span style="background:#f1f5f9; color:#475569; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pendente</span>';
+                if (n.status === 'encerrada') statusBadge = '<span style="background:#EAE6EE; color:#4A4553; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Encerrada</span>';
+                else if (n.status === 'atendida') statusBadge = '<span style="background:#EBF9F9; color:#2B7A78; border:1px solid #75C9C8; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Atendida</span>';
+                else if (n.status === 'defesa') statusBadge = '<span style="background:#F0F4FA; color:#3B5888; border:1px solid #C0B9DD; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Defesa</span>';
+                else if (n.status === 'dilacao') statusBadge = '<span style="background:#FFF9EB; color:#996B00; border:1px solid #F6D58E; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Dilação</span>';
+                else if (infoPrazo.vencido) statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Vencida</span>';
+                else statusBadge = '<span style="background:#F7F4EA; color:#475569; border:1px solid #DED9E2; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pendente</span>';
 
                 const podeAvancar = !jaAvancou;
                 const btnAvancarHtml = podeAvancar
-                    ? `<button type="button" class="btn-avancar-notif" data-index="${n.index}" style="margin-top:8px; padding:8px 16px; border-radius:8px; border:none; background:#7c3aed; color:white; font-weight:600; font-size:0.88rem; cursor:pointer;">Avançar Notificação</button>`
+                    ? `<button type="button" class="btn-avancar-notif" data-index="${n.index}" style="margin-top:8px; padding:10px 18px; border-radius:8px; border:none; background:#80A1D4; color:white; font-weight:600; font-size:0.88rem; cursor:pointer; box-shadow:0 4px 12px rgba(128,161,212,0.3); transition:all 0.2s ease;">Avançar Notificação</button>`
                     : '';
 
                 const prazoHtml = (n.status === 'atendida' || jaAvancou)
                     ? ''
                     : `<div style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#475569;">
                         <span>📅 Prazo: ${new Date(n.data_vencimento).toLocaleDateString('pt-BR')}</span>
-                        <span style="${infoPrazo.vencido ? 'color:#991b1b; font-weight:600;' : 'color:#166534; font-weight:600;'}">(${infoPrazo.texto})</span>
+                        <span style="${infoPrazo.vencido ? 'color:#B93838; font-weight:600;' : 'color:#2B7A78; font-weight:600;'}">(${infoPrazo.texto})</span>
                     </div>`;
 
                 let textoMotivo = '';
@@ -3903,7 +3974,7 @@ async function renderizarEtapa2(proc) {
                 else textoMotivo = 'Motivo não especificado';
 
                 const controlesHtml = jaAvancou ?
-                    `<div style="font-size:0.9rem; color:#1e40af; font-weight:600; padding:8px; background:#eff6ff; border-radius:8px; text-align:center;">
+                    `<div style="font-size:0.9rem; color:#3B5888; font-weight:600; padding:10px; background:#F0F4FA; border:1px solid #C0B9DD; border-radius:8px; text-align:center;">
                         Esta notificação avançou e está na Etapa ${etapaNotif}. Clique para abrir.
                         <div style="font-size:0.82rem; color:#475569; margin-top:4px; font-weight:normal;">Avançou pois: <b>${textoMotivo}</b></div>
                     </div>` :
@@ -6059,6 +6130,222 @@ window.avancarEtapa10 = async function () {
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
 
     await moverProcessoParaEtapa(proxEtapa, motivo);
+};
+
+// ============================================================================
+// ETAPA 14 — AUTO DE INFRAÇÃO (Geração de Documento Oficial)
+// ============================================================================
+
+window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc) {
+    const dispLow = (infracaoDesc || '').toLowerCase();
+    const upfmdVal = window.valorUpfmdAtual || 103.00;
+    const testada = parseFloat(fisc?.testada_metros || 10);
+    const area = parseFloat(fisc?.area_lote_m2 || 300);
+
+    let leiArtigo = 'Lei 7.174/2010 pelo descumprimento dos dispositivos: Artigo 1º, § 1º e Artigo 2º, III, sob pena do Artigo 3º, III';
+    let multaTexto = `MULTA NO VALOR 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${(10 * upfmdVal).toFixed(2).replace('.', ',')}.`;
+
+    if (dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
+        leiArtigo = 'Lei 7.174/2010 pelo descumprimento dos dispositivos: Artigo 1º e Artigo 2º, III, sob pena do Artigo 3º, IV';
+        const valMulta = (0.15 * upfmdVal * area).toFixed(2).replace('.', ',');
+        multaTexto = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: R$ ${valMulta}.`;
+    } else if (dispLow.includes('limpeza de quintal')) {
+        leiArtigo = 'Lei 6.907/2008 pelo descumprimento dos artigos 14 e 15, sob pena do Artigo 18';
+        const valMulta = (10 * upfmdVal).toFixed(2).replace('.', ',');
+        multaTexto = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valMulta}.`;
+    } else if (dispLow.includes('passeio') || dispLow.includes('muro') || dispLow.includes('cercamento')) {
+        leiArtigo = 'Lei 7.174/2010 pelo descumprimento dos artigos 1º e 2º, III, sob pena do Artigo 3º, III';
+        const valMulta = (0.5 * upfmdVal * testada).toFixed(2).replace('.', ',');
+        multaTexto = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valMulta}.`;
+    } else if (dispLow.includes('obstáculo') || dispLow.includes('calçada') || dispLow.includes('água servida')) {
+        leiArtigo = 'Lei 6.907/2008 pelo descumprimento do Artigo 6°, sob pena do Artigo 11';
+        const valMulta = (10 * upfmdVal).toFixed(2).replace('.', ',');
+        multaTexto = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valMulta}.`;
+    }
+
+    return {
+        leiArtigo: leiArtigo,
+        multaTexto: multaTexto,
+        textoCompleto: `O motivo da infração é baseado na ${leiArtigo}. <strong>${multaTexto}</strong>`
+    };
+};
+
+window.gerarAutoDeInfracao = async function (auto = false) {
+    if (!processoAtual) return;
+
+    const d = processoAtual.dados || {};
+    const cont = d.contribuinte || {};
+    const imv = d.imovel || {};
+    const fisc = d.fiscal || {};
+
+    const nomeAutuado = cont.nome || 'Cicrano de Tal da Silva Júnior';
+    const cpfCnpj = cont.cpf_cnpj || 'XXXXXXXXXXXXXXXXXXX';
+
+    // Endereço Autuado
+    const endAutuadoLog = cont.logradouro || cont.endereco || 'Rua Belas Orquídeas Silvestres Cheirosas';
+    const endAutuadoNum = cont.numero ? `Nº: ${cont.numero}` : 'Nº: XXXX';
+    const endAutuadoBairro = cont.bairro ? `Bairro: ${cont.bairro}` : 'Bairro: Jardins Suspensos da Babilônia';
+    const endAutuadoCep = cont.cep ? `CEP: ${cont.cep}` : 'CEP: XXXXX-XXX';
+
+    // Imóvel Fiscalizado
+    const imvRua = imv.logradouro || imv.rua || 'Rua Abobrinhas Suculentas';
+    const imvNum = imv.numero || 'XXXX';
+    const imvBairro = imv.bairro || 'Lobos Uivantes Cinzentos';
+
+    // Data de vistoria
+    const dataVistoriaFmt = fisc.data_vistoria
+        ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR')
+        : new Date().toLocaleDateString('pt-BR');
+
+    const dataAtualFmt = new Date().toLocaleDateString('pt-BR');
+    const nomeFiscal = perfilAtual?.nome || fisc.nome || 'Nome Fiscal';
+    const matriculaFiscal = perfilAtual?.matricula || fisc.matricula || 'XXXXXXX';
+    const _anoAtual = new Date().getFullYear();
+
+    // Número do Auto de Infração: sequencial atômico próprio
+    let numAutoInfracao = notificacaoAtual?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '';
+
+    if (!numAutoInfracao && (notificacaoAtual?.id || processoAtual?.id)) {
+        try {
+            const { data: numReservado, error: errRes } = await supabaseClient
+                .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Auto de Infração' });
+
+            if (errRes || !numReservado) {
+                console.warn('Falha ao reservar número de Auto de Infração:', errRes?.message);
+                numAutoInfracao = `${_anoAtual}/XXX`;
+            } else {
+                numAutoInfracao = numReservado;
+                if (notificacaoAtual?.id) {
+                    await supabaseClient
+                        .from('notificacoes')
+                        .update({ numero_auto_infracao: numAutoInfracao })
+                        .eq('id', notificacaoAtual.id);
+                    notificacaoAtual.numero_auto_infracao = numAutoInfracao;
+                }
+            }
+        } catch (e) {
+            console.warn('Erro ao reservar Auto de Infração:', e);
+            numAutoInfracao = `${_anoAtual}/XXX`;
+        }
+    } else if (!numAutoInfracao) {
+        numAutoInfracao = `${_anoAtual}/XXX`;
+    }
+
+    const inputInfracao = document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || 'Limpeza de Quintal';
+    const inputNotifNum = document.getElementById('inputNumNotifAutoInfracao')?.value || notificacaoAtual?.numero || processoAtual.numero_processo || 'XXXX';
+
+    const dadosLegais = window.obterDadosLegaisEValoresAuto(inputInfracao, fisc);
+
+    const htmlAuto = `
+        <div id="documentoPronto" style="margin-top: 20px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
+            <div style="padding: 40px 55px 0 55px; background: white; max-width: 820px; margin: 0 auto; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
+                
+                <!-- CABEÇALHO: idêntico a Certidão e Notificação -->
+                <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 16px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 100px; flex-shrink: 0;">
+                        <img src="assets/img/brasao_semac.jpeg" alt="Brasão SEMAC" style="width: 90px; height: auto;" />
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="width: 100%; height: 10px; background-color: #F78C26; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">DIRETORIA DE MEIO AMBIENTE</div>
+                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
+                        <div style="font-size: 9pt; color: #000; margin-top: 3px; line-height: 1.3;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais CEP:35.501-170 Tel: (37) 3229-8176</div>
+                    </div>
+                </div>
+
+                <!-- TÍTULO -->
+                <div style="text-align: center; margin-top: 15px; margin-bottom: 20px;">
+                    <div style="font-size: 14pt; font-weight: bold; color: #000; text-transform: uppercase;">AUTO DE INFRAÇÃO AMBIENTAL Nº ${numAutoInfracao}</div>
+                    <div style="font-size: 11pt; font-weight: bold; color: #000;">Fiscalização de Posturas</div>
+                </div>
+
+                <!-- CORPO DO AUTO DE INFRAÇÃO -->
+                <div style="font-size: 11pt; line-height: 1.6; color: #000;">
+                    <!-- DADOS DO PROPRIETÁRIO / AUTUADO -->
+                    <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 16px; margin-bottom: 18px; border-radius: 6px;">
+                        <div><strong>Estabelecimento/Proprietário:</strong> ${nomeAutuado}</div>
+                        <div><strong>CNPJ/CPF:</strong> ${cpfCnpj}</div>
+                        <div><strong>Endereço:</strong> ${endAutuadoLog} &nbsp;&nbsp; <strong>${endAutuadoNum}</strong></div>
+                        <div><strong>${endAutuadoBairro}</strong> &nbsp;&nbsp; <strong>${endAutuadoCep}</strong> &nbsp;&nbsp; Divinópolis - MG</div>
+                        <div style="text-align: right; margin-top: 4px; font-weight: 600;">Divinópolis - MG ${dataAtualFmt}</div>
+                    </div>
+
+                    <p style="margin: 0 0 14px 0; text-align: justify;">
+                        O imóvel, situado na <strong>${imvRua}, n° ${imvNum}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
+                    </p>
+
+                    <p style="margin: 0 0 14px 0; text-align: justify;">
+                        Até a presente data foi verificado: o não cumprimento da obrigação da Notificação Preliminar nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.
+                    </p>
+
+                    <p style="margin: 0 0 14px 0; text-align: justify;">
+                        ${dadosLegais.textoCompleto}
+                    </p>
+
+                    <p style="margin: 0 0 20px 0; text-align: justify;">
+                        O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone). Instruções: <a href="https://www.divinopolis.mg.gov.br/portal/servicos/1053/posturas/" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://www.divinopolis.mg.gov.br</a>.
+                    </p>
+                </div>
+
+                <!-- ASSINATURA DO FISCAL -->
+                <div style="text-align: center; margin-top: 50px; padding-bottom: 10px; font-size: 11pt;">
+                    <div style="display: inline-block; min-width: 280px; border-top: 1px solid #000; padding-top: 6px;">
+                        <div><strong>${nomeFiscal}</strong></div>
+                        <div>Fiscal de Posturas</div>
+                        <div>Matricula : ${matriculaFiscal}</div>
+                    </div>
+                </div>
+
+                <!-- RECIBO DO AUTUADO (Bloco idêntico ao da Notificação Preliminar) -->
+                <div style="margin-top: 30px; font-size: 11pt;">
+                    <div style="margin-bottom: 6px;">Recebi 2° via da presente Notificação Preliminar da qual fico ciente;</div>
+                    <table width="100%" cellpadding="10" cellspacing="0" border="1" style="border-collapse: collapse; border: 2px solid #000; font-size: 11pt;">
+                        <tr>
+                            <td width="68%" valign="top" style="border: 2px solid #000; height: 80px;">
+                                <span>Assinatura do Autuado:</span>
+                            </td>
+                            <td width="32%" valign="top" align="center" style="border: 2px solid #000; height: 80px;">
+                                <div style="text-align: left; margin-bottom: 25px;">Ciente em:</div>
+                                <div style="font-size: 14pt;">____ / ____ / ________</div>
+                            </td>
+                        </tr>
+                    </table>
+                    <div style="margin-top: 6px; font-size: 11pt;">Divinópolis - MG</div>
+                </div>
+
+                <!-- RODAPÉ LARANJA -->
+                <div style="width: calc(100% + 104px); margin-left: -52px; height: 16px; background-color: #F78C26; margin-top: 35px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+
+            </div>
+        </div>
+    `;
+
+    const container = document.getElementById('containerDocumentoOficial');
+    if (container) {
+        container.innerHTML = htmlAuto;
+        if (auto !== true) {
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+};
+
+window.avancarEtapa14 = async function () {
+    if (!processoAtual || !notificacaoAtual) return;
+
+    mostrarCarregamento('Avançando para Etapa 15 (Gerente Gera a Multa)...');
+
+    const numAuto = notificacaoAtual.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
+
+    notificacaoAtual.dados = notificacaoAtual.dados || {};
+    notificacaoAtual.dados.etapa14 = {
+        data_emissao: new Date().toISOString(),
+        numero_auto_infracao: numAuto,
+        usuario_emissor: perfilAtual?.nome || 'Fiscal de Posturas'
+    };
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, numero_auto_infracao: numAuto });
+
+    await moverProcessoParaEtapa(15, 'Auto de Infração Emitido');
 };
 
 // ── Helper para abrir Base64 no Chrome de forma segura ──

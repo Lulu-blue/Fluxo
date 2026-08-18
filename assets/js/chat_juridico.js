@@ -92,10 +92,10 @@
                 width: 60px;
                 height: 60px;
                 border-radius: 50%;
-                background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+                background: linear-gradient(135deg, #80A1D4 0%, #75C9C8 100%);
                 color: white;
                 border: none;
-                box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+                box-shadow: 0 8px 24px rgba(117, 201, 200, 0.4);
                 cursor: pointer;
                 display: flex;
                 align-items: center;
@@ -104,7 +104,7 @@
             }
             .floating-chat-btn:hover {
                 transform: scale(1.08) translateY(-2px);
-                box-shadow: 0 12px 28px rgba(124, 58, 237, 0.45);
+                box-shadow: 0 12px 28px rgba(117, 201, 200, 0.55);
             }
             .floating-chat-btn .chat-badge {
                 position: absolute;
@@ -156,7 +156,7 @@
 
             .chat-header {
                 padding: 18px 20px;
-                background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+                background: linear-gradient(135deg, #2b3a58 0%, #465a82 40%, #80A1D4 100%);
                 color: white;
                 display: flex;
                 align-items: center;
@@ -173,7 +173,7 @@
             .chat-header-info p {
                 margin: 4px 0 0 0;
                 font-size: 0.78rem;
-                color: #c7d2fe;
+                color: #e2e8f0;
             }
             .chat-header-actions {
                 display: flex;
@@ -181,7 +181,7 @@
                 gap: 8px;
             }
             .chat-btn-subtle {
-                background: rgba(255,255,255,0.15);
+                background: rgba(255,255,255,0.18);
                 border: none;
                 color: white;
                 padding: 4px 10px;
@@ -193,7 +193,7 @@
             .chat-btn-subtle:hover { background: rgba(255,255,255,0.3); }
 
             .chat-close-btn {
-                background: rgba(255,255,255,0.15);
+                background: rgba(255,255,255,0.18);
                 border: none;
                 color: white;
                 width: 32px;
@@ -211,7 +211,7 @@
                 flex: 1;
                 padding: 20px;
                 overflow-y: auto;
-                background: #f8fafc;
+                background: #F7F4EA;
                 display: flex;
                 flex-direction: column;
                 gap: 16px;
@@ -247,14 +247,14 @@
                 box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             }
             .chat-msg.sent .chat-msg-bubble {
-                background: #4f46e5;
+                background: #80A1D4;
                 color: white;
                 border-bottom-right-radius: 2px;
             }
             .chat-msg.received .chat-msg-bubble {
                 background: white;
                 color: #1e293b;
-                border: 1px solid #e2e8f0;
+                border: 1px solid #DED9E2;
                 border-bottom-left-radius: 2px;
             }
 
@@ -284,7 +284,7 @@
             .chat-footer {
                 padding: 16px;
                 background: white;
-                border-top: 1px solid #e2e8f0;
+                border-top: 1px solid #DED9E2;
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
@@ -294,12 +294,12 @@
                 display: none;
                 align-items: center;
                 justify-content: space-between;
-                background: #eff6ff;
-                border: 1px solid #bfdbfe;
+                background: #F7F4EA;
+                border: 1px solid #C0B9DD;
                 padding: 6px 12px;
                 border-radius: 6px;
                 font-size: 0.78rem;
-                color: #1d4ed8;
+                color: #2b3a58;
             }
 
             .chat-input-row {
@@ -309,14 +309,14 @@
             }
             .chat-input {
                 flex: 1;
-                border: 1px solid #cbd5e1;
+                border: 1px solid #DED9E2;
                 border-radius: 20px;
                 padding: 10px 16px;
                 font-size: 0.88rem;
                 outline: none;
                 transition: border 0.2s ease;
             }
-            .chat-input:focus { border-color: #4f46e5; }
+            .chat-input:focus { border-color: #80A1D4; }
             .chat-icon-btn {
                 background: #f1f5f9;
                 border: none;
@@ -330,9 +330,9 @@
                 justify-content: center;
                 transition: all 0.2s ease;
             }
-            .chat-icon-btn:hover { background: #e2e8f0; color: #1e293b; }
+            .chat-icon-btn:hover { background: #DED9E2; color: #1e293b; }
             .chat-send-btn {
-                background: #4f46e5;
+                background: #80A1D4;
                 color: white;
                 border: none;
                 width: 40px;
@@ -342,10 +342,10 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+                box-shadow: 0 4px 12px rgba(128, 161, 212, 0.4);
                 transition: all 0.2s ease;
             }
-            .chat-send-btn:hover { background: #4338ca; transform: scale(1.05); }
+            .chat-send-btn:hover { background: #6888bc; transform: scale(1.05); }
         `;
         document.head.appendChild(style);
 
@@ -552,7 +552,7 @@
                             <strong>${autor}:</strong> ${ultMsg.texto || (ultMsg.anexos?.length ? '📎 [Arquivo Anexo]' : '')}
                         </div>
                         <div style="display:flex; justify-content:flex-end; margin-top:4px;">
-                            <span style="background:#4f46e5; color:white; font-size:0.72rem; font-weight:600; padding:4px 10px; border-radius:6px;">
+                            <span style="background:#80A1D4; color:white; font-size:0.72rem; font-weight:600; padding:4px 10px; border-radius:6px;">
                                 Ver Chat &rarr;
                             </span>
                         </div>
