@@ -398,25 +398,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!processoAtual) return;
 
-    // 4. Se o processo tem notificações independentes, pode ser necessário selecionar uma
+    // 4. Se o processo tem notificações independentes, selecionar a notificação vinda da URL ou ativa
     const notificacoes = obterNotificacoesProcesso(processoAtual);
-    const indiceURL = obterIndiceNotificacaoDaURL();
+    const paramNotif = (new URLSearchParams(window.location.search)).get('notificacao');
 
     if (notificacoes.length > 0) {
-        if (indiceURL !== null && notificacoes[indiceURL]) {
-            aplicarNotificacaoSelecionada(processoAtual, indiceURL);
-            await inicializarPaginaEtapa();
-        } else if (processoTemNotificacoesDivergentes(processoAtual)) {
-            mostrarModalSelecaoNotificacao(processoAtual);
-            // A inicialização acontece após o usuário escolher no modal
-        } else {
-            // Todas as notificações ativas estão na mesma etapa: seleciona a primeira ativa
-            const primeiraAtiva = notificacoes.findIndex(n => n.status !== 'atendida');
-            if (primeiraAtiva >= 0) {
-                aplicarNotificacaoSelecionada(processoAtual, primeiraAtiva);
+        let indiceFinal = null;
+        if (paramNotif !== null) {
+            const parsed = parseInt(paramNotif, 10);
+            if (!isNaN(parsed) && notificacoes[parsed]) {
+                indiceFinal = parsed;
+            } else {
+                const idxPorId = notificacoes.findIndex(n => 
+                    String(n.id) === String(paramNotif) || 
+                    String(n.notificacao_id) === String(paramNotif) || 
+                    String(n.numero) === String(paramNotif) ||
+                    String(n.numero_notificacao) === String(paramNotif)
+                );
+                if (idxPorId !== -1) indiceFinal = idxPorId;
             }
-            await inicializarPaginaEtapa();
         }
+
+        if (indiceFinal !== null && notificacoes[indiceFinal]) {
+            aplicarNotificacaoSelecionada(processoAtual, indiceFinal);
+        } else {
+            // Se nenhuma notificação específica foi passada na URL, mantém o processo na etapa principal (ex: Etapa 2 - Painel)
+            notificacaoAtual = null;
+            const procEtapa = parseInt(processoAtual.etapas?.numero || processoAtual.etapa_atual_id || 2, 10);
+            processoAtual.etapa_atual = procEtapa;
+        }
+        await inicializarPaginaEtapa();
     } else {
         await inicializarPaginaEtapa();
     }
@@ -428,9 +439,13 @@ function aplicarNotificacaoSelecionada(proc, indice) {
     const notif = notificacoes[indice];
     if (!notif) return;
 
-    // Guarda apenas o índice da notificação escolhida para renderização do documento.
-    // A etapa do processo é a fonte da verdade e não deve ser sobrescrita pela notificação.
     proc.notificacaoSelecionada = indice;
+    notificacaoAtual = notif;
+
+    const etapaRel = Array.isArray(notif.etapas) ? notif.etapas[0] : notif.etapas;
+    const etapaNotif = parseInt(etapaRel?.numero || notif.etapa_atual || notif.etapa_atual_id || 2, 10);
+    proc.etapa_atual = etapaNotif;
+    if (notif.etapa_atual_id) proc.etapa_atual_id = notif.etapa_atual_id;
 }
 
 async function inicializarPaginaEtapa() {
@@ -1618,9 +1633,26 @@ async function carregarProcessoCompleto(processoId) {
 
         // Tenta associar notificação se houver na URL
         const params = new URLSearchParams(window.location.search);
-        const notificacaoId = params.get('notificacao');
-        if (notificacaoId && proc.notificacoes) {
-            notificacaoAtual = proc.notificacoes.find(n => n.id === notificacaoId) || null;
+        const notificacaoParam = params.get('notificacao');
+        if (notificacaoParam !== null && proc.notificacoes && proc.notificacoes.length > 0) {
+            const parsed = parseInt(notificacaoParam, 10);
+            if (!isNaN(parsed) && proc.notificacoes[parsed]) {
+                notificacaoAtual = proc.notificacoes[parsed];
+                proc.notificacaoSelecionada = parsed;
+            } else {
+                const foundIdx = proc.notificacoes.findIndex(n => 
+                    String(n.id) === String(notificacaoParam) || 
+                    String(n.notificacao_id) === String(notificacaoParam) || 
+                    String(n.numero) === String(notificacaoParam) ||
+                    String(n.numero_notificacao) === String(notificacaoParam)
+                );
+                if (foundIdx !== -1) {
+                    notificacaoAtual = proc.notificacoes[foundIdx];
+                    proc.notificacaoSelecionada = foundIdx;
+                } else {
+                    notificacaoAtual = null;
+                }
+            }
         } else {
             notificacaoAtual = null;
         }
@@ -1632,7 +1664,7 @@ async function carregarProcessoCompleto(processoId) {
             : parseInt(etapaRelacionada?.numero || proc.etapa_atual || proc.etapa_atual_id || 1, 10);
 
         proc.etapa_atual = etapaAtual;
-        if (notificacaoAtual) proc.etapa_atual_id = notificacaoAtual.etapa_atual_id;
+        if (notificacaoAtual) proc.etapa_atual_id = notificacaoAtual.etapa_atual_id || etapaAtual;
 
         // Marca a notificação como lida automaticamente ao abrir a página do processo
         let alterouLida = false;
@@ -1708,16 +1740,19 @@ async function carregarPerfilUsuario() {
             }
         }
 
-        perfilAtual = usuario || { cargo: 'Fiscal de Postura' };
+        perfilAtual = usuario || { nome: 'Usuário', cargo: 'Fiscal de Postura' };
+        window.currentUserProfile = perfilAtual;
     } catch (err) {
         console.error('Erro ao carregar perfil:', err);
-        perfilAtual = { cargo: 'Fiscal de Postura' };
+        perfilAtual = { nome: 'Usuário', cargo: 'Fiscal de Postura' };
+        window.currentUserProfile = perfilAtual;
     }
 }
 
 function normalizarCargo(cargo) {
     if (!cargo) return 'Fiscal de Postura';
     const limpo = cargo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (limpo.includes('interface') || (limpo.includes('gerente') && limpo.includes('juridic'))) return 'Gerente de Interface Jurídica';
     if (limpo.includes('administrativo')) return 'Administrativo de Posturas';
     if (limpo.includes('fiscal')) return 'Fiscal de Postura';
     if (limpo.includes('gerente')) return 'Gerente';

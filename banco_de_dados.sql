@@ -707,3 +707,26 @@ BEGIN
         END LOOP;
     END LOOP;
 END $$;
+
+-- ┌─────────────────────────────────────────────────────────────┐
+-- │  TABELA: chats_interface_juridica                           │
+-- │  Registra conversas e anexos com a Interface Jurídica      │
+-- └─────────────────────────────────────────────────────────────┘
+CREATE TABLE IF NOT EXISTS chats_interface_juridica (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    processo_id UUID REFERENCES processos(id) ON DELETE CASCADE,
+    notificacao_id UUID REFERENCES notificacoes(id) ON DELETE SET NULL,
+    solicitante_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    solicitante_nome VARCHAR(200),
+    solicitante_cargo VARCHAR(100),
+    mensagens JSONB DEFAULT '[]'::jsonb,
+    lida_gerente BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chats_processo ON chats_interface_juridica(processo_id);
+
+-- Permissões de Acesso (RLS desabilitado para simulação / acesso direto)
+ALTER TABLE chats_interface_juridica DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE chats_interface_juridica TO anon, authenticated, service_role;

@@ -80,7 +80,57 @@ function calcularEtapaProcesso(item) {
     }, 0) || parseInt(item?.etapas?.numero || item?.etapa_atual_id || 1, 10);
 }
 
-function montarLinkEtapa(item) {
+const ETAPAS_POR_CARGO = {
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
+    'Administrativo de Posturas': [16, 17],
+    'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
+    'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
+    'Secretário': [24],
+    'Jurídico': [23],
+    'Fazenda': [26]
+};
+
+function normalizarCargo(cargo) {
+    if (!cargo) return 'Fiscal de Postura';
+    const c = cargo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (c.includes('interface') || (c.includes('gerente') && c.includes('juridic'))) return 'Gerente de Interface Jurídica';
+    if (c.includes('gerente')) return 'Gerente';
+    if (c.includes('fiscal')) return 'Fiscal de Postura';
+    if (c.includes('admin')) return 'Administrativo de Posturas';
+    if (c.includes('secretar')) return 'Secretário';
+    if (c.includes('jurid')) return 'Jurídico';
+    if (c.includes('fazend')) return 'Fazenda';
+    return 'Fiscal de Postura';
+}
+
+function obterCargoResponsavelPelaEtapa(etapaNum) {
+    const num = parseInt(etapaNum, 10);
+    if ([11, 12, 15, 17, 22, 25, 29, 30].includes(num)) return 'Gerente';
+    if ([16, 17].includes(num)) return 'Administrativo';
+    if ([24].includes(num)) return 'Secretário';
+    if ([23].includes(num)) return 'Jurídico';
+    if ([26].includes(num)) return 'Fazenda';
+    return 'Fiscal';
+}
+
+function itemPertenceAoCargo(item, cargoAlvo) {
+    if (!cargoAlvo) return true;
+    const cargoNorm = normalizarCargo(cargoAlvo);
+    const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || [];
+    if (etapasPermitidas.length === 0) return true;
+
+    const notificacoes = obterNotificacoesProcesso(item);
+    if (notificacoes && notificacoes.length > 0) {
+        const ativas = notificacoes.filter(n => n.status !== 'atendida');
+        const targetNotifs = ativas.length > 0 ? ativas : notificacoes;
+        return targetNotifs.some(n => etapasPermitidas.includes(numeroEtapaNotificacao(n)));
+    } else {
+        const etapaProc = parseInt(item.etapas?.numero || item.etapa_atual_id || 1, 10);
+        return etapasPermitidas.includes(etapaProc);
+    }
+}
+
+function montarLinkEtapa(item, cargoFiltro) {
     const notificacoes = obterNotificacoesProcesso(item);
     const etapaNumero = calcularEtapaProcesso(item);
 
@@ -88,20 +138,28 @@ function montarLinkEtapa(item) {
         return `etapa.html?processo=${item.id}&etapa=${etapaNumero || item.etapas?.numero || 1}`;
     }
 
-    const etapasAtivas = new Set(
-        notificacoes
-            .filter(n => n.status !== 'atendida')
-            .map(n => numeroEtapaNotificacao(n))
-    );
+    let ativas = notificacoes.filter(n => n.status !== 'atendida');
+    if (ativas.length === 0) ativas = notificacoes;
 
+    if (cargoFiltro) {
+        const cargoNorm = normalizarCargo(cargoFiltro);
+        const etapasCargo = ETAPAS_POR_CARGO[cargoNorm] || [];
+        const notifDoCargo = ativas.find(n => etapasCargo.includes(numeroEtapaNotificacao(n)));
+        if (notifDoCargo) {
+            const notifId = notifDoCargo.id || notifDoCargo.notificacao_id;
+            return `etapa.html?processo=${item.id}${notifId ? `&notificacao=${notifId}` : ''}`;
+        }
+    }
+
+    const etapasAtivas = new Set(ativas.map(n => numeroEtapaNotificacao(n)));
     if (etapasAtivas.size > 1) {
-        // Notificações em etapas diferentes: abre sem índice para mostrar o modal de seleção
         return `etapa.html?processo=${item.id}`;
     }
 
-    const primeiraAtiva = notificacoes.findIndex(n => n.status !== 'atendida');
-    if (primeiraAtiva >= 0) {
-        return `etapa.html?processo=${item.id}&notificacao=${primeiraAtiva}`;
+    const primeira = ativas[0];
+    if (primeira) {
+        const notifId = primeira.id || primeira.notificacao_id;
+        return `etapa.html?processo=${item.id}${notifId ? `&notificacao=${notifId}` : ''}`;
     }
 
     return `etapa.html?processo=${item.id}`;
@@ -295,10 +353,21 @@ async function carregarSolicitacoes() {
 
         if (error) throw error;
 
-        totalRecords = count || 0;
-        dadosTabela = data || [];
+        let resultData = data || [];
+        if (filtros.responsavel) {
+            let cargoAlvo = filtros.responsavel;
+            if (cargoAlvo === 'minha_responsabilidade') {
+                cargoAlvo = window.currentUserProfile?.cargo || 'Fiscal de Postura';
+            }
+            resultData = resultData.filter(item => itemPertenceAoCargo(item, cargoAlvo));
+            totalRecords = resultData.length;
+        } else {
+            totalRecords = count || 0;
+        }
 
-        renderizarTabela(dadosTabela);
+        dadosTabela = resultData;
+
+        renderizarTabela(dadosTabela, filtros.responsavel);
         atualizarPaginacao();
         atualizarContador();
         setTimeout(() => { if (window.atualizarInterfaceNotificacoesPainel) window.atualizarInterfaceNotificacoesPainel(); }, 150);
@@ -306,7 +375,6 @@ async function carregarSolicitacoes() {
     } catch (err) {
         console.error('Erro ao carregar solicitações:', err);
         resultsCount.textContent = 'Erro ao carregar dados';
-        // Se não tiver as tabelas no banco ainda, mostrar estado vazio
         renderizarTabela([]);
     }
 
@@ -314,7 +382,7 @@ async function carregarSolicitacoes() {
 }
 
 // ── Renderizar tabela ───────────────────────────────────────
-function renderizarTabela(dados) {
+function renderizarTabela(dados, cargoFiltro) {
     tabelaBody.innerHTML = '';
 
     if (!dados || dados.length === 0) {
@@ -325,6 +393,12 @@ function renderizarTabela(dados) {
 
     emptyState.style.display = 'none';
     document.getElementById('tabelaSolicitacoes').style.display = 'table';
+
+    let cargoAlvoNorm = null;
+    if (cargoFiltro) {
+        let cargoNome = cargoFiltro === 'minha_responsabilidade' ? (window.currentUserProfile?.cargo || 'Fiscal de Postura') : cargoFiltro;
+        cargoAlvoNorm = normalizarCargo(cargoNome);
+    }
 
     dados.forEach(item => {
         const tr = document.createElement('tr');
@@ -338,6 +412,8 @@ function renderizarTabela(dados) {
         const etapaNumero = item.status === 'cancelado' ? '—' : (calcularEtapaProcesso(item) || '—');
         const etapaNome = item.status === 'cancelado' ? 'Cancelado' : (etapaNumero === '—' ? 'Concluído' : (item.etapas?.nome || ETAPAS_MAP[etapaNumero] || '—'));
         const statusClass = item.status || 'em_aberto';
+
+        const linkEtapa = montarLinkEtapa(item, cargoFiltro);
 
         tr.innerHTML = `
             <td class="col-protocolo">
@@ -356,28 +432,79 @@ function renderizarTabela(dados) {
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
             </td>
             <td class="col-acoes">
-                <button type="button" class="btn-abrir-processo" onclick="window.location.href='${montarLinkEtapa(item)}'" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo">
+                <button type="button" class="btn-abrir-processo" onclick="window.location.href='${linkEtapa}'" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Abrir
                 </button>
             </td>
         `;
 
-        // Linha de status com cor
         tr.style.borderLeft = `4px solid ${STATUS_COLORS[statusClass] || '#94a3b8'}`;
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', (e) => {
             if (!e.target.closest('button')) {
-                window.location.href = montarLinkEtapa(item);
+                window.location.href = linkEtapa;
             }
         });
 
         tabelaBody.appendChild(tr);
+
+        // Se o filtro por responsável estiver ativo, criar sub-linha estendida abaixo de todo o processo
+        if (cargoFiltro && cargoAlvoNorm) {
+            const notificacoes = obterNotificacoesProcesso(item);
+            if (notificacoes && notificacoes.length > 0) {
+                const etapasDoCargo = ETAPAS_POR_CARGO[cargoAlvoNorm] || [];
+                const notifsDoCargo = notificacoes.filter(n => etapasDoCargo.includes(numeroEtapaNotificacao(n)));
+
+                if (notifsDoCargo.length > 0) {
+                    const trDet = document.createElement('tr');
+                    trDet.className = 'tr-notificacao-detalhe';
+
+                    const boxes = notifsDoCargo.map(n => {
+                        const numNotif = n.numero || n.numero_notificacao || n.dados?.numero || (n.id ? String(n.id).slice(0, 8) : '1');
+                        const eNum = numeroEtapaNotificacao(n);
+                        const eNome = ETAPAS_MAP[eNum] || `Etapa ${eNum}`;
+                        const respCargo = obterCargoResponsavelPelaEtapa(eNum);
+
+                        // Identificar índice ou ID para direcionamento correto
+                        const idxNoProc = notificacoes.findIndex(itemNotif => itemNotif === n || (itemNotif.id && itemNotif.id === n.id));
+                        const targetParam = idxNoProc >= 0 ? idxNoProc : (n.id || n.notificacao_id || n.numero || '');
+
+                        return `
+                        <div onclick="event.stopPropagation(); window.abrirNotificacaoEPromoverLida('${item.id}', '${targetParam}')" 
+                             style="background: white; border: 1px solid #cbd5e1; border-left: 5px solid #2563eb; padding: 10px 16px; border-radius: 8px; font-size: 0.8rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); cursor: pointer; transition: all 0.2s ease;"
+                             onmouseenter="this.style.borderColor='#2563eb'; this.style.boxShadow='0 4px 12px rgba(37,99,235,0.15)'"
+                             onmouseleave="this.style.borderColor='#cbd5e1'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'"
+                             title="Clique para abrir esta notificação específica">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <strong style="color: #1e293b; font-size: 0.84rem;">Notificação #${numNotif}</strong>
+                                <span style="font-size: 0.72rem; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 4px;">Sua Etapa — Clique para abrir</span>
+                            </div>
+                            <div style="display: flex; gap: 24px; color: #475569; font-size: 0.78rem; flex-wrap: wrap;">
+                                <span><strong style="color: #64748b;">Etapa:</strong> E${eNum} (${eNome})</span>
+                                <span><strong style="color: #64748b;">Responsável:</strong> ${respCargo}</span>
+                            </div>
+                        </div>`;
+                    }).join('');
+
+                    trDet.innerHTML = `
+                        <td colspan="9" style="padding: 6px 16px 14px 16px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                ${boxes}
+                            </div>
+                        </td>
+                    `;
+
+                    tabelaBody.appendChild(trDet);
+                }
+            }
+        }
     });
 }
 
 // ── Coletar valores dos filtros ─────────────────────────────
 function coletarFiltros() {
+    const elResp = document.getElementById('filtroResponsavel');
     return {
         protocolo: document.getElementById('filtroProtocolo').value.trim(),
         nome: document.getElementById('filtroNome').value.trim(),
@@ -386,7 +513,8 @@ function coletarFiltros() {
         dataFim: document.getElementById('filtroDataFim').value,
         etapa: document.getElementById('filtroEtapa').value,
         descricao: document.getElementById('filtroDescricao').value.trim(),
-        criador: document.getElementById('filtroCriador').value
+        criador: document.getElementById('filtroCriador').value,
+        responsavel: elResp ? elResp.value : ''
     };
 }
 
@@ -778,16 +906,29 @@ window.atualizarInterfaceNotificacoesPainel = function () {
     if (!listDiv) return;
 
     let todanotifs = [];
+    const usrLogado = window.currentUserProfile || window.perfilAtual || null;
+    const meuCargo = usrLogado?.cargo ? normalizarCargo(usrLogado.cargo) : null;
+
     (dadosTabela || []).forEach(item => {
         const procNotifs = item?.dados?.notificacoes_menu || [];
-        procNotifs.forEach(n => todanotifs.push(n));
+        procNotifs.forEach(n => {
+            if (n.destinatario_cargo && meuCargo) {
+                if (normalizarCargo(n.destinatario_cargo) !== meuCargo) return;
+            }
+            todanotifs.push(n);
+        });
         (item?.notificacoes || []).forEach(notif => {
             const subNotifs = notif?.dados?.notificacoes_menu || [];
-            subNotifs.forEach(n => todanotifs.push(n));
+            subNotifs.forEach(n => {
+                if (n.destinatario_cargo && meuCargo) {
+                    if (normalizarCargo(n.destinatario_cargo) !== meuCargo) return;
+                }
+                todanotifs.push(n);
+            });
         });
     });
 
-    todanotifs.sort((a, b) => new Date(b.data) - new Date(a.data));
+    todanotifs.sort((a, b) => new Date(b.created_at || b.data || 0) - new Date(a.created_at || a.data || 0));
 
     if (badgeEl) {
         const naoLidas = todanotifs.filter(n => !n.lida).length;
@@ -816,7 +957,7 @@ window.atualizarInterfaceNotificacoesPainel = function () {
                         ${isNova ? 'NOVA' : 'Antiga'}
                     </span>
                 </div>
-                <span style="font-size: 0.72rem; color: #94a3b8;">${n.data ? new Date(n.data).toLocaleDateString('pt-BR') : ''}</span>
+                <span style="font-size: 0.72rem; color: #94a3b8;">${n.created_at ? new Date(n.created_at).toLocaleDateString('pt-BR') : (n.data ? new Date(n.data).toLocaleDateString('pt-BR') : '')}</span>
             </div>
             <p style="margin: 0 0 6px 0; font-size: 0.82rem; color: #475569; line-height: 1.4;">${n.mensagem}</p>
             ${n.motivo ? `<div style="background:#f8fafc; border:1px solid #cbd5e1; padding:8px 12px; border-radius:6px; font-size:0.8rem; color:#334155; margin-bottom:8px;"><strong>Motivo do Gerente:</strong> ${n.motivo}</div>` : ''}
@@ -835,11 +976,17 @@ window.atualizarInterfaceNotificacoesPainel = function () {
 
 window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId, idx) {
     const item = (dadosTabela || []).find(i => i.id === processoId);
+    let eChatJuridico = false;
+
     if (item && item.dados?.notificacoes_menu) {
         if (idx !== undefined && item.dados.notificacoes_menu[idx]) {
+            if (item.dados.notificacoes_menu[idx].tipo === 'chat_juridico') eChatJuridico = true;
             item.dados.notificacoes_menu[idx].lida = true;
         } else {
-            item.dados.notificacoes_menu.forEach(n => n.lida = true);
+            item.dados.notificacoes_menu.forEach(n => {
+                if (n.tipo === 'chat_juridico') eChatJuridico = true;
+                n.lida = true;
+            });
         }
         try {
             await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
@@ -847,9 +994,13 @@ window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId
             console.error('Erro ao marcar notificação como lida:', e);
         }
     }
+
     let url = `etapa.html?processo=${processoId}`;
-    if (notificacaoId) {
+    if (notificacaoId && String(notificacaoId).trim() !== '' && String(notificacaoId) !== 'undefined' && String(notificacaoId) !== 'null') {
         url += `&notificacao=${notificacaoId}`;
+    }
+    if (eChatJuridico) {
+        url += `&chat=1`;
     }
     window.location.href = url;
 };
