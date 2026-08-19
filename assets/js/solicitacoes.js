@@ -198,7 +198,7 @@ async function verificarSessao() {
         // Buscar dados do usuário na tabela profiles
         let { data: usuario } = await supabaseClient
             .from('profiles')
-            .select('*')
+            .select('id, auth_id, cpf, nome, cargo, matricula, email, avatar_url')
             .eq('auth_id', session.user.id)
             .maybeSingle();
 
@@ -207,14 +207,14 @@ async function verificarSessao() {
             if (cpfLimpo) {
                 let res = await supabaseClient
                     .from('profiles')
-                    .select('*')
+                    .select('id, auth_id, cpf, nome, cargo, matricula, email, avatar_url')
                     .eq('cpf', cpfLimpo)
                     .maybeSingle();
                 if (!res.data && cpfLimpo.length === 11) {
                     const cpfFormatado = cpfLimpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
                     res = await supabaseClient
                         .from('profiles')
-                        .select('*')
+                        .select('id, auth_id, cpf, nome, cargo, matricula, email, avatar_url')
                         .eq('cpf', cpfFormatado)
                         .maybeSingle();
                 }
@@ -312,7 +312,7 @@ async function carregarSolicitacoes() {
                 updated_at,
                 fiscal_id,
                 etapas ( numero, nome ),
-                notificacoes (*, etapas(numero))
+                notificacoes ( id, processo_id, numero, status, etapa_atual_id, etapas ( numero ) )
             `, { count: 'exact' });
 
         // Aplicar filtros

@@ -497,30 +497,33 @@
                 }
             } catch (e) { }
 
-            // 2. Tentar buscar da tabela processos (dados.chat_juridico)
-            const { data: procs } = await supabaseClient
-                .from('processos')
-                .select('id, numero_processo, dados, updated_at')
-                .order('updated_at', { ascending: false });
+            // 2. Tentar buscar da tabela processos (dados.chat_juridico) apenas se a tabela principal não retornar nada
+            if (conversas.length === 0) {
+                const { data: procs } = await supabaseClient
+                    .from('processos')
+                    .select('id, numero_processo, dados, updated_at')
+                    .order('updated_at', { ascending: false });
 
-            (procs || []).forEach(p => {
-                const msgs = p?.dados?.chat_juridico?.mensagens || [];
-                if (msgs.length > 0) {
-                    const jaExiste = conversas.some(c => c.processo_id === p.id);
-                    if (!jaExiste) {
-                        conversas.push({
-                            processo_id: p.id,
-                            numero_processo: p.numero_processo,
-                            mensagens: msgs,
-                            updated_at: p?.dados?.chat_juridico?.updated_at || p.updated_at
-                        });
-                    } else {
-                        // Atribui número do processo se faltar
-                        const item = conversas.find(c => c.processo_id === p.id);
-                        if (item && !item.numero_processo) item.numero_processo = p.numero_processo;
+                (procs || []).forEach(p => {
+                    const chatObj = p?.chat_juridico || p?.dados?.chat_juridico;
+                    const msgs = chatObj?.mensagens || [];
+                    if (msgs.length > 0) {
+                        const jaExiste = conversas.some(c => c.processo_id === p.id);
+                        if (!jaExiste) {
+                            conversas.push({
+                                processo_id: p.id,
+                                numero_processo: p.numero_processo,
+                                mensagens: msgs,
+                                updated_at: chatObj?.updated_at || p.updated_at
+                            });
+                        } else {
+                            // Atribui número do processo se faltar
+                            const item = conversas.find(c => c.processo_id === p.id);
+                            if (item && !item.numero_processo) item.numero_processo = p.numero_processo;
+                        }
                     }
-                }
-            });
+                });
+            }
 
             if (conversas.length === 0) {
                 container.innerHTML = `
@@ -828,15 +831,16 @@
             carregarListaConversas();
         }
 
-        // Inicia sincronização a cada 4 segundos
+        // Inicia sincronização suave a cada 8 segundos (apenas se a página estiver visível)
         if (!syncInterval) {
             syncInterval = setInterval(() => {
+                if (document.hidden) return;
                 if (modoListaConversas) {
                     carregarListaConversas();
                 } else if (currentProcessoId) {
                     carregarMensagensChat();
                 }
-            }, 4000);
+            }, 8000);
         }
     }
 
