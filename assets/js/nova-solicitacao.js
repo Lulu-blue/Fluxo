@@ -38,22 +38,41 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fiscDataVistoria').value = now.toISOString().slice(0, 16);
 });
 
+// Devolve números reservados se a página for recarregada ou fechada sem salvar
+window.addEventListener('beforeunload', () => {
+    if (typeof numerosReservadosEditor !== 'undefined' && (numerosReservadosEditor.processo || numerosReservadosEditor.relatorio)) {
+        if (typeof devolverNumerosReservadosEditor === 'function') {
+            devolverNumerosReservadosEditor();
+        }
+    }
+});
+
 // ── Abrir / Fechar Modal ────────────────────────────────────
-function abrirModal() {
+async function abrirModal() {
     const modal = document.getElementById('modalNovaSolicitacao');
-    modal.classList.add('open');
+    if (modal) modal.classList.add('open');
     document.body.style.overflow = 'hidden';
     currentWizardStep = 1;
     carregarOpcoesDecreto();
     atualizarWizard();
     carregarDadosFiscal();
+
+    // Reserva imediatamente o número do Processo e do Relatório Fiscal com Row Lock
+    if (typeof garantirNumerosReservados === 'function') {
+        await garantirNumerosReservados();
+    }
 }
 
-function fecharModal() {
+async function fecharModal() {
     const modal = document.getElementById('modalNovaSolicitacao');
-    modal.classList.remove('open');
+    if (modal) modal.classList.remove('open');
     document.body.style.overflow = '';
     bicArquivoAnexado = null;
+
+    // Se a pessoa fechar/descartar o modal sem finalizar, libera os números reservados
+    if (typeof devolverNumerosReservadosEditor === 'function') {
+        await devolverNumerosReservadosEditor();
+    }
 }
 
 // ── Gerenciamento Dinâmico de Decretos ───────────────────────
@@ -399,16 +418,26 @@ function validarStep(step) {
             const atendimentoTipo = document.getElementById('relAtendimentoTipo')?.value?.trim();
             const atendimentoValor = document.getElementById('relAtendimentoValor')?.value?.trim();
             const assunto = document.getElementById('relAssunto')?.value?.trim();
+            const textoVistoria = document.getElementById('relTextoVistoria')?.value?.trim();
 
-            if (!atendimentoTipo || !atendimentoValor) {
-                alert('Informe o tipo e o valor para "Para atendimento".');
-                if (!atendimentoTipo) document.getElementById('relAtendimentoTipo')?.focus();
-                else document.getElementById('relAtendimentoValor')?.focus();
+            if (!atendimentoTipo) {
+                alert('Selecione o Tipo em "Para atendimento" (Ex: Denúncia, Memorando, etc.).');
+                document.getElementById('relAtendimentoTipo')?.focus();
+                return false;
+            }
+            if (!atendimentoValor) {
+                alert('Informe o Número em "Para atendimento" (Ex: 123/2026).');
+                document.getElementById('relAtendimentoValor')?.focus();
                 return false;
             }
             if (!assunto) {
-                alert('Informe o "Assunto".');
+                alert('Informe o "Assunto" no Relatório Fiscal.');
                 document.getElementById('relAssunto')?.focus();
+                return false;
+            }
+            if (!textoVistoria) {
+                alert('Informe o Texto do Relatório (Descreva as transgressões) antes de prosseguir.');
+                document.getElementById('relTextoVistoria')?.focus();
                 return false;
             }
             return true;
@@ -497,7 +526,9 @@ function mostrarFeedback(elId, msg, type) {
 // ── Finalizar solicitação ───────────────────────────────────
 async function finalizarSolicitacao() {
     if (isWizardLoading) return;
-    if (!validarStep(4)) return;
+    for (let s = 1; s <= 5; s++) {
+        if (!validarStep(s)) return;
+    }
 
     setWizardLoading(true);
 
@@ -534,19 +565,55 @@ async function finalizarSolicitacao() {
         if (!numeroProcesso) {
             const { data: np, error: errNumProc } = await supabaseClient
                 .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Processo' });
-            if (errNumProc || !np) {
-                throw new Error('Falha ao reservar número de processo: ' + (errNumProc?.message || 'resposta vazia da RPC'));
+            if (!errNumProc && np) {
+                numeroProcesso = np;
+            } else {
+                console.warn('RPC reservar_numero para Processo falhou no envio final, buscando fallback:', errNumProc?.message);
+                const { data } = await supabaseClient
+                    .from('processos')
+                    .select('numero_processo')
+                    .like('numero_processo', `${anoAtual}/%`);
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        if (item.numero_processo) {
+                            const p = item.numero_processo.split('/');
+                            if (p.length === 2) {
+                                const v = parseInt(p[1], 10);
+                                if (!isNaN(v) && v > max) max = v;
+                            }
+                        }
+                    });
+                }
+                numeroProcesso = `${anoAtual}/${String(max + 1).padStart(6, '0')}`;
             }
-            numeroProcesso = np;
         }
 
         if (!numeroRelatorio) {
             const { data: nr, error: errNumRel } = await supabaseClient
                 .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
-            if (errNumRel || !nr) {
-                throw new Error('Falha ao reservar número do relatório: ' + (errNumRel?.message || 'resposta vazia da RPC'));
+            if (!errNumRel && nr) {
+                numeroRelatorio = nr;
+            } else {
+                console.warn('RPC reservar_numero para Relatório Fiscal falhou no envio final, buscando fallback:', errNumRel?.message);
+                const { data } = await supabaseClient
+                    .from('processos')
+                    .select('numero_relatorio')
+                    .like('numero_relatorio', `${anoAtual}/%`);
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        if (item.numero_relatorio) {
+                            const p = item.numero_relatorio.split('/');
+                            if (p.length === 2) {
+                                const v = parseInt(p[1], 10);
+                                if (!isNaN(v) && v > max) max = v;
+                            }
+                        }
+                    });
+                }
+                numeroRelatorio = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
             }
-            numeroRelatorio = nr;
         }
 
         // Limpa os números reservados para não devolvê-los acidentalmente após o uso
@@ -631,7 +698,6 @@ async function finalizarSolicitacao() {
             processo_existente_ref: dados.infracoes.processo_ref || null,
             data_vistoria: dados.fiscal.data_vistoria || null,
             descricao_fiscalizacao: dados.fiscal.descricao || null,
-            documento_bic: bicObjetoSalvar ? bicObjetoSalvar.dataUrl : null,
             dados: {
                 contribuinte: dados.contribuinte,
                 imovel: dados.imovel,
@@ -641,10 +707,7 @@ async function finalizarSolicitacao() {
                 },
                 infracoes: dados.infracoes,
                 relatorio_fiscal: dados.relatorio_fiscal,
-                documento_bic: bicObjetoSalvar,
-                anexos: {
-                    bic_espelho_cadastral: bicObjetoSalvar
-                }
+                anexos: {}
             },
             numero_relatorio: numeroRelatorio
         };
@@ -687,23 +750,37 @@ async function finalizarSolicitacao() {
 
         // 5.5 Registrar o Relatório Fiscal na tabela documentos centralizada
         try {
-            await supabaseClient.from('documentos').insert([{
+            const relatorioUrl = window.relatorioCustomizadoHTML || construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso);
+            const { data: docRF } = await supabaseClient.from('documentos').insert([{
                 processo_id: procCriado.id,
                 etapa_id: etapaId,
                 tipo: 'Relatório Fiscal',
-                nome_arquivo: `Relatorio_Fiscal_${numeroRelatorio.replace(/[\\/\\\\]/g, '-')}.pdf`,
+                nome_arquivo: `Relatorio_Fiscal_${numeroRelatorio.replace(/[\\/\\\\]/g, '-')}.html`,
+                url: relatorioUrl,
                 gerado_automaticamente: true,
                 numero_sequencial: numeroRelatorio,
                 usuario_id: profileId
-            }]);
+            }]).select('id').single();
+
+            if (docRF && docRF.id) {
+                procCriado.dados = procCriado.dados || {};
+                procCriado.dados.relatorio_fiscal = procCriado.dados.relatorio_fiscal || {};
+                procCriado.dados.relatorio_fiscal.documento_id = docRF.id;
+                delete procCriado.dados.relatorio_fiscal.html_customizado;
+
+                await supabaseClient
+                    .from('processos')
+                    .update({ dados: procCriado.dados })
+                    .eq('id', procCriado.id);
+            }
         } catch (errDoc) {
             console.error('Erro ao registrar relatório na tabela documentos:', errDoc);
         }
 
-        // Registrar também o documento BIC na tabela centralizada documentos
+        // Registrar o documento BIC na tabela centralizada documentos
         if (bicObjetoSalvar && procCriado) {
             try {
-                await supabaseClient.from('documentos').insert([{
+                const { data: docBic } = await supabaseClient.from('documentos').insert([{
                     processo_id: procCriado.id,
                     etapa_id: etapaId,
                     tipo: 'BIC Espelho Cadastral',
@@ -711,7 +788,24 @@ async function finalizarSolicitacao() {
                     url: bicObjetoSalvar.dataUrl,
                     gerado_automaticamente: false,
                     usuario_id: profileId
-                }]);
+                }]).select('id').single();
+
+                if (docBic && docBic.id) {
+                    procCriado.dados = procCriado.dados || {};
+                    procCriado.dados.documento_bic = {
+                        nome: bicObjetoSalvar.nome,
+                        documento_id: docBic.id
+                    };
+                    procCriado.dados.anexos = procCriado.dados.anexos || {};
+                    procCriado.dados.anexos.bic_espelho_cadastral = {
+                        nome: bicObjetoSalvar.nome,
+                        documento_id: docBic.id
+                    };
+                    await supabaseClient
+                        .from('processos')
+                        .update({ dados: procCriado.dados })
+                        .eq('id', procCriado.id);
+                }
             } catch (errDocBic) {
                 console.warn('Erro ao registrar BIC na tabela documentos:', errDocBic);
             }
@@ -912,31 +1006,7 @@ async function finalizarSolicitacao() {
             }
         }
 
-        // Anexo BIC (PDF Espelho Cadastral)
-        if (bicArquivoAnexado) {
-            try {
-                const bicBase64 = await fileToBase64(bicArquivoAnexado);
-                anexosParaSalvar.bic_espelho_cadastral = {
-                    nome: bicArquivoAnexado.name,
-                    tipo: bicArquivoAnexado.type || 'application/pdf',
-                    dataUrl: bicBase64,
-                    data_upload: new Date().toISOString()
-                };
 
-                // Registrar também na tabela centralizada 'documentos'
-                await supabaseClient.from('documentos').insert([{
-                    processo_id: procCriado.id,
-                    etapa_id: etapaId,
-                    tipo: 'BIC Espelho Cadastral',
-                    nome_arquivo: bicArquivoAnexado.name,
-                    url: bicBase64,
-                    gerado_automaticamente: false,
-                    usuario_id: profileId
-                }]);
-            } catch (eBic) {
-                console.warn('Erro ao salvar anexo BIC no banco:', eBic);
-            }
-        }
 
         // Gravar anexos no banco se houver algum
         if (Object.keys(anexosParaSalvar).length > 0) {
@@ -1090,17 +1160,82 @@ function coletarTodosDados() {
 }
 
 // ── Renderização e Preparação do Relatório Fiscal ────────────
-function prepararEtapaRelatorio() {
+async function garantirNumerosReservados() {
+    const anoAtual = new Date().getFullYear();
+
+    if (!numerosReservadosEditor.processo) {
+        try {
+            const { data: np, error: errProc } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Processo' });
+            if (!errProc && np) {
+                numerosReservadosEditor.processo = np;
+            } else {
+                console.warn('RPC reservar_numero para Processo falhou, executando fallback local:', errProc?.message);
+                const { data } = await supabaseClient
+                    .from('processos')
+                    .select('numero_processo')
+                    .like('numero_processo', `${anoAtual}/%`);
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        if (item.numero_processo) {
+                            const p = item.numero_processo.split('/');
+                            if (p.length === 2) {
+                                const v = parseInt(p[1], 10);
+                                if (!isNaN(v) && v > max) max = v;
+                            }
+                        }
+                    });
+                }
+                numerosReservadosEditor.processo = `${anoAtual}/${String(max + 1).padStart(6, '0')}`;
+            }
+        } catch (e) {
+            console.warn('Erro ao reservar número de processo:', e);
+        }
+    }
+
+    if (!numerosReservadosEditor.relatorio) {
+        try {
+            const { data: nr, error: errRel } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
+            if (!errRel && nr) {
+                numerosReservadosEditor.relatorio = nr;
+            } else {
+                console.warn('RPC reservar_numero para Relatório Fiscal falhou, executando fallback local:', errRel?.message);
+                const { data } = await supabaseClient
+                    .from('processos')
+                    .select('numero_relatorio')
+                    .like('numero_relatorio', `${anoAtual}/%`);
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        if (item.numero_relatorio) {
+                            const p = item.numero_relatorio.split('/');
+                            if (p.length === 2) {
+                                const v = parseInt(p[1], 10);
+                                if (!isNaN(v) && v > max) max = v;
+                            }
+                        }
+                    });
+                }
+                numerosReservadosEditor.relatorio = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
+            }
+        } catch (e) {
+            console.warn('Erro ao reservar número de relatório:', e);
+        }
+    }
+}
+
+async function prepararEtapaRelatorio() {
     const infracoesSelecionadas = Array.from(document.querySelectorAll('input[name="infracao"]:checked')).map(el => {
         return el.nextElementSibling.textContent.trim().toLowerCase();
     });
     const listaInfracoesStr = infracoesSelecionadas.join(', ');
 
     const textarea = document.getElementById('relTextoVistoria');
-    if (!textarea.value.trim()) {
+    if (textarea && !textarea.value.trim()) {
         textarea.value = listaInfracoesStr || 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
     }
 
+    await garantirNumerosReservados();
     renderizarDocumentoRelatorio();
 }
 
@@ -1110,9 +1245,19 @@ function renderizarDocumentoRelatorio() {
     container.style.display = 'block';
 
     if (window.relatorioCustomizadoHTML) {
-        container.innerHTML = window.relatorioCustomizadoHTML;
+        let html = window.relatorioCustomizadoHTML;
+        if (numerosReservadosEditor.relatorio) {
+            html = html.replace(/RELATÓRIO FISCAL XXX\/\d{4}/g, `RELATÓRIO FISCAL ${numerosReservadosEditor.relatorio}`);
+        }
+        if (numerosReservadosEditor.processo) {
+            html = html.replace(/Processo:<\/strong>\s*XXX\/\d{4}/g, `Processo:</strong> ${numerosReservadosEditor.processo}`);
+        }
+        container.innerHTML = html;
     } else {
-        container.innerHTML = construirHtmlRelatorioFiscal();
+        container.innerHTML = construirHtmlRelatorioFiscal(
+            numerosReservadosEditor.relatorio,
+            numerosReservadosEditor.processo
+        );
     }
 }
 
@@ -1138,14 +1283,23 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
 
     const paHtml = pa ? `<p style="margin:0;"><strong>PA:</strong> ${pa}</p>` : '';
 
-    const incluirDataHora = document.getElementById('relIncluirDataHora')?.checked;
     const dataVistoriaRaw = document.getElementById('fiscDataVistoria')?.value;
     let textoDataHora = '';
-    if (incluirDataHora && dataVistoriaRaw) {
-        const d = new Date(dataVistoriaRaw);
-        const dataStr = d.toLocaleDateString('pt-BR');
-        const horaStr = d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-        textoDataHora = ` no dia ${dataStr} às ${horaStr}`;
+    if (dataVistoriaRaw) {
+        const parts = dataVistoriaRaw.split('T');
+        const dataPart = parts[0];
+        const horaPart = parts[1] || '';
+
+        if (dataPart) {
+            const dataArr = dataPart.split('-');
+            const dataFmt = dataArr.length === 3 ? `${dataArr[2]}/${dataArr[1]}/${dataArr[0]}` : dataPart;
+
+            if (horaPart) {
+                textoDataHora = ` no dia ${dataFmt} às ${horaPart.substring(0, 5)}`;
+            } else {
+                textoDataHora = ` no dia ${dataFmt}`;
+            }
+        }
     }
 
     const inscricaoValor = document.getElementById('imvInscricao')?.value || 'Não informada';
@@ -1276,21 +1430,18 @@ async function abrirEditorRelatorio() {
     }
 
     try {
-        const anoAtual = new Date().getFullYear();
-
-        // Reserva números temporários para preview realista
-        if (!numerosReservadosEditor.processo) {
-            const { data: np } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Processo' });
-            numerosReservadosEditor.processo = np || `XXX/${anoAtual}`;
-        }
-        if (!numerosReservadosEditor.relatorio) {
-            const { data: nr } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
-            numerosReservadosEditor.relatorio = nr || `XXX/${anoAtual}`;
-        }
+        await garantirNumerosReservados();
 
         const editor = document.getElementById('editorRelatorio');
         if (window.relatorioCustomizadoHTML) {
-            editor.innerHTML = window.relatorioCustomizadoHTML;
+            let html = window.relatorioCustomizadoHTML;
+            if (numerosReservadosEditor.relatorio) {
+                html = html.replace(/RELATÓRIO FISCAL XXX\/\d{4}/g, `RELATÓRIO FISCAL ${numerosReservadosEditor.relatorio}`);
+            }
+            if (numerosReservadosEditor.processo) {
+                html = html.replace(/Processo:<\/strong>\s*XXX\/\d{4}/g, `Processo:</strong> ${numerosReservadosEditor.processo}`);
+            }
+            editor.innerHTML = html;
         } else {
             editor.innerHTML = construirHtmlRelatorioFiscal(numerosReservadosEditor.relatorio, numerosReservadosEditor.processo);
         }
@@ -1311,13 +1462,28 @@ async function abrirEditorRelatorio() {
     }
 }
 
-async function fecharEditorRelatorio() {
-    if (relatorioEditorAberto && (numerosReservadosEditor.processo || numerosReservadosEditor.relatorio)) {
-        const confirmar = confirm('Se voltar ao formulário sem finalizar, os números reservados serão liberados. Deseja continuar?');
-        if (!confirmar) return;
-        await devolverNumerosReservadosEditor();
+function salvarRelatorioFiscal() {
+    const editor = document.getElementById('editorRelatorio');
+    if (editor) {
+        window.relatorioCustomizadoHTML = editor.innerHTML;
+        const container = document.getElementById('previewRelatorioContainer');
+        if (container) {
+            container.innerHTML = window.relatorioCustomizadoHTML;
+            container.style.display = 'block';
+        }
     }
 
+    // Fecha o modal mantendo as alterações salvas no formulário
+    const modal = document.getElementById('modalEditorRelatorio');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
+    document.body.style.overflow = '';
+    relatorioEditorAberto = false;
+}
+
+async function fecharEditorRelatorio() {
     const modal = document.getElementById('modalEditorRelatorio');
 
     // Salvar as alterações feitas no editor antes de fechar
@@ -1330,8 +1496,10 @@ async function fecharEditorRelatorio() {
         }
     }
 
-    modal.style.display = 'none';
-    modal.classList.remove('open');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
     document.body.style.overflow = '';
     relatorioEditorAberto = false;
 }
@@ -1509,7 +1677,7 @@ function bindWizardEventos() {
     }
 
     // Eventos do Step 5 - Atualização do Preview e Editor
-    ['relAtendimentoTipo', 'relAtendimentoValor', 'relAssunto', 'relPA', 'relTextoVistoria', 'relIncluirDataHora'].forEach(id => {
+    ['relAtendimentoTipo', 'relAtendimentoValor', 'relAssunto', 'relPA', 'relTextoVistoria'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('input', () => {
@@ -1544,6 +1712,11 @@ function bindWizardEventos() {
     const btnVoltarEditor = document.getElementById('btnEditorRelatorioVoltar');
     if (btnVoltarEditor) {
         btnVoltarEditor.addEventListener('click', fecharEditorRelatorio);
+    }
+
+    const btnSalvarRel = document.getElementById('btnSalvarRelatorio');
+    if (btnSalvarRel) {
+        btnSalvarRel.addEventListener('click', salvarRelatorioFiscal);
     }
 
     const btnBaixarPdf = document.getElementById('btnBaixarRelatorioPdf');
@@ -2482,7 +2655,7 @@ function extrairDadosDoTextoNP(texto) {
     const linhas = texto.split(/\r?\n/);
     const linhasLimpas = [];
     linhas.forEach(linha => {
-        const celulas = linha.split(',').map(c => c.trim()).filter(c => c !== '');
+        const celulas = linha.split(/[,;]/).map(c => c.trim()).filter(c => c !== '');
         if (celulas.length > 0) {
             linhasLimpas.push(celulas.join(' '));
         }
@@ -2495,51 +2668,59 @@ function extrairDadosDoTextoNP(texto) {
     const secImovel = partes[1] || textoLimpo;
 
     // --- 1. CONTRIBUINTE ---
-    // Nome do contribuinte (evita casar a palavra dentro de "INFORMAÇÕES DO CONTRIBUINTE")
-    const mContNome = secContribuinte.match(/Contribuinte\s*:\s*(?:ESPOLIO\s+DE\s+([^\n\r]+?)|([^\n\r]+?))(?=\s+(?:Nº\s+CPF|CPF|Logradouro|CEP|Município)|\n|$)/i);
+    // Remove o título da seção para não casar a palavra em "INFORMAÇÕES DO CONTRIBUINTE"
+    const secContribuinteClean = secContribuinte.replace(/INFORMA[ÇC][ÕO]ES\s+DO\s+CONTRIBUINTE/gi, '');
+
+    // Nome do contribuinte (suporta mesmo linha com `:` ou linha seguinte no DOCX)
+    let mContNome = secContribuinteClean.match(/(?:^|\n)\s*Contribuinte[:\s]+(?:ESP[ÓO]LIO\s+DE\s+([^\n\r]+?)|([^\n\r]+?))(?=\s+(?:Nº|CPF|CNPJ|Logradouro|CEP|Município|Bairro)|\n|$)/i);
+    if (!mContNome) {
+        mContNome = secContribuinteClean.match(/(?:^|\n)\s*Contribuinte[:\s]*\n\s*(?:ESP[ÓO]LIO\s+DE\s+([^\n\r]+?)|([^\n\r]+?))(?=\s*(?:\n|Nº|CPF|CNPJ|Logradouro|CEP|Município|Bairro|$))/i);
+    }
     if (mContNome) {
-        const nome = (mContNome[1] ? 'ESPÓLIO DE ' + mContNome[1] : mContNome[2]).trim();
-        document.getElementById('contNome').value = nome;
+        const valRaw = ((mContNome[1] ? 'ESPÓLIO DE ' + mContNome[1] : mContNome[2]) || '').trim();
+        if (valRaw && !/^(?:Contribuinte|INFORMA[ÇC][ÕO]ES|Nº|CPF|CNPJ)$/i.test(valRaw)) {
+            document.getElementById('contNome').value = valRaw;
+        }
     }
 
-    // CPF/CNPJ (permite espaços entre dígitos que o Word possa introduzir)
-    const mContCpf = secContribuinte.match(/(?:CPF\/CNPJ|CPF\s*\/?\s*CNPJ|Nº\s*CPF\s*\/\s*CNPJ)[:\s]*([0-9\.\-\/\s]+?[0-9]{2})(?=\s+[A-Za-zÀ-Úà-ú]|\s*Bairro|\n|$)/i);
+    // CPF/CNPJ (suporta mesma linha ou linha seguinte no DOCX)
+    const mContCpf = secContribuinte.match(/(?:CPF\/CNPJ|CPF\s*\/?\s*CNPJ|Nº\s*CPF\s*\/\s*CNPJ)[:\s]*\n?\s*([\d\.\-\/]{8,20})/i);
     if (mContCpf) {
         document.getElementById('contCpfCnpj').value = mContCpf[1].replace(/\s+/g, '').trim();
     }
 
     // Logradouro do contribuinte
-    const mContLog = secContribuinte.match(/Logradouro[:\s]+([^\n\r]+?)(?=\s+(?:CEP|Município|Número|Nº|CPF|Bairro)|\n|$)/i);
-    if (mContLog) {
+    const mContLog = secContribuinte.match(/Logradouro[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:CEP|Município|Número|Nº|CPF|Bairro)|\n|$)/i);
+    if (mContLog && mContLog[1].trim()) {
         document.getElementById('contLogradouro').value = mContLog[1].trim();
     }
 
     // CEP
-    const mContCep = secContribuinte.match(/CEP[:\s]+([\d\-]+)/i);
+    const mContCep = secContribuinte.match(/CEP[:\s]*\n?\s*([\d\-]+)/i);
     if (mContCep) {
         document.getElementById('contCep').value = mContCep[1].trim();
     }
 
     // Município
-    const mContMun = secContribuinte.match(/Município[:\s]+([^\n\r]+?)(?=\s+(?:Número|Nº|CPF|Bairro|Observac[ãa]o)|\n|$)/i);
+    const mContMun = secContribuinte.match(/Munic[íi]pio[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:Número|Nº|CPF|Bairro|Observac[ãa]o)|\n|$)/i);
     if (mContMun && mContMun[1].trim()) {
         document.getElementById('contMunicipio').value = mContMun[1].trim();
     }
 
     // Bairro do contribuinte
-    const mContBairro = secContribuinte.match(/Bairro[:\s]+([^\n\r]+?)(?=\s+(?:Número|Observac[ãa]o|Informações|INFORMAÇÕES)|\n|$)/i);
-    if (mContBairro) {
+    const mContBairro = secContribuinte.match(/Bairro[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:Número|Observac[ãa]o|Informações|INFORMAÇÕES)|\n|$)/i);
+    if (mContBairro && mContBairro[1].trim()) {
         document.getElementById('contBairro').value = mContBairro[1].trim();
     }
 
     // Número do contribuinte
-    const mContNum = secContribuinte.match(/Número[:\s]+([^\n\r]+?)(?=\s+Observac[ãa]o|\s+Informações|\s+Bairro|\n|$)/i);
-    if (mContNum) {
+    const mContNum = secContribuinte.match(/N[úu]mero[:\s]*\n?\s*([^\n\r]+?)(?=\s+Observac[ãa]o|\s+Informações|\s+Bairro|\n|$)/i);
+    if (mContNum && mContNum[1].trim()) {
         document.getElementById('contNumero').value = mContNum[1].trim();
     }
 
     // Observação / Complemento
-    const mContComp = secContribuinte.match(/Observa[çc][ãa]o[:\s]+([^\n\r]+?)(?=\s+(?:INFORMAÇÕES|Informações|Contribuinte|Logradouro|CEP|Nº|CPF|Bairro|Número)|\n|$)/i);
+    const mContComp = secContribuinte.match(/Observa[çc][ãa]o[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:INFORMAÇÕES|Informações|Contribuinte|Logradouro|CEP|Nº|CPF|Bairro|Número)|\n|$)/i);
     if (mContComp) {
         const val = mContComp[1].trim();
         if (!val.toLowerCase().startsWith('contribuinte') && !val.toLowerCase().startsWith('informação') && !val.toLowerCase().startsWith('informacoes')) {
@@ -2551,20 +2732,20 @@ function extrairDadosDoTextoNP(texto) {
 
     // --- 2. IMÓVEL ---
     // Inscrição do Imóvel
-    const mImvInsc = secImovel.match(/Inscrição(?:\s+do\s+Imóvel)?[:\s]+([\d\.]+)/i);
+    const mImvInsc = secImovel.match(/Inscri[çc][ãa]o(?:\s+do\s+Im[óo]vel)?[:\s]*\n?\s*([\d\.]+)/i);
     if (mImvInsc) {
         const insc = mImvInsc[1].trim();
         document.getElementById('imvInscricao').value = insc;
         decomporInscricao(insc);
     }
 
-    // Código Reduzido (busca após Código: na seção do imóvel, evita pegar Código: do contribuinte)
+    // Código Reduzido
     let codImv = '';
-    const mImvCod = secImovel.match(/Código[:\s]+(\d{3,})(?=\s+Quadra|\s+Número|\s+Logradouro|\s+Matrícula|\s+Inscrição|\n|$)/i);
+    const mImvCod = secImovel.match(/C[óo]digo[:\s]*\n?\s*(\d{3,})(?=\s+Quadra|\s+Número|\s+Logradouro|\s+Matrícula|\s+Inscrição|\n|$)/i);
     if (mImvCod) {
         codImv = mImvCod[1];
     } else {
-        const mImvMat = secImovel.match(/Matr[íi]cula[:\s]+(\d+)/i);
+        const mImvMat = secImovel.match(/Matr[íi]cula[:\s]*\n?\s*(\d+)/i);
         if (mImvMat) codImv = mImvMat[1];
     }
     if (codImv) {

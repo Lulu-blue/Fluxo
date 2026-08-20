@@ -10,11 +10,11 @@ Emissão de certidão quando não houve defesa apresentada. O fiscal verifica se
 | Foi resolvido? Sim | → Etapa 29 (Fiscal Emite Certidão) |
 
 ## Campos da Tela
-- **O problema foi resolvido?**: (Opção Sim/Não) Deve vir **sempre marcado como Não** por padrão.
+- **Procede a denuncia? **: (Opção Sim/Não) Deve vir **sempre marcado como Não** por padrão.
 
 ## Documentos Gerados
 - **Certidão**:
-  - *Regra Especial*: Se a opção "O problema foi resolvido?" for marcada como **Sim**, a última frase do documento (após a data da vistoria e a vírgula) deverá ser: *"certificamos que houve o cumprimento da obrigação: ..."*
+  - *Regra Especial*: Se a opção "Procede a denuncia? " for marcada como **Sim**, a última frase do documento (após a data da vistoria e a vírgula) deverá ser: *"certificamos que houve o cumprimento da obrigação: ..."*
 
 ## Uploads Necessários
 - (Adicionar se necessário fotos ou comprovações da vistoria)

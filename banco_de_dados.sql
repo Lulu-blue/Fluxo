@@ -470,6 +470,8 @@ CREATE POLICY "numeros_disponiveis_acesso_total"
 -- Coluna para armazenar o número da certidão na notificação (se aplicável)
 ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS numero_certidao TEXT;
 
+DROP FUNCTION IF EXISTS reservar_numero(INTEGER, TEXT);
+
 -- RPC: Reserva próximo número de forma atômica por categoria
 CREATE OR REPLACE FUNCTION reservar_numero(p_ano INTEGER, p_categoria TEXT)
 RETURNS TEXT AS $$
@@ -478,38 +480,55 @@ DECLARE
     v_prox INTEGER;
     v_tamanho_pad INTEGER;
 BEGIN
-    IF p_categoria = 'Processo' THEN
-        v_tamanho_pad := 6;
-    ELSE
-        v_tamanho_pad := 3;
+    IF p_categoria IS NULL OR TRIM(p_categoria) = '' THEN
+        RAISE EXCEPTION 'Categoria inválida para reserva de número.';
     END IF;
 
+    v_tamanho_pad := CASE 
+        WHEN p_categoria = 'Processo' THEN 6 
+        ELSE 3 
+    END;
+
+    -- Tenta pegar o menor número devolvido da fila (com lock SKIP LOCKED)
     SELECT numero_sequencial INTO v_seq
     FROM numeros_disponiveis
-    WHERE ano = p_ano AND categoria = p_categoria
-    ORDER BY LPAD(numero_sequencial, 10, '0')
+    WHERE ano = p_ano AND (
+        categoria = p_categoria OR 
+        (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND categoria IN ('Certidão Sem Defesa', 'Certidão'))
+    )
+    ORDER BY LPAD(numero_sequencial, 10, '0') ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED;
 
     IF v_seq IS NOT NULL THEN
-        DELETE FROM numeros_disponiveis WHERE numero_sequencial = v_seq AND ano = p_ano AND categoria = p_categoria;
-        RETURN p_ano::TEXT || '/' || v_seq;
+        DELETE FROM numeros_disponiveis 
+        WHERE ano = p_ano AND (
+            categoria = p_categoria OR 
+            (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND categoria IN ('Certidão Sem Defesa', 'Certidão'))
+        ) AND numero_sequencial = v_seq;
+        
+        RETURN p_ano::TEXT || '/' || LPAD(v_seq, v_tamanho_pad, '0');
     END IF;
 
+    -- Se não houver números reciclados, gera o próximo da sequência
     IF p_categoria = 'Processo' THEN
-        SELECT COALESCE(MAX(split_part(numero_processo, '/', 2)::INTEGER), 0) + 1 INTO v_prox
-        FROM processos
-        WHERE numero_processo LIKE p_ano::TEXT || '/%';
-    ELSIF p_categoria = 'Certidão Sem Defesa' THEN
-        SELECT COALESCE(MAX(split_part(numero_certidao, '/', 2)::INTEGER), 0) + 1 INTO v_prox
-        FROM notificacoes
-        WHERE numero_certidao LIKE p_ano::TEXT || '/%';
+        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_processo, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
+        INTO v_prox FROM processos WHERE numero_processo LIKE p_ano::TEXT || '/%';
+    ELSIF p_categoria = 'Relatório Fiscal' THEN
+        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_relatorio, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
+        INTO v_prox FROM processos WHERE numero_relatorio IS NOT NULL AND numero_relatorio LIKE p_ano::TEXT || '/%';
+    ELSIF p_categoria = 'Réplica' THEN
+        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
+        INTO v_prox FROM documentos WHERE tipo = 'Réplica' AND numero_sequencial LIKE p_ano::TEXT || '/%';
+    ELSIF p_categoria IN ('Certidão Sem Defesa', 'Certidão') THEN
+        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
+        INTO v_prox FROM documentos WHERE tipo IN ('Certidão', 'Certidão Sem Defesa') AND numero_sequencial LIKE p_ano::TEXT || '/%';
     ELSIF p_categoria = 'Auto de Infração' THEN
-        SELECT COALESCE(MAX(split_part(numero, '/', 2)::INTEGER), 0) + 1 INTO v_prox
-        FROM autos_infracao
-        WHERE numero LIKE p_ano::TEXT || '/%';
+        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
+        INTO v_prox FROM autos_infracao WHERE numero LIKE p_ano::TEXT || '/%';
     ELSE
-        v_prox := 1;
+        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
+        INTO v_prox FROM documentos WHERE tipo = p_categoria AND numero_sequencial LIKE p_ano::TEXT || '/%';
     END IF;
 
     RETURN p_ano::TEXT || '/' || LPAD(v_prox::TEXT, v_tamanho_pad, '0');

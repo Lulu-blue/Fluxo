@@ -1,2 +1,0 @@
-Tenho que fazer uma copia do site app divinopolis, nele tem um fluxo de processo de arquivos (Fluxo em Mermaind.txt) ou seja cada etapa que vai ser realizada com os documentos, dependendo doque permite avançar vai pular de etapas, e cada etapa equivale a uma tela, onde uma nova informação vai ser preenchida ou gerar algum novo documento. 
-Me ajude a montar cada etapa, irei trascrever oque deve ter em cada tela, e o principal é escrever um arquivo sql para gerarmos o banco de dados desse site com base no fluxo de trabalho que temos.

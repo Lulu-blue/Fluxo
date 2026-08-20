@@ -785,14 +785,7 @@
                             </div>
                         </div>
 
-                        <div class="form-group" style="margin-top:16px; margin-bottom: 8px;">
-                            <label
-                                style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; font-size: 0.85rem;">
-                                <input type="checkbox" id="relIncluirDataHora" checked
-                                    style="width: 16px; height: 16px; accent-color: var(--accent-color);">
-                                Incluir Data e Hora da Vistoria na introdução
-                            </label>
-                        </div>
+
                         <div class="form-group">
                             <label for="relTextoVistoria">Texto do Relatório (Descreva as transgressões)</label>
                             <textarea id="relTextoVistoria" class="form-input" rows="4"></textarea>
@@ -879,6 +872,14 @@
                     Voltar ao Formulário
                 </button>
                 <div style="flex:1;"></div>
+                <button class="btn-primary" id="btnSalvarRelatorio" style="margin-right: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                    Salvar Alterações
+                </button>
                 <button class="btn-primary btn-success" id="btnBaixarRelatorioPdf">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="6 9 6 2 18 2 18 9"></polyline>

@@ -130,38 +130,7 @@ function itemPertenceAoCargo(item, cargoAlvo) {
     }
 }
 
-function montarLinkEtapa(item, cargoFiltro) {
-    const notificacoes = obterNotificacoesProcesso(item);
-    const etapaNumero = calcularEtapaProcesso(item);
-
-    if (!notificacoes || notificacoes.length === 0) {
-        return `etapa.html?processo=${item.id}&etapa=${etapaNumero || item.etapas?.numero || 1}`;
-    }
-
-    let ativas = notificacoes.filter(n => n.status !== 'atendida');
-    if (ativas.length === 0) ativas = notificacoes;
-
-    if (cargoFiltro) {
-        const cargoNorm = normalizarCargo(cargoFiltro);
-        const etapasCargo = ETAPAS_POR_CARGO[cargoNorm] || [];
-        const notifDoCargo = ativas.find(n => etapasCargo.includes(numeroEtapaNotificacao(n)));
-        if (notifDoCargo) {
-            const notifId = notifDoCargo.id || notifDoCargo.notificacao_id;
-            return `etapa.html?processo=${item.id}${notifId ? `&notificacao=${notifId}` : ''}`;
-        }
-    }
-
-    const etapasAtivas = new Set(ativas.map(n => numeroEtapaNotificacao(n)));
-    if (etapasAtivas.size > 1) {
-        return `etapa.html?processo=${item.id}`;
-    }
-
-    const primeira = ativas[0];
-    if (primeira) {
-        const notifId = primeira.id || primeira.notificacao_id;
-        return `etapa.html?processo=${item.id}${notifId ? `&notificacao=${notifId}` : ''}`;
-    }
-
+function montarLinkEtapa(item) {
     return `etapa.html?processo=${item.id}`;
 }
 

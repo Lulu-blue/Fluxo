@@ -1165,7 +1165,7 @@
 
                         <div class="form-row" style="margin-top:20px;">
                             <div class="form-group fg-full">
-                                <label>Anexo do AR</label>
+                                <label>Anexo(s) do AR <span style="color:#dc2626; font-weight:600;">* (Obrigatório)</span></label>
                                 <div id="areaDropAR" class="drop-area-clean">
                                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64748b"
                                         stroke-width="1.8" style="margin-bottom:8px;">
@@ -1174,31 +1174,13 @@
                                         <line x1="12" y1="3" x2="12" y2="15" />
                                     </svg>
                                     <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique para
-                                        selecionar ou arraste o AR aqui</p>
+                                        selecionar ou arraste o(s) arquivo(s) do AR aqui</p>
                                     <p style="margin:4px 0 0 0; color:#64748b; font-size:0.82rem;">Formatos aceitos:
-                                        PDF, JPG, PNG (Máx. 10MB)</p>
-                                    <input type="file" id="inputArquivoAR" accept=".pdf,.jpg,.jpeg,.png"
+                                        PDF, JPG, PNG (Pode selecionar múltiplos arquivos)</p>
+                                    <input type="file" id="inputArquivoAR" accept=".pdf,.jpg,.jpeg,.png" multiple
                                         style="display:none;">
                                 </div>
-                                <div id="anexoARAtual" class="arquivo-anexado-box"
-                                    style="display:none; margin-top:12px;">
-                                    <div style="display:flex; align-items:center; gap:12px;">
-                                        <div style="font-size:1.4rem;">📎</div>
-                                        <div>
-                                            <div id="nomeArquivoAR"
-                                                style="font-weight:600; color:#0f172a; font-size:0.95rem;">ar.pdf</div>
-                                            <div style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com
-                                                sucesso</div>
-                                        </div>
-                                    </div>
-                                    <div style="display:flex; gap:8px;">
-                                        <a id="btnVerAnexoAR" href="#" target="_blank"
-                                            style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
-                                        <button id="btnRemoverAnexoAR"
-                                            style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir
-                                            / Remover</button>
-                                    </div>
-                                </div>
+                                <div id="listaAnexosARContainer" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
                             </div>
                         </div>
 
@@ -1488,6 +1470,7 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="assets/js/supabase-config.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="assets/js/brasao-base64.js"></script>
