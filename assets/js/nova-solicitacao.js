@@ -12,6 +12,12 @@ window.relatorioCustomizadoHTML = null;
 const BRASAO_PREFEITURA_BASE64 = "assets/img/brasao_semac.jpeg";
 let relatorioEditorAberto = false;
 let numerosReservadosEditor = { processo: null, relatorio: null };
+let bicArquivoAnexado = null;
+
+// Configurar Worker do PDF.js se disponível
+if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 // ── Helper: converter arquivo para Base64 ───────────────────
 function fileToBase64(file) {
@@ -38,6 +44,7 @@ function abrirModal() {
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
     currentWizardStep = 1;
+    carregarOpcoesDecreto();
     atualizarWizard();
     carregarDadosFiscal();
 }
@@ -46,6 +53,98 @@ function fecharModal() {
     const modal = document.getElementById('modalNovaSolicitacao');
     modal.classList.remove('open');
     document.body.style.overflow = '';
+    bicArquivoAnexado = null;
+}
+
+// ── Gerenciamento Dinâmico de Decretos ───────────────────────
+let cacheDecretos = [];
+
+async function carregarOpcoesDecreto(valorSelecionado = '') {
+    const select = document.getElementById('fiscNumeroDecreto');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Carregando decretos...</option>';
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('decretos')
+            .select('id, numero, data_decreto')
+            .order('created_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+            cacheDecretos = data;
+        } else {
+            cacheDecretos = [
+                { id: 'default_17326', numero: '17.326/2026', data_decreto: '2026-07-02', nome_arquivo: 'Decreto 17.326-26.pdf' }
+            ];
+        }
+    } catch (e) {
+        console.warn('Erro ao carregar decretos do Supabase:', e);
+        cacheDecretos = [
+            { id: 'default_17326', numero: '17.326/2026', data_decreto: '2026-07-02', nome_arquivo: 'Decreto 17.326-26.pdf' }
+        ];
+    }
+
+    const valAtual = valorSelecionado || select.value;
+    select.innerHTML = '<option value="">Selecione o decreto...</option>';
+
+    cacheDecretos.forEach(dec => {
+        const opt = document.createElement('option');
+        opt.value = dec.id;
+        
+        let dataFmt = '';
+        if (dec.data_decreto) {
+            const parts = dec.data_decreto.split('-');
+            dataFmt = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dec.data_decreto;
+        }
+        opt.textContent = `${dec.numero}${dataFmt ? ' (' + dataFmt + ')' : ''}`;
+        
+        if (String(dec.id) === String(valAtual) || dec.numero === valAtual) opt.selected = true;
+        select.appendChild(opt);
+    });
+
+    const optOutro = document.createElement('option');
+    optOutro.value = 'outro';
+    optOutro.textContent = 'Outro...';
+    if (valAtual === 'outro') optOutro.selected = true;
+    select.appendChild(optOutro);
+}
+
+function obterNumeroDecretoSelecionado() {
+    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
+    if (!decretoSim) return null;
+
+    const sel = document.getElementById('fiscNumeroDecreto')?.value;
+    if (!sel) return null;
+
+    if (sel === 'outro') {
+        return document.getElementById('fiscNumeroDecretoOutro')?.value?.trim() || null;
+    }
+    const dec = cacheDecretos.find(d => String(d.id) === String(sel) || d.numero === sel);
+    return dec ? dec.numero : sel;
+}
+
+function obterDataDecretoSelecionada() {
+    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
+    if (!decretoSim) return null;
+
+    const sel = document.getElementById('fiscNumeroDecreto')?.value;
+    if (!sel) return null;
+
+    if (sel === 'outro') {
+        return document.getElementById('fiscDataDecretoOutro')?.value?.trim() || null;
+    }
+    const dec = cacheDecretos.find(d => String(d.id) === String(sel) || d.numero === sel);
+    return dec ? dec.data_decreto : null;
+}
+
+function obterDecretoIdSelecionado() {
+    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
+    if (!decretoSim) return null;
+
+    const sel = document.getElementById('fiscNumeroDecreto')?.value;
+    if (!sel || sel === 'outro') return null;
+    return sel;
 }
 
 // ── Carregar dados do fiscal logado ─────────────────────────
@@ -196,6 +295,12 @@ function voltarStep() {
 function validarStep(step) {
     switch (step) {
         case 1: {
+            if (!bicArquivoAnexado) {
+                alert('O anexo do Espelho Cadastral (BIC) em PDF é obrigatório.');
+                const areaBic = document.getElementById('uploadAreaBic') || document.getElementById('bicFileInfo');
+                if (areaBic) areaBic.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return false;
+            }
             const obrigatoriosContribuinte = [
                 { id: 'contNome', nome: 'Nome do Contribuinte' },
                 { id: 'contCpfCnpj', nome: 'CPF/CNPJ do Contribuinte' },
@@ -241,7 +346,7 @@ function validarStep(step) {
                 return false;
             }
 
-            const decreto = document.getElementById('fiscDecreto').value;
+            const decreto = document.getElementById('fiscDecreto')?.value;
             if (!decreto) {
                 alert('Informe se é decorrente de Decreto de Notificação.');
                 document.getElementById('fiscDecreto')?.focus();
@@ -249,11 +354,34 @@ function validarStep(step) {
             }
 
             if (decreto === 'sim') {
-                const arquivoDecreto = document.getElementById('inputDecreto')?.files?.[0];
-                const nomeDecreto = document.getElementById('decretoFileName')?.textContent?.trim();
-                if (!arquivoDecreto && !nomeDecreto) {
-                    alert('Anexe o arquivo do Decreto de Notificação.');
+                const numDecretoSel = document.getElementById('fiscNumeroDecreto')?.value;
+                if (!numDecretoSel) {
+                    alert('Selecione o Número do Decreto.');
+                    document.getElementById('fiscNumeroDecreto')?.focus();
                     return false;
+                }
+
+                if (numDecretoSel === 'outro') {
+                    const numDecretoOutro = document.getElementById('fiscNumeroDecretoOutro')?.value?.trim();
+                    if (!numDecretoOutro) {
+                        alert('Informe o Número do Decreto no campo "Outro".');
+                        document.getElementById('fiscNumeroDecretoOutro')?.focus();
+                        return false;
+                    }
+
+                    const dataDecretoOutro = document.getElementById('fiscDataDecretoOutro')?.value?.trim();
+                    if (!dataDecretoOutro) {
+                        alert('Informe a Data do Novo Decreto.');
+                        document.getElementById('fiscDataDecretoOutro')?.focus();
+                        return false;
+                    }
+
+                    const fileDecreto = document.getElementById('inputDecreto')?.files?.[0];
+                    if (!fileDecreto) {
+                        alert('O anexo do Novo Decreto (PDF/Doc) é obrigatório.');
+                        document.getElementById('inputDecreto')?.focus();
+                        return false;
+                    }
                 }
             }
 
@@ -437,35 +565,119 @@ async function finalizarSolicitacao() {
             .maybeSingle();
         if (etapa1) etapaId = etapa1.id;
 
+        // 4.5 Converter BIC para Base64 antes de gravar o processo
+        let bicObjetoSalvar = null;
+        if (bicArquivoAnexado) {
+            try {
+                const bicBase64 = await fileToBase64(bicArquivoAnexado);
+                bicObjetoSalvar = {
+                    nome: bicArquivoAnexado.name,
+                    tipo: bicArquivoAnexado.type || 'application/pdf',
+                    dataUrl: bicBase64,
+                    data_upload: new Date().toISOString()
+                };
+            } catch (eBic) {
+                console.warn('Erro ao converter arquivo BIC para base64:', eBic);
+            }
+        }
+
+        // 4.6 Tratar Decreto de Notificação e salvar novo se for "Outro..."
+        let decretoIdFinal = null;
+        if (dados.fiscal.decreto === 'sim') {
+            const selVal = document.getElementById('fiscNumeroDecreto')?.value;
+            if (selVal === 'outro') {
+                const numOutro = document.getElementById('fiscNumeroDecretoOutro')?.value?.trim();
+                const dataOutro = document.getElementById('fiscDataDecretoOutro')?.value?.trim();
+                const fileDecreto = document.getElementById('inputDecreto')?.files?.[0];
+
+                let base64Decreto = null;
+                if (fileDecreto) {
+                    try {
+                        base64Decreto = await fileToBase64(fileDecreto);
+                    } catch (e) { console.warn('Erro ao ler arquivo do decreto:', e); }
+                }
+
+                try {
+                    const { data: decCriado, error: errDec } = await supabaseClient
+                        .from('decretos')
+                        .insert([{
+                            numero: numOutro,
+                            data_decreto: dataOutro,
+                            arquivo_url: base64Decreto,
+                            nome_arquivo: fileDecreto ? fileDecreto.name : null
+                        }])
+                        .select()
+                        .single();
+
+                    if (!errDec && decCriado) {
+                        decretoIdFinal = decCriado.id;
+                    }
+                } catch (eDecIns) {
+                    console.warn('Erro ao salvar novo decreto no banco de dados:', eDecIns);
+                }
+            } else if (selVal && selVal !== 'default_17326') {
+                decretoIdFinal = selVal;
+            }
+        }
+
         // 5. Inserir processo em 'processos' com verificação automática de colisão
         const novoProcessoObj = {
             fiscal_id: profileId,
             etapa_atual_id: etapaId,
             status: 'em_aberto',
             possui_decreto: dados.fiscal.decreto === 'sim',
+            decreto_id: decretoIdFinal,
             processo_existente: dados.infracoes.processo_existente === 'sim',
             processo_existente_ref: dados.infracoes.processo_ref || null,
             data_vistoria: dados.fiscal.data_vistoria || null,
             descricao_fiscalizacao: dados.fiscal.descricao || null,
+            documento_bic: bicObjetoSalvar ? bicObjetoSalvar.dataUrl : null,
             dados: {
                 contribuinte: dados.contribuinte,
                 imovel: dados.imovel,
-                fiscal: dados.fiscal,
+                fiscal: {
+                    ...dados.fiscal,
+                    decreto_id: decretoIdFinal
+                },
                 infracoes: dados.infracoes,
-                relatorio_fiscal: dados.relatorio_fiscal
+                relatorio_fiscal: dados.relatorio_fiscal,
+                documento_bic: bicObjetoSalvar,
+                anexos: {
+                    bic_espelho_cadastral: bicObjetoSalvar
+                }
             },
             numero_relatorio: numeroRelatorio
         };
 
         novoProcessoObj.numero_processo = numeroProcesso;
 
-        const { data: procCriado, error: errProc } = await supabaseClient
+        let procCriado = null;
+        let errProc = null;
+
+        const resIns = await supabaseClient
             .from('processos')
             .insert([novoProcessoObj])
             .select()
             .single();
 
-        if (errProc) {
+        procCriado = resIns.data;
+        errProc = resIns.error;
+
+        // Se a coluna 'documento_bic' ou 'decreto_id' não existir na tabela 'processos' do Supabase, tenta a gravação sem as colunas raiz
+        if (errProc && errProc.message && (errProc.message.includes('documento_bic') || errProc.message.includes('decreto_id') || errProc.code === 'PGRST204')) {
+            console.warn('Coluna de chave direta não encontrada no schema da tabela processos. Gravando no objeto JSONB dados...');
+            delete novoProcessoObj.documento_bic;
+            delete novoProcessoObj.decreto_id;
+            const resRetry = await supabaseClient
+                .from('processos')
+                .insert([novoProcessoObj])
+                .select()
+                .single();
+            procCriado = resRetry.data;
+            errProc = resRetry.error;
+        }
+
+        if (errProc || !procCriado) {
             console.error('Erro ao inserir processo:', errProc);
             // Devolve os números para a fila caso a inserção falhe
             await supabaseClient.rpc('devolver_numero', { p_numero: numeroProcesso, p_categoria: 'Processo' });
@@ -486,6 +698,23 @@ async function finalizarSolicitacao() {
             }]);
         } catch (errDoc) {
             console.error('Erro ao registrar relatório na tabela documentos:', errDoc);
+        }
+
+        // Registrar também o documento BIC na tabela centralizada documentos
+        if (bicObjetoSalvar && procCriado) {
+            try {
+                await supabaseClient.from('documentos').insert([{
+                    processo_id: procCriado.id,
+                    etapa_id: etapaId,
+                    tipo: 'BIC Espelho Cadastral',
+                    nome_arquivo: bicObjetoSalvar.nome,
+                    url: bicObjetoSalvar.dataUrl,
+                    gerado_automaticamente: false,
+                    usuario_id: profileId
+                }]);
+            } catch (errDocBic) {
+                console.warn('Erro ao registrar BIC na tabela documentos:', errDocBic);
+            }
         }
 
         // 6. Inserir registro em 'contribuintes' apenas se ainda não existir
@@ -683,6 +912,32 @@ async function finalizarSolicitacao() {
             }
         }
 
+        // Anexo BIC (PDF Espelho Cadastral)
+        if (bicArquivoAnexado) {
+            try {
+                const bicBase64 = await fileToBase64(bicArquivoAnexado);
+                anexosParaSalvar.bic_espelho_cadastral = {
+                    nome: bicArquivoAnexado.name,
+                    tipo: bicArquivoAnexado.type || 'application/pdf',
+                    dataUrl: bicBase64,
+                    data_upload: new Date().toISOString()
+                };
+
+                // Registrar também na tabela centralizada 'documentos'
+                await supabaseClient.from('documentos').insert([{
+                    processo_id: procCriado.id,
+                    etapa_id: etapaId,
+                    tipo: 'BIC Espelho Cadastral',
+                    nome_arquivo: bicArquivoAnexado.name,
+                    url: bicBase64,
+                    gerado_automaticamente: false,
+                    usuario_id: profileId
+                }]);
+            } catch (eBic) {
+                console.warn('Erro ao salvar anexo BIC no banco:', eBic);
+            }
+        }
+
         // Gravar anexos no banco se houver algum
         if (Object.keys(anexosParaSalvar).length > 0) {
             const dadosAtual = procCriado.dados || {};
@@ -816,6 +1071,7 @@ function coletarTodosDados() {
             data_vistoria: document.getElementById('fiscDataVistoria').value,
             descricao: document.getElementById('fiscDescricao').value,
             decreto: document.getElementById('fiscDecreto').value,
+            numero_decreto: obterNumeroDecretoSelecionado(),
         },
         infracoes: {
             reincidente: document.getElementById('infReincidente').value,
@@ -1303,11 +1559,38 @@ function bindWizardEventos() {
         });
     }
 
-    // Decreto — mostrar/esconder anexo
-    document.getElementById('fiscDecreto').addEventListener('change', (e) => {
-        document.getElementById('decretoAnexoArea').style.display =
-            e.target.value === 'sim' ? 'block' : 'none';
-    });
+    // Decreto — mostrar/esconder campo e gerenciar opções do decreto
+    const elFiscDecreto = document.getElementById('fiscDecreto');
+    if (elFiscDecreto) {
+        elFiscDecreto.addEventListener('change', (e) => {
+            const sim = e.target.value === 'sim';
+            const areaDecreto = document.getElementById('decretoAnexoArea');
+            if (areaDecreto) areaDecreto.style.display = sim ? 'block' : 'none';
+            if (sim) {
+                carregarOpcoesDecreto();
+                const elNumDecreto = document.getElementById('fiscNumeroDecreto');
+                const elGroupOutro = document.getElementById('decretoOutroGroup');
+                if (elNumDecreto && elGroupOutro) {
+                    elGroupOutro.style.display = elNumDecreto.value === 'outro' ? 'block' : 'none';
+                }
+            }
+        });
+    }
+
+    const elNumDecreto = document.getElementById('fiscNumeroDecreto');
+    if (elNumDecreto) {
+        elNumDecreto.addEventListener('change', (e) => {
+            const groupOutro = document.getElementById('decretoOutroGroup');
+            const inputOutro = document.getElementById('fiscNumeroDecretoOutro');
+            if (e.target.value === 'outro') {
+                if (groupOutro) groupOutro.style.display = 'block';
+                if (inputOutro) inputOutro.focus();
+            } else {
+                if (groupOutro) groupOutro.style.display = 'none';
+                if (inputOutro) inputOutro.value = '';
+            }
+        });
+    }
 
     // Processo existente — mostrar/esconder campo
     document.getElementById('infProcessoExistente').addEventListener('change', (e) => {
@@ -1368,20 +1651,79 @@ function bindWizardEventos() {
         document.getElementById('uploadAreaBetha').style.display = 'flex';
     });
 
+    // Upload BIC (Espelho Cadastral PDF) — Drag & Drop + Seleção de Arquivo
+    const dropAreaBic = document.getElementById('uploadAreaBic');
+    const fileInputBic = document.getElementById('inputBic');
+
+    if (dropAreaBic && fileInputBic) {
+        dropAreaBic.addEventListener('click', (e) => {
+            if (e.target !== fileInputBic && e.target.tagName !== 'LABEL') {
+                fileInputBic.click();
+            }
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropAreaBic.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropAreaBic.classList.add('drag-active');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropAreaBic.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropAreaBic.classList.remove('drag-active');
+            }, false);
+        });
+
+        dropAreaBic.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            if (file) handleArquivoBic(file);
+        });
+
+        fileInputBic.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleArquivoBic(file);
+        });
+    }
+
+    const btnRemoveBic = document.getElementById('btnRemoveBic');
+    if (btnRemoveBic) {
+        btnRemoveBic.addEventListener('click', () => {
+            if (fileInputBic) fileInputBic.value = '';
+            bicArquivoAnexado = null;
+            const infoEl = document.getElementById('bicFileInfo');
+            if (infoEl) infoEl.style.display = 'none';
+            const dropEl = document.getElementById('uploadAreaBic');
+            if (dropEl) dropEl.style.display = 'flex';
+            const feedbackEl = document.getElementById('bicFeedback');
+            if (feedbackEl) { feedbackEl.textContent = ''; feedbackEl.className = 'field-feedback'; }
+        });
+    }
+
     // Upload Imagens vistoria (removido, imagens agora são inseridas no passo 5)
 
-    // Upload Decreto
-    document.getElementById('inputDecreto').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            document.getElementById('decretoFileName').textContent = file.name;
-            document.getElementById('decretoFileInfo').style.display = 'flex';
-        }
-    });
-    if (document.getElementById('btnRemoveDecreto')) {
-        document.getElementById('btnRemoveDecreto').addEventListener('click', () => {
-            document.getElementById('inputDecreto').value = '';
-            document.getElementById('decretoFileInfo').style.display = 'none';
+    // Upload Decreto (legado/opcional)
+    const elInputDecreto = document.getElementById('inputDecreto');
+    if (elInputDecreto) {
+        elInputDecreto.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const nameEl = document.getElementById('decretoFileName');
+                if (nameEl) nameEl.textContent = file.name;
+                const infoEl = document.getElementById('decretoFileInfo');
+                if (infoEl) infoEl.style.display = 'flex';
+            }
+        });
+    }
+    const elBtnRemoveDecreto = document.getElementById('btnRemoveDecreto');
+    if (elBtnRemoveDecreto) {
+        elBtnRemoveDecreto.addEventListener('click', () => {
+            if (elInputDecreto) elInputDecreto.value = '';
+            const infoEl = document.getElementById('decretoFileInfo');
+            if (infoEl) infoEl.style.display = 'none';
         });
     }
 
@@ -1614,6 +1956,234 @@ async function buscarImovelNoBanco(silencioso = false) {
 }
 
 
+
+// ── Extração de texto de PDF usando PDF.js ──────────────────────
+async function extrairTextoPdf(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdfDoc = await loadingTask.promise;
+    let textoCompleto = '';
+
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const textoPagina = textContent.items.map(item => item.str).join('\n');
+        textoCompleto += textoPagina + '\n';
+    }
+    return textoCompleto;
+}
+
+function extrairDadosEspelhoCadastral(textoCompleto) {
+    const dados = {};
+    const linhas = textoCompleto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    console.log('=== BIC PDF TEXTO COMPLETO ===\n', textoCompleto);
+
+    // 1. CNPJ / CPF
+    const cnpjM = textoCompleto.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}\b/) || textoCompleto.match(/\b\d{3}\.\d{3}\.\d{3}\-\d{2}\b/);
+    if (cnpjM) dados.responsavel_cnpj = cnpjM[0];
+
+    // 2. Inscrição Imobiliária
+    const inscM = textoCompleto.match(/\b\d{2}\.\d{3}\.\d{5}\.\d{5}\.\d{5}\.\d\b/);
+    if (inscM) dados.inscricao_imobiliaria = inscM[0];
+
+    // 3. Código do Imóvel (5 dígitos, ex: 58843 — ignora CEP 35... e complementos 00...)
+    const cods = textoCompleto.match(/\b\d{5}\b/g) || [];
+    for (const c of cods) {
+        if (!c.startsWith('35') && !c.startsWith('00')) {
+            dados.codigo_imovel = c;
+            break;
+        }
+    }
+
+    // 4. Nome do Responsável (Contribuinte)
+    for (const line of linhas) {
+        if (/\b(?:LTDA|S\/A|EIRELI|MEI|EPP|IMOVEIS|IMÓVEIS|CONSTRUTORA|EMPREENDIMENTOS|COMERCIO|COMÉRCIO)\b/i.test(line)) {
+            if (!/PREFEITURA|ESTADO|GOVERNO/i.test(line)) {
+                dados.responsavel_nome = line;
+                break;
+            }
+        }
+    }
+
+    // Fallback para Nome: se não encontrou empresa
+    if (!dados.responsavel_nome) {
+        const nomeIdx = linhas.findIndex(l => /^Nome:/i.test(l));
+        if (nomeIdx >= 0 && nomeIdx < linhas.length - 1) {
+            for (let i = nomeIdx + 1; i < Math.min(linhas.length, nomeIdx + 5); i++) {
+                const l = linhas[i];
+                if (!l.endsWith(':') && !/Endereço|CNPJ|CPF|RESPONSÁVEL/i.test(l)) {
+                    dados.responsavel_nome = l;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 5. CEPs no documento
+    const ceps = (textoCompleto.match(/\b\d{5}\-\d{3}\b/g) || []);
+    dados.cep_responsavel = ceps[0] || null;
+    dados.cep_imovel = ceps[1] || ceps[0] || null;
+
+    // 6. Endereços (Ruas)
+    const ruas = linhas.filter(l => /^(?:Rua|Av|Avenida|Alameda|Praça|Rodovia|Servidão|Viela)\b/i.test(l));
+    
+    // Endereço do Contribuinte
+    let endRespLine = ruas.find(r => /CENTRO|MINAS/i.test(r)) || ruas[0] || '';
+    const idxResp = linhas.indexOf(endRespLine);
+    if (idxResp >= 0 && idxResp < linhas.length - 1) {
+        if (linhas[idxResp + 1].startsWith('-') || /\d{5}\-\d{3}/.test(linhas[idxResp + 1])) {
+            endRespLine += ' ' + linhas[idxResp + 1];
+        }
+    }
+    dados.endereco_responsavel = endRespLine;
+
+    // Endereço do Imóvel
+    let endImvLine = ruas.find(r => r !== endRespLine && /CATALUNHA|PARAISO/i.test(r)) || ruas.find(r => r !== endRespLine) || ruas[0] || '';
+    dados.endereco_imovel = endImvLine;
+
+    // 7. Métricas do Imóvel
+    const areaM = textoCompleto.match(/Area Total do Terreno:[\s\n]*([\d\.,]+)/i);
+    if (areaM) dados.area_total_terreno_m2 = areaM[1];
+
+    const profM = textoCompleto.match(/Profundidade:[\s\n]*([\d\.,]+)/i);
+    if (profM) dados.profundidade = profM[1];
+
+    console.log('=== BIC DADOS EXTRAÍDOS FINAL ===', dados);
+    return dados;
+}
+
+// ── Manipulador de upload do BIC (PDF) ──────────────────────
+async function handleArquivoBic(file) {
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+        alert('Por favor, selecione um arquivo PDF do Espelho Cadastral (BIC).');
+        return;
+    }
+
+    const nameEl = document.getElementById('bicFileName');
+    if (nameEl) nameEl.textContent = file.name;
+    const infoEl = document.getElementById('bicFileInfo');
+    if (infoEl) infoEl.style.display = 'flex';
+    const dropEl = document.getElementById('uploadAreaBic');
+    if (dropEl) dropEl.style.display = 'none';
+
+    mostrarFeedback('bicFeedback', 'Lendo arquivo PDF do Espelho Cadastral...', 'info');
+
+    try {
+        const textoCompleto = await extrairTextoPdf(file);
+        const dadosExt = extrairDadosEspelhoCadastral(textoCompleto);
+
+        bicArquivoAnexado = file;
+
+        // Helper para preencher o campo do formulário apenas se estiver vazio
+        function preencherSeVazio(id, valor) {
+            if (valor === undefined || valor === null || valor === '') return;
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (!el.value || el.value.trim() === '') {
+                el.value = valor;
+            }
+        }
+
+        const temPlanilhaBetha = typeof bathaArquivoAnexado !== 'undefined' && bathaArquivoAnexado !== null;
+
+        // ── 1. DADOS DO CONTRIBUINTE (Passo 1) ──────────────────────
+        preencherSeVazio('contNome', dadosExt.responsavel_nome);
+        preencherSeVazio('contCpfCnpj', dadosExt.responsavel_cnpj);
+        preencherSeVazio('contCep', dadosExt.cep_responsavel);
+
+        if (dadosExt.endereco_responsavel) {
+            const raw = dadosExt.endereco_responsavel;
+
+            const pRuaNum = raw.split(' - ')[0] || raw;
+            if (pRuaNum.includes(',')) {
+                const parts = pRuaNum.split(',');
+                preencherSeVazio('contLogradouro', parts[0].trim());
+                preencherSeVazio('contNumero', parts[1].trim());
+            } else {
+                preencherSeVazio('contLogradouro', pRuaNum.trim());
+            }
+
+            if (raw.includes(' - ')) {
+                const parts = raw.split(' - ');
+                if (parts.length >= 2) {
+                    const bairroClean = parts[1].split(',')[0].trim();
+                    preencherSeVazio('contBairro', bairroClean);
+                }
+            }
+
+            preencherSeVazio('contMunicipio', 'Divinópolis');
+        }
+
+        // ── 2. DADOS DO IMÓVEL (Passo 2) ──────────────────────────
+        preencherSeVazio('imvCodigo', dadosExt.codigo_imovel);
+
+        if (dadosExt.inscricao_imobiliaria) {
+            const elInsc = document.getElementById('imvInscricao');
+            if (elInsc) {
+                if (!elInsc.value || elInsc.value.trim() === '') {
+                    elInsc.value = dadosExt.inscricao_imobiliaria;
+                    if (typeof decomporInscricao === 'function') {
+                        decomporInscricao(dadosExt.inscricao_imobiliaria);
+                    }
+                }
+            }
+        }
+
+        if (dadosExt.endereco_imovel) {
+            const rawImv = dadosExt.endereco_imovel;
+            
+            if (rawImv.includes(',')) {
+                const parts = rawImv.split(',');
+                preencherSeVazio('imvLogradouro', parts[0].trim());
+
+                const rest = parts[1].trim();
+                const numM = rest.match(/^(\d+)/);
+                if (numM) {
+                    preencherSeVazio('imvNumero', numM[1]);
+                }
+            }
+
+            if (rawImv.includes(' - ')) {
+                const partsB = rawImv.split(' - ');
+                if (partsB.length >= 2) {
+                    const bairroVal = partsB[1].split('-')[0].trim();
+                    preencherSeVazio('imvBairro', bairroVal);
+                }
+            }
+        }
+
+        if (dadosExt.area_total_terreno_m2) {
+            const valNum = parseFloat(dadosExt.area_total_terreno_m2.replace('.', '').replace(',', '.'));
+            if (!isNaN(valNum)) preencherSeVazio('imvAreaTotal', valNum);
+        }
+
+        if (dadosExt.profundidade) {
+            const valProf = parseFloat(dadosExt.profundidade.replace('.', '').replace(',', '.'));
+            if (!isNaN(valProf)) preencherSeVazio('imvProfundidade', valProf);
+        }
+
+        const elAreaVal = parseFloat(document.getElementById('imvAreaTotal')?.value) || 0;
+        const elProfVal = parseFloat(document.getElementById('imvProfundidade')?.value) || 0;
+        if (elAreaVal > 0 && elProfVal > 0) {
+            const elTest = document.getElementById('imvTestada');
+            if (elTest && (!elTest.value || elTest.value.trim() === '')) {
+                elTest.value = (elAreaVal / elProfVal).toFixed(2);
+            }
+        }
+
+        if (temPlanilhaBetha) {
+            mostrarFeedback('bicFeedback', '✓ BIC (PDF) anexado com sucesso! (Dados da Planilha Betha mantidos)', 'success');
+        } else {
+            mostrarFeedback('bicFeedback', '✓ Dados do contribuinte e imóvel importados do BIC com sucesso!', 'success');
+        }
+    } catch (err) {
+        console.error('Erro ao ler PDF do BIC:', err);
+        mostrarFeedback('bicFeedback', 'Erro ao ler arquivo PDF do BIC: ' + err.message, 'error');
+    }
+}
 
 // ── Manipulador de importação de arquivo (Drag & Drop ou Clique) ──
 async function handleArquivoAnexo(file) {

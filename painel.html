@@ -451,6 +451,27 @@
                             <button class="btn-remove-file" id="btnRemoveBetha" title="Remover">✕</button>
                         </div>
                     </div>
+                    <!-- Anexo BIC - Espelho Cadastral (PDF) -->
+                    <div class="step-section" style="margin-top: 16px;">
+                        <h3>Anexo BIC - Espelho Cadastral de Imóveis (PDF) <span class="required">*</span></h3>
+                        <p class="step-desc">Importe o arquivo PDF do Espelho Cadastral (BIC) para preencher automaticamente os dados do contribuinte e do imóvel.</p>
+                        <div class="upload-area" id="uploadAreaBic">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="12" y1="18" x2="12" y2="12" />
+                                <line x1="9" y1="15" x2="15" y2="15" />
+                            </svg>
+                            <p>Arraste o arquivo PDF aqui ou <label for="inputBic" class="upload-link">clique para selecionar</label></p>
+                            <small>Formato aceito: .pdf (BIC - Espelho Cadastral)</small>
+                            <input type="file" id="inputBic" accept=".pdf" hidden>
+                        </div>
+                        <div class="upload-file-info" id="bicFileInfo" style="display:none;">
+                            <span class="file-name" id="bicFileName"></span>
+                            <button type="button" class="btn-remove-file" id="btnRemoveBic" title="Remover">✕</button>
+                        </div>
+                        <div id="bicFeedback" class="field-feedback"></div>
+                    </div>
                     <div class="step-section">
                         <h3>Dados do Contribuinte</h3>
                         <p class="step-desc">Informações do contribuinte conforme o modelo da Notificação Preliminar.
@@ -616,23 +637,32 @@
                                 </select>
                             </div>
                         </div>
-                        <div id="decretoAnexoArea" style="display:none;">
+                        <div id="decretoAnexoArea" style="display:none; margin-top: 12px;">
                             <div class="form-row">
-                                <div class="form-group fg-full">
-                                    <label>Anexo do Decreto de Notificação</label>
-                                    <div class="upload-area upload-area-sm" id="uploadAreaDecreto">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
-                                            stroke-width="1.5">
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                            <polyline points="14 2 14 8 20 8" />
-                                        </svg>
-                                        <p><label for="inputDecreto" class="upload-link">Selecionar arquivo do
-                                                decreto</label></p>
-                                        <input type="file" id="inputDecreto" accept=".pdf,.doc,.docx,.jpg,.png" hidden>
+                                <div class="form-group fg-medium">
+                                    <label for="fiscNumeroDecreto">Selecione o Decreto <span class="required">*</span></label>
+                                    <select id="fiscNumeroDecreto">
+                                        <option value="">Carregando decretos...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <!-- Área exibida apenas quando o usuário selecionar "Outro..." -->
+                            <div id="decretoOutroGroup" style="display:none; margin-top: 8px; border-top: 1px dashed var(--border-color, #e2e8f0); padding-top: 12px;">
+                                <div class="form-row">
+                                    <div class="form-group fg-medium">
+                                        <label for="fiscNumeroDecretoOutro">Número do Novo Decreto <span class="required">*</span></label>
+                                        <input type="text" id="fiscNumeroDecretoOutro" placeholder="Ex: 18.000/2026">
                                     </div>
-                                    <div class="upload-file-info" id="decretoFileInfo" style="display:none;">
-                                        <span class="file-name" id="decretoFileName"></span>
-                                        <button class="btn-remove-file" id="btnRemoveDecreto">✕</button>
+                                    <div class="form-group fg-medium">
+                                        <label for="fiscDataDecretoOutro">Data do Decreto <span class="required">*</span></label>
+                                        <input type="date" id="fiscDataDecretoOutro">
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-top: 8px;">
+                                    <div class="form-group fg-large">
+                                        <label for="inputDecreto">Anexo do Decreto (PDF/Doc) <span class="required">*</span></label>
+                                        <input type="file" id="inputDecreto" accept=".pdf,.doc,.docx">
+                                        <div id="decretoFileFeedback" class="field-feedback"></div>
                                     </div>
                                 </div>
                             </div>
@@ -865,6 +895,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="assets/js/supabase-config.js"></script>
     <script src="assets/js/solicitacoes.js"></script>
     <script src="assets/js/nova-solicitacao.js"></script>

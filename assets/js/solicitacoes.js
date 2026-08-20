@@ -295,7 +295,8 @@ async function verificarSessao() {
 }
 
 // ── Carregar solicitações com filtros ────────────────────────
-async function carregarSolicitacoes() {
+// ── Carregar solicitações com filtros (com retry automático) ──
+async function carregarSolicitacoes(tentativa = 1) {
     mostrarLoading(true);
 
     try {
@@ -373,12 +374,19 @@ async function carregarSolicitacoes() {
         setTimeout(() => { if (window.atualizarInterfaceNotificacoesPainel) window.atualizarInterfaceNotificacoesPainel(); }, 150);
 
     } catch (err) {
-        console.error('Erro ao carregar solicitações:', err);
-        resultsCount.textContent = 'Erro ao carregar dados';
+        console.error(`Erro ao carregar solicitações (tentativa ${tentativa}):`, err);
+        if (tentativa < 3) {
+            console.log(`Re-tentando carregar solicitações em 1.5s (tentativa ${tentativa + 1})...`);
+            setTimeout(() => carregarSolicitacoes(tentativa + 1), 1500);
+            return;
+        }
+        if (resultsCount) {
+            resultsCount.innerHTML = `Erro ao carregar dados. <a href="#" onclick="carregarSolicitacoes(1); return false;" style="color:#2563eb; text-decoration:underline; font-weight:600; margin-left:6px;">Tentar novamente</a>`;
+        }
         renderizarTabela([]);
+    } finally {
+        mostrarLoading(false);
     }
-
-    mostrarLoading(false);
 }
 
 // ── Renderizar tabela ───────────────────────────────────────
