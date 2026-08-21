@@ -1263,6 +1263,9 @@ function renderizarFormularioDinamico(etapaNum) {
         const matriculaFiscal = processoAtual?.fiscal_matricula || fiscObj.matricula || perfilAtual?.matricula || '99044459-2';
         const dataHoje = new Date().toLocaleDateString('pt-BR');
 
+        const cargoLogado = normalizarCargo(perfilAtual?.cargo);
+        const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:28px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
                 <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding-bottom:16px; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
@@ -1301,6 +1304,20 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                 </div>
 
+                <!-- Card de Anexo da Multa (Obrigatório para o Gerente) -->
+                <div id="cardMultaEtapa15" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                        <h3 style="margin:0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
+                            <span>💰 Anexo do Documento da Multa</span>
+                            <span style="color:#ef4444; font-size:0.9rem;">* (Obrigatório para Avançar)</span>
+                        </h3>
+                        ${!ehGerente ? '<span style="background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem; padding:4px 12px; border-radius:20px;">🔒 Restrito ao Gerente</span>' : ''}
+                    </div>
+                    <div id="cardMultaEtapa15Container">
+                        <div style="color:#64748b; font-size:0.9rem;">Carregando documento da multa...</div>
+                    </div>
+                </div>
+
                 <!-- Painel de Gerenciamento do PDF Unificado -->
                 <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
@@ -1324,7 +1341,7 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px;">
                     <span>ℹ️</span>
-                    <span>Ao clicar em <strong>"Avançar Etapa"</strong>, o processo com a multa gerada será concluído.</span>
+                    <span>Ao anexar a Multa e clicar em <strong>"Avançar Etapa"</strong>, o processo administrativo será finalizado.</span>
                 </div>
             </div>
         `;
@@ -1491,6 +1508,12 @@ function renderizarFormularioDinamico(etapaNum) {
                 if (typeof window.carregarEExibirAnexoCertidaoAssinada === 'function') window.carregarEExibirAnexoCertidaoAssinada();
             }
         }, 150);
+    }
+
+    if (etapaNum === 15) {
+        setTimeout(() => {
+            if (typeof window.carregarAnexosMultaEtapa15 === 'function') window.carregarAnexosMultaEtapa15();
+        }, 100);
     }
 
     if (etapaNum === 29 || etapaNum === 33 || notificacaoAtual?.status === 'encerrada') {
@@ -10492,10 +10515,261 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
     }
 };
 
+window.carregarAnexosMultaEtapa15 = async function () {
+    const container = document.getElementById('cardMultaEtapa15Container');
+    if (!container) return;
+
+    let docs = [];
+    if (typeof supabaseClient !== 'undefined' && (processoAtual?.id || notificacaoAtual?.id)) {
+        try {
+            let query = supabaseClient.from('documentos').select('*');
+            if (processoAtual?.id && notificacaoAtual?.id) {
+                query = query.or(`processo_id.eq.${processoAtual.id},notificacao_id.eq.${notificacaoAtual.id}`);
+            } else if (processoAtual?.id) {
+                query = query.eq('processo_id', processoAtual.id);
+            } else {
+                query = query.eq('notificacao_id', notificacaoAtual.id);
+            }
+            const { data } = await query;
+            docs = data || [];
+        } catch (e) {
+            console.warn('[MULTA ETAPA 15] Erro ao buscar documentos:', e);
+        }
+    }
+
+    const docMulta = docs.find(d => ['Multa', 'Documento de Multa', 'Guia de Multa'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('multa'))
+        || (processoAtual?.dados?.etapa15?.multa_url ? { url: processoAtual.dados.etapa15.multa_url, nome_arquivo: processoAtual.dados.etapa15.multa_nome } : null)
+        || (notificacaoAtual?.dados?.etapa15?.multa_url ? { url: notificacaoAtual.dados.etapa15.multa_url, nome_arquivo: notificacaoAtual.dados.etapa15.multa_nome } : null);
+
+    const cargoLogado = normalizarCargo(perfilAtual?.cargo);
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+
+    if (docMulta && (docMulta.url || docMulta.base64 || docMulta.dataUrl)) {
+        const urlMulta = docMulta.url || docMulta.dataUrl || docMulta.base64;
+        const nomeMulta = docMulta.nome_arquivo || docMulta.nome || 'Documento_da_Multa.pdf';
+        container.innerHTML = `
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="background:#dcfce7; padding:10px; border-radius:10px; font-size:1.5rem;">💸</div>
+                    <div>
+                        <div style="font-weight:700; color:#166534; font-size:0.95rem;">${nomeMulta}</div>
+                        <div style="color:#15803d; font-size:0.82rem;">Documento de Multa anexado com sucesso e pronto para encerramento.</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="button" onclick="window.abrirAnexoEmNovaAba('${urlMulta.replace(/'/g, "\\'")}', event, '${nomeMulta.replace(/'/g, "\\'")}')" style="padding:8px 16px; background:#16a34a; color:white; border:none; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                        👁️ Visualizar Multa
+                    </button>
+                    ${ehGerente ? `
+                        <button type="button" onclick="window.removerMultaEtapa15()" style="padding:8px 14px; background:#ef4444; color:white; border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer;">
+                            🗑️ Substituir
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div style="background:#ffffff; border:2px dashed #93c5fd; border-radius:10px; padding:20px; text-align:center;">
+                <p style="margin:0 0 12px 0; color:#1e40af; font-weight:600; font-size:0.92rem;">
+                    ${ehGerente ? 'Selecione o arquivo da Multa (PDF ou Imagem) e clique em "Salvar / Anexar Multa":' : 'Nenhum documento de Multa anexado até o momento. Aguardando ação do Gerente.'}
+                </p>
+                ${ehGerente ? `
+                    <div style="display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;">
+                        <input type="file" id="inputAnexoMultaEtapa15" accept=".pdf,image/*" style="font-size:0.9rem; padding:6px; border:1px solid #cbd5e1; border-radius:6px; background:#f8fafc;" />
+                        <button type="button" onclick="window.salvarMultaEtapa15()" style="padding:10px 20px; background:#2563eb; color:white; border:none; border-radius:8px; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                            💾 Salvar / Anexar Multa
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+};
+
+window.salvarMultaEtapa15 = async function () {
+    const cargoLogado = normalizarCargo(perfilAtual?.cargo);
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+    if (!ehGerente) {
+        alert('⚠️ Apenas o Gerente de Fiscalização tem permissão para anexar a Multa nesta etapa.');
+        return false;
+    }
+
+    const input = document.getElementById('inputAnexoMultaEtapa15');
+    if (!input || !input.files || input.files.length === 0) {
+        alert('Por favor, selecione um arquivo de Multa (PDF ou Imagem) para anexar.');
+        return false;
+    }
+
+    const file = input.files[0];
+    mostrarCarregamento('Anexando documento da Multa...');
+
+    try {
+        const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+
+        // 1. Identificar o ID do Auto de Infração (se houver)
+        let docIdAI = notificacaoAtual?.dados?.auto_infracao_id || processoAtual?.dados?.auto_infracao_id || null;
+        if (!docIdAI && typeof supabaseClient !== 'undefined') {
+            try {
+                let queryAI = supabaseClient.from('documentos').select('id');
+                if (processoAtual?.id) queryAI = queryAI.eq('processo_id', processoAtual.id);
+                if (notificacaoAtual?.id) queryAI = queryAI.eq('notificacao_id', notificacaoAtual.id);
+                const { data: listAI } = await queryAI.in('tipo', ['Auto de Infração', 'Auto de Infração Assinado']).limit(1);
+                if (listAI && listAI[0]) docIdAI = listAI[0].id;
+            } catch (eAI) {
+                console.warn('[SALVAR MULTA] Erro ao consultar Auto de Infração:', eAI);
+            }
+        }
+
+        // 2. Salvar na tabela 'documentos' no Supabase usando colunas padrão da tabela (processo_id, notificacao_id, etapa_id, etc.)
+        const docPayload = {
+            processo_id: processoAtual?.id || null,
+            notificacao_id: notificacaoAtual?.id || docIdAI || null,
+            etapa_id: 15,
+            tipo: 'Multa',
+            nome_arquivo: file.name,
+            url: dataUrl,
+            usuario_id: perfilAtual?.id || null
+        };
+
+        let multaDocId = null;
+        if (typeof supabaseClient !== 'undefined') {
+            const { data: resInsert, error: errInsert } = await supabaseClient
+                .from('documentos')
+                .insert([docPayload])
+                .select('id');
+
+            if (errInsert) {
+                console.warn('[SALVAR MULTA] Erro ao inserir na tabela documentos:', errInsert);
+            } else if (resInsert && resInsert[0]) {
+                multaDocId = resInsert[0].id;
+            }
+        }
+
+        // 3. Salvar o relacionamento (multa_id e auto_infracao_id) nos dados do processo e notificação
+        const infoMultaEtapa15 = {
+            multa_id: multaDocId,
+            auto_infracao_id: docIdAI,
+            multa_url: dataUrl,
+            multa_nome: file.name,
+            data_anexo: new Date().toISOString()
+        };
+
+        if (processoAtual) {
+            if (!processoAtual.dados) processoAtual.dados = {};
+            processoAtual.dados.auto_infracao_id = docIdAI || processoAtual.dados.auto_infracao_id;
+            processoAtual.dados.multa_id = multaDocId;
+            processoAtual.dados.etapa15 = infoMultaEtapa15;
+            if (typeof supabaseClient !== 'undefined') {
+                await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+            }
+        }
+
+        if (notificacaoAtual) {
+            if (!notificacaoAtual.dados) notificacaoAtual.dados = {};
+            notificacaoAtual.dados.auto_infracao_id = docIdAI || notificacaoAtual.dados.auto_infracao_id;
+            notificacaoAtual.dados.multa_id = multaDocId;
+            notificacaoAtual.dados.etapa15 = infoMultaEtapa15;
+            if (typeof supabaseClient !== 'undefined') {
+                await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
+            }
+        }
+
+        ocultarCarregamento();
+        alert('✅ Documento da Multa anexado e vinculado ao Auto de Infração com sucesso!');
+        await window.carregarAnexosMultaEtapa15();
+        return true;
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao salvar documento da Multa:', err);
+        alert('Erro ao salvar o documento da Multa: ' + err.message);
+        return false;
+    }
+};
+
+window.removerMultaEtapa15 = async function () {
+    const cargoLogado = normalizarCargo(perfilAtual?.cargo);
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+    if (!ehGerente) {
+        alert('⚠️ Apenas o Gerente pode remover/substituir o documento de Multa.');
+        return;
+    }
+
+    if (!confirm('Deseja realmente remover o documento de Multa anexado para selecionar um novo?')) return;
+
+    mostrarCarregamento('Removendo anexo da Multa...');
+    try {
+        if (processoAtual?.dados?.etapa15) delete processoAtual.dados.etapa15;
+        if (notificacaoAtual?.dados?.etapa15) delete notificacaoAtual.dados.etapa15;
+
+        if (typeof supabaseClient !== 'undefined') {
+            if (processoAtual) await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+            if (notificacaoAtual) await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
+            if (processoAtual?.id) {
+                await supabaseClient.from('documentos').delete().eq('processo_id', processoAtual.id).eq('tipo', 'Multa');
+            }
+        }
+
+        ocultarCarregamento();
+        await window.carregarAnexosMultaEtapa15();
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao remover Multa:', err);
+    }
+};
+
 window.avancarEtapa15 = async function () {
     if (!processoAtual) return;
+
+    const cargoLogado = normalizarCargo(perfilAtual?.cargo);
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+    if (!ehGerente) {
+        alert('⚠️ Apenas o Gerente de Fiscalização tem permissão para avançar e concluir a Etapa 15.');
+        return;
+    }
+
+    // Buscar se há anexo de Multa salvo
+    let docs = [];
+    if (typeof supabaseClient !== 'undefined' && (processoAtual?.id || notificacaoAtual?.id)) {
+        try {
+            let query = supabaseClient.from('documentos').select('*');
+            if (processoAtual?.id && notificacaoAtual?.id) {
+                query = query.or(`processo_id.eq.${processoAtual.id},notificacao_id.eq.${notificacaoAtual.id}`);
+            } else if (processoAtual?.id) {
+                query = query.eq('processo_id', processoAtual.id);
+            } else {
+                query = query.eq('notificacao_id', notificacaoAtual.id);
+            }
+            const { data } = await query;
+            docs = data || [];
+        } catch (e) {
+            console.warn('[AVANCAR ETAPA 15] Erro ao consultar documentos:', e);
+        }
+    }
+
+    let docMulta = docs.find(d => ['Multa', 'Documento de Multa', 'Guia de Multa'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('multa'))
+        || processoAtual?.dados?.etapa15?.multa_url
+        || notificacaoAtual?.dados?.etapa15?.multa_url;
+
+    const inputMulta = document.getElementById('inputAnexoMultaEtapa15');
+    if (!docMulta && inputMulta && inputMulta.files && inputMulta.files.length > 0) {
+        const salvoOk = await window.salvarMultaEtapa15();
+        if (!salvoOk) return;
+        docMulta = true;
+    }
+
+    if (!docMulta) {
+        alert('⚠️ É OBRIGATÓRIO anexar o documento da Multa antes de avançar a Etapa 15!');
+        return;
+    }
+
     mostrarCarregamento('Concluindo processo...');
-    await moverProcessoParaEtapa(33, 'Processo Concluído pelo Gerente');
+    await moverProcessoParaEtapa(33, 'Processo Concluído pelo Gerente com Multa Anexada');
 };
 
 // ── Helper para abrir Base64 no Chrome de forma segura ──
