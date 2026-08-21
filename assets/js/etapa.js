@@ -573,9 +573,13 @@ function renderizarFormularioDinamico(etapaNum) {
         if (btnTabEdit) btnTabEdit.style.display = 'inline-block';
     }
 
+    const decretoSim = processoAtual?.possui_decreto
+        || processoAtual?.campos?.fiscDecreto === 'sim'
+        || notificacaoAtual?.dados?.possui_decreto;
+
     const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
     if (btnBaixar) {
-        if (etapaNum === 10) {
+        if (etapaNum === 10 || decretoSim) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Certidão (.pdf)`;
         } else if ([5, 13].includes(etapaNum)) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Réplica (.pdf)`;
@@ -1222,29 +1226,20 @@ function renderizarFormularioDinamico(etapaNum) {
             atualizarNotificacaoNoBanco(notificacaoAtual.id, { status: 'auto_infracao', dados: notificacaoAtual.dados }).catch(err => console.warn(err));
         }
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : (processoAtual.numero_processo || 'Desconhecido');
-        const tipoInfracao = notificacaoAtual?.descricao || processoAtual?.dados?.fiscal?.infracao || 'Limpeza de Quintal';
+        const dispProc14 = window.obterDispositivosDoProcesso ? window.obterDispositivosDoProcesso(processoAtual) : [];
+        const tipoInfracaoRaw = notificacaoAtual?.descricao || processoAtual?.dados?.fiscal?.infracao || (dispProc14.length > 0 ? dispProc14[0] : '') || 'Falta de limpeza e conservação de imóvel não edificado';
+        const tipoInfracao = window.obterDescricaoInfracao ? window.obterDescricaoInfracao(tipoInfracaoRaw) : tipoInfracaoRaw;
+
+        const decretoSim = processoAtual?.possui_decreto
+            || processoAtual?.campos?.fiscDecreto === 'sim'
+            || notificacaoAtual?.dados?.possui_decreto;
 
         conteudo = `
             <div style="background:white; border:1px solid #DED9E2; border-radius:12px; padding:24px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
-                    <div>
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Nº da Notificação Preliminar</label>
-                        <input type="text" id="inputNumNotifAutoInfracao" class="form-input" value="${numNotificacao}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #DED9E2; background:#F7F4EA; font-size:0.95rem; color:#1e293b;" readonly />
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Infração Constatada</label>
-                        <input type="text" id="inputInfracaoAutoInfracao" class="form-input" value="${tipoInfracao}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #DED9E2; background:white; font-size:0.95rem; color:#1e293b;" />
-                    </div>
-                </div>
+                <input type="hidden" id="inputNumNotifAutoInfracao" value="${numNotificacao}" />
+                <input type="hidden" id="inputInfracaoAutoInfracao" value="${tipoInfracao}" />
 
-                <div style="background:#F0F4FA; border:1px solid #C0B9DD; padding:16px; border-radius:10px; margin-bottom:20px; display:flex; flex-direction:column; gap:10px;">
-                    <button type="button" onclick="gerarAutoDeInfracao()" style="padding:12px 20px; background:#80A1D4; color:white; border:none; border-radius:8px; font-weight:600; font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px rgba(128, 161, 212, 0.3); transition:all 0.2s;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Atualizar Auto de Infração
-                    </button>
-                    <p style="margin:0; font-size:0.8rem; color:#475569; text-align:center;">O documento será gerado com cabeçalho oficial da SEMAC, numeração sequencial própria e penalidades legais.</p>
-                </div>
-
+                ${decretoSim && typeof window.obterHtmlBlocoCertidaoAssinada === 'function' ? window.obterHtmlBlocoCertidaoAssinada() : ''}
                 ${obterHtmlBlocoAutoInfracaoAssinado()}
 
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px; margin-top:20px;">
@@ -1407,6 +1402,14 @@ function renderizarFormularioDinamico(etapaNum) {
             if (typeof window.gerarAutoDeInfracao === 'function') window.gerarAutoDeInfracao(true);
             if (typeof window.configurarEventosAIAssinado === 'function') window.configurarEventosAIAssinado();
             if (typeof window.carregarEExibirAnexoAIAssinado === 'function') window.carregarEExibirAnexoAIAssinado();
+
+            const decretoSim = processoAtual?.possui_decreto
+                || processoAtual?.campos?.fiscDecreto === 'sim'
+                || notificacaoAtual?.dados?.possui_decreto;
+            if (decretoSim) {
+                if (typeof window.configurarEventosCertidaoAssinada === 'function') window.configurarEventosCertidaoAssinada();
+                if (typeof window.carregarEExibirAnexoCertidaoAssinada === 'function') window.carregarEExibirAnexoCertidaoAssinada();
+            }
         }, 150);
     }
 
@@ -2647,11 +2650,17 @@ window.gerarZipComTodosDocumentos = async function () {
 
         let docsBanco = [];
         try {
-            const { data } = await supabaseClient
-                .from('documentos')
-                .select('*')
-                .or(`notificacao_id.eq.${notificacaoAtual.id},processo_id.eq.${processoAtual.id}`)
-                .not('url', 'is', null);
+            const notifId = notificacaoAtual?.id;
+            const procId = processoAtual?.id;
+            let queryDocs = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+            if (notifId && procId) {
+                queryDocs = queryDocs.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
+            } else if (procId) {
+                queryDocs = queryDocs.eq('processo_id', procId);
+            } else if (notifId) {
+                queryDocs = queryDocs.eq('notificacao_id', notifId);
+            }
+            const { data } = await queryDocs;
             docsBanco = data || [];
         } catch (errDoc) {
             console.error('Erro ao buscar documentos para ZIP:', errDoc);
@@ -2851,6 +2860,73 @@ window.gerarZipComTodosDocumentos = async function () {
 
 window.abrirOuBaixarDocumento = function (url, nomePadrao) {
     if (!url) return false;
+
+    // Se for string com conteúdo HTML (documento gerado provisoriamente)
+    if (typeof url === 'string' && (url.trim().startsWith('<') || url.includes('id="documentoPronto"') || url.includes('<!DOCTYPE html>'))) {
+        const tituloOriginal = document.title;
+        const nomeTitulo = (nomePadrao || 'Certidão').replace(/\.pdf$/i, '').replace(/\.html$/i, '');
+        document.title = nomeTitulo;
+
+        const printIframe = document.createElement('iframe');
+        printIframe.style.position = 'absolute';
+        printIframe.style.width = '0';
+        printIframe.style.height = '0';
+        printIframe.style.border = 'none';
+        document.body.appendChild(printIframe);
+
+        const printDoc = printIframe.contentWindow.document;
+        printDoc.open();
+        printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeTitulo}</title><style>* { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; } img { max-width: 100%; height: auto; } @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }</style></head><body>${url}</body></html>`);
+        printDoc.close();
+
+        setTimeout(() => {
+            printIframe.contentWindow.focus();
+            printIframe.contentWindow.print();
+            setTimeout(() => {
+                if (document.body.contains(printIframe)) {
+                    document.body.removeChild(printIframe);
+                }
+                document.title = tituloOriginal;
+            }, 1000);
+        }, 500);
+        return true;
+    }
+
+    // Se for um Data URL base64 de PDF ou imagem
+    if (typeof url === 'string' && url.startsWith('data:')) {
+        try {
+            const arr = url.split(',');
+            const mimeMatch = arr[0].match(/:(.*?);/);
+            const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+
+            if (mime.includes('html')) {
+                const htmlText = atob(arr[1]);
+                return window.abrirOuBaixarDocumento(htmlText, nomePadrao);
+            }
+
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while (n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            const blob = new Blob([u8arr], { type: mime });
+            const blobUrl = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = nomePadrao || 'documento.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+            return true;
+        } catch (e) {
+            console.error('Erro ao converter data URL:', e);
+        }
+    }
+
+    // Se for URL normal (http, https, blob, etc.)
     const a = document.createElement('a');
     a.href = url;
     a.download = nomePadrao || 'documento_assinado.pdf';
@@ -2867,49 +2943,58 @@ window.carregarArquivosEtapa29 = async function () {
 
     let docsBanco = [];
     try {
-        const { data } = await supabaseClient
-            .from('documentos')
-            .select('*')
-            .or(`notificacao_id.eq.${notificacaoAtual.id},processo_id.eq.${processoAtual.id}`)
-            .not('url', 'is', null);
+        const notifId = notificacaoAtual?.id;
+        const procId = processoAtual?.id;
+        let queryDocs = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+        if (notifId && procId) {
+            queryDocs = queryDocs.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
+        } else if (procId) {
+            queryDocs = queryDocs.eq('processo_id', procId);
+        } else if (notifId) {
+            queryDocs = queryDocs.eq('notificacao_id', notifId);
+        }
+        const { data } = await queryDocs;
         docsBanco = data || [];
     } catch (err) {
         console.error('Erro ao buscar documentos para Etapa 29:', err);
     }
 
     const listaCards = [];
+    const decretoSim = processoAtual?.possui_decreto
+        || processoAtual?.campos?.fiscDecreto === 'sim'
+        || notificacaoAtual?.dados?.possui_decreto;
 
-    // 1. Notificação Preliminar Assinada
-    const docNP = docsBanco.find(d => ['Notificação Preliminar', 'Notificação Preliminar Assinada'].includes(d.tipo))
+    // 1. Notificação Preliminar / Auto de Infração Assinado
+    const docNP = docsBanco.find(d => ['Notificação Preliminar', 'Notificação Preliminar Assinada', 'Auto de Infração', 'Auto de Infração Assinado'].includes(d.tipo))
         || processoAtual?.campos?.anexo_np_assinada
-        || (notificacaoAtual.dados?.notificacao_assinada_url ? { url: notificacaoAtual.dados.notificacao_assinada_url, nome_arquivo: notificacaoAtual.dados.notificacao_assinada_nome || 'Notificacao_Preliminar_Assinada.pdf' } : null);
+        || (notificacaoAtual.dados?.notificacao_assinada_url ? { url: notificacaoAtual.dados.notificacao_assinada_url, nome_arquivo: notificacaoAtual.dados.notificacao_assinada_nome || (decretoSim ? 'Auto_de_Infracao_Assinado.pdf' : 'Notificacao_Preliminar_Assinada.pdf') } : null);
 
     listaCards.push({
         tipoKey: 'notificacao',
-        titulo: 'Notificação Preliminar Assinada',
-        subtitulo: docNP ? (docNP.nome_arquivo || docNP.nome || 'Notificação Preliminar (PDF Assinado)') : 'Notificação Preliminar (PDF Assinado)',
+        titulo: decretoSim ? 'Auto de Infração Assinado' : 'Notificação Preliminar Assinada',
+        subtitulo: docNP ? (docNP.nome_arquivo || docNP.nome || (decretoSim ? 'Auto de Infração (PDF Assinado)' : 'Notificação Preliminar (PDF Assinado)')) : (decretoSim ? 'Auto de Infração (PDF Assinado)' : 'Notificação Preliminar (PDF Assinado)'),
         icone: '📄',
         corBtn: '#eff6ff',
         corTexto: '#2563eb',
         corBorda: '#bfdbfe',
-        labelBtn: '⬇ Baixar Notificação Assinada'
+        labelBtn: decretoSim ? '⬇ Baixar Auto de Infração Assinado' : '⬇ Baixar Notificação Assinada'
     });
 
-    // 2. Relatório Fiscal Assinado
-    const docRF = docsBanco.find(d => ['Relatório Fiscal', 'Relatório Fiscal Assinado'].includes(d.tipo))
+    // 2. Relatório Fiscal / Certidão Assinada
+    const docRF = docsBanco.find(d => ['Relatório Fiscal', 'Relatório Fiscal Assinado', 'Certidão', 'Certidão Assinada'].includes(d.tipo))
         || processoAtual?.campos?.anexo_rf_assinado
-        || (notificacaoAtual.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url, nome_arquivo: notificacaoAtual.dados.relatorio_fiscal_nome || 'Relatorio_Fiscal_Assinado.pdf' } : null);
+        || (notificacaoAtual.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url, nome_arquivo: notificacaoAtual.dados.relatorio_fiscal_nome || (decretoSim ? 'Certidao_Assinada.pdf' : 'Relatorio_Fiscal_Assinado.pdf') } : null);
 
     if (docRF || notificacaoAtual.dados?.etapa2?.tem_relatorio_fiscal !== false) {
         listaCards.push({
             tipoKey: 'relatorio_fiscal',
-            titulo: 'Relatório Fiscal Assinado',
-            subtitulo: docRF ? (docRF.nome_arquivo || docRF.nome || 'Vistoria e Fotos (PDF Assinado)') : 'Relatório Fiscal de Vistoria (PDF Assinado)',
+            titulo: decretoSim ? 'Certidão Assinada' : 'Relatório Fiscal Assinado',
+            subtitulo: docRF ? (docRF.nome_arquivo || docRF.nome || (decretoSim ? 'Certidão gerada (PDF)' : 'Vistoria e Fotos (PDF Assinado)')) : (decretoSim ? 'Certidão gerada (PDF)' : 'Relatório Fiscal de Vistoria (PDF Assinado)'),
             icone: '📋',
             corBtn: '#f0fdf4',
             corTexto: '#16a34a',
             corBorda: '#bbf7d0',
-            labelBtn: '⬇ Baixar Relatório Fiscal'
+            labelBtn: decretoSim ? '⬇ Baixar Certidão Assinada' : '⬇ Baixar Relatório Fiscal'
         });
     }
 
@@ -3130,18 +3215,28 @@ window.baixarDocUnico = async function (tipo) {
 
         let docsBanco = [];
         try {
-            const { data } = await supabaseClient
-                .from('documentos')
-                .select('*')
-                .or(`notificacao_id.eq.${notificacaoAtual.id},processo_id.eq.${processoAtual.id}`)
-                .not('url', 'is', null);
+            const notifId = notificacaoAtual?.id;
+            const procId = processoAtual?.id;
+            let queryDocs = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+            if (notifId && procId) {
+                queryDocs = queryDocs.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
+            } else if (procId) {
+                queryDocs = queryDocs.eq('processo_id', procId);
+            } else if (notifId) {
+                queryDocs = queryDocs.eq('notificacao_id', notifId);
+            }
+            const { data } = await queryDocs;
             docsBanco = data || [];
         } catch (errDoc) {
             console.error('Erro ao buscar documentos do banco:', errDoc);
         }
 
-        if (tipo === 'notificacao' || tipo === 'notificacao_assinada') {
-            const docNP = docsBanco.find(d => ['Notificação Preliminar', 'Notificação Preliminar Assinada'].includes(d.tipo))
+        const decretoSim = processoAtual?.possui_decreto
+            || processoAtual?.campos?.fiscDecreto === 'sim'
+            || notificacaoAtual?.dados?.possui_decreto;
+
+        if (tipo === 'notificacao' || tipo === 'notificacao_assinada' || tipo === 'auto_infracao') {
+            const docNP = docsBanco.find(d => ['Notificação Preliminar', 'Notificação Preliminar Assinada', 'Auto de Infração', 'Auto de Infração Assinado'].includes(d.tipo))
                 || processoAtual?.campos?.anexo_np_assinada
                 || (notificacaoAtual.dados?.notificacao_assinada_url ? { url: notificacaoAtual.dados.notificacao_assinada_url, nome_arquivo: notificacaoAtual.dados.notificacao_assinada_nome } : null);
 
@@ -3153,7 +3248,8 @@ window.baixarDocUnico = async function (tipo) {
 
             if (urlNP) {
                 ocultarCarregamento();
-                window.abrirOuBaixarDocumento(urlNP, docNP?.nome_arquivo || docNP?.nome || `Notificacao_Preliminar_${numNotifLimpo}_Assinada.pdf`);
+                const defaultName = decretoSim ? `Auto_de_Infracao_${numNotifLimpo}_Assinado.pdf` : `Notificacao_Preliminar_${numNotifLimpo}_Assinada.pdf`;
+                window.abrirOuBaixarDocumento(urlNP, docNP?.nome_arquivo || docNP?.nome || defaultName);
                 return;
             }
 
@@ -3161,7 +3257,7 @@ window.baixarDocUnico = async function (tipo) {
             if (typeof window.imprimirDocumentoOficial === 'function') {
                 window.imprimirDocumentoOficial();
             } else {
-                alert('Documento assinado da Notificação Preliminar não encontrado.');
+                alert(decretoSim ? 'Documento assinado do Auto de Infração não encontrado.' : 'Documento assinado da Notificação Preliminar não encontrado.');
             }
         } else if (tipo === 'edital_gerente' || tipo === 'edital') {
             const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo))
@@ -3182,8 +3278,8 @@ window.baixarDocUnico = async function (tipo) {
             }
             ocultarCarregamento();
             alert('Edital do Gerente não encontrado.');
-        } else if (tipo === 'relatorio_fiscal' || tipo === 'relatorio_fiscal_assinado') {
-            const docRF = docsBanco.find(d => ['Relatório Fiscal', 'Relatório Fiscal Assinado'].includes(d.tipo))
+        } else if (tipo === 'relatorio_fiscal' || tipo === 'relatorio_fiscal_assinado' || tipo === 'certidao') {
+            const docRF = docsBanco.find(d => ['Relatório Fiscal', 'Relatório Fiscal Assinado', 'Certidão', 'Certidão Assinada'].includes(d.tipo))
                 || processoAtual?.campos?.anexo_rf_assinado
                 || (notificacaoAtual.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url, nome_arquivo: notificacaoAtual.dados.relatorio_fiscal_nome } : null);
 
@@ -3195,7 +3291,8 @@ window.baixarDocUnico = async function (tipo) {
 
             if (urlRF) {
                 ocultarCarregamento();
-                window.abrirOuBaixarDocumento(urlRF, docRF?.nome_arquivo || docRF?.nome || `Relatorio_Fiscal_${numNotifLimpo}_Assinado.pdf`);
+                const defaultName = decretoSim ? `Certidao_${numNotifLimpo}_Assinada.pdf` : `Relatorio_Fiscal_${numNotifLimpo}_Assinado.pdf`;
+                window.abrirOuBaixarDocumento(urlRF, docRF?.nome_arquivo || docRF?.nome || defaultName);
                 return;
             }
 
@@ -3203,7 +3300,7 @@ window.baixarDocUnico = async function (tipo) {
             if (typeof window.baixarRelatorioFiscalPdfEtapa === 'function') {
                 window.baixarRelatorioFiscalPdfEtapa();
             } else {
-                alert('Documento assinado do Relatório Fiscal não encontrado.');
+                alert(decretoSim ? 'Documento da Certidão não encontrado.' : 'Documento assinado do Relatório Fiscal não encontrado.');
             }
         } else if (tipo === 'bic') {
             const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo))
@@ -3739,8 +3836,9 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
 
 // ── Helper para Obter Infrações Selecionadas no Processo ──────────────────
 function obterDispositivosDoProcesso(proc) {
-    if (!proc) return ['Falta de limpeza e conservação de imóvel não edificado - Posturas (SUB Processo) | 120000232'];
+    if (!proc) return ['Falta de limpeza e conservação de imóvel não edificado (120000232)'];
     const d = proc.dados || {};
+
     if (d.infracoes && Array.isArray(d.infracoes.dispositivos) && d.infracoes.dispositivos.length > 0) {
         return d.infracoes.dispositivos;
     }
@@ -3750,13 +3848,27 @@ function obterDispositivosDoProcesso(proc) {
     if (Array.isArray(proc.infracoes_lista) && proc.infracoes_lista.length > 0) {
         return proc.infracoes_lista;
     }
+    if (proc.notificacoes && Array.isArray(proc.notificacoes) && proc.notificacoes.length > 0) {
+        const notifDescs = proc.notificacoes.map(n => n.descricao).filter(Boolean);
+        if (notifDescs.length > 0) return notifDescs;
+    }
+    if (proc.processo_infracoes && Array.isArray(proc.processo_infracoes) && proc.processo_infracoes.length > 0) {
+        const list = proc.processo_infracoes.map(pi => pi.infracoes_catalogo?.descricao || pi.infracoes_catalogo?.codigo || pi.infracao_id).filter(Boolean);
+        if (list.length > 0) return list;
+    }
     if (Array.isArray(d.infracoes) && d.infracoes.length > 0) {
         return d.infracoes;
     }
     if (Array.isArray(proc.infracoes) && proc.infracoes.length > 0) {
         return proc.infracoes;
     }
-    return ['Falta de limpeza e conservação de imóvel não edificado - Posturas (SUB Processo) | 120000232'];
+    if (proc.campos?.subprocedimento || proc.campos?.subprocesso || d.campos?.subprocedimento || d.campos?.subprocesso) {
+        return [proc.campos?.subprocedimento || proc.campos?.subprocesso || d.campos?.subprocedimento || d.campos?.subprocesso];
+    }
+    if (proc.subprocedimento || proc.subprocesso || d.subprocedimento || d.subprocesso) {
+        return [proc.subprocedimento || proc.subprocesso || d.subprocedimento || d.subprocesso];
+    }
+    return ['Falta de limpeza e conservação de imóvel não edificado (120000232)'];
 }
 
 // ── Helper para Extrair Dados do Imóvel para Cálculo ────────────────────────
@@ -3775,28 +3887,30 @@ function obterDadosImovelParaCalculo(proc) {
 }
 
 // ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
+// ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
 function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd) {
+    const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
     let profCalc = 0;
     if (temEsquina) {
         profCalc = (profundidadeNum && profundidadeNum > 0) ? profundidadeNum : (testadaNum > 0 ? (areaNum / testadaNum) : 0);
     }
     const testadaTotal = testadaNum + profCalc;
 
-    if (dispLow.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
+    if (cod === '120000232' || dispLow.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
         return areaNum * upfmd * 0.15;
-    } else if (dispLow.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
+    } else if (cod === '120000228' || dispLow.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
         return testadaTotal * upfmd * 2;
-    } else if (dispLow.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
+    } else if (cod === '120000227' || dispLow.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
         return testadaTotal * upfmd * 2;
-    } else if (dispLow.includes('120000211') || dispLow.includes('cercamento')) {
+    } else if (cod === '120000211' || dispLow.includes('120000211') || dispLow.includes('cercamento')) {
         return testadaTotal * upfmd;
-    } else if (dispLow.includes('120000226') || dispLow.includes('inexistência de passeio') || (dispLow.includes('passeio') && !dispLow.includes('reparos') && !dispLow.includes('reconstrução'))) {
+    } else if (cod === '120000226' || dispLow.includes('120000226') || dispLow.includes('inexistência de passeio') || (dispLow.includes('passeio') && !dispLow.includes('reparos') && !dispLow.includes('reconstrução'))) {
         return testadaTotal * upfmd;
-    } else if (dispLow.includes('120000229') || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro') ||
+    } else if (cod === '120000229' || cod === '120000240' || dispLow.includes('120000229') || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro') ||
         dispLow.includes('120000240') || dispLow.includes('reconstrução e/ou reparo de passeio') ||
         dispLow.includes('muro em má conservação') || dispLow.includes('danificado')) {
         return testadaTotal * upfmd * 0.5;
-    } else if (dispLow.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
+    } else if (cod === '120000236' || dispLow.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
         return upfmd * 50;
     } else {
         return upfmd * 10;
@@ -3899,34 +4013,36 @@ async function renderizarPainelEtapa1(proc) {
 
         function obterNomeCompletoInfracao(disp) {
             if (!disp) return 'Infração Geral';
+            const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
             const dispLow = disp.toLowerCase();
-            if (disp.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
+
+            if (cod === '120000232' || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
                 return 'Falta de limpeza e conservação de imóvel não edificado (120000232)';
-            } else if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
+            } else if (cod === '120000228' || dispLow.includes('reincidência na inexistência de cercamento')) {
                 return 'Reincidência na inexistência de cercamento (120000228)';
-            } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
+            } else if (cod === '120000227' || dispLow.includes('reincidência na inexistência de passeio')) {
                 return 'Reincidência na inexistência de passeio (120000227)';
-            } else if (disp.includes('120000211') || dispLow.includes('cercamento')) {
+            } else if (cod === '120000211' || dispLow.includes('cercamento')) {
                 return 'Inexistência de cercamento (120000211)';
-            } else if (disp.includes('120000226') || dispLow.includes('inexistência de passeio')) {
+            } else if (cod === '120000226' || dispLow.includes('inexistência de passeio')) {
                 return 'Inexistência de passeio (120000226)';
-            } else if (disp.includes('120000229') || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
+            } else if (cod === '120000229' || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
                 return 'Reconstrução de/ou reparo de muro (120000229)';
-            } else if (disp.includes('120000240') || dispLow.includes('reconstrução e/ou reparo de passeio')) {
+            } else if (cod === '120000240' || dispLow.includes('reconstrução e/ou reparo de passeio')) {
                 return 'Reconstrução e/ou reparo de passeio (120000240)';
             } else if (dispLow.includes('muro em má conservação') || dispLow.includes('danificado')) {
                 return 'Muro em má conservação ou danificado';
-            } else if (disp.includes('120000233') || dispLow.includes('limpeza de quintal')) {
+            } else if (cod === '120000233' || dispLow.includes('limpeza de quintal')) {
                 return 'Limpeza de quintal (120000233)';
-            } else if (disp.includes('120000237') || dispLow.includes('obstáculos em calçadas')) {
+            } else if (cod === '120000237' || dispLow.includes('obstáculos em calçadas')) {
                 return 'Obstáculos em calçadas impedindo livre trânsito (120000237)';
-            } else if (disp.includes('120000239') || dispLow.includes('água servida')) {
+            } else if (cod === '120000239' || dispLow.includes('água servida')) {
                 return 'Água servida (120000239)';
-            } else if (disp.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
+            } else if (cod === '120000236' || dispLow.includes('estabelecimento sem alvará')) {
                 return 'Estabelecimento sem alvará (120000236)';
-            } else if (disp.includes('120000234') || dispLow.includes('reparos por concessionárias')) {
+            } else if (cod === '120000234' || dispLow.includes('reparos por concessionárias')) {
                 return 'Reparos por concessionárias (120000234)';
-            } else if (disp.includes('120000230') || dispLow.includes('piso tátil')) {
+            } else if (cod === '120000230' || dispLow.includes('piso tátil')) {
                 return 'Inexistência de sinalização adequada - piso tátil (120000230)';
             } else {
                 return disp.split('|')[0].trim();
@@ -4851,17 +4967,42 @@ window.configurarEventosCertidaoAssinada = function () {
                 reader.onload = async (ev) => {
                     const fileUrl = ev.target.result;
                     const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+                    const notifId = notificacaoAtual?.id || null;
+                    const procId = processoAtual?.id || null;
 
-                    let docId = notificacaoAtual?.dados?.certidao_id || null;
-                    let numCertidao = notificacaoAtual?.dados?.certidao_numero_sequencial || notificacaoAtual?.numero_certidao || null;
+                    let docId = notificacaoAtual?.dados?.certidao_id || processoAtual?.dados?.certidao_id || null;
+                    let numCertidao = notificacaoAtual?.dados?.certidao_numero_sequencial || notificacaoAtual?.numero_certidao || processoAtual?.dados?.certidao_numero_sequencial || null;
 
                     try {
-                        const { data: docExistente } = await supabaseClient
-                            .from('documentos')
-                            .select('id, numero_sequencial')
-                            .eq('notificacao_id', notificacaoAtual.id)
-                            .in('tipo', ['Certidão', 'Certidão Sem Defesa'])
-                            .maybeSingle();
+                        let docExistente = null;
+                        if (docId) {
+                            const { data } = await supabaseClient
+                                .from('documentos')
+                                .select('id, numero_sequencial')
+                                .eq('id', docId)
+                                .maybeSingle();
+                            docExistente = data;
+                        }
+
+                        if (!docExistente && notifId) {
+                            const { data } = await supabaseClient
+                                .from('documentos')
+                                .select('id, numero_sequencial')
+                                .eq('notificacao_id', notifId)
+                                .in('tipo', ['Certidão', 'Certidão Sem Defesa'])
+                                .maybeSingle();
+                            docExistente = data;
+                        }
+
+                        if (!docExistente && procId) {
+                            const { data } = await supabaseClient
+                                .from('documentos')
+                                .select('id, numero_sequencial')
+                                .eq('processo_id', procId)
+                                .in('tipo', ['Certidão', 'Certidão Sem Defesa'])
+                                .maybeSingle();
+                            docExistente = data;
+                        }
 
                         if (docExistente) {
                             docId = docExistente.id;
@@ -4880,9 +5021,9 @@ window.configurarEventosCertidaoAssinada = function () {
                             const { data: docIns } = await supabaseClient
                                 .from('documentos')
                                 .insert([{
-                                    processo_id: processoAtual.id,
-                                    notificacao_id: notificacaoAtual.id,
-                                    etapa_id: processoAtual.etapa_atual_id || 10,
+                                    processo_id: procId,
+                                    notificacao_id: notifId,
+                                    etapa_id: processoAtual?.etapa_atual_id || 10,
                                     tipo: 'Certidão',
                                     nome_arquivo: file.name,
                                     url: fileUrl,
@@ -4899,17 +5040,31 @@ window.configurarEventosCertidaoAssinada = function () {
                         console.error('Erro ao salvar Certidão em documentos:', errDoc);
                     }
 
-                    // Salva na notificação APENAS a referência certidao_id (sem salvar URL/Base64 no JSON)
-                    notificacaoAtual.dados = notificacaoAtual.dados || {};
-                    notificacaoAtual.dados.certidao_id = docId;
-                    if (numCertidao) notificacaoAtual.dados.certidao_numero_sequencial = numCertidao;
-                    notificacaoAtual.dados.certidao_assinada_nome = file.name;
-                    notificacaoAtual.dados.data_upload_certidao = new Date().toISOString();
+                    if (notificacaoAtual) {
+                        notificacaoAtual.dados = notificacaoAtual.dados || {};
+                        notificacaoAtual.dados.certidao_id = docId;
+                        if (numCertidao) notificacaoAtual.dados.certidao_numero_sequencial = numCertidao;
+                        notificacaoAtual.dados.certidao_assinada_nome = file.name;
+                        notificacaoAtual.dados.data_upload_certidao = new Date().toISOString();
 
-                    await supabaseClient
-                        .from('notificacoes')
-                        .update({ dados: notificacaoAtual.dados })
-                        .eq('id', notificacaoAtual.id);
+                        await supabaseClient
+                            .from('notificacoes')
+                            .update({ dados: notificacaoAtual.dados })
+                            .eq('id', notificacaoAtual.id);
+                    }
+
+                    if (processoAtual) {
+                        processoAtual.dados = processoAtual.dados || {};
+                        processoAtual.dados.certidao_id = docId;
+                        if (numCertidao) processoAtual.dados.certidao_numero_sequencial = numCertidao;
+                        processoAtual.dados.certidao_assinada_nome = file.name;
+                        processoAtual.dados.data_upload_certidao = new Date().toISOString();
+
+                        await supabaseClient
+                            .from('processos')
+                            .update({ dados: processoAtual.dados })
+                            .eq('id', processoAtual.id);
+                    }
 
                     window.exibirCertidaoAssinadaUI(file.name, fileUrl);
                     ocultarCarregamento();
@@ -4929,7 +5084,7 @@ window.configurarEventosCertidaoAssinada = function () {
             if (!confirm('Deseja remover o anexo da Certidão Assinada?')) return;
             mostrarCarregamento('Removendo anexo...');
             try {
-                let docId = notificacaoAtual?.dados?.certidao_id;
+                let docId = notificacaoAtual?.dados?.certidao_id || processoAtual?.dados?.certidao_id;
                 if (docId) {
                     await supabaseClient
                         .from('documentos')
@@ -4937,13 +5092,24 @@ window.configurarEventosCertidaoAssinada = function () {
                         .eq('id', docId);
                 }
 
-                if (notificacaoAtual?.dados) {
+                if (notificacaoAtual?.id) {
+                    notificacaoAtual.dados = notificacaoAtual.dados || {};
                     delete notificacaoAtual.dados.certidao_assinada_nome;
                     delete notificacaoAtual.dados.data_upload_certidao;
                     await supabaseClient
                         .from('notificacoes')
                         .update({ dados: notificacaoAtual.dados })
                         .eq('id', notificacaoAtual.id);
+                }
+
+                if (processoAtual?.id) {
+                    processoAtual.dados = processoAtual.dados || {};
+                    delete processoAtual.dados.certidao_assinada_nome;
+                    delete processoAtual.dados.data_upload_certidao;
+                    await supabaseClient
+                        .from('processos')
+                        .update({ dados: processoAtual.dados })
+                        .eq('id', processoAtual.id);
                 }
 
                 window.removerCertidaoAssinadaUI();
@@ -4958,10 +5124,10 @@ window.configurarEventosCertidaoAssinada = function () {
 };
 
 window.carregarEExibirAnexoCertidaoAssinada = async function () {
-    if (!notificacaoAtual) return;
+    if (!notificacaoAtual && !processoAtual) return;
 
     let docCertidao = null;
-    if (notificacaoAtual.dados?.certidao_id) {
+    if (notificacaoAtual?.dados?.certidao_id) {
         const { data } = await supabaseClient
             .from('documentos')
             .select('id, url, nome_arquivo, created_at')
@@ -4970,11 +5136,33 @@ window.carregarEExibirAnexoCertidaoAssinada = async function () {
         docCertidao = data;
     }
 
-    if (!docCertidao && notificacaoAtual.id) {
+    if (!docCertidao && processoAtual?.dados?.certidao_id) {
+        const { data } = await supabaseClient
+            .from('documentos')
+            .select('id, url, nome_arquivo, created_at')
+            .eq('id', processoAtual.dados.certidao_id)
+            .maybeSingle();
+        docCertidao = data;
+    }
+
+    if (!docCertidao && notificacaoAtual?.id) {
         const { data } = await supabaseClient
             .from('documentos')
             .select('id, url, nome_arquivo, created_at')
             .eq('notificacao_id', notificacaoAtual.id)
+            .in('tipo', ['Certidão', 'Certidão Sem Defesa'])
+            .not('url', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        docCertidao = data;
+    }
+
+    if (!docCertidao && processoAtual?.id) {
+        const { data } = await supabaseClient
+            .from('documentos')
+            .select('id, url, nome_arquivo, created_at')
+            .eq('processo_id', processoAtual.id)
             .in('tipo', ['Certidão', 'Certidão Sem Defesa'])
             .not('url', 'is', null)
             .order('created_at', { ascending: false })
@@ -7438,8 +7626,46 @@ async function baixarRelatorioFiscalPdfEtapa() {
             ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
             : parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
 
-        // Se for Etapa 10 (Certidão), baixa/imprime a visualização perfeita da Certidão
-        if (etapaNum === 10) {
+        const decretoSim = processoAtual?.possui_decreto
+            || processoAtual?.campos?.fiscDecreto === 'sim'
+            || notificacaoAtual?.dados?.possui_decreto;
+
+        // Se for processo com Decreto ou Etapa 10 (Certidão), baixa a Certidão do processo
+        if (etapaNum === 10 || decretoSim) {
+            let docCert = null;
+            try {
+                const notifId = notificacaoAtual?.id;
+                const procId = processoAtual?.id;
+                let queryCert = supabaseClient
+                    .from('documentos')
+                    .select('*')
+                    .in('tipo', ['Certidão', 'Certidão Sem Defesa', 'Certidão Assinada'])
+                    .not('url', 'is', null)
+                    .order('created_at', { ascending: false });
+
+                if (notifId && procId) {
+                    queryCert = queryCert.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
+                } else if (procId) {
+                    queryCert = queryCert.eq('processo_id', procId);
+                } else if (notifId) {
+                    queryCert = queryCert.eq('notificacao_id', notifId);
+                }
+
+                const { data: certs } = await queryCert.limit(1);
+                if (certs && certs.length > 0) docCert = certs[0];
+            } catch (errCert) {
+                console.warn('Erro ao buscar certidão no banco:', errCert);
+            }
+
+            let certUrl = docCert?.url || docCert?.dataUrl || docCert?.base64;
+            if (certUrl) {
+                if (btn) { btn.disabled = false; btn.innerHTML = oldText; }
+                const certNum = docCert?.numero_sequencial || notificacaoAtual?.numero_certidao || processoAtual?.numero_certidao || processoAtual?.dados?.numero_certidao || 'XXX';
+                const numLimpo = String(certNum).replace(/[\/\\]/g, '-');
+                window.abrirOuBaixarDocumento(certUrl, `Certidão N° ${numLimpo}.pdf`);
+                return;
+            }
+
             if (typeof window.gerarCertidaoSemDefesa === 'function') {
                 await window.gerarCertidaoSemDefesa(true);
             }
@@ -7725,11 +7951,17 @@ async function imprimirDocumentoOficial() {
         try {
             let docsBanco = [];
             if (notificacaoAtual?.id || processoAtual?.id) {
-                const { data } = await supabaseClient
-                    .from('documentos')
-                    .select('*')
-                    .or(`notificacao_id.eq.${notificacaoAtual?.id || 0},processo_id.eq.${processoAtual.id}`)
-                    .not('url', 'is', null);
+                const notifId = notificacaoAtual?.id;
+                const procId = processoAtual?.id;
+                let queryDocs = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+                if (notifId && procId) {
+                    queryDocs = queryDocs.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
+                } else if (procId) {
+                    queryDocs = queryDocs.eq('processo_id', procId);
+                } else if (notifId) {
+                    queryDocs = queryDocs.eq('notificacao_id', notifId);
+                }
+                const { data } = await queryDocs;
                 docsBanco = data || [];
             }
 
@@ -8607,9 +8839,138 @@ window.avancarEtapa10 = async function () {
 // ETAPA 14 — AUTO DE INFRAÇÃO (Geração de Documento Oficial)
 // ============================================================================
 
+window.extrairCodigoSubprocesso = function (disp) {
+    if (!disp) return '';
+    const str = String(disp);
+    const match = str.match(/\b(120000\d{3})\b/);
+    if (match) return match[1];
+
+    const low = str.toLowerCase();
+    if (low.includes('limpeza') && (low.includes('não edificado') || low.includes('nao edificado'))) return '120000232';
+    if (low.includes('reincidência') && low.includes('cercamento')) return '120000228';
+    if (low.includes('reincidência') && low.includes('passeio')) return '120000227';
+    if (low.includes('cercamento')) return '120000211';
+    if (low.includes('inexistência de passeio') || low.includes('inexistencia de passeio')) return '120000226';
+    if (low.includes('reparos de muro') || low.includes('reconstrução de/ou reparo de muro') || low.includes('reparo de muro')) return '120000229';
+    if (low.includes('reparos de passeio') || low.includes('reconstrução e/ou reparo de passeio')) return '120000240';
+    if (low.includes('quintal')) return '120000233';
+    if (low.includes('obstáculo') || low.includes('obstaculo')) return '120000237';
+    if (low.includes('água servida') || low.includes('agua servida')) return '120000239';
+    if (low.includes('alvará') || low.includes('alvara')) return '120000236';
+    if (low.includes('concessionária') || low.includes('concessionaria')) return '120000234';
+    if (low.includes('piso tátil') || low.includes('piso tatil')) return '120000230';
+
+    return '';
+};
+
+window.obterDescricaoInfracao = function (disp) {
+    if (!disp) return 'Falta de limpeza e conservação de imóvel não edificado';
+    const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
+    const dispStr = String(disp).trim();
+    const dispLow = dispStr.toLowerCase();
+
+    if (cod === '120000232' || dispStr === '120000232' || (dispLow.includes('limpeza') && (dispLow.includes('não edificado') || dispLow.includes('nao edificado')))) {
+        return 'Falta de limpeza e conservação de imóvel não edificado';
+    } else if (cod === '120000228' || dispStr === '120000228' || (dispLow.includes('reincidência') && dispLow.includes('cercamento'))) {
+        return 'Reincidência na inexistência de cercamento';
+    } else if (cod === '120000227' || dispStr === '120000227' || (dispLow.includes('reincidência') && dispLow.includes('passeio'))) {
+        return 'Reincidência na inexistência de passeio';
+    } else if (cod === '120000211' || dispStr === '120000211' || dispLow.includes('cercamento')) {
+        return 'Inexistência de cercamento';
+    } else if (cod === '120000226' || dispStr === '120000226' || dispLow.includes('inexistência de passeio') || dispLow.includes('inexistencia de passeio')) {
+        return 'Inexistência de passeio';
+    } else if (cod === '120000229' || dispStr === '120000229' || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
+        return 'Reconstrução de/ou reparo de muro';
+    } else if (cod === '120000240' || dispStr === '120000240' || dispLow.includes('reconstrução e/ou reparo de passeio')) {
+        return 'Reconstrução e/ou reparo de passeio';
+    } else if (dispLow.includes('má conservação') || dispLow.includes('danificado')) {
+        return 'Muro em má conservação ou danificado';
+    } else if (cod === '120000233' || dispStr === '120000233' || dispLow.includes('quintal')) {
+        return 'Limpeza de quintal';
+    } else if (cod === '120000237' || dispStr === '120000237' || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
+        return 'Obstáculos em calçadas';
+    } else if (cod === '120000239' || dispStr === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
+        return 'Água servida';
+    } else if (cod === '120000236' || dispStr === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
+        return 'Estabelecimento sem alvará';
+    } else if (cod === '120000234' || dispStr === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
+        return 'Reparos por concessionárias';
+    } else if (cod === '120000230' || dispStr === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
+        return 'Inexistência de sinalização adequada - piso tátil';
+    } else {
+        const partes = dispStr.split('|')[0].trim();
+        if (/^\d+$/.test(partes)) {
+            return 'Falta de limpeza e conservação de imóvel não edificado';
+        }
+        return partes;
+    }
+};
+
+window.obterFundamentoLegalDecreto = function (infracaoDesc) {
+    const cod = window.extrairCodigoSubprocesso(infracaoDesc);
+    const dispLow = (infracaoDesc || '').toLowerCase();
+
+    // 1) 120000232 - Falta de limpeza e conservação de imóvel não edificado
+    if (cod === '120000232' || (dispLow.includes('limpeza') && dispLow.includes('não edificado')) || (dispLow.includes('limpeza') && dispLow.includes('nao edificado')) || (dispLow.includes('conservação') && dispLow.includes('imóvel'))) {
+        return 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
+
+    // 4) 120000228 - Reincidência na inexistência de cercamento e/ou passeio
+    } else if (cod === '120000228' || (dispLow.includes('reincidência') && dispLow.includes('cercamento')) || (dispLow.includes('reincidencia') && dispLow.includes('cercamento'))) {
+        return 'artigo 2º, I, da Lei 7.174/2010. Sob pena do artigo 4º da Lei 7.174/2010.';
+
+    // 5) 120000227 - Reincidência na inexistência de passeio
+    } else if (cod === '120000227' || (dispLow.includes('reincidência') && dispLow.includes('passeio')) || (dispLow.includes('reincidencia') && dispLow.includes('passeio'))) {
+        return 'artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010. Sob pena do art. 4º da Lei 7.174/2010.';
+
+    // 2) 120000211 - Inexistência de Cercamento
+    } else if (cod === '120000211' || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || (dispLow.includes('inexistencia') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
+        return 'artigo 1º da Lei 7.174/2010. Sob pena do artigo 3º, I.';
+
+    // 3) 120000226 - Inexistência de passeio
+    } else if (cod === '120000226' || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || (dispLow.includes('inexistencia') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
+        return 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010. Sob pena do artigo 3º, II.';
+
+    // 6) 120000229 - Reconstrução de/ou reparo de muro
+    } else if (cod === '120000229' || (dispLow.includes('reconstrução') && dispLow.includes('muro')) || (dispLow.includes('reconstrucao') && dispLow.includes('muro')) || (dispLow.includes('reparo') && dispLow.includes('muro'))) {
+        return 'artigo 2º, II, da Lei 7.174/2010. Sob pena do artigo 3º, III.';
+
+    // 7) 120000240 - Reconstrução e/ou reparo de passeio
+    } else if (cod === '120000240' || (dispLow.includes('reconstrução') && dispLow.includes('passeio')) || (dispLow.includes('reconstrucao') && dispLow.includes('passeio')) || (dispLow.includes('reparo') && dispLow.includes('passeio'))) {
+        return 'artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010. Sob pena do artigo 3º, III.';
+
+    // 8) 120000233 - Limpeza de Quintal
+    } else if (cod === '120000233' || dispLow.includes('limpeza de quintal') || dispLow.includes('quintal')) {
+        return 'artigos 14 e 15 da Lei nº 6.907/2008. Sob pena do artigo 18 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
+
+    // 9) 120000237 - Obstáculos em calçadas
+    } else if (cod === '120000237' || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
+        return 'artigo 6°,XIII, XIV da lei 6907/2008. Sob pena do artigo 11.';
+
+    // 10) 120000239 - Água servida
+    } else if (cod === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
+        return 'artigo 6, inciso IV da Lei nº 6.907/2008. Sob pena do artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
+
+    // 11) 120000236 - Estabelecimento sem alvará
+    } else if (cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
+        return 'artigo 190 da Lei nº 6.907/2008. Sob pena do artigo 195, LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
+
+    // 12) 120000234 - Reparos por concessionárias
+    } else if (cod === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
+        return 'artigo 163 da Lei 6907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010. Sob pena do artigo 172 da Lei 6907/2008.';
+
+    // 13) 120000230 - Piso Tátil
+    } else if (cod === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
+        return 'artigo 106, IV, da Lei 6.907/2008. Sob pena do artigo 142 da Lei nº 6.907/ 2008.';
+    }
+
+    return 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
+};
+
 window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     const p = proc || processoAtual || {};
-    const dispItem = infracaoDesc || notificacaoAtual?.descricao || fisc?.infracao || 'Limpeza de Quintal';
+    const dispProcLegais = window.obterDispositivosDoProcesso ? window.obterDispositivosDoProcesso(p) : [];
+    const dispItem = infracaoDesc || notificacaoAtual?.descricao || fisc?.infracao || (dispProcLegais.length > 0 ? dispProcLegais[0] : '') || 'Falta de limpeza e conservação de imóvel não edificado (120000232)';
+    const cod = window.extrairCodigoSubprocesso(dispItem);
     const dispLow = (dispItem || '').toLowerCase();
 
     const upfmdVal = window.valorUpfmdAtual || parseFloat(p?.campos?.upfmd_utilizado) || 103.00;
@@ -8644,93 +9005,93 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     let multaTextoHeader = '';
     let obsFiscal = '';
 
-    // 1) SUBPROCESSO – Falta de limpeza e conservação de imóvel não edificado
-    if (dispLow.includes('120000232') || (dispLow.includes('limpeza') && dispLow.includes('não edificado'))) {
+    // 1) 120000232 - Falta de limpeza e conservação de imóvel não edificado
+    if (cod === '120000232' || (dispLow.includes('limpeza') && dispLow.includes('não edificado'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-        // 4) SUBPROCESSO – Reincidência na inexistência de cercamento
-    } else if (dispLow.includes('120000228') || (dispLow.includes('reincidência') && dispLow.includes('cercamento'))) {
+    // 4) 120000228 - Reincidência na inexistência de cercamento
+    } else if (cod === '120000228' || (dispLow.includes('reincidência') && dispLow.includes('cercamento'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: R$ ${valFormatado}.`;
         obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
-        // 5) SUBPROCESSO – Reincidência na inexistência de passeio
-    } else if (dispLow.includes('120000227') || (dispLow.includes('reincidência') && dispLow.includes('passeio'))) {
+    // 5) 120000227 - Reincidência na inexistência de passeio
+    } else if (cod === '120000227' || (dispLow.includes('reincidência') && dispLow.includes('passeio'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: R$ ${valFormatado} (valor dobrado em face da reincidência na infração).`;
         obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
-        // 2) SUBPROCESSO – Inexistência de cercamento
-    } else if (dispLow.includes('120000211') || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
+    // 2) 120000211 - Inexistência de cercamento
+    } else if (cod === '120000211' || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-        // 3) SUBPROCESSO – Inexistência de passeio
-    } else if (dispLow.includes('120000226') || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
+    // 3) 120000226 - Inexistência de passeio
+    } else if (cod === '120000226' || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-        // 6) SUBPROCESSO – Reconstrução e/ou reparos em muro
-    } else if (dispLow.includes('120000229') || (dispLow.includes('reconstrução') && dispLow.includes('muro')) || (dispLow.includes('reparo') && dispLow.includes('muro'))) {
+    // 6) 120000229 - Reconstrução de/ou reparo de muro
+    } else if (cod === '120000229' || (dispLow.includes('reconstrução') && dispLow.includes('muro')) || (dispLow.includes('reparo') && dispLow.includes('muro'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 2º, II, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-        // 7) SUBPROCESSO – Reconstrução e/ou reparos passeio
-    } else if (dispLow.includes('120000240') || (dispLow.includes('reconstrução') && dispLow.includes('passeio')) || (dispLow.includes('reparo') && dispLow.includes('passeio'))) {
+    // 7) 120000240 - Reconstrução e/ou reparos passeio
+    } else if (cod === '120000240' || (dispLow.includes('reconstrução') && dispLow.includes('passeio')) || (dispLow.includes('reparo') && dispLow.includes('passeio'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-        // 8) SUBPROCESSO – Muro em má conservação ou danificado
+    // 8) Muro em má conservação ou danificado
     } else if (dispLow.includes('má conservação') || dispLow.includes('danificado')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-        // 9) SUBPROCESSO – Limpeza de quintal
-    } else if (dispLow.includes('120000233') || dispLow.includes('limpeza de quintal') || dispLow.includes('quintal')) {
+    // 9) 120000233 - Limpeza de quintal
+    } else if (cod === '120000233' || dispLow.includes('limpeza de quintal') || dispLow.includes('quintal')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração aos artigos 14 e 15 da Lei nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-        // 10) SUBPROCESSO – Obstáculos em calçadas
-    } else if (dispLow.includes('120000237') || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
+    // 10) 120000237 - Obstáculos em calçadas
+    } else if (cod === '120000237' || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-        // 11) SUBPROCESSO – Água servida
-    } else if (dispLow.includes('120000239') || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
+    // 11) 120000239 - Água servida
+    } else if (cod === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-        // 12) SUBPROCESSO – Estabelecimento sem alvará
-    } else if (dispLow.includes('120000236') || dispLow.includes('alvará') || dispLow.includes('alvara')) {
+    // 12) 120000236 - Estabelecimento sem alvará
+    } else if (cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 190 da Lei nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR DE: 50 UPFMD atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-        // 13) SUBPROCESSO – Reparos por concessionárias
-    } else if (dispLow.includes('120000234') || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
+    // 13) 120000234 - Reparos por concessionárias
+    } else if (cod === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
         leiBase = 'Lei nº 6.907/2008 e Lei nº 7.174/2010';
         dispositivoTexto = 'infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-        // 14) SUBPROCESSO – Piso Tátil
-    } else if (dispLow.includes('120000230') || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
+    // 14) 120000230 - Piso Tátil
+    } else if (cod === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 106, IV, da Lei 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-        // Fallback
+    // Fallback
     } else {
         dispositivoTexto = `infração à legislação municipal vigente.`;
         multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
@@ -8761,6 +9122,15 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     const cont = d.contribuinte || processoAtual?.dados?.contribuinte || {};
     const imv = d.imovel || processoAtual?.dados?.imovel || {};
     const fisc = d.fiscal || processoAtual?.dados?.fiscal || {};
+
+    const provenienteDecreto = !!(
+        processoAtual?.possui_decreto ||
+        processoAtual?.campos?.fiscDecreto === 'sim' ||
+        processoAtual?.dados?.campos?.etapa1?.proveniente_decreto ||
+        processoAtual?.dados?.proveniente_decreto ||
+        processoAtual?.proveniente_decreto ||
+        notificacaoAtual?.dados?.possui_decreto
+    );
 
     const nomeAutuado = cont.nome || 'Não informado';
     const cpfCnpj = cont.cpf_cnpj || 'Não informado';
@@ -8800,38 +9170,38 @@ window.gerarAutoDeInfracao = async function (auto = false) {
 
     if (!numAutoInfracao && (notificacaoAtual?.id || processoAtual?.id)) {
         try {
-            // Tenta consultar registro prévio na tabela autos_infracao
+            // Tenta consultar registro prévio na tabela autos_infracao por processo ou notificação
             let queryAuto = supabaseClient.from('autos_infracao').select('*');
             if (notificacaoAtual?.id) {
                 queryAuto = queryAuto.eq('notificacao_id', notificacaoAtual.id);
             } else {
                 queryAuto = queryAuto.eq('processo_id', processoAtual.id);
             }
-            const { data: autoExistente } = await queryAuto.maybeSingle();
+            const { data: autosExistentes } = await queryAuto.order('created_at', { ascending: false });
+            const autoExistente = autosExistentes && autosExistentes.length > 0 ? autosExistentes[0] : null;
 
             if (autoExistente && autoExistente.numero) {
                 numAutoInfracao = autoExistente.numero;
             } else {
-                const { data: numReservado, error: errRes } = await supabaseClient
-                    .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Auto de Infração' });
+                let inserido = false;
+                let tentativas = 0;
+                while (!inserido && tentativas < 5) {
+                    tentativas++;
+                    const { data: numReservado, error: errRes } = await supabaseClient
+                        .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Auto de Infração' });
 
-                if (errRes || !numReservado) {
-                    console.warn('Falha ao reservar número de Auto de Infração:', errRes?.message);
-                    numAutoInfracao = `${_anoAtual}/XXX`;
-                } else {
+                    if (errRes || !numReservado) {
+                        console.warn('Falha ao reservar número de Auto de Infração:', errRes?.message);
+                        numAutoInfracao = `${_anoAtual}/XXX`;
+                        break;
+                    }
+
                     numAutoInfracao = numReservado;
-
-                    const provenienteDecreto = !!(
-                        processoAtual?.dados?.campos?.etapa1?.proveniente_decreto ||
-                        processoAtual?.dados?.proveniente_decreto ||
-                        processoAtual?.proveniente_decreto
-                    );
 
                     const dataEmissao = new Date();
                     const dataVenc = new Date();
                     dataVenc.setDate(dataVenc.getDate() + 20);
 
-                    // Insere registro na tabela própria autos_infracao
                     const { error: errInsertAuto } = await supabaseClient
                         .from('autos_infracao')
                         .insert({
@@ -8855,18 +9225,31 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                             }
                         });
 
-                    if (errInsertAuto) {
+                    if (!errInsertAuto) {
+                        inserido = true;
+                    } else if (errInsertAuto.message && errInsertAuto.message.includes('autos_infracao_numero_key')) {
+                        console.warn(`Número ${numAutoInfracao} já existe em autos_infracao, tentando próximo número... (tentativa ${tentativas})`);
+                    } else {
                         console.warn('Aviso ao salvar auto na tabela autos_infracao:', errInsertAuto.message);
+                        break;
                     }
+                }
 
-                    if (notificacaoAtual?.id) {
-                        notificacaoAtual.dados = notificacaoAtual.dados || {};
-                        notificacaoAtual.dados.numero_auto_infracao = numAutoInfracao;
-                        await supabaseClient
-                            .from('notificacoes')
-                            .update({ dados: notificacaoAtual.dados })
-                            .eq('id', notificacaoAtual.id);
-                    }
+                if (notificacaoAtual?.id) {
+                    notificacaoAtual.dados = notificacaoAtual.dados || {};
+                    notificacaoAtual.dados.numero_auto_infracao = numAutoInfracao;
+                    await supabaseClient
+                        .from('notificacoes')
+                        .update({ dados: notificacaoAtual.dados })
+                        .eq('id', notificacaoAtual.id);
+                }
+                if (processoAtual?.id) {
+                    processoAtual.dados = processoAtual.dados || {};
+                    processoAtual.dados.numero_auto_infracao = numAutoInfracao;
+                    await supabaseClient
+                        .from('processos')
+                        .update({ dados: processoAtual.dados })
+                        .eq('id', processoAtual.id);
                 }
             }
             if (notificacaoAtual) notificacaoAtual.numero_auto_infracao = numAutoInfracao;
@@ -8878,10 +9261,109 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         numAutoInfracao = `${_anoAtual}/XXX`;
     }
 
-    const inputInfracao = document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || 'Limpeza de Quintal';
+    const dispProcAuto = window.obterDispositivosDoProcesso ? window.obterDispositivosDoProcesso(processoAtual) : [];
+    const inputInfracaoRaw = document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || (dispProcAuto.length > 0 ? dispProcAuto[0] : '') || 'Falta de limpeza e conservação de imóvel não edificado';
+    const inputInfracao = window.obterDescricaoInfracao ? window.obterDescricaoInfracao(inputInfracaoRaw) : inputInfracaoRaw;
     const inputNotifNum = document.getElementById('inputNumNotifAutoInfracao')?.value || notificacaoAtual?.numero || processoAtual.numero_processo || 'XXXX';
 
     const dadosLegais = window.obterDadosLegaisEValoresAuto(inputInfracao, fisc, processoAtual);
+
+    const numProc = processoAtual?.numero_processo || 'XXXXX';
+    const endContribuinteFmt = (endAutuadoLog && endAutuadoLog !== 'Não informado')
+        ? `${endAutuadoLog}, n°${endAutuadoNumVal}${cont.complemento ? ' - ' + cont.complemento : ''}, Bairro: ${endAutuadoBairroVal}, CEP:${endAutuadoCepVal} – Divinópolis/MG`
+        : 'Av. Antônio Olímpio de Morais, n°801, Bairro: Centro, CEP:35500005 – Divinópolis/MG';
+    const inscricaoImvFmt = imv.inscricao || 'XX.XXX.XXXX.XXXXX';
+    const endImovelFmt = `${imvRua}, N° ${imvNum}, Bairro: ${imvBairro}`;
+
+    const numDecreto = processoAtual?.campos?.fiscNumeroDecreto || processoAtual?.dados?.numero_decreto || '17.326/2026';
+    let dataDecretoRaw = processoAtual?.dados?.fiscal?.decreto_data || '2026-07-02';
+    let dataDecretoFmt = '02/07/2026';
+    if (dataDecretoRaw) {
+        if (dataDecretoRaw.includes('-')) {
+            const parts = dataDecretoRaw.split('T')[0].split('-');
+            if (parts.length === 3) dataDecretoFmt = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        } else if (dataDecretoRaw.includes('/')) {
+            dataDecretoFmt = dataDecretoRaw;
+        }
+    }
+
+    const prazoDiasDecreto = 15;
+    let dataFimPrazoDecretoFmt = '17/07/2026';
+    try {
+        let dDec;
+        if (dataDecretoRaw.includes('-')) {
+            const parts = dataDecretoRaw.split('T')[0].split('-');
+            dDec = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        } else if (dataDecretoRaw.includes('/')) {
+            const parts = dataDecretoRaw.split('/');
+            dDec = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+        }
+        if (dDec && !isNaN(dDec.getTime())) {
+            dDec.setDate(dDec.getDate() + prazoDiasDecreto);
+            const dd = String(dDec.getDate()).padStart(2, '0');
+            const mm = String(dDec.getMonth() + 1).padStart(2, '0');
+            const yyyy = dDec.getFullYear();
+            dataFimPrazoDecretoFmt = `${dd}/${mm}/${yyyy}`;
+        }
+    } catch (e) {
+        console.warn('Erro ao calcular data final do decreto:', e);
+    }
+
+    const fundamentoLegalDecreto = window.obterFundamentoLegalDecreto ? window.obterFundamentoLegalDecreto(inputInfracao) : 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
+
+    let corpoHtmlAuto = '';
+    if (provenienteDecreto) {
+        corpoHtmlAuto = `
+            <div style="font-size: 11pt; line-height: 1.6; color: #000; margin-top: 20px;">
+                <p style="margin: 0 0 12px 0; text-align: justify; line-height: 1.5;">
+                    <strong>Processo:</strong> ${numProc}<br/>
+                    <strong>Proprietário:</strong> ${nomeAutuado}<br/>
+                    <strong>CPF/CNPJ:</strong> ${cpfCnpj}<br/>
+                    <strong>Endereço:</strong> ${endContribuinteFmt}
+                </p>
+
+                <p style="margin: 0 0 14px 0; text-align: justify;">
+                    O Imóvel, de propriedade do(a) cidadão(ã) citado(a), cuja Inscrição Imobiliária Municipal: é <strong>${inscricaoImvFmt}</strong>, situado na <strong>${endImovelFmt}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>. Nesse dia foi verificado o não cumprimento da obrigação.
+                </p>
+
+                <p style="margin: 0 0 14px 0; text-align: justify;">
+                    O motivo da infração é baseado no Decreto <strong>${numDecreto}</strong>, publicado no dia <strong>${dataDecretoFmt}</strong>, o qual notificou todos os imóveis dentro da zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para limpeza de terrenos foi de <strong>${prazoDiasDecreto} dias</strong> da publicação do decreto, findo aquele no dia <strong>${dataFimPrazoDecretoFmt}</strong>.
+                </p>
+
+                <p style="margin: 0 0 14px 0; text-align: justify;">
+                    O fundamento legal está nos seguintes dispositivos: <strong>${fundamentoLegalDecreto}</strong>
+                </p>
+
+                <p style="margin: 0 0 16px 0; text-align: justify; font-size: 12pt; font-weight: bold;">
+                    MULTA NO VALOR DE R$ ${dadosLegais.valFormatado}
+                </p>
+
+                <p style="margin: 0 0 20px 0; text-align: justify;">
+                    O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa, por escrito, protocolada via protocolo municipal. Instruções: link (<a href="https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201</a>)
+                </p>
+            </div>
+        `;
+    } else {
+        corpoHtmlAuto = `
+            <div style="font-size: 11pt; line-height: 1.6; color: #000; margin-top: 20px;">
+                <p style="margin: 0 0 14px 0; text-align: justify;">
+                    O imóvel, situado na <strong>${imvRua}, n° ${imvNum}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
+                </p>
+
+                <p style="margin: 0 0 14px 0; text-align: justify;">
+                    Até a presente data foi verificado: o não cumprimento da obrigação da Notificação Preliminar nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.
+                </p>
+
+                <p style="margin: 0 0 14px 0; text-align: justify;">
+                    ${dadosLegais.textoCompleto}
+                </p>
+
+                <p style="margin: 0 0 20px 0; text-align: justify;">
+                    O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone). Instruções: <a href="https://www.divinopolis.mg.gov.br/portal/servicos/1053/posturas/" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://www.divinopolis.mg.gov.br</a>.
+                </p>
+            </div>
+        `;
+    }
 
     const htmlAuto = `
         <div id="documentoPronto" style="margin-top: 20px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
@@ -8907,56 +9389,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     <div style="font-size: 11pt; font-weight: bold; color: #000;">Fiscalização de Posturas</div>
                 </div>
                 <div style="text-align: right; font-size: 11pt; margin-bottom: 18px;">Divinópolis- MG ${dataAtualFmt}</div>
-
-                <!-- 1. INFORMAÇÕES DO CONTRIBUINTE -->
-                <div class="doc-sec-heading">Informações do Contribuinte</div>
-                <div class="doc-info-grid">
-                    <div>
-                        <div><strong>Contribuinte:</strong> ${nomeAutuado}</div>
-                        <div><strong>Logradouro:</strong> ${endAutuadoLog}</div>
-                        <div><strong>CEP:</strong> ${endAutuadoCepVal}</div>
-                        <div><strong>Município:</strong> Divinópolis</div>
-                    </div>
-                    <div>
-                        <div><strong>CPF/CNPJ:</strong> ${cpfCnpj}</div>
-                        <div><strong>Bairro:</strong> ${endAutuadoBairroVal}</div>
-                        <div><strong>Número:</strong> ${endAutuadoNumVal}</div>
-                    </div>
-                </div>
-
-                <!-- 2. INFORMAÇÕES DO IMÓVEL -->
-                <div class="doc-sec-heading" style="margin-top: 18px;">Informações do imóvel</div>
-                <div class="doc-info-grid">
-                    <div>
-                        <div><strong>Inscrição:</strong> ${imv.inscricao || 'XX.XXX.XXXX.XXXXX'}</div>
-                        <div><strong>Logradouro:</strong> ${imvRua}, n° ${imvNum}</div>
-                        <div><strong>Bairro:</strong> ${imvBairro}</div>
-                    </div>
-                    <div>
-                        <div><strong>Zona:</strong> ${zona}</div>
-                        <div><strong>Quadra:</strong> ${quadra}</div>
-                        <div><strong>Lote:</strong> ${lote}</div>
-                    </div>
-                </div>
-
-                <!-- CORPO DO AUTO DE INFRAÇÃO (FISCAL DE POSTURAS — NÃO DECRETO) -->
-                <div style="font-size: 11pt; line-height: 1.6; color: #000; margin-top: 20px;">
-                    <p style="margin: 0 0 14px 0; text-align: justify;">
-                        O imóvel, situado na <strong>${imvRua}, n° ${imvNum}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
-                    </p>
-
-                    <p style="margin: 0 0 14px 0; text-align: justify;">
-                        Até a presente data foi verificado: o não cumprimento da obrigação da Notificação Preliminar nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.
-                    </p>
-
-                    <p style="margin: 0 0 14px 0; text-align: justify;">
-                        ${dadosLegais.textoCompleto}
-                    </p>
-
-                    <p style="margin: 0 0 20px 0; text-align: justify;">
-                        O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone). Instruções: <a href="https://www.divinopolis.mg.gov.br/portal/servicos/1053/posturas/" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://www.divinopolis.mg.gov.br</a>.
-                    </p>
-                </div>
+                ${corpoHtmlAuto}
 
                 <!-- ASSINATURA DO FISCAL -->
                 <div style="text-align: center; margin-top: 50px; padding-bottom: 10px; font-size: 11pt;">
@@ -9090,17 +9523,42 @@ window.configurarEventosAIAssinado = function () {
                 reader.onload = async (ev) => {
                     const fileUrl = ev.target.result;
                     const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+                    const notifId = notificacaoAtual?.id || null;
+                    const procId = processoAtual?.id || null;
 
-                    let docId = notificacaoAtual?.dados?.auto_infracao_id || null;
-                    let numAuto = notificacaoAtual?.dados?.numero_auto_infracao || notificacaoAtual?.numero_auto_infracao || null;
+                    let docId = notificacaoAtual?.dados?.auto_infracao_id || processoAtual?.dados?.auto_infracao_id || null;
+                    let numAuto = notificacaoAtual?.dados?.numero_auto_infracao || notificacaoAtual?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || null;
 
                     try {
-                        const { data: docExistente } = await supabaseClient
-                            .from('documentos')
-                            .select('id, numero_sequencial')
-                            .eq('notificacao_id', notificacaoAtual.id)
-                            .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
-                            .maybeSingle();
+                        let docExistente = null;
+                        if (docId) {
+                            const { data } = await supabaseClient
+                                .from('documentos')
+                                .select('id, numero_sequencial')
+                                .eq('id', docId)
+                                .maybeSingle();
+                            docExistente = data;
+                        }
+
+                        if (!docExistente && notifId) {
+                            const { data } = await supabaseClient
+                                .from('documentos')
+                                .select('id, numero_sequencial')
+                                .eq('notificacao_id', notifId)
+                                .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
+                                .maybeSingle();
+                            docExistente = data;
+                        }
+
+                        if (!docExistente && procId) {
+                            const { data } = await supabaseClient
+                                .from('documentos')
+                                .select('id, numero_sequencial')
+                                .eq('processo_id', procId)
+                                .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
+                                .maybeSingle();
+                            docExistente = data;
+                        }
 
                         if (docExistente) {
                             docId = docExistente.id;
@@ -9119,8 +9577,8 @@ window.configurarEventosAIAssinado = function () {
                             const { data: docIns } = await supabaseClient
                                 .from('documentos')
                                 .insert([{
-                                    processo_id: processoAtual.id,
-                                    notificacao_id: notificacaoAtual.id,
+                                    processo_id: procId,
+                                    notificacao_id: notifId,
                                     etapa_id: 14,
                                     tipo: 'Auto de Infração',
                                     nome_arquivo: file.name,
@@ -9139,14 +9597,28 @@ window.configurarEventosAIAssinado = function () {
                         console.warn('Aviso ao salvar Auto de Infração no banco:', errDb);
                     }
 
-                    notificacaoAtual.dados = notificacaoAtual.dados || {};
-                    notificacaoAtual.dados.auto_infracao_id = docId;
-                    notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
-                    notificacaoAtual.dados.etapa14.anexo_url = fileUrl;
-                    notificacaoAtual.dados.etapa14.anexo_nome = file.name;
-                    notificacaoAtual.dados.etapa14.data_anexo = new Date().toISOString();
+                    if (notificacaoAtual?.id) {
+                        notificacaoAtual.dados = notificacaoAtual.dados || {};
+                        notificacaoAtual.dados.auto_infracao_id = docId;
+                        notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
+                        notificacaoAtual.dados.etapa14.anexo_url = fileUrl;
+                        notificacaoAtual.dados.etapa14.anexo_nome = file.name;
+                        notificacaoAtual.dados.etapa14.data_anexo = new Date().toISOString();
+                        await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+                    }
 
-                    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+                    if (processoAtual?.id) {
+                        processoAtual.dados = processoAtual.dados || {};
+                        processoAtual.dados.auto_infracao_id = docId;
+                        processoAtual.dados.etapa14 = processoAtual.dados.etapa14 || {};
+                        processoAtual.dados.etapa14.anexo_url = fileUrl;
+                        processoAtual.dados.etapa14.anexo_nome = file.name;
+                        processoAtual.dados.etapa14.data_anexo = new Date().toISOString();
+                        await supabaseClient
+                            .from('processos')
+                            .update({ dados: processoAtual.dados })
+                            .eq('id', processoAtual.id);
+                    }
 
                     ocultarCarregamento();
                     alert('Auto de Infração Assinado anexado com sucesso!');
@@ -9174,11 +9646,29 @@ window.configurarEventosAIAssinado = function () {
                         .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado']);
                 }
 
+                if (processoAtual?.id) {
+                    await supabaseClient
+                        .from('documentos')
+                        .delete()
+                        .eq('processo_id', processoAtual.id)
+                        .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado']);
+                }
+
                 if (notificacaoAtual?.dados?.etapa14) {
                     delete notificacaoAtual.dados.etapa14.anexo_url;
                     delete notificacaoAtual.dados.etapa14.anexo_nome;
                     delete notificacaoAtual.dados.auto_infracao_id;
                     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+                }
+
+                if (processoAtual?.dados?.etapa14) {
+                    delete processoAtual.dados.etapa14.anexo_url;
+                    delete processoAtual.dados.etapa14.anexo_nome;
+                    delete processoAtual.dados.auto_infracao_id;
+                    await supabaseClient
+                        .from('processos')
+                        .update({ dados: processoAtual.dados })
+                        .eq('id', processoAtual.id);
                 }
             } catch (e) {
                 console.warn('Erro ao remover anexo AI:', e);
@@ -9201,27 +9691,40 @@ window.carregarEExibirAnexoAIAssinado = async function () {
 
     if (!areaDrop || !boxAtual) return;
 
-    let docUrl = notificacaoAtual?.dados?.etapa14?.anexo_url || null;
-    let docNome = notificacaoAtual?.dados?.etapa14?.anexo_nome || 'auto_infracao_assinado.pdf';
-    let docData = notificacaoAtual?.dados?.etapa14?.data_anexo || null;
+    let docUrl = notificacaoAtual?.dados?.etapa14?.anexo_url || processoAtual?.dados?.etapa14?.anexo_url || null;
+    let docNome = notificacaoAtual?.dados?.etapa14?.anexo_nome || processoAtual?.dados?.etapa14?.anexo_nome || 'auto_infracao_assinado.pdf';
+    let docData = notificacaoAtual?.dados?.etapa14?.data_anexo || processoAtual?.dados?.etapa14?.data_anexo || null;
 
-    if (!docUrl && notificacaoAtual?.id) {
-        const { data: docDb } = await supabaseClient
-            .from('documentos')
-            .select('*')
-            .eq('notificacao_id', notificacaoAtual.id)
-            .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
-            .not('url', 'is', null)
-            .maybeSingle();
+    if (!docUrl) {
+        let query = supabaseClient.from('documentos').select('*').in('tipo', ['Auto de Infração', 'Auto de Infração Assinado']).not('url', 'is', null);
+        if (notificacaoAtual?.id) {
+            query = query.eq('notificacao_id', notificacaoAtual.id);
+        } else if (processoAtual?.id) {
+            query = query.eq('processo_id', processoAtual.id);
+        } else {
+            query = null;
+        }
 
-        if (docDb) {
-            docUrl = docDb.url;
-            docNome = docDb.nome_arquivo || docNome;
-            docData = docDb.created_at || docData;
-            notificacaoAtual.dados = notificacaoAtual.dados || {};
-            notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
-            notificacaoAtual.dados.etapa14.anexo_url = docUrl;
-            notificacaoAtual.dados.etapa14.anexo_nome = docNome;
+        if (query) {
+            const { data: docDb } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
+            if (docDb) {
+                docUrl = docDb.url;
+                docNome = docDb.nome_arquivo || docNome;
+                docData = docDb.created_at || docData;
+
+                if (notificacaoAtual) {
+                    notificacaoAtual.dados = notificacaoAtual.dados || {};
+                    notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
+                    notificacaoAtual.dados.etapa14.anexo_url = docUrl;
+                    notificacaoAtual.dados.etapa14.anexo_nome = docNome;
+                }
+                if (processoAtual) {
+                    processoAtual.dados = processoAtual.dados || {};
+                    processoAtual.dados.etapa14 = processoAtual.dados.etapa14 || {};
+                    processoAtual.dados.etapa14.anexo_url = docUrl;
+                    processoAtual.dados.etapa14.anexo_nome = docNome;
+                }
+            }
         }
     }
 
@@ -9254,19 +9757,24 @@ window.carregarEExibirAnexoAIAssinado = async function () {
 };
 
 window.avancarEtapa14 = async function () {
-    if (!processoAtual || !notificacaoAtual) return;
+    if (!processoAtual) return;
 
     // Validação do Anexo Obrigatório do Auto de Infração Assinado
-    let temAnexoAI = !!(notificacaoAtual?.dados?.etapa14?.anexo_url || notificacaoAtual?.dados?.auto_infracao_id);
-    if (!temAnexoAI && notificacaoAtual?.id) {
-        const { data: docAI } = await supabaseClient
-            .from('documentos')
-            .select('id, url')
-            .eq('notificacao_id', notificacaoAtual.id)
-            .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
-            .not('url', 'is', null)
-            .maybeSingle();
-        temAnexoAI = !!(docAI && docAI.url);
+    let temAnexoAI = !!(notificacaoAtual?.dados?.etapa14?.anexo_url || notificacaoAtual?.dados?.auto_infracao_id || processoAtual?.dados?.etapa14?.anexo_url || processoAtual?.dados?.auto_infracao_id);
+    if (!temAnexoAI) {
+        let query = supabaseClient.from('documentos').select('id, url').in('tipo', ['Auto de Infração', 'Auto de Infração Assinado']).not('url', 'is', null);
+        if (notificacaoAtual?.id) {
+            query = query.eq('notificacao_id', notificacaoAtual.id);
+        } else if (processoAtual?.id) {
+            query = query.eq('processo_id', processoAtual.id);
+        } else {
+            query = null;
+        }
+
+        if (query) {
+            const { data: docAI } = await query.limit(1).maybeSingle();
+            temAnexoAI = !!(docAI && docAI.url);
+        }
     }
 
     if (!temAnexoAI) {
@@ -9276,17 +9784,30 @@ window.avancarEtapa14 = async function () {
 
     mostrarCarregamento('Avançando para Etapa 15 (Gerente Gera a Multa)...');
 
-    const numAuto = notificacaoAtual.numero_auto_infracao || notificacaoAtual.dados?.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
+    const numAuto = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
 
-    notificacaoAtual.status = 'auto_infracao';
-    notificacaoAtual.dados = notificacaoAtual.dados || {};
-    notificacaoAtual.dados.numero_auto_infracao = numAuto;
-    notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
-    notificacaoAtual.dados.etapa14.data_emissao = new Date().toISOString();
-    notificacaoAtual.dados.etapa14.numero_auto_infracao = numAuto;
-    notificacaoAtual.dados.etapa14.usuario_emissor = perfilAtual?.nome || 'Fiscal de Posturas';
+    if (notificacaoAtual?.id) {
+        notificacaoAtual.status = 'auto_infracao';
+        notificacaoAtual.dados = notificacaoAtual.dados || {};
+        notificacaoAtual.dados.numero_auto_infracao = numAuto;
+        notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
+        notificacaoAtual.dados.etapa14.data_emissao = new Date().toISOString();
+        notificacaoAtual.dados.etapa14.numero_auto_infracao = numAuto;
+        notificacaoAtual.dados.etapa14.usuario_emissor = perfilAtual?.nome || 'Fiscal de Posturas';
 
-    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { status: 'auto_infracao', dados: notificacaoAtual.dados });
+        await atualizarNotificacaoNoBanco(notificacaoAtual.id, { status: 'auto_infracao', dados: notificacaoAtual.dados });
+    }
+
+    if (processoAtual?.id) {
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.numero_auto_infracao = numAuto;
+        processoAtual.dados.etapa14 = processoAtual.dados.etapa14 || {};
+        processoAtual.dados.etapa14.data_emissao = new Date().toISOString();
+        processoAtual.dados.etapa14.numero_auto_infracao = numAuto;
+        processoAtual.dados.etapa14.usuario_emissor = perfilAtual?.nome || 'Fiscal de Posturas';
+
+        await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+    }
 
     // Atualiza tabela própria autos_infracao
     try {
