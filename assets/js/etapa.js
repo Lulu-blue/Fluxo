@@ -12,6 +12,28 @@ function setVal(id, val) {
     if (el) el.value = val !== undefined && val !== null ? val : '';
 }
 
+window.formatarDataVistoriaRobusta = function (val) {
+    if (!val) return null;
+    if (typeof val === 'string') {
+        val = val.trim();
+        if (/^\d{2}\/\d{2}\/\d{4}/.test(val)) return val.substring(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}/.test(val)) {
+            const parts = val.split('T')[0].split('-');
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+    }
+    const d = new Date(val);
+    return (!isNaN(d.getTime())) ? d.toLocaleDateString('pt-BR') : null;
+};
+
+// ── Helper para verificar se Notificação possui status de Auto de Infração ──
+window.ehStatusAutoInfracao = function (notif) {
+    if (!notif) return false;
+    const st = (notif.status || '').toLowerCase();
+    const etapa = parseInt(notif.etapas?.numero || notif.etapa_atual || notif.etapa_atual_id || 0, 10);
+    return st === 'auto_infracao' || st === 'auto de infração' || st === 'auto de infracao' || (notif.dados && notif.dados.status_fluxo === 'auto_infracao') || etapa >= 14;
+};
+
 // ── Overlay de Carregamento Global ────────────────────────────────────────
 function mostrarCarregamento(mensagem) {
     const overlay = document.getElementById('overlayCarregamento');
@@ -501,14 +523,14 @@ async function inicializarPaginaEtapa() {
     } else {
         configurarAbasPagina();
 
-        if (notificacaoAtual && (notificacaoAtual.status === 'encerrada' || [3, 4, 5, 7, 10, 11, 13, 29, 33].includes(etapaAtual))) {
+        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 18, 19, 29, 33].includes(etapaAtual)) {
             renderizarFormularioDinamico(etapaAtual);
-        } else if (etapaAtual === 1 && !notificacaoAtual) {
-            renderizarFormularioDinamico(1);
-            configurarEventosPainelEtapa1();
-            renderizarPainelEtapa1(processoAtual);
-            const tabForm = document.getElementById('tabFormulario');
-            if (tabForm) setTimeout(() => tabForm.click(), 50);
+            if (etapaAtual === 1 && !notificacaoAtual) {
+                configurarEventosPainelEtapa1();
+                renderizarPainelEtapa1(processoAtual);
+                const tabForm = document.getElementById('tabFormulario');
+                if (tabForm) setTimeout(() => tabForm.click(), 50);
+            }
         }
 
         const btnSalvar = document.getElementById('btnSalvarEdicaoProcesso');
@@ -1191,26 +1213,19 @@ function renderizarFormularioDinamico(etapaNum) {
             </div>
         `;
     } else if (etapaNum === 14) {
+        if (notificacaoAtual && notificacaoAtual.status !== 'auto_infracao' && notificacaoAtual.status !== 'encerrada') {
+            notificacaoAtual.dados = notificacaoAtual.dados || {};
+            if (!notificacaoAtual.dados.status_anterior_auto_infracao) {
+                notificacaoAtual.dados.status_anterior_auto_infracao = notificacaoAtual.status || 'pendente_vencida';
+            }
+            notificacaoAtual.status = 'auto_infracao';
+            atualizarNotificacaoNoBanco(notificacaoAtual.id, { status: 'auto_infracao', dados: notificacaoAtual.dados }).catch(err => console.warn(err));
+        }
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : (processoAtual.numero_processo || 'Desconhecido');
         const tipoInfracao = notificacaoAtual?.descricao || processoAtual?.dados?.fiscal?.infracao || 'Limpeza de Quintal';
 
         conteudo = `
             <div style="background:white; border:1px solid #DED9E2; border-radius:12px; padding:24px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
-                <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #DED9E2; padding-bottom:16px;">
-                    <div style="background:#FDF2F2; border:1px solid #F8A4A4; padding:12px; border-radius:12px;">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B93838" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="12" y1="18" x2="12" y2="12"></line>
-                            <line x1="9" y1="15" x2="15" y2="15"></line>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Etapa 14 — Auto de Infração</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Emissão do Auto de Infração para Notificação Preliminar não cumprida.</p>
-                    </div>
-                </div>
-
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
                     <div>
                         <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Nº da Notificação Preliminar</label>
@@ -1230,9 +1245,11 @@ function renderizarFormularioDinamico(etapaNum) {
                     <p style="margin:0; font-size:0.8rem; color:#475569; text-align:center;">O documento será gerado com cabeçalho oficial da SEMAC, numeração sequencial própria e penalidades legais.</p>
                 </div>
 
-                <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px;">
+                ${obterHtmlBlocoAutoInfracaoAssinado()}
+
+                <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px; margin-top:20px;">
                     <span>ℹ️</span>
-                    <span>Ao clicar em <strong>"Avançar Etapa"</strong>, o Auto de Infração será registrado e o processo seguirá automaticamente para a <strong>Etapa 15 (Gerente Gera a Multa)</strong>.</span>
+                    <span>Ao clicar em <strong>"Avançar Etapa"</strong>, o Auto de Infração Assinado será validado e o processo seguirá automaticamente para a <strong>Etapa 15 (Gerente Gera a Multa)</strong>.</span>
                 </div>
             </div>
         `;
@@ -1382,6 +1399,14 @@ function renderizarFormularioDinamico(etapaNum) {
             if (typeof window.gerarCertidaoSemDefesa === 'function') window.gerarCertidaoSemDefesa(true);
             if (typeof window.configurarEventosCertidaoAssinada === 'function') window.configurarEventosCertidaoAssinada();
             if (typeof window.carregarEExibirAnexoCertidaoAssinada === 'function') window.carregarEExibirAnexoCertidaoAssinada();
+        }, 150);
+    }
+
+    if (etapaNum === 14) {
+        setTimeout(() => {
+            if (typeof window.gerarAutoDeInfracao === 'function') window.gerarAutoDeInfracao(true);
+            if (typeof window.configurarEventosAIAssinado === 'function') window.configurarEventosAIAssinado();
+            if (typeof window.carregarEExibirAnexoAIAssinado === 'function') window.carregarEExibirAnexoAIAssinado();
         }, 150);
     }
 
@@ -2109,6 +2134,16 @@ function configurarBotoesNavegacaoPadrao() {
     const btnVoltar = document.getElementById('btnVoltarEtapa');
     const btnCancelar = document.getElementById('btnCancelarProcesso');
 
+    const btnImprimir = document.getElementById('btnImprimirEtapa');
+    if (btnImprimir) {
+        const svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2 2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>`;
+        if (ehStatusAutoInfracao(notificacaoAtual) || (!notificacaoAtual && (processoAtual?.etapa_atual >= 14))) {
+            btnImprimir.innerHTML = `${svgIcon} Imprimir / PDF (Auto de Infração)`;
+        } else {
+            btnImprimir.innerHTML = `${svgIcon} Imprimir / PDF (Notificação)`;
+        }
+    }
+
     if (notificacaoAtual && notificacaoAtual.status === 'encerrada') {
         if (btnAvancar) btnAvancar.style.display = 'none';
         if (btnVoltar) btnVoltar.style.display = 'none';
@@ -2766,6 +2801,15 @@ window.gerarZipComTodosDocumentos = async function () {
             }
         }
 
+        // 12. Auto de Infração Assinado (se houver)
+        const docAI = docsBanco.find(d => ['Auto de Infração', 'Auto de Infração Assinado'].includes(d.tipo) || String(d.id) === String(notificacaoAtual.dados?.auto_infracao_id))
+            || (notificacaoAtual.dados?.etapa14?.anexo_url ? { url: notificacaoAtual.dados.etapa14.anexo_url, nome_arquivo: notificacaoAtual.dados.etapa14.anexo_nome } : null);
+
+        let urlAI = docAI?.url || docAI?.dataUrl || docAI?.base64;
+        if (urlAI) {
+            await helperAddZip(docAI?.nome_arquivo || docAI?.nome || `12_Auto_de_Infracao_${numNotifLimpo}_Assinado.pdf`, urlAI);
+        }
+
         // 12. Relatório de Histórico (TXT)
         const hist = notificacaoAtual?.dados?.historico || [];
         let relatorioTxt = `RELATÓRIO DE HISTÓRICO - NOTIFICAÇÃO ${notificacaoAtual.numero}\r\n`;
@@ -3031,6 +3075,24 @@ window.carregarArquivosEtapa29 = async function () {
         corBorda: '#a7f3d0',
         labelBtn: '⬇ Baixar Certidão Assinada'
     });
+
+    // 11. Auto de Infração Assinado (se houver no processo)
+    const docAI = docsBanco.find(d => ['Auto de Infração', 'Auto de Infração Assinado'].includes(d.tipo) || String(d.id) === String(notificacaoAtual.dados?.auto_infracao_id))
+        || (notificacaoAtual.dados?.etapa14?.anexo_url ? { url: notificacaoAtual.dados.etapa14.anexo_url, nome_arquivo: notificacaoAtual.dados.etapa14.anexo_nome || 'Auto_de_Infracao_Assinado.pdf' } : null);
+
+    if (docAI || notificacaoAtual.dados?.etapa14 || notificacaoAtual.numero_auto_infracao) {
+        const numAutoCard = notificacaoAtual.numero_auto_infracao || notificacaoAtual.dados?.numero_auto_infracao || docAI?.numero_sequencial || 'Emitido';
+        listaCards.push({
+            tipoKey: 'auto_infracao',
+            titulo: `Auto de Infração Nº ${numAutoCard}`,
+            subtitulo: docAI ? (docAI.nome_arquivo || docAI.nome || 'Auto de Infração Assinado (PDF)') : 'Auto de Infração Assinado (PDF)',
+            icone: '🚨',
+            corBtn: '#fef2f2',
+            corTexto: '#dc2626',
+            corBorda: '#fecaca',
+            labelBtn: '⬇ Baixar Auto de Infração Assinado'
+        });
+    }
 
     // 11. Relatório de Etapas (Histórico)
     listaCards.push({
@@ -3323,6 +3385,26 @@ window.baixarDocUnico = async function (tipo) {
                 alert('Documento de certidão assinada não encontrado.');
                 ocultarCarregamento();
             }
+        } else if (tipo === 'auto_infracao') {
+            const docAI = docsBanco.find(d => ['Auto de Infração', 'Auto de Infração Assinado'].includes(d.tipo) || String(d.id) === String(notificacaoAtual.dados?.auto_infracao_id))
+                || (notificacaoAtual.dados?.etapa14?.anexo_url ? { url: notificacaoAtual.dados.etapa14.anexo_url, nome_arquivo: notificacaoAtual.dados.etapa14.anexo_nome } : null);
+
+            let urlAI = docAI?.url || docAI?.dataUrl || docAI?.base64;
+            if (!urlAI && docAI?.documento_id) {
+                const { data: dFetch } = await supabaseClient.from('documentos').select('url').eq('id', docAI.documento_id).maybeSingle();
+                if (dFetch?.url) urlAI = dFetch.url;
+            }
+
+            if (urlAI) {
+                ocultarCarregamento();
+                const numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '2026/001';
+                const procNum = (processoAtual?.numero_processo || '2026-000007').replace(/[\/\\]/g, '-');
+                const nomeAutoFormatado = `Auto de Infração N° ${numAutoInfracao.replace(/[\/\\]/g, '-')} - Processo Nº ${procNum}.pdf`;
+                window.abrirOuBaixarDocumento(urlAI, docAI?.nome_arquivo || docAI?.nome || nomeAutoFormatado);
+                return;
+            }
+            ocultarCarregamento();
+            alert('Auto de Infração Assinado não encontrado.');
         } else if (tipo === 'historico') {
             const hist = notificacaoAtual?.dados?.historico || [];
             let relatorioTxt = `RELATÓRIO DE HISTÓRICO - NOTIFICAÇÃO ${notificacaoAtual.numero}\r\n`;
@@ -3553,8 +3635,17 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
 
         if (notificacaoAtual) {
             const updates = { etapa_atual_id: etapaDestId };
+            if (numeroEtapaDestino < 14) {
+                const stAtual = (notificacaoAtual.status || '').toLowerCase();
+                if (stAtual === 'auto_infracao' || stAtual === 'auto de infração' || stAtual === 'auto de infracao') {
+                    const statusAnterior = notificacaoAtual.dados?.status_anterior_auto_infracao || 'pendente_vencida';
+                    updates.status = statusAnterior;
+                    notificacaoAtual.status = statusAnterior;
+                }
+            }
             if (numeroEtapaDestino === 2) {
                 updates.status = 'pendente';
+                notificacaoAtual.status = 'pendente';
             }
 
             // Grava no JSON o histórico da notificação
@@ -5234,6 +5325,15 @@ function renderizarDocumentoOficial(proc) {
         ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || proc?.etapa_atual || proc?.etapa_atual_id || 1, 10)
         : parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 1, 10);
 
+    const ehAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? ehStatusAutoInfracao(notificacaoAtual) : (etapaAtual >= 14 || ehStatusAutoInfracao(proc));
+
+    if (ehAuto) {
+        if (window.gerarAutoDeInfracao) {
+            window.gerarAutoDeInfracao(true);
+            return;
+        }
+    }
+
     if (etapaAtual === 5 || etapaAtual === 13) {
         if (window.gerarReplica) window.gerarReplica();
         return;
@@ -5254,9 +5354,7 @@ function renderizarDocumentoOficial(proc) {
     const inf = d.infracoes || {};
 
     // Data de Vistoria formatada
-    const dataFmt = fisc.data_vistoria
-        ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR')
-        : new Date().toLocaleDateString('pt-BR');
+    const dataFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || fisc.data || proc?.created_at) || new Date().toLocaleDateString('pt-BR');
 
     // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Zona, Quadra, Lote)
     let zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
@@ -5704,7 +5802,8 @@ async function renderizarEtapa2(proc) {
                 }
 
                 let statusBadge = '';
-                if (n.status === 'encerrada') statusBadge = '<span style="background:#EAE6EE; color:#4A4553; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Encerrada</span>';
+                if (ehStatusAutoInfracao(n)) statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Auto de Infração</span>';
+                else if (n.status === 'encerrada') statusBadge = '<span style="background:#EAE6EE; color:#4A4553; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Encerrada</span>';
                 else if (n.status === 'atendida') statusBadge = '<span style="background:#EBF9F9; color:#2B7A78; border:1px solid #75C9C8; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Atendida</span>';
                 else if (n.status === 'defesa') statusBadge = '<span style="background:#F0F4FA; color:#3B5888; border:1px solid #C0B9DD; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Defesa</span>';
                 else if (n.status === 'dilacao') statusBadge = '<span style="background:#FFF9EB; color:#996B00; border:1px solid #F6D58E; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Dilação</span>';
@@ -7612,6 +7711,127 @@ async function baixarRelatorioFiscalPdfEtapa() {
 async function imprimirDocumentoOficial() {
     if (!processoAtual) { alert('Processo não encontrado.'); return; }
 
+    const etapaAtual = notificacaoAtual
+        ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
+        : parseInt(processoAtual?.etapa_atual || 1, 10);
+
+    const isAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? ehStatusAutoInfracao(notificacaoAtual) : (etapaAtual >= 14);
+    const numNotifLimpo = (notificacaoAtual?.numero || processoAtual?.numero_processo || '2026-000001').replace(/[\/\\]/g, '-');
+
+    // ── Notificação com status de Auto de Infração ──
+    if (isAuto) {
+        // Tenta buscar o Auto de Infração Assinado se já existir anexo/arquivo no banco
+        mostrarCarregamento('Buscando Auto de Infração Assinado...');
+        try {
+            let docsBanco = [];
+            if (notificacaoAtual?.id || processoAtual?.id) {
+                const { data } = await supabaseClient
+                    .from('documentos')
+                    .select('*')
+                    .or(`notificacao_id.eq.${notificacaoAtual?.id || 0},processo_id.eq.${processoAtual.id}`)
+                    .not('url', 'is', null);
+                docsBanco = data || [];
+            }
+
+            const docAI = docsBanco.find(d => ['Auto de Infração', 'Auto de Infração Assinado'].includes(d.tipo) || String(d.id) === String(notificacaoAtual?.dados?.auto_infracao_id))
+                || (notificacaoAtual?.dados?.etapa14?.anexo_url ? { url: notificacaoAtual.dados.etapa14.anexo_url, nome_arquivo: notificacaoAtual.dados.etapa14.anexo_nome } : null);
+
+            let urlAI = docAI?.url || docAI?.dataUrl || docAI?.base64;
+            if (!urlAI && docAI?.documento_id) {
+                const { data: dFetch } = await supabaseClient.from('documentos').select('url').eq('id', docAI.documento_id).maybeSingle();
+                if (dFetch?.url) urlAI = dFetch.url;
+            }
+
+            if (urlAI) {
+                ocultarCarregamento();
+                const numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '2026/001';
+                const procNum = (processoAtual?.numero_processo || '2026-000007').replace(/[\/\\]/g, '-');
+                const nomeAutoFormatado = `Auto de Infração N° ${numAutoInfracao.replace(/[\/\\]/g, '-')} - Processo Nº ${procNum}.pdf`;
+                window.abrirOuBaixarDocumento(urlAI, docAI?.nome_arquivo || docAI?.nome || nomeAutoFormatado);
+                return;
+            }
+        } catch (errAI) {
+            console.warn('Erro ao buscar Auto de Infração Assinado:', errAI);
+        }
+        ocultarCarregamento();
+
+        // Se não houver anexo assinado, pega o Auto de Infração atualmente visualizado em tela
+        let docEl = document.getElementById('documentoPronto');
+        if (!docEl || !docEl.innerHTML.includes('AUTO DE INFRAÇÃO')) {
+            try {
+                mostrarCarregamento('Preparando Auto de Infração para impressão...');
+                await window.gerarAutoDeInfracao(false);
+                ocultarCarregamento();
+                docEl = document.getElementById('documentoPronto');
+            } catch (e) {
+                ocultarCarregamento();
+                console.error('Erro ao gerar Auto de Infração para impressão:', e);
+                alert('Erro ao gerar o Auto de Infração para impressão.');
+                return;
+            }
+        }
+
+        if (!docEl) { alert('Documento de Auto de Infração não encontrado.'); return; }
+
+        const numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '2026/001';
+        const procNum = (processoAtual?.numero_processo || document.getElementById('etapaProcNumero')?.textContent || '2026-000007').replace(/[\/\\]/g, '-');
+        const titulo = `Auto de Infração N° ${numAutoInfracao} - Processo Nº ${procNum}`;
+
+        const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg';
+        let conteudoLimpo = docEl.outerHTML;
+
+        if (brasaoBase64) {
+            conteudoLimpo = conteudoLimpo.replace(/src="assets\/img\/brasao_semac\.jpeg"/g, `src="${brasaoBase64}"`);
+        }
+
+        conteudoLimpo = `<div class="doc-oficial-wrapper">${conteudoLimpo}</div>`;
+
+        const estilos = `
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body { margin: 0; padding: 0; background: #fff; font-family: Calibri, 'Carlito', Arial, sans-serif; color: #000; }
+            img { max-width: 100%; height: auto; }
+            .doc-oficial-wrapper { max-width: 820px; margin: 0 auto; background: #fff; }
+            .doc-sec-heading { font-size: 11.5pt; font-weight: bold; margin-bottom: 4px; }
+            .doc-info-grid { display: grid; grid-template-columns: 1.35fr 1fr; column-gap: 20px; font-size: 11pt; line-height: 1.45; }
+            table { border-collapse: collapse; }
+            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
+        `;
+
+        let iframe = document.getElementById('iframeImpressaoOficial');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'iframeImpressaoOficial';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
+            iframe.style.border = '0';
+            document.body.appendChild(iframe);
+        }
+
+        const docIframe = iframe.contentWindow || iframe.contentDocument;
+        const doc = docIframe.document || docIframe;
+
+        const tituloOriginal = document.title;
+        document.title = titulo;
+
+        doc.open();
+        doc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${titulo}</title><style>${estilos}</style></head><body>${conteudoLimpo}</body></html>`);
+        doc.close();
+
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            setTimeout(() => {
+                document.title = tituloOriginal;
+            }, 1000);
+        }, 500);
+
+        return;
+    }
+
+    // ── Etapas < 14: Lógica Original para Notificação Preliminar ──
     try {
         mostrarCarregamento('Preparando Notificação Preliminar para impressão...');
         // Força sempre a renderização da Notificação Preliminar do processo no container
@@ -8534,10 +8754,13 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
 window.gerarAutoDeInfracao = async function (auto = false) {
     if (!processoAtual) return;
 
-    const d = processoAtual.dados || {};
-    const cont = d.contribuinte || {};
-    const imv = d.imovel || {};
-    const fisc = d.fiscal || {};
+    const d = {
+        ...(processoAtual?.dados || {}),
+        ...(notificacaoAtual?.dados || {})
+    };
+    const cont = d.contribuinte || processoAtual?.dados?.contribuinte || {};
+    const imv = d.imovel || processoAtual?.dados?.imovel || {};
+    const fisc = d.fiscal || processoAtual?.dados?.fiscal || {};
 
     const nomeAutuado = cont.nome || 'Não informado';
     const cpfCnpj = cont.cpf_cnpj || 'Não informado';
@@ -8565,9 +8788,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     }
 
     // Data de vistoria
-    const dataVistoriaFmt = fisc.data_vistoria
-        ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR')
-        : new Date().toLocaleDateString('pt-BR');
+    const dataVistoriaFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || fisc.data || notificacaoAtual?.created_at || processoAtual?.created_at) || new Date().toLocaleDateString('pt-BR');
 
     const dataAtualFmt = new Date().toLocaleDateString('pt-BR');
     const nomeFiscal = perfilAtual?.nome || fisc.nome || 'Nome Fiscal';
@@ -8779,21 +9000,293 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     }
 };
 
+function obterHtmlBlocoAutoInfracaoAssinado() {
+    return `
+        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin-top:20px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                <div style="background:#fef2f2; border:1px solid #fca5a5; padding:10px; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                <div style="flex:1;">
+                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Auto de Infração Assinado <span style="color:#ef4444;">*</span></h4>
+                    <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Após gerar ou imprimir o Auto de Infração, anexe o documento assinado em PDF aqui.</p>
+                </div>
+                <span id="badgeStatusAnexoAI" class="badge-status-anexo" style="padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; background:#f1f5f9; color:#64748b;">Pendente</span>
+            </div>
+
+            <div id="areaDropAIAssinado" class="drop-area-clean" style="border: 2px dashed #ef4444; border-radius: 10px; padding: 20px; text-align: center; background: #fff5f5; cursor: pointer; transition: all 0.2s ease;">
+                <p style="margin:0; font-weight:600; color:#991b1b; font-size:0.95rem;">Clique para selecionar ou arraste o Auto de Infração Assinado aqui</p>
+                <p style="margin:4px 0 12px 0; color:#b91c1c; font-size:0.82rem;">Formato aceito: PDF (Máx. 10MB)</p>
+                <input type="file" id="inputArquivoAIAssinado" accept=".pdf" style="display:none;" />
+                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoAIAssinado').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#ef4444; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);">Escolher Arquivo PDF</button>
+            </div>
+
+            <div id="anexoAIAtual" class="arquivo-anexado-box" style="display:none; margin-top:14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="file-icon-badge" style="font-size:1.4rem;">🚨</div>
+                        <div>
+                            <div id="nomeArquivoAIAssinado" style="font-weight:600; color:#0f172a; font-size:0.95rem;">auto_infracao_assinado.pdf</div>
+                            <div id="dataArquivoAIAssinado" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <a id="btnVerAnexoAI" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
+                        <button id="btnRemoverAnexoAI" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+window.obterHtmlBlocoAutoInfracaoAssinado = obterHtmlBlocoAutoInfracaoAssinado;
+
+window.configurarEventosAIAssinado = function () {
+    const areaDrop = document.getElementById('areaDropAIAssinado');
+    const inputArquivo = document.getElementById('inputArquivoAIAssinado');
+    const btnRemover = document.getElementById('btnRemoverAnexoAI');
+
+    if (areaDrop && inputArquivo) {
+        areaDrop.addEventListener('click', (e) => {
+            if (e.target !== inputArquivo && !e.target.classList.contains('btn-selecionar-arquivo')) {
+                inputArquivo.click();
+            }
+        });
+
+        areaDrop.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            areaDrop.style.borderColor = '#dc2626';
+            areaDrop.style.background = '#fee2e2';
+        });
+
+        areaDrop.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            areaDrop.style.borderColor = '#ef4444';
+            areaDrop.style.background = '#fff5f5';
+        });
+
+        areaDrop.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            areaDrop.style.borderColor = '#ef4444';
+            areaDrop.style.background = '#fff5f5';
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                inputArquivo.files = e.dataTransfer.files;
+                inputArquivo.dispatchEvent(new Event('change'));
+            }
+        });
+
+        inputArquivo.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            mostrarCarregamento('Validando Auto de Infração Assinado...');
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const fileUrl = ev.target.result;
+                    const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+
+                    let docId = notificacaoAtual?.dados?.auto_infracao_id || null;
+                    let numAuto = notificacaoAtual?.dados?.numero_auto_infracao || notificacaoAtual?.numero_auto_infracao || null;
+
+                    try {
+                        const { data: docExistente } = await supabaseClient
+                            .from('documentos')
+                            .select('id, numero_sequencial')
+                            .eq('notificacao_id', notificacaoAtual.id)
+                            .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
+                            .maybeSingle();
+
+                        if (docExistente) {
+                            docId = docExistente.id;
+                            if (docExistente.numero_sequencial) numAuto = docExistente.numero_sequencial;
+                            await supabaseClient
+                                .from('documentos')
+                                .update({
+                                    url: fileUrl,
+                                    nome_arquivo: file.name,
+                                    mime_type: file.type,
+                                    gerado_automaticamente: false,
+                                    usuario_id: perfilId || undefined
+                                })
+                                .eq('id', docExistente.id);
+                        } else {
+                            const { data: docIns } = await supabaseClient
+                                .from('documentos')
+                                .insert([{
+                                    processo_id: processoAtual.id,
+                                    notificacao_id: notificacaoAtual.id,
+                                    etapa_id: 14,
+                                    tipo: 'Auto de Infração',
+                                    nome_arquivo: file.name,
+                                    url: fileUrl,
+                                    mime_type: file.type,
+                                    gerado_automaticamente: false,
+                                    numero_sequencial: numAuto || null,
+                                    usuario_id: perfilId || undefined
+                                }])
+                                .select('id')
+                                .single();
+
+                            if (docIns) docId = docIns.id;
+                        }
+                    } catch (errDb) {
+                        console.warn('Aviso ao salvar Auto de Infração no banco:', errDb);
+                    }
+
+                    notificacaoAtual.dados = notificacaoAtual.dados || {};
+                    notificacaoAtual.dados.auto_infracao_id = docId;
+                    notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
+                    notificacaoAtual.dados.etapa14.anexo_url = fileUrl;
+                    notificacaoAtual.dados.etapa14.anexo_nome = file.name;
+                    notificacaoAtual.dados.etapa14.data_anexo = new Date().toISOString();
+
+                    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+
+                    ocultarCarregamento();
+                    alert('Auto de Infração Assinado anexado com sucesso!');
+                    window.carregarEExibirAnexoAIAssinado();
+                };
+                reader.readAsDataURL(file);
+            } catch (err) {
+                ocultarCarregamento();
+                alert('Erro ao processar arquivo: ' + err.message);
+            }
+        });
+    }
+
+    if (btnRemover) {
+        btnRemover.addEventListener('click', async () => {
+            if (!confirm('Deseja substituir ou remover o Auto de Infração Assinado?')) return;
+            mostrarCarregamento('Removendo anexo...');
+
+            try {
+                if (notificacaoAtual?.id) {
+                    await supabaseClient
+                        .from('documentos')
+                        .delete()
+                        .eq('notificacao_id', notificacaoAtual.id)
+                        .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado']);
+                }
+
+                if (notificacaoAtual?.dados?.etapa14) {
+                    delete notificacaoAtual.dados.etapa14.anexo_url;
+                    delete notificacaoAtual.dados.etapa14.anexo_nome;
+                    delete notificacaoAtual.dados.auto_infracao_id;
+                    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+                }
+            } catch (e) {
+                console.warn('Erro ao remover anexo AI:', e);
+            }
+
+            ocultarCarregamento();
+            alert('Anexo do Auto de Infração Assinado removido com sucesso!');
+            window.carregarEExibirAnexoAIAssinado();
+        });
+    }
+};
+
+window.carregarEExibirAnexoAIAssinado = async function () {
+    const areaDrop = document.getElementById('areaDropAIAssinado');
+    const boxAtual = document.getElementById('anexoAIAtual');
+    const badgeStatus = document.getElementById('badgeStatusAnexoAI');
+    const nomeEl = document.getElementById('nomeArquivoAIAssinado');
+    const dataEl = document.getElementById('dataArquivoAIAssinado');
+    const btnVer = document.getElementById('btnVerAnexoAI');
+
+    if (!areaDrop || !boxAtual) return;
+
+    let docUrl = notificacaoAtual?.dados?.etapa14?.anexo_url || null;
+    let docNome = notificacaoAtual?.dados?.etapa14?.anexo_nome || 'auto_infracao_assinado.pdf';
+    let docData = notificacaoAtual?.dados?.etapa14?.data_anexo || null;
+
+    if (!docUrl && notificacaoAtual?.id) {
+        const { data: docDb } = await supabaseClient
+            .from('documentos')
+            .select('*')
+            .eq('notificacao_id', notificacaoAtual.id)
+            .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
+            .not('url', 'is', null)
+            .maybeSingle();
+
+        if (docDb) {
+            docUrl = docDb.url;
+            docNome = docDb.nome_arquivo || docNome;
+            docData = docDb.created_at || docData;
+            notificacaoAtual.dados = notificacaoAtual.dados || {};
+            notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
+            notificacaoAtual.dados.etapa14.anexo_url = docUrl;
+            notificacaoAtual.dados.etapa14.anexo_nome = docNome;
+        }
+    }
+
+    if (docUrl) {
+        areaDrop.style.display = 'none';
+        boxAtual.style.display = 'block';
+
+        if (badgeStatus) {
+            badgeStatus.textContent = 'Anexado';
+            badgeStatus.style.background = '#dcfce7';
+            badgeStatus.style.color = '#15803d';
+        }
+        if (nomeEl) nomeEl.textContent = docNome;
+        if (dataEl) {
+            dataEl.textContent = docData ? `Anexado em ${new Date(docData).toLocaleString('pt-BR')}` : 'Anexado com sucesso';
+        }
+        if (btnVer) {
+            btnVer.onclick = (e) => window.abrirAnexoEmNovaAba(docUrl, e, docNome);
+        }
+    } else {
+        areaDrop.style.display = 'block';
+        boxAtual.style.display = 'none';
+
+        if (badgeStatus) {
+            badgeStatus.textContent = 'Pendente';
+            badgeStatus.style.background = '#f1f5f9';
+            badgeStatus.style.color = '#64748b';
+        }
+    }
+};
+
 window.avancarEtapa14 = async function () {
     if (!processoAtual || !notificacaoAtual) return;
+
+    // Validação do Anexo Obrigatório do Auto de Infração Assinado
+    let temAnexoAI = !!(notificacaoAtual?.dados?.etapa14?.anexo_url || notificacaoAtual?.dados?.auto_infracao_id);
+    if (!temAnexoAI && notificacaoAtual?.id) {
+        const { data: docAI } = await supabaseClient
+            .from('documentos')
+            .select('id, url')
+            .eq('notificacao_id', notificacaoAtual.id)
+            .in('tipo', ['Auto de Infração', 'Auto de Infração Assinado'])
+            .not('url', 'is', null)
+            .maybeSingle();
+        temAnexoAI = !!(docAI && docAI.url);
+    }
+
+    if (!temAnexoAI) {
+        alert('⚠️ Anexo Obrigatório!\n\nPor favor, anexe o PDF do Auto de Infração Assinado antes de avançar para a Etapa 15.');
+        return;
+    }
 
     mostrarCarregamento('Avançando para Etapa 15 (Gerente Gera a Multa)...');
 
     const numAuto = notificacaoAtual.numero_auto_infracao || notificacaoAtual.dados?.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
 
+    notificacaoAtual.status = 'auto_infracao';
     notificacaoAtual.dados = notificacaoAtual.dados || {};
     notificacaoAtual.dados.numero_auto_infracao = numAuto;
-    notificacaoAtual.dados.etapa14 = {
-        data_emissao: new Date().toISOString(),
-        numero_auto_infracao: numAuto,
-        usuario_emissor: perfilAtual?.nome || 'Fiscal de Posturas'
-    };
-    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+    notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
+    notificacaoAtual.dados.etapa14.data_emissao = new Date().toISOString();
+    notificacaoAtual.dados.etapa14.numero_auto_infracao = numAuto;
+    notificacaoAtual.dados.etapa14.usuario_emissor = perfilAtual?.nome || 'Fiscal de Posturas';
+
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { status: 'auto_infracao', dados: notificacaoAtual.dados });
 
     // Atualiza tabela própria autos_infracao
     try {
