@@ -223,10 +223,6 @@ async function carregarDadosFiscal() {
 }
 
 function obterStepLabel(stepIndex) {
-    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
-    if (stepIndex === 5) {
-        return decretoSim ? 'Certidão' : 'Relatório Fiscal';
-    }
     return STEP_LABELS[stepIndex - 1];
 }
 
@@ -235,19 +231,21 @@ function atualizarLabelsUIWizardStep5() {
 
     const step5Small = document.querySelector('.progress-step[data-step="5"] small');
     if (step5Small) {
-        step5Small.textContent = decretoSim ? 'Certidão' : 'Relatório Fiscal';
+        step5Small.textContent = 'Relatório Fiscal';
     }
 
     const step5H3 = document.querySelector('#step5 h3');
     if (step5H3) {
-        step5H3.textContent = decretoSim ? 'Certidão' : 'Relatório Fiscal';
+        step5H3.textContent = 'Relatório Fiscal';
     }
 
     const step5Desc = document.querySelector('#step5 .step-desc');
     if (step5Desc) {
-        step5Desc.textContent = decretoSim
-            ? 'Certidão gerada automaticamente com base nas informações do processo.'
-            : 'Preencha as informações adicionais para o Relatório Fiscal e edite o texto base se necessário.';
+        if (decretoSim) {
+            step5Desc.textContent = 'Confira o texto e a prévia do Relatório Fiscal referente ao Decreto antes de gerar o processo.';
+        } else {
+            step5Desc.textContent = 'Preencha as informações adicionais para o Relatório Fiscal e edite o texto base se necessário.';
+        }
     }
 
     const atendimentoRow = document.getElementById('relAtendimentoTipo')?.closest('.form-row');
@@ -255,7 +253,6 @@ function atualizarLabelsUIWizardStep5() {
     const btnAbrirEditor = document.getElementById('btnAbrirEditorRelatorio');
     const btnBaixarCertidao = document.getElementById('btnBaixarCertidaoPdf');
     const btnEditorRow = btnAbrirEditor?.closest('.form-row') || btnBaixarCertidao?.closest('.form-row');
-    const previewContainer = document.getElementById('previewRelatorioContainer');
 
     const btnFinalizar = document.getElementById('btnWizardFinalizar');
     if (btnFinalizar) {
@@ -271,17 +268,14 @@ function atualizarLabelsUIWizardStep5() {
     if (decretoSim) {
         if (atendimentoRow) atendimentoRow.style.display = 'none';
         if (textoGroup) textoGroup.style.display = 'none';
-        if (btnEditorRow) btnEditorRow.style.display = 'flex';
-        if (btnAbrirEditor) btnAbrirEditor.style.display = 'none';
-        if (btnBaixarCertidao) btnBaixarCertidao.style.display = 'inline-flex';
-        if (previewContainer) previewContainer.style.display = 'block';
     } else {
         if (atendimentoRow) atendimentoRow.style.display = 'flex';
         if (textoGroup) textoGroup.style.display = 'block';
-        if (btnEditorRow) btnEditorRow.style.display = 'flex';
-        if (btnAbrirEditor) btnAbrirEditor.style.display = 'inline-flex';
-        if (btnBaixarCertidao) btnBaixarCertidao.style.display = 'none';
     }
+
+    if (btnEditorRow) btnEditorRow.style.display = 'flex';
+    if (btnAbrirEditor) btnAbrirEditor.style.display = 'inline-flex';
+    if (btnBaixarCertidao) btnBaixarCertidao.style.display = 'none';
 }
 
 // ── Navegação do Wizard ─────────────────────────────────────
@@ -329,12 +323,7 @@ async function avancarStep() {
         if (currentWizardStep < TOTAL_STEPS) {
             currentWizardStep++;
             if (currentWizardStep === 5) {
-                const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
-                if (decretoSim) {
-                    prepararEtapaCertidaoDecreto();
-                } else {
-                    prepararEtapaRelatorio();
-                }
+                prepararEtapaRelatorio();
             }
             atualizarWizard();
         }
@@ -665,61 +654,31 @@ async function finalizarSolicitacao() {
             }
         }
 
-        if (decretoSim) {
-            numeroCertidao = numerosReservadosEditor.certidao;
-            if (!numeroCertidao) {
-                const { data: nc, error: errNumCert } = await supabaseClient
-                    .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Certidão Sem Defesa' });
-                if (!errNumCert && nc) {
-                    numeroCertidao = nc;
-                } else {
-                    console.warn('RPC reservar_numero para Certidão falhou no envio final, buscando fallback:', errNumCert?.message);
-                    const { data } = await supabaseClient
-                        .from('notificacoes')
-                        .select('numero_certidao')
-                        .like('numero_certidao', `${anoAtual}/%`);
-                    let max = 0;
-                    if (data && data.length > 0) {
-                        data.forEach(item => {
-                            if (item.numero_certidao) {
-                                const p = item.numero_certidao.split('/');
-                                if (p.length === 2) {
-                                    const v = parseInt(p[1], 10);
-                                    if (!isNaN(v) && v > max) max = v;
-                                }
+        numeroRelatorio = numerosReservadosEditor.relatorio;
+        if (!numeroRelatorio) {
+            const { data: nr, error: errNumRel } = await supabaseClient
+                .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
+            if (!errNumRel && nr) {
+                numeroRelatorio = nr;
+            } else {
+                console.warn('RPC reservar_numero para Relatório Fiscal falhou no envio final, buscando fallback:', errNumRel?.message);
+                const { data } = await supabaseClient
+                    .from('processos')
+                    .select('numero_relatorio')
+                    .like('numero_relatorio', `${anoAtual}/%`);
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        if (item.numero_relatorio) {
+                            const p = item.numero_relatorio.split('/');
+                            if (p.length === 2) {
+                                const v = parseInt(p[1], 10);
+                                if (!isNaN(v) && v > max) max = v;
                             }
-                        });
-                    }
-                    numeroCertidao = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
+                        }
+                    });
                 }
-            }
-        } else {
-            numeroRelatorio = numerosReservadosEditor.relatorio;
-            if (!numeroRelatorio) {
-                const { data: nr, error: errNumRel } = await supabaseClient
-                    .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
-                if (!errNumRel && nr) {
-                    numeroRelatorio = nr;
-                } else {
-                    console.warn('RPC reservar_numero para Relatório Fiscal falhou no envio final, buscando fallback:', errNumRel?.message);
-                    const { data } = await supabaseClient
-                        .from('processos')
-                        .select('numero_relatorio')
-                        .like('numero_relatorio', `${anoAtual}/%`);
-                    let max = 0;
-                    if (data && data.length > 0) {
-                        data.forEach(item => {
-                            if (item.numero_relatorio) {
-                                const p = item.numero_relatorio.split('/');
-                                if (p.length === 2) {
-                                    const v = parseInt(p[1], 10);
-                                    if (!isNaN(v) && v > max) max = v;
-                                }
-                            }
-                        });
-                    }
-                    numeroRelatorio = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
-                }
+                numeroRelatorio = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
             }
         }
 
@@ -728,11 +687,8 @@ async function finalizarSolicitacao() {
         numerosReservadosEditor.relatorio = null;
         numerosReservadosEditor.certidao = null;
 
-        if (decretoSim) {
-            dados.certidao = { numero_certidao: numeroCertidao };
-        } else {
-            dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
-        }
+        dados.relatorio_fiscal = dados.relatorio_fiscal || {};
+        dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
 
         // 4. Determinar a Etapa Inicial (14 se Decreto, 1 se Padrão)
         const targetEtapaNumero = decretoSim ? 14 : 1;
@@ -825,11 +781,7 @@ async function finalizarSolicitacao() {
         };
 
         novoProcessoObj.numero_processo = numeroProcesso;
-        if (decretoSim) {
-            novoProcessoObj.numero_certidao = numeroCertidao;
-        } else {
-            novoProcessoObj.numero_relatorio = numeroRelatorio;
-        }
+        novoProcessoObj.numero_relatorio = numeroRelatorio;
 
         let procCriado = null;
         let errProc = null;
@@ -843,90 +795,43 @@ async function finalizarSolicitacao() {
         procCriado = resIns.data;
         errProc = resIns.error;
 
-        // Se a coluna 'documento_bic' ou 'decreto_id' ou 'numero_certidao' não existir na tabela 'processos' do Supabase, tenta a gravação sem as colunas raiz
-        if (errProc && errProc.message && (errProc.message.includes('documento_bic') || errProc.message.includes('decreto_id') || errProc.message.includes('numero_certidao') || errProc.code === 'PGRST204')) {
-            console.warn('Coluna de chave direta não encontrada no schema da tabela processos. Gravando no objeto JSONB dados...');
-            delete novoProcessoObj.documento_bic;
-            delete novoProcessoObj.decreto_id;
-            delete novoProcessoObj.numero_certidao;
-            const resRetry = await supabaseClient
-                .from('processos')
-                .insert([novoProcessoObj])
-                .select()
-                .single();
-            procCriado = resRetry.data;
-            errProc = resRetry.error;
-        }
-
         if (errProc || !procCriado) {
             console.error('Erro ao inserir processo:', errProc);
             // Devolve os números para a fila caso a inserção falhe
             await supabaseClient.rpc('devolver_numero', { p_numero: numeroProcesso, p_categoria: 'Processo' });
-            if (decretoSim && numeroCertidao) {
-                await supabaseClient.rpc('devolver_numero', { p_numero: numeroCertidao, p_categoria: 'Certidão Sem Defesa' });
-            } else if (numeroRelatorio) {
+            if (numeroRelatorio) {
                 await supabaseClient.rpc('devolver_numero', { p_numero: numeroRelatorio, p_categoria: 'Relatório Fiscal' });
             }
             throw new Error(errProc?.message || 'Falha ao gravar o processo no banco de dados.');
         }
 
-        // 5.5 Registrar o documento (Certidão ou Relatório Fiscal) na tabela documentos centralizada
-        if (decretoSim) {
-            try {
-                const certidaoUrl = construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, novoProcessoObj);
-                const { data: docCert } = await supabaseClient.from('documentos').insert([{
-                    processo_id: procCriado.id,
-                    etapa_id: etapaId,
-                    tipo: 'Certidão',
-                    nome_arquivo: `Certidao N° ${numeroCertidao.replace(/[\/\\]/g, '-')}.html`,
-                    url: certidaoUrl,
-                    gerado_automaticamente: true,
-                    numero_sequencial: numeroCertidao,
-                    usuario_id: profileId
-                }]).select('id').single();
+        // 5.5 Registrar o documento Relatório Fiscal na tabela documentos centralizada
+        try {
+            const relatorioUrl = window.relatorioCustomizadoHTML || construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso);
+            const { data: docRF } = await supabaseClient.from('documentos').insert([{
+                processo_id: procCriado.id,
+                etapa_id: etapaId,
+                tipo: 'Relatório Fiscal',
+                nome_arquivo: `Relatorio_Fiscal_${numeroRelatorio.replace(/[\/\\]/g, '-')}.html`,
+                url: relatorioUrl,
+                gerado_automaticamente: true,
+                numero_sequencial: numeroRelatorio,
+                usuario_id: profileId
+            }]).select('id').single();
 
-                if (docCert && docCert.id) {
-                    procCriado.dados = procCriado.dados || {};
-                    procCriado.dados.certidao = procCriado.dados.certidao || {};
-                    procCriado.dados.certidao.documento_id = docCert.id;
-                    procCriado.dados.certidao.numero_certidao = numeroCertidao;
+            if (docRF && docRF.id) {
+                procCriado.dados = procCriado.dados || {};
+                procCriado.dados.relatorio_fiscal = procCriado.dados.relatorio_fiscal || {};
+                procCriado.dados.relatorio_fiscal.documento_id = docRF.id;
+                delete procCriado.dados.relatorio_fiscal.html_customizado;
 
-                    await supabaseClient
-                        .from('processos')
-                        .update({ dados: procCriado.dados })
-                        .eq('id', procCriado.id);
-                }
-            } catch (errDoc) {
-                console.error('Erro ao registrar certidão na tabela documentos:', errDoc);
+                await supabaseClient
+                    .from('processos')
+                    .update({ dados: procCriado.dados })
+                    .eq('id', procCriado.id);
             }
-        } else {
-            try {
-                const relatorioUrl = window.relatorioCustomizadoHTML || construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso);
-                const { data: docRF } = await supabaseClient.from('documentos').insert([{
-                    processo_id: procCriado.id,
-                    etapa_id: etapaId,
-                    tipo: 'Relatório Fiscal',
-                    nome_arquivo: `Relatorio_Fiscal_${numeroRelatorio.replace(/[\\/\\\\]/g, '-')}.html`,
-                    url: relatorioUrl,
-                    gerado_automaticamente: true,
-                    numero_sequencial: numeroRelatorio,
-                    usuario_id: profileId
-                }]).select('id').single();
-
-                if (docRF && docRF.id) {
-                    procCriado.dados = procCriado.dados || {};
-                    procCriado.dados.relatorio_fiscal = procCriado.dados.relatorio_fiscal || {};
-                    procCriado.dados.relatorio_fiscal.documento_id = docRF.id;
-                    delete procCriado.dados.relatorio_fiscal.html_customizado;
-
-                    await supabaseClient
-                        .from('processos')
-                        .update({ dados: procCriado.dados })
-                        .eq('id', procCriado.id);
-                }
-            } catch (errDoc) {
-                console.error('Erro ao registrar relatório na tabela documentos:', errDoc);
-            }
+        } catch (errDoc) {
+            console.error('Erro ao registrar relatório na tabela documentos:', errDoc);
         }
 
         // Registrar o documento BIC na tabela centralizada documentos
@@ -1417,6 +1322,11 @@ function renderizarDocumentoRelatorio() {
 }
 
 function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
+    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim' || (typeof processoAtual !== 'undefined' && (processoAtual?.possui_decreto || processoAtual?.campos?.fiscDecreto === 'sim'));
+    if (decretoSim) {
+        return construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso);
+    }
+
     const ano = new Date().getFullYear();
     const numeroRelatorioTBD = numeroRelatorio || `XXX/${ano}`;
     const numeroProcessoTBD = numeroProcesso || `XXX/${ano}`;
@@ -1655,7 +1565,7 @@ function renderizarDocumentoCertidaoDecreto() {
     );
 }
 
-function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = null) {
+function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, procObj = null) {
     const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
     const dProc = proc?.dados || {};
     const cProc = dProc.contribuinte || {};
@@ -1663,29 +1573,39 @@ function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = 
     const fProc = dProc.fiscal || {};
 
     const ano = new Date().getFullYear();
-    const numeroCertidaoTBD = numeroCertidao || proc?.numero_certidao || dProc.certidao?.numero_certidao || (typeof numerosReservadosEditor !== 'undefined' ? numerosReservadosEditor.certidao : null) || `XXX/${ano}`;
+    const numeroRelatorioTBD = numeroRelatorio || proc?.numero_relatorio || dProc.relatorio_fiscal?.numero_relatorio || proc?.numero_certidao || dProc.certidao?.numero_certidao || (typeof numerosReservadosEditor !== 'undefined' ? (numerosReservadosEditor.relatorio || numerosReservadosEditor.certidao) : null) || `XXX/${ano}`;
     const numeroProcessoTBD = numeroProcesso || proc?.numero_processo || (typeof numerosReservadosEditor !== 'undefined' ? numerosReservadosEditor.processo : null) || `XXX/${ano}`;
     const dataAtual = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     // Contribuinte Info
-    const contNome = document.getElementById('contNome')?.value?.trim() || cProc.nome || 'ARIVELTO COSTA ALMEIDA';
-
-    let rawCpfCnpj = document.getElementById('contCpfCnpj')?.value?.trim() || cProc.cpf_cnpj || '013.647.296-60';
+    const contNome = document.getElementById('contNome')?.value?.trim() || cProc.nome || 'ALVORADA IMOVEIS LTDA';
+    let rawCpfCnpj = document.getElementById('contCpfCnpj')?.value?.trim() || cProc.cpf_cnpj || '20.159.208/0001-65';
     let contCpfCnpj = rawCpfCnpj;
-    if (rawCpfCnpj && !rawCpfCnpj.toUpperCase().startsWith('CPF') && !rawCpfCnpj.toUpperCase().startsWith('CNPJ')) {
-        const apenasDigitos = rawCpfCnpj.replace(/\D/g, '');
-        const label = apenasDigitos.length > 11 ? 'CNPJ' : 'CPF';
-        contCpfCnpj = `${label} ${rawCpfCnpj}`;
-    }
 
-    const logrCont = document.getElementById('contLogradouro')?.value?.trim() || cProc.logradouro || 'Rua Paraná';
-    const numCont = document.getElementById('contNumero')?.value?.trim() || cProc.numero || '41';
-    const compContVal = document.getElementById('contComplemento')?.value?.trim() || cProc.complemento;
-    const compCont = compContVal ? ` - ${compContVal}` : '';
-    const bairroCont = document.getElementById('contBairro')?.value?.trim() || cProc.bairro || 'Centro';
-    const cepCont = document.getElementById('contCep')?.value?.trim() || cProc.cep || '35565-000';
-    const munCont = document.getElementById('contMunicipio')?.value?.trim() || cProc.municipio || cProc.cidade || 'Pedra do Indaiá';
-    const enderecoContribuinte = `${logrCont} n°${numCont}${compCont} – ${bairroCont} – CEP:${cepCont}, ${munCont}/MG`;
+    const logrCont = document.getElementById('contLogradouro')?.value?.trim() || cProc.logradouro || 'Rua MINAS GERAIS';
+    const numCont = document.getElementById('contNumero')?.value?.trim() || cProc.numero || '309';
+    const bairroCont = document.getElementById('contBairro')?.value?.trim() || cProc.bairro || 'CENTRO';
+    const cepCont = document.getElementById('contCep')?.value?.trim() || cProc.cep || '35500-007';
+    const munCont = document.getElementById('contMunicipio')?.value?.trim() || cProc.municipio || cProc.cidade || 'Divinópolis';
+
+    // Imóvel Info
+    const imvInscricao = document.getElementById('imvInscricao')?.value?.trim() || iProc.inscricao || '01.025.00183.00033.00000.0';
+    const imvLogradouro = document.getElementById('imvLogradouro')?.value?.trim() || iProc.logradouro || 'Rua CATALUNHA';
+    const imvNumero = document.getElementById('imvNumero')?.value?.trim() || iProc.numero || '0';
+    const imvBairro = document.getElementById('imvBairro')?.value?.trim() || iProc.bairro || 'PARAISO';
+
+    // Extraction of Zona, Quadra, Lote from Inscrição Imobiliária
+    let imvZona = iProc.zona || '01';
+    let imvQuadra = iProc.quadra || '00183';
+    let imvLote = iProc.lote || '00033';
+    if (imvInscricao) {
+        const parts = imvInscricao.replace(/\s/g, '').split('.');
+        if (parts.length >= 4) {
+            imvZona = parts[0] || imvZona;
+            imvQuadra = parts[2] || imvQuadra;
+            imvLote = parts[3] || imvLote;
+        }
+    }
 
     // Decreto Info
     const decretoNumero = (typeof obterNumeroDecretoSelecionado === 'function' ? obterNumeroDecretoSelecionado() : null) || fProc.numero_decreto || '17.326/2026';
@@ -1754,12 +1674,6 @@ function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = 
         }
     }
 
-    // Imóvel Info
-    const imvInscricao = document.getElementById('imvInscricao')?.value?.trim() || iProc.inscricao || 'inscrição imobiliaria';
-    const imvLogradouro = document.getElementById('imvLogradouro')?.value?.trim() || iProc.logradouro || 'Rua xx';
-    const imvNumero = document.getElementById('imvNumero')?.value?.trim() || iProc.numero || 'x';
-    const imvBairro = document.getElementById('imvBairro')?.value?.trim() || iProc.bairro || 'x';
-
     // Imagens de vistoria
     let htmlImagens = '';
     const containerImagens = document.getElementById('lista-imagens-legenda');
@@ -1827,15 +1741,15 @@ function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = 
 
             <!-- Título -->
             <div style="text-align: center; font-weight: bold; margin-top: 25px; margin-bottom: 5px;">
-                <p style="margin:0; font-size: 12pt;">CERTIDÃO ${numeroCertidaoTBD}</p>
+                <p style="margin:0; font-size: 12pt;">RELATÓRIO FISCAL ${numeroRelatorioTBD}</p>
             </div>
-            <div style="text-align: center; margin-bottom: 25px;">
+            <div style="text-align: center; margin-bottom: 15px;">
                 <p style="margin:0;">Fiscalização de Posturas</p>
             </div>
 
             <!-- Data -->
-            <div style="text-align: right; margin-bottom: 25px;">
-                <p style="margin:0;">Divinópolis - MG <br> ${dataAtual}</p>
+            <div style="text-align: right; margin-bottom: 20px;">
+                <p style="margin:0;">Divinópolis- MG ${dataAtual}</p>
             </div>
 
             <!-- Processo -->
@@ -1843,14 +1757,45 @@ function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = 
                 <p style="margin:0 0 10px 0;"><strong>Processo:</strong> ${numeroProcessoTBD}</p>
             </div>
 
+            <!-- Informações do Contribuinte -->
+            <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 6px; margin-top: 15px;">Informações do Contribuinte</div>
+            <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.45; margin-bottom: 15px;">
+                <tr>
+                    <td width="58%" valign="top">
+                        <div><strong>Contribuinte:</strong> ${contNome}</div>
+                        <div><strong>Logradouro:</strong> ${logrCont}</div>
+                        <div><strong>CEP:</strong> ${cepCont}</div>
+                        <div><strong>Município:</strong> ${munCont}</div>
+                    </td>
+                    <td width="42%" valign="top">
+                        <div><strong>CPF/CNPJ:</strong> ${contCpfCnpj}</div>
+                        <div><strong>Bairro:</strong> ${bairroCont}</div>
+                        <div><strong>Número:</strong> ${numCont}</div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Informações do imóvel -->
+            <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 6px; margin-top: 15px;">Informações do imóvel</div>
+            <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.45; margin-bottom: 25px;">
+                <tr>
+                    <td width="58%" valign="top">
+                        <div><strong>Inscrição:</strong> ${imvInscricao}</div>
+                        <div><strong>Logradouro:</strong> ${imvLogradouro}, n° ${imvNumero}</div>
+                        <div><strong>Bairro:</strong> ${imvBairro}</div>
+                    </td>
+                    <td width="42%" valign="top">
+                        <div><strong>Zona:</strong> ${imvZona}</div>
+                        <div><strong>Quadra:</strong> ${imvQuadra}</div>
+                        <div><strong>Lote:</strong> ${imvLote}</div>
+                    </td>
+                </tr>
+            </table>
+
             <!-- Corpo -->
             <div style="margin-bottom: 30px; text-align: justify; line-height: 1.5;">
                 <p style="text-indent: 30px; margin:0 0 16px 0;">
-                    Certifico que o autuado <strong>${contNome}</strong>, ${contCpfCnpj}, com endereço de correspondência: ${enderecoContribuinte}, não se manifestou sobre a interposição de defesa referente ao Decreto <strong>${decretoNumero}</strong>, publicado no dia <strong>${decretoDataFmt}</strong> no Diário Oficial dos Municípios Mineiros, o qual notificou todos os proprietários de imóveis situados na zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${dispositivosTransgredidosStr}</strong> foi de <strong>${prazoDias}</strong> dias, findo aquele no dia <strong>${dataVencimentoFmt}</strong>.
-                </p>
-
-                <p style="text-indent: 30px; margin:0 0 16px 0;">
-                    Lote de Inscrição Imobiliária Municipal <strong>${imvInscricao}</strong> situado na <strong>${imvLogradouro}, N° ${imvNumero}, Bairro ${imvBairro}</strong> nesta cidade.
+                    Certifico que o autuado, não se manifestou sobre a interposição de defesa referente ao Decreto <strong>${decretoNumero}</strong>, publicado no dia <strong>${decretoDataFmt}</strong> no Diário Oficial dos Municípios Mineiros, o qual notificou todos os proprietários de imóveis situados na zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${dispositivosTransgredidosStr}</strong> foi de <strong>${prazoDias}</strong> dias, findo aquele no dia <strong>${dataVencimentoFmt}</strong>.
                 </p>
 
                 <p style="text-indent: 30px; margin:0 0 16px 0;">
@@ -1862,7 +1807,6 @@ function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = 
 
             <!-- Assinatura -->
             <div style="margin-top: 50px;">
-                <p style="margin:0 0 50px 0; text-align: left;">Atenciosamente,</p>
                 <div style="text-align: center;">
                     <p style="margin:0;">_________________________________________</p>
                     <p style="margin:5px 0 0 0;"><strong>${fNome}</strong></p>
@@ -1874,7 +1818,12 @@ function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = 
     `;
 }
 
-window.construirHtmlCertidaoDecreto = construirHtmlCertidaoDecreto;
+function construirHtmlCertidaoDecreto(numeroCertidao, numeroProcesso, procObj = null) {
+    return construirHtmlRelatorioFiscalDecreto(numeroCertidao, numeroProcesso, procObj);
+}
+
+window.construirHtmlRelatorioFiscalDecreto = construirHtmlRelatorioFiscalDecreto;
+window.construirHtmlCertidaoDecreto = construirHtmlRelatorioFiscalDecreto;
 
 // ── Editor WYSIWYG do Relatório Fiscal ──────────────────────
 async function abrirEditorRelatorio() {

@@ -579,12 +579,12 @@ function renderizarFormularioDinamico(etapaNum) {
 
     const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
     if (btnBaixar) {
-        if (etapaNum === 10 || decretoSim) {
+        if (etapaNum === 10) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Certidão (.pdf)`;
-        } else if ([5, 13].includes(etapaNum)) {
+        } else if ([5, 8, 13].includes(etapaNum)) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Réplica (.pdf)`;
         } else {
-            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Relatório (.pdf)`;
+            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Relatório de Vistoria (.pdf)`;
         }
     }
 
@@ -1239,7 +1239,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 <input type="hidden" id="inputNumNotifAutoInfracao" value="${numNotificacao}" />
                 <input type="hidden" id="inputInfracaoAutoInfracao" value="${tipoInfracao}" />
 
-                ${decretoSim && typeof window.obterHtmlBlocoCertidaoAssinada === 'function' ? window.obterHtmlBlocoCertidaoAssinada() : ''}
+                ${decretoSim && typeof window.obterHtmlBlocoRelatorioFiscalAssinado === 'function' ? window.obterHtmlBlocoRelatorioFiscalAssinado() : ''}
                 ${obterHtmlBlocoAutoInfracaoAssinado()}
 
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px; margin-top:20px;">
@@ -1324,7 +1324,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         <div>
                             <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Unificado do Processo (PDF Completo)</h3>
                             <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
-                                Ordem de consolidação: Capa ➔ ${decretoSim ? 'BIC ➔ Decreto ➔ Certidão ➔ Outros ➔ Auto de Infração' : 'BIC ➔ Relatório Fiscal ➔ Notificação ➔ AR ➔ Outros ➔ Auto de Infração'}.
+                                Ordem de consolidação: Capa ➔ BIC ➔ Relatório Fiscal ➔ Notificação / Decreto ➔ AR ➔ Outros ➔ Auto de Infração.
                             </p>
                         </div>
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
@@ -1504,8 +1504,8 @@ function renderizarFormularioDinamico(etapaNum) {
                 || processoAtual?.campos?.fiscDecreto === 'sim'
                 || notificacaoAtual?.dados?.possui_decreto;
             if (decretoSim) {
-                if (typeof window.configurarEventosCertidaoAssinada === 'function') window.configurarEventosCertidaoAssinada();
-                if (typeof window.carregarEExibirAnexoCertidaoAssinada === 'function') window.carregarEExibirAnexoCertidaoAssinada();
+                if (typeof window.configurarEventosRelatorioFiscalAssinado === 'function') window.configurarEventosRelatorioFiscalAssinado();
+                if (typeof window.carregarEExibirAnexoRelatorioAssinado === 'function') window.carregarEExibirAnexoRelatorioAssinado();
             }
         }, 150);
     }
@@ -3086,21 +3086,21 @@ window.carregarArquivosEtapa29 = async function () {
         labelBtn: decretoSim ? '⬇ Baixar Auto de Infração Assinado' : '⬇ Baixar Notificação Assinada'
     });
 
-    // 2. Relatório Fiscal / Certidão Assinada
+    // 2. Relatório Fiscal Assinado
     const docRF = docsBanco.find(d => ['Relatório Fiscal', 'Relatório Fiscal Assinado', 'Certidão', 'Certidão Assinada'].includes(d.tipo))
         || processoAtual?.campos?.anexo_rf_assinado
-        || (notificacaoAtual.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url, nome_arquivo: notificacaoAtual.dados.relatorio_fiscal_nome || (decretoSim ? 'Certidao_Assinada.pdf' : 'Relatorio_Fiscal_Assinado.pdf') } : null);
+        || (notificacaoAtual.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url, nome_arquivo: notificacaoAtual.dados.relatorio_fiscal_nome || 'Relatorio_Fiscal_Assinado.pdf' } : null);
 
     if (docRF || notificacaoAtual.dados?.etapa2?.tem_relatorio_fiscal !== false) {
         listaCards.push({
             tipoKey: 'relatorio_fiscal',
-            titulo: decretoSim ? 'Certidão Assinada' : 'Relatório Fiscal Assinado',
-            subtitulo: docRF ? (docRF.nome_arquivo || docRF.nome || (decretoSim ? 'Certidão gerada (PDF)' : 'Vistoria e Fotos (PDF Assinado)')) : (decretoSim ? 'Certidão gerada (PDF)' : 'Relatório Fiscal de Vistoria (PDF Assinado)'),
+            titulo: 'Relatório Fiscal Assinado',
+            subtitulo: docRF ? (docRF.nome_arquivo || docRF.nome || 'Vistoria e Fotos (PDF Assinado)') : 'Relatório Fiscal de Vistoria (PDF Assinado)',
             icone: '📋',
             corBtn: '#f0fdf4',
             corTexto: '#16a34a',
             corBorda: '#bbf7d0',
-            labelBtn: decretoSim ? '⬇ Baixar Certidão Assinada' : '⬇ Baixar Relatório Fiscal'
+            labelBtn: '⬇ Baixar Relatório Fiscal'
         });
     }
 
@@ -3397,7 +3397,7 @@ window.baixarDocUnico = async function (tipo) {
 
             if (urlRF) {
                 ocultarCarregamento();
-                const defaultName = decretoSim ? `Certidao_${numNotifLimpo}_Assinada.pdf` : `Relatorio_Fiscal_${numNotifLimpo}_Assinado.pdf`;
+                const defaultName = `Relatorio_Fiscal_${numNotifLimpo}_Assinado.pdf`;
                 window.abrirOuBaixarDocumento(urlRF, docRF?.nome_arquivo || docRF?.nome || defaultName);
                 return;
             }
@@ -3406,7 +3406,7 @@ window.baixarDocUnico = async function (tipo) {
             if (typeof window.baixarRelatorioFiscalPdfEtapa === 'function') {
                 window.baixarRelatorioFiscalPdfEtapa();
             } else {
-                alert(decretoSim ? 'Documento da Certidão não encontrado.' : 'Documento assinado do Relatório Fiscal não encontrado.');
+                alert('Documento assinado do Relatório Fiscal não encontrado.');
             }
         } else if (tipo === 'bic') {
             const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo))
@@ -3973,51 +3973,82 @@ function obterDispositivosDoProcesso(proc) {
     return ['Falta de limpeza e conservação de imóvel não edificado (120000232)'];
 }
 
+// ── Helper para Converter Números com Vírgula ou Ponto com Segurança ──────
+function parseNumberSafe(val, defaultVal = 0) {
+    if (val === null || val === undefined || val === '') return defaultVal;
+    if (typeof val === 'number') return isNaN(val) ? defaultVal : val;
+    let str = String(val).trim();
+    if (str.includes(',') && str.includes('.')) {
+        str = str.replace(/\./g, '').replace(',', '.');
+    } else if (str.includes(',')) {
+        str = str.replace(',', '.');
+    }
+    const parsed = parseFloat(str.replace(/[^0-9.-]/g, ''));
+    return isNaN(parsed) ? defaultVal : parsed;
+}
+window.parseNumberSafe = parseNumberSafe;
+
 // ── Helper para Extrair Dados do Imóvel para Cálculo ────────────────────────
 function obterDadosImovelParaCalculo(proc) {
-    const imv = (proc && proc.imovel) || (proc && proc.dados && proc.dados.imovel) || {};
-    const areaNum = parseFloat(imv.area_total) || 288;
-    const testadaNum = parseFloat(imv.testada) || 12;
-    const profundidadeNum = parseFloat(imv.profundidade) || 0;
-    const temEsquina = (proc?.campos?.imovel_esquina === 'sim' ||
+    const p = proc || {};
+    const imv = p.imovel || p.dados?.imovel || p.campos?.imovel || (window.notificacaoAtual && window.notificacaoAtual.dados && window.notificacaoAtual.dados.imovel) || {};
+
+    const areaRaw = imv.area_total || imv.area || p.campos?.area_total || p.campos?.area_lote_m2 || p.dados?.area_total || 288;
+    const testadaRaw = imv.testada || p.campos?.testada || p.campos?.testada_metros || p.dados?.testada || 12;
+    const profRaw = imv.profundidade || p.campos?.profundidade || p.dados?.profundidade || 0;
+
+    const areaNum = parseNumberSafe(areaRaw, 288);
+    const testadaNum = parseNumberSafe(testadaRaw, 12);
+    const profundidadeNum = parseNumberSafe(profRaw, 0);
+
+    const temEsquina = (
+        p.campos?.imovel_esquina === 'sim' ||
         imv.esquina === 'sim' ||
         imv.esquina === true ||
         imv.esquina === 1 ||
         imv.esquina === '1' ||
-        imv.possui_esquina === 'sim');
+        imv.possui_esquina === 'sim' ||
+        p.campos?.esquina === 'sim'
+    );
     return { areaNum, testadaNum, profundidadeNum, temEsquina };
 }
+window.obterDadosImovelParaCalculo = obterDadosImovelParaCalculo;
 
-// ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
 // ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
 function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd) {
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
+    const upfmdVal = parseNumberSafe(upfmd, 103.00);
+    const area = parseNumberSafe(areaNum, 288);
+    const testada = parseNumberSafe(testadaNum, 12);
+    const profundidade = parseNumberSafe(profundidadeNum, 0);
+
     let profCalc = 0;
     if (temEsquina) {
-        profCalc = (profundidadeNum && profundidadeNum > 0) ? profundidadeNum : (testadaNum > 0 ? (areaNum / testadaNum) : 0);
+        profCalc = (profundidade && profundidade > 0) ? profundidade : (testada > 0 ? (area / testada) : 0);
     }
-    const testadaTotal = testadaNum + profCalc;
+    const testadaTotal = testada + profCalc;
 
     if (cod === '120000232' || dispLow.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
-        return areaNum * upfmd * 0.15;
+        return area * upfmdVal * 0.15;
     } else if (cod === '120000228' || dispLow.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
-        return testadaTotal * upfmd * 2;
+        return testadaTotal * upfmdVal * 2;
     } else if (cod === '120000227' || dispLow.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
-        return testadaTotal * upfmd * 2;
+        return testadaTotal * upfmdVal * 2;
     } else if (cod === '120000211' || dispLow.includes('120000211') || dispLow.includes('cercamento')) {
-        return testadaTotal * upfmd;
+        return testadaTotal * upfmdVal;
     } else if (cod === '120000226' || dispLow.includes('120000226') || dispLow.includes('inexistência de passeio') || (dispLow.includes('passeio') && !dispLow.includes('reparos') && !dispLow.includes('reconstrução'))) {
-        return testadaTotal * upfmd;
+        return testadaTotal * upfmdVal;
     } else if (cod === '120000229' || cod === '120000240' || dispLow.includes('120000229') || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro') ||
         dispLow.includes('120000240') || dispLow.includes('reconstrução e/ou reparo de passeio') ||
         dispLow.includes('muro em má conservação') || dispLow.includes('danificado')) {
-        return testadaTotal * upfmd * 0.5;
+        return testadaTotal * upfmdVal * 0.5;
     } else if (cod === '120000236' || dispLow.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
-        return upfmd * 50;
+        return upfmdVal * 50;
     } else {
-        return upfmd * 10;
+        return upfmdVal * 10;
     }
 }
+window.calcularValorNumDefaultMulta = calcularValorNumDefaultMulta;
 
 async function renderizarStepperPadrao(proc) {
     if (!proc) return;
@@ -5311,6 +5342,278 @@ window.removerCertidaoAssinadaUI = function () {
         badge.textContent = 'Pendente';
         badge.style.background = '#f1f5f9';
         badge.style.color = '#64748b';
+    }
+};
+
+// ── Bloco de Anexo do Relatório Fiscal Assinado (Etapa 14 / Decreto) ───────────────────
+window.obterHtmlBlocoRelatorioFiscalAssinado = function () {
+    return `
+        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin-top:20px; margin-bottom:20px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px; border-radius:10px; display:flex; align-items:center; justify-content:center;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                <div style="flex:1;">
+                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Relatório Fiscal Assinado <span style="color:#ef4444;">*</span></h4>
+                    <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Após gerar ou baixar o Relatório Fiscal, anexe o documento final assinado em PDF aqui.</p>
+                </div>
+                <span id="badgeStatusAnexoRelatorio" class="badge-status-anexo" style="padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; background:#f1f5f9; color:#64748b;">Pendente</span>
+            </div>
+
+            <div id="areaDropRelatorioAssinado" class="drop-area-clean" style="border: 2px dashed #10b981; border-radius: 10px; padding: 20px; text-align: center; background: #ecfdf5; cursor: pointer; transition: all 0.2s ease;">
+                <p style="margin:0; font-weight:600; color:#047857; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal Assinado aqui</p>
+                <p style="margin:4px 0 12px 0; color:#059669; font-size:0.82rem;">Formato aceito: PDF (Máx. 10MB)</p>
+                <input type="file" id="inputArquivoRelatorioAssinado" accept=".pdf" style="display:none;" />
+                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoRelatorioAssinado').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#10b981; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Escolher Arquivo PDF</button>
+            </div>
+
+            <div id="anexoRelatorioAtual" class="arquivo-anexado-box" style="display:none; margin-top:14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="file-icon-badge" style="font-size:1.4rem;">📋</div>
+                        <div>
+                            <div id="nomeArquivoRelatorioAssinado" style="font-weight:600; color:#0f172a; font-size:0.95rem;">relatorio_fiscal_assinado.pdf</div>
+                            <div id="dataArquivoRelatorioAssinado" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <a id="btnVerAnexoRelatorio" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
+                        <button id="btnRemoverAnexoRelatorio" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+window.configurarEventosRelatorioFiscalAssinado = function () {
+    const areaDrop = document.getElementById('areaDropRelatorioAssinado');
+    const inputArquivo = document.getElementById('inputArquivoRelatorioAssinado');
+    const btnRemover = document.getElementById('btnRemoverAnexoRelatorio');
+
+    if (areaDrop && inputArquivo) {
+        areaDrop.addEventListener('click', (e) => {
+            if (e.target !== inputArquivo && !e.target.classList.contains('btn-selecionar-arquivo')) {
+                inputArquivo.click();
+            }
+        });
+
+        inputArquivo.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            mostrarCarregamento('Validando Relatório Fiscal Assinado...');
+
+            try {
+                const textoExtraido = await extrairTextoDoArquivo(file);
+                const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+                const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+                if (!textoNorm.includes('RELATORIO') && !nomeNorm.includes('RELATORIO')) {
+                    ocultarCarregamento();
+                    alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "RELATÓRIO". Por favor, verifique se selecionou o documento correto.');
+                    e.target.value = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const fileUrl = ev.target.result;
+                    const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+                    const procId = processoAtual?.id || null;
+                    const notifId = notificacaoAtual?.id || null;
+
+                    let docId = null;
+                    try {
+                        // Delete provisional auto-generated document if present
+                        await supabaseClient
+                            .from('documentos')
+                            .delete()
+                            .eq('processo_id', procId)
+                            .in('tipo', ['Relatório Fiscal', 'Relatório Fiscal Assinado'])
+                            .eq('gerado_automaticamente', true);
+
+                        const { data: docExistente } = await supabaseClient
+                            .from('documentos')
+                            .select('id')
+                            .eq('processo_id', procId)
+                            .in('tipo', ['Relatório Fiscal', 'Relatório Fiscal Assinado'])
+                            .eq('gerado_automaticamente', false)
+                            .maybeSingle();
+
+                        if (docExistente) {
+                            await supabaseClient
+                                .from('documentos')
+                                .update({
+                                    url: fileUrl,
+                                    nome_arquivo: file.name,
+                                    mime_type: file.type,
+                                    gerado_automaticamente: false,
+                                    usuario_id: perfilId || undefined
+                                })
+                                .eq('id', docExistente.id);
+                            docId = docExistente.id;
+                        } else {
+                            const numRel = processoAtual?.numero_relatorio || processoAtual?.dados?.relatorio_fiscal?.numero_relatorio || null;
+                            const { data: docIns } = await supabaseClient
+                                .from('documentos')
+                                .insert([{
+                                    processo_id: procId,
+                                    notificacao_id: notifId,
+                                    etapa_id: 14,
+                                    tipo: 'Relatório Fiscal',
+                                    nome_arquivo: file.name,
+                                    url: fileUrl,
+                                    mime_type: file.type,
+                                    gerado_automaticamente: false,
+                                    numero_sequencial: numRel,
+                                    usuario_id: perfilId || undefined
+                                }])
+                                .select('id')
+                                .single();
+                            if (docIns) docId = docIns.id;
+                        }
+                    } catch (errDb) {
+                        console.warn('Erro ao salvar Relatório Fiscal no banco:', errDb);
+                    }
+
+                    if (processoAtual?.id) {
+                        processoAtual.dados = processoAtual.dados || {};
+                        processoAtual.dados.relatorio_fiscal = processoAtual.dados.relatorio_fiscal || {};
+                        processoAtual.dados.relatorio_fiscal.documento_id = docId;
+                        processoAtual.dados.relatorio_fiscal.anexo_url = fileUrl;
+                        processoAtual.dados.relatorio_fiscal.anexo_nome = file.name;
+                        processoAtual.dados.relatorio_fiscal.data_anexo = new Date().toISOString();
+                        processoAtual.dados.relatorio_fiscal.assinado = true;
+                        processoAtual.dados.relatorio_fiscal.gerado_automaticamente = false;
+
+                        await supabaseClient
+                            .from('processos')
+                            .update({ dados: processoAtual.dados })
+                            .eq('id', processoAtual.id);
+                    }
+
+                    ocultarCarregamento();
+                    alert('Relatório Fiscal Assinado anexado com sucesso!');
+                    window.carregarEExibirAnexoRelatorioAssinado();
+                };
+                reader.readAsDataURL(file);
+            } catch (err) {
+                ocultarCarregamento();
+                alert('Erro ao processar arquivo: ' + err.message);
+            }
+        });
+    }
+
+    if (btnRemover) {
+        btnRemover.addEventListener('click', async () => {
+            if (!confirm('Deseja remover o anexo do Relatório Fiscal Assinado?')) return;
+            mostrarCarregamento('Removendo anexo...');
+
+            try {
+                if (processoAtual?.id) {
+                    await supabaseClient
+                        .from('documentos')
+                        .delete()
+                        .eq('processo_id', processoAtual.id)
+                        .in('tipo', ['Relatório Fiscal', 'Relatório Fiscal Assinado']);
+
+                    if (processoAtual.dados?.relatorio_fiscal) {
+                        delete processoAtual.dados.relatorio_fiscal.anexo_url;
+                        delete processoAtual.dados.relatorio_fiscal.anexo_nome;
+                        delete processoAtual.dados.relatorio_fiscal.documento_id;
+                        processoAtual.dados.relatorio_fiscal.assinado = false;
+                        processoAtual.dados.relatorio_fiscal.gerado_automaticamente = false;
+
+                        await supabaseClient
+                            .from('processos')
+                            .update({ dados: processoAtual.dados })
+                            .eq('id', processoAtual.id);
+                    }
+                }
+            } catch (errRem) {
+                console.error('Erro ao remover Relatório Fiscal Assinado:', errRem);
+            }
+
+            ocultarCarregamento();
+            alert('Anexo do Relatório Fiscal Assinado removido com sucesso!');
+            window.carregarEExibirAnexoRelatorioAssinado();
+        });
+    }
+};
+
+window.carregarEExibirAnexoRelatorioAssinado = async function () {
+    const areaDrop = document.getElementById('areaDropRelatorioAssinado');
+    const boxAtual = document.getElementById('anexoRelatorioAtual');
+    const badgeStatus = document.getElementById('badgeStatusAnexoRelatorio');
+    const nomeEl = document.getElementById('nomeArquivoRelatorioAssinado');
+    const dataEl = document.getElementById('dataArquivoRelatorioAssinado');
+    const btnVer = document.getElementById('btnVerAnexoRelatorio');
+
+    if (!areaDrop || !boxAtual) return;
+
+    let isGeradoAuto = processoAtual?.dados?.relatorio_fiscal?.gerado_automaticamente === true;
+    let docUrl = isGeradoAuto ? null : (processoAtual?.dados?.relatorio_fiscal?.anexo_url || null);
+    let docNome = processoAtual?.dados?.relatorio_fiscal?.anexo_nome || 'relatorio_fiscal_assinado.pdf';
+    let docData = processoAtual?.dados?.relatorio_fiscal?.data_anexo || null;
+
+    if (processoAtual?.id) {
+        const { data: docDb } = await supabaseClient
+            .from('documentos')
+            .select('*')
+            .eq('processo_id', processoAtual.id)
+            .in('tipo', ['Relatório Fiscal', 'Relatório Fiscal Assinado'])
+            .not('url', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (docDb) {
+            if (docDb.gerado_automaticamente === true) {
+                docUrl = null;
+            } else {
+                docUrl = docDb.url;
+                docNome = docDb.nome_arquivo || docNome;
+                docData = docDb.created_at || docData;
+            }
+        }
+    }
+
+    if (docUrl) {
+        areaDrop.style.display = 'none';
+        boxAtual.style.display = 'block';
+
+        if (badgeStatus) {
+            badgeStatus.textContent = 'Anexado';
+            badgeStatus.style.background = '#dcfce7';
+            badgeStatus.style.color = '#15803d';
+        }
+
+        if (nomeEl) nomeEl.textContent = docNome;
+        if (dataEl) {
+            const dataStr = docData ? new Date(docData).toLocaleString('pt-BR') : '';
+            dataEl.textContent = dataStr ? `Anexado em ${dataStr}` : 'Anexado com sucesso';
+        }
+
+        if (btnVer) {
+            btnVer.onclick = (e) => {
+                e.preventDefault();
+                window.abrirOuBaixarDocumento(docUrl, docNome);
+            };
+        }
+    } else {
+        areaDrop.style.display = 'block';
+        boxAtual.style.display = 'none';
+
+        if (badgeStatus) {
+            badgeStatus.textContent = 'Pendente';
+            badgeStatus.style.background = '#f1f5f9';
+            badgeStatus.style.color = '#64748b';
+        }
     }
 };
 
@@ -7732,8 +8035,8 @@ async function baixarRelatorioFiscalPdfEtapa() {
             || processoAtual?.campos?.fiscDecreto === 'sim'
             || notificacaoAtual?.dados?.possui_decreto;
 
-        // Se for processo com Decreto ou Etapa 10 (Certidão), baixa a Certidão do processo
-        if (etapaNum === 10 || decretoSim) {
+        // Se for Etapa 10 (Certidão Sem Defesa), baixa a Certidão do processo
+        if (etapaNum === 10) {
             let docCert = null;
             try {
                 const notifId = notificacaoAtual?.id;
@@ -9016,51 +9319,51 @@ window.obterFundamentoLegalDecreto = function (infracaoDesc) {
     if (cod === '120000232' || (dispLow.includes('limpeza') && dispLow.includes('não edificado')) || (dispLow.includes('limpeza') && dispLow.includes('nao edificado')) || (dispLow.includes('conservação') && dispLow.includes('imóvel'))) {
         return 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
 
-    // 4) 120000228 - Reincidência na inexistência de cercamento e/ou passeio
+        // 4) 120000228 - Reincidência na inexistência de cercamento e/ou passeio
     } else if (cod === '120000228' || (dispLow.includes('reincidência') && dispLow.includes('cercamento')) || (dispLow.includes('reincidencia') && dispLow.includes('cercamento'))) {
         return 'artigo 2º, I, da Lei 7.174/2010. Sob pena do artigo 4º da Lei 7.174/2010.';
 
-    // 5) 120000227 - Reincidência na inexistência de passeio
+        // 5) 120000227 - Reincidência na inexistência de passeio
     } else if (cod === '120000227' || (dispLow.includes('reincidência') && dispLow.includes('passeio')) || (dispLow.includes('reincidencia') && dispLow.includes('passeio'))) {
         return 'artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010. Sob pena do art. 4º da Lei 7.174/2010.';
 
-    // 2) 120000211 - Inexistência de Cercamento
+        // 2) 120000211 - Inexistência de Cercamento
     } else if (cod === '120000211' || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || (dispLow.includes('inexistencia') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
         return 'artigo 1º da Lei 7.174/2010. Sob pena do artigo 3º, I.';
 
-    // 3) 120000226 - Inexistência de passeio
+        // 3) 120000226 - Inexistência de passeio
     } else if (cod === '120000226' || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || (dispLow.includes('inexistencia') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
         return 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010. Sob pena do artigo 3º, II.';
 
-    // 6) 120000229 - Reconstrução de/ou reparo de muro
+        // 6) 120000229 - Reconstrução de/ou reparo de muro
     } else if (cod === '120000229' || (dispLow.includes('reconstrução') && dispLow.includes('muro')) || (dispLow.includes('reconstrucao') && dispLow.includes('muro')) || (dispLow.includes('reparo') && dispLow.includes('muro'))) {
         return 'artigo 2º, II, da Lei 7.174/2010. Sob pena do artigo 3º, III.';
 
-    // 7) 120000240 - Reconstrução e/ou reparo de passeio
+        // 7) 120000240 - Reconstrução e/ou reparo de passeio
     } else if (cod === '120000240' || (dispLow.includes('reconstrução') && dispLow.includes('passeio')) || (dispLow.includes('reconstrucao') && dispLow.includes('passeio')) || (dispLow.includes('reparo') && dispLow.includes('passeio'))) {
         return 'artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010. Sob pena do artigo 3º, III.';
 
-    // 8) 120000233 - Limpeza de Quintal
+        // 8) 120000233 - Limpeza de Quintal
     } else if (cod === '120000233' || dispLow.includes('limpeza de quintal') || dispLow.includes('quintal')) {
         return 'artigos 14 e 15 da Lei nº 6.907/2008. Sob pena do artigo 18 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
 
-    // 9) 120000237 - Obstáculos em calçadas
+        // 9) 120000237 - Obstáculos em calçadas
     } else if (cod === '120000237' || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
         return 'artigo 6°,XIII, XIV da lei 6907/2008. Sob pena do artigo 11.';
 
-    // 10) 120000239 - Água servida
+        // 10) 120000239 - Água servida
     } else if (cod === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
         return 'artigo 6, inciso IV da Lei nº 6.907/2008. Sob pena do artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
 
-    // 11) 120000236 - Estabelecimento sem alvará
+        // 11) 120000236 - Estabelecimento sem alvará
     } else if (cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
         return 'artigo 190 da Lei nº 6.907/2008. Sob pena do artigo 195, LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
 
-    // 12) 120000234 - Reparos por concessionárias
+        // 12) 120000234 - Reparos por concessionárias
     } else if (cod === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
         return 'artigo 163 da Lei 6907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010. Sob pena do artigo 172 da Lei 6907/2008.';
 
-    // 13) 120000230 - Piso Tátil
+        // 13) 120000230 - Piso Tátil
     } else if (cod === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
         return 'artigo 106, IV, da Lei 6.907/2008. Sob pena do artigo 142 da Lei nº 6.907/ 2008.';
     }
@@ -9075,11 +9378,11 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     const cod = window.extrairCodigoSubprocesso(dispItem);
     const dispLow = (dispItem || '').toLowerCase();
 
-    const upfmdVal = window.valorUpfmdAtual || parseFloat(p?.campos?.upfmd_utilizado) || 103.00;
+    const upfmdVal = window.valorUpfmdAtual || parseNumberSafe(p?.campos?.upfmd_utilizado, 103.00);
 
     const { areaNum, testadaNum, profundidadeNum, temEsquina } = window.obterDadosImovelParaCalculo
         ? window.obterDadosImovelParaCalculo(p)
-        : { areaNum: parseFloat(fisc?.area_lote_m2 || 288), testadaNum: parseFloat(fisc?.testada_metros || 12), profundidadeNum: 0, temEsquina: false };
+        : { areaNum: parseNumberSafe(fisc?.area_lote_m2, 288), testadaNum: parseNumberSafe(fisc?.testada_metros, 12), profundidadeNum: 0, temEsquina: false };
 
     const numAI = p?.campos?.auto_infracao_anterior_numero || notificacaoAtual?.dados?.etapa14?.numero_auto_infracao || 'XXXX';
     const dataAI = p?.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
@@ -9097,7 +9400,7 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
 
     const customMulta = p?.campos?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multa_customizada;
     const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
-        ? parseFloat(customMulta)
+        ? parseNumberSafe(customMulta, defMulta)
         : defMulta;
 
     const valFormatado = valMultaFinal.toFixed(2).replace('.', ',');
@@ -9113,87 +9416,87 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         dispositivoTexto = 'infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-    // 4) 120000228 - Reincidência na inexistência de cercamento
+        // 4) 120000228 - Reincidência na inexistência de cercamento
     } else if (cod === '120000228' || (dispLow.includes('reincidência') && dispLow.includes('cercamento'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: R$ ${valFormatado}.`;
         obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
-    // 5) 120000227 - Reincidência na inexistência de passeio
+        // 5) 120000227 - Reincidência na inexistência de passeio
     } else if (cod === '120000227' || (dispLow.includes('reincidência') && dispLow.includes('passeio'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: R$ ${valFormatado} (valor dobrado em face da reincidência na infração).`;
         obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
-    // 2) 120000211 - Inexistência de cercamento
+        // 2) 120000211 - Inexistência de cercamento
     } else if (cod === '120000211' || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-    // 3) 120000226 - Inexistência de passeio
+        // 3) 120000226 - Inexistência de passeio
     } else if (cod === '120000226' || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-    // 6) 120000229 - Reconstrução de/ou reparo de muro
+        // 6) 120000229 - Reconstrução de/ou reparo de muro
     } else if (cod === '120000229' || (dispLow.includes('reconstrução') && dispLow.includes('muro')) || (dispLow.includes('reparo') && dispLow.includes('muro'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 2º, II, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-    // 7) 120000240 - Reconstrução e/ou reparos passeio
+        // 7) 120000240 - Reconstrução e/ou reparos passeio
     } else if (cod === '120000240' || (dispLow.includes('reconstrução') && dispLow.includes('passeio')) || (dispLow.includes('reparo') && dispLow.includes('passeio'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-    // 8) Muro em má conservação ou danificado
+        // 8) Muro em má conservação ou danificado
     } else if (dispLow.includes('má conservação') || dispLow.includes('danificado')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
 
-    // 9) 120000233 - Limpeza de quintal
+        // 9) 120000233 - Limpeza de quintal
     } else if (cod === '120000233' || dispLow.includes('limpeza de quintal') || dispLow.includes('quintal')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração aos artigos 14 e 15 da Lei nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-    // 10) 120000237 - Obstáculos em calçadas
+        // 10) 120000237 - Obstáculos em calçadas
     } else if (cod === '120000237' || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-    // 11) 120000239 - Água servida
+        // 11) 120000239 - Água servida
     } else if (cod === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-    // 12) 120000236 - Estabelecimento sem alvará
+        // 12) 120000236 - Estabelecimento sem alvará
     } else if (cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 190 da Lei nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR DE: 50 UPFMD atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-    // 13) 120000234 - Reparos por concessionárias
+        // 13) 120000234 - Reparos por concessionárias
     } else if (cod === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
         leiBase = 'Lei nº 6.907/2008 e Lei nº 7.174/2010';
         dispositivoTexto = 'infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-    // 14) 120000230 - Piso Tátil
+        // 14) 120000230 - Piso Tátil
     } else if (cod === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 106, IV, da Lei 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
 
-    // Fallback
+        // Fallback
     } else {
         dispositivoTexto = `infração à legislação municipal vigente.`;
         multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
@@ -9210,7 +9513,12 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     `;
 
     return {
-        textoCompleto
+        textoCompleto,
+        valFormatado,
+        valMultaFinal,
+        leiBase,
+        dispositivoTexto,
+        multaTextoHeader
     };
 };
 
@@ -9417,15 +9725,45 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     if (provenienteDecreto) {
         corpoHtmlAuto = `
             <div style="font-size: 11pt; line-height: 1.6; color: #000; margin-top: 20px;">
-                <p style="margin: 0 0 12px 0; text-align: justify; line-height: 1.5;">
-                    <strong>Processo:</strong> ${numProc}<br/>
-                    <strong>Proprietário:</strong> ${nomeAutuado}<br/>
-                    <strong>CPF/CNPJ:</strong> ${cpfCnpj}<br/>
-                    <strong>Endereço:</strong> ${endContribuinteFmt}
-                </p>
+                <p style="margin: 0 0 10px 0;"><strong>Processo:</strong> ${numProc}</p>
+
+                <!-- Informações do Contribuinte -->
+                <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 6px; margin-top: 15px;">Informações do Contribuinte</div>
+                <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.45; margin-bottom: 15px;">
+                    <tr>
+                        <td width="58%" valign="top">
+                            <div><strong>Contribuinte:</strong> ${nomeAutuado}</div>
+                            <div><strong>Logradouro:</strong> ${endAutuadoLog}</div>
+                            <div><strong>CEP:</strong> ${endAutuadoCepVal}</div>
+                            <div><strong>Município:</strong> ${cont.municipio || 'Divinópolis'}</div>
+                        </td>
+                        <td width="42%" valign="top">
+                            <div><strong>CPF/CNPJ:</strong> ${cpfCnpj}</div>
+                            <div><strong>Bairro:</strong> ${endAutuadoBairroVal}</div>
+                            <div><strong>Número:</strong> ${endAutuadoNumVal}</div>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Informações do imóvel -->
+                <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 6px; margin-top: 15px;">Informações do imóvel</div>
+                <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.45; margin-bottom: 20px;">
+                    <tr>
+                        <td width="58%" valign="top">
+                            <div><strong>Inscrição:</strong> ${inscricaoImvFmt}</div>
+                            <div><strong>Logradouro:</strong> ${imvRua}, n° ${imvNum}</div>
+                            <div><strong>Bairro:</strong> ${imvBairro}</div>
+                        </td>
+                        <td width="42%" valign="top">
+                            <div><strong>Zona:</strong> ${zona}</div>
+                            <div><strong>Quadra:</strong> ${quadra}</div>
+                            <div><strong>Lote:</strong> ${lote}</div>
+                        </td>
+                    </tr>
+                </table>
 
                 <p style="margin: 0 0 14px 0; text-align: justify;">
-                    O Imóvel, de propriedade do(a) cidadão(ã) citado(a), cuja Inscrição Imobiliária Municipal: é <strong>${inscricaoImvFmt}</strong>, situado na <strong>${endImovelFmt}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>. Nesse dia foi verificado o não cumprimento da obrigação.
+                    O Imóvel, de propriedade do(a) cidadão(ã) citado(a), cuja Inscrição Imobiliária Municipal: é <strong>${inscricaoImvFmt}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>. Nesse dia foi verificado o não cumprimento da obrigação.
                 </p>
 
                 <p style="margin: 0 0 14px 0; text-align: justify;">
@@ -9861,6 +10199,37 @@ window.carregarEExibirAnexoAIAssinado = async function () {
 window.avancarEtapa14 = async function () {
     if (!processoAtual) return;
 
+    // Validação do Anexo Obrigatório do Relatório Fiscal Assinado se o processo for decorrente de decreto
+    const decretoSim = processoAtual?.possui_decreto
+        || processoAtual?.campos?.fiscDecreto === 'sim'
+        || notificacaoAtual?.dados?.possui_decreto;
+
+    if (decretoSim) {
+        let temAnexoRF = false;
+        if (processoAtual?.dados?.relatorio_fiscal?.anexo_url && processoAtual?.dados?.relatorio_fiscal?.gerado_automaticamente !== true) {
+            temAnexoRF = true;
+        }
+
+        if (!temAnexoRF && processoAtual?.id) {
+            const { data: docRF } = await supabaseClient
+                .from('documentos')
+                .select('id, url, gerado_automaticamente')
+                .eq('processo_id', processoAtual.id)
+                .in('tipo', ['Relatório Fiscal', 'Relatório Fiscal Assinado'])
+                .not('url', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            temAnexoRF = !!(docRF && docRF.url && docRF.gerado_automaticamente !== true);
+        }
+
+        if (!temAnexoRF) {
+            alert('⚠️ Anexo Obrigatório!\n\nPor favor, anexe o PDF do Relatório Fiscal Assinado antes de avançar para a Etapa 15.');
+            return;
+        }
+    }
+
     // Validação do Anexo Obrigatório do Auto de Infração Assinado
     let temAnexoAI = !!(notificacaoAtual?.dados?.etapa14?.anexo_url || notificacaoAtual?.dados?.auto_infracao_id || processoAtual?.dados?.etapa14?.anexo_url || processoAtual?.dados?.auto_infracao_id);
     if (!temAnexoAI) {
@@ -10159,10 +10528,6 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
             <div style="line-height: 2.2; font-size: 12.5pt; color: #000; margin-top: 20px; padding-left: 5px;">
                 <div style="margin-bottom: 14px;">
                     <strong>Autuado(a):</strong> ${nomeAutuado} <strong>cpf:</strong> ${cpfCnpjAutuado}
-                </div>
-
-                <div style="margin-bottom: 14px;">
-                    <strong>Advogado:</strong> ${advogado}
                 </div>
 
                 <div style="margin-bottom: 14px;">
