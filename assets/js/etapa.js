@@ -1248,6 +1248,86 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
             </div>
         `;
+    } else if (etapaNum === 15) {
+        const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : (processoAtual.numero_processo || '261/2026');
+        const decretoSim = !!(processoAtual?.possui_decreto
+            || processoAtual?.campos?.fiscDecreto === 'sim'
+            || notificacaoAtual?.dados?.possui_decreto);
+
+        const contObj = processoAtual?.contribuinte || processoAtual?.dados?.contribuinte || {};
+        const contCampos = processoAtual?.campos || {};
+        const nomeAutuado = contObj.nome || contCampos.contNome || 'SONIA DOS SANTOS FERREIRA';
+        const cpfCnpjAutuado = contObj.cpf_cnpj || contCampos.contCpfCnpj || '034.804.546-82';
+        const fiscObj = processoAtual?.dados?.fiscal || {};
+        const nomeFiscal = processoAtual?.fiscal_responsavel || fiscObj.nome || perfilAtual?.nome || 'Luiza Duarte de Souza';
+        const matriculaFiscal = processoAtual?.fiscal_matricula || fiscObj.matricula || perfilAtual?.matricula || '99044459-2';
+        const dataHoje = new Date().toLocaleDateString('pt-BR');
+
+        conteudo = `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:28px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding-bottom:16px; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:14px;">
+                        <div style="background:#eff6ff; padding:12px; border-radius:12px;">
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 style="margin:0; color:#0f172a; font-size:1.35rem; font-weight:800;">Etapa 15 – Gerente Gera a Multa</h2>
+                            <p style="margin:4px 0 0 0; color:#64748b; font-size:0.9rem;">Consolidação do Processo Administrativo e Emissão de Documento Único (PDF Unificado).</p>
+                        </div>
+                    </div>
+                    <span style="background:#dbeafe; color:#1e40af; font-size:0.82rem; font-weight:700; padding:6px 14px; border-radius:20px;">
+                        ${decretoSim ? '📜 Fluxo com Decreto' : '📋 Fluxo Padrão (Com Notificação)'}
+                    </span>
+                </div>
+
+                <!-- Card da Capa do Processo -->
+                <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
+                    <h3 style="margin:0 0 14px 0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
+                        <span>📑 Informações da Capa do Processo</span>
+                    </h3>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; font-size:0.9rem;">
+                        <div><strong style="color:#475569;">PROCESSO ADMINISTRATIVO – SEMAC Nº:</strong> <br><span style="color:#0f172a; font-weight:700;">${numNotificacao}</span></div>
+                        <div><strong style="color:#475569;">Autuado(a):</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeAutuado}</span></div>
+                        <div><strong style="color:#475569;">cpf:</strong> <br><span style="color:#0f172a; font-weight:600;">${cpfCnpjAutuado}</span></div>
+                        <div><strong style="color:#475569;">Processo:</strong> <br><span style="color:#0f172a; font-weight:600;">${processoAtual?.numero_processo || '---'}</span></div>
+                        <div><strong style="color:#475569;">Data de Geração:</strong> <br><span style="color:#0f172a; font-weight:600;">${dataHoje}</span></div>
+                        <div><strong style="color:#475569;">Agente Fiscal Responsável:</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeFiscal} – Matrícula: ${matriculaFiscal}</span></div>
+                    </div>
+                </div>
+
+                <!-- Painel de Gerenciamento do PDF Unificado -->
+                <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+                        <div>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Unificado do Processo (PDF Completo)</h3>
+                            <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
+                                Ordem de consolidação: Capa ➔ ${decretoSim ? 'BIC ➔ Decreto ➔ Certidão ➔ Outros ➔ Auto de Infração' : 'BIC ➔ Relatório Fiscal ➔ Notificação ➔ AR ➔ Outros ➔ Auto de Infração'}.
+                            </p>
+                        </div>
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download')" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3); transition:all 0.2s;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Baixar PDF Completo
+                            </button>
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir')" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; gap:8px; transition:all 0.2s;">
+                                👁️ Visualizar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px;">
+                    <span>ℹ️</span>
+                    <span>Ao clicar em <strong>"Avançar Etapa"</strong>, o processo com a multa gerada será concluído.</span>
+                </div>
+            </div>
+        `;
     } else if (etapaNum === 33 || (notificacaoAtual && notificacaoAtual.status === 'encerrada')) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
@@ -2255,6 +2335,10 @@ async function avancarEtapaPadrao() {
         await avancarEtapa14();
         return;
     }
+    if (etapaAtual === 15) {
+        await avancarEtapa15();
+        return;
+    }
     if (etapaAtual === 16) {
         await avancarEtapa16();
         return;
@@ -2738,10 +2822,9 @@ window.gerarZipComTodosDocumentos = async function () {
         }
 
         // 5. Decreto Municipal (se houver)
-        const docDecreto = docsBanco.find(d => ['Decreto', 'Decreto Municipal'].includes(d.tipo));
-        let urlDecreto = docDecreto?.url || docDecreto?.dataUrl || docDecreto?.base64 || processoAtual?.campos?.anexo_decreto_url;
-        if (urlDecreto) {
-            await helperAddZip(docDecreto?.nome_arquivo || docDecreto?.nome || `5_Decreto_Municipal_${numNotifLimpo}.pdf`, urlDecreto);
+        const resDecretoZip = await window.obterUrlOuAnexoDecreto(processoAtual, notificacaoAtual, docsBanco);
+        if (resDecretoZip.url) {
+            await helperAddZip(resDecretoZip.docObj?.nome_arquivo || resDecretoZip.docObj?.nome || `5_Decreto_Municipal_${numNotifLimpo}.pdf`, resDecretoZip.url);
         }
 
         // 6. Edital do Gerente (se houver)
@@ -3341,13 +3424,9 @@ window.baixarDocUnico = async function (tipo) {
             ocultarCarregamento();
             alert('Comprovante AR (Aviso de Recebimento) não encontrado.');
         } else if (tipo === 'decreto') {
-            const docDecreto = docsBanco.find(d => ['Decreto', 'Decreto Municipal'].includes(d.tipo));
-            let urlDecreto = docDecreto?.url || docDecreto?.dataUrl || docDecreto?.base64 || processoAtual?.campos?.anexo_decreto_url;
-
-            if (!urlDecreto && docDecreto?.documento_id) {
-                const { data: dFetch } = await supabaseClient.from('documentos').select('url').eq('id', docDecreto.documento_id).maybeSingle();
-                if (dFetch?.url) urlDecreto = dFetch.url;
-            }
+            const resDecreto = await window.obterUrlOuAnexoDecreto(processoAtual, notificacaoAtual, docsBanco);
+            const docDecreto = resDecreto.docObj;
+            let urlDecreto = resDecreto.url;
 
             if (urlDecreto) {
                 ocultarCarregamento();
@@ -3355,7 +3434,7 @@ window.baixarDocUnico = async function (tipo) {
                 return;
             }
             ocultarCarregamento();
-            const numDec = processoAtual?.campos?.fiscNumeroDecreto || '17.326/2026';
+            const numDec = processoAtual?.campos?.fiscNumeroDecreto || processoAtual?.dados?.numero_decreto || '17.326/2026';
             alert(`Processo regido pelo Decreto Municipal Nº ${numDec}. O arquivo PDF anexado do Decreto não foi localizado no banco.`);
         } else if (tipo === 'comprovante_renda') {
             const docRenda = docsBanco.find(d => ['Comprovante de Renda', 'Renda', 'Comprovante Renda'].includes(d.tipo))
@@ -9825,6 +9904,598 @@ window.avancarEtapa14 = async function () {
     }
 
     await moverProcessoParaEtapa(15, 'Auto de Infração Emitido');
+};
+
+// ── ETAPA 15: PDF COMPLETO UNIFICADO DO PROCESSO ──
+async function carregarBibliotecasPDF() {
+    if (typeof window.PDFLib === 'undefined') {
+        await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+    if (typeof window.html2canvas === 'undefined') {
+        await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+    if (typeof window.pdfjsLib === 'undefined') {
+        await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            s.onload = () => {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                resolve();
+            };
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+}
+
+window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
+    console.log('[DECRETO] Iniciando busca do Decreto para o processo...', { proc, notif });
+
+    // 1. PRIORIDADE MÁXIMA: Buscar na tabela 'decretos' pelo decreto_id do processo (coluna arquivo_url)
+    const decId = proc?.decreto_id
+        || proc?.dados?.decreto_id
+        || proc?.dados?.fiscal?.decreto_id
+        || proc?.campos?.decreto_id
+        || notif?.dados?.decreto_id;
+
+    if (decId && typeof supabaseClient !== 'undefined') {
+        try {
+            const { data: decDb, error: errDec } = await supabaseClient
+                .from('decretos')
+                .select('*')
+                .eq('id', decId)
+                .maybeSingle();
+
+            if (!errDec && decDb && decDb.arquivo_url) {
+                console.log('[DECRETO] Decreto localizado na tabela decretos por ID:', decDb);
+                return { docObj: decDb, url: decDb.arquivo_url };
+            }
+        } catch (e) {
+            console.warn('[DECRETO] Erro ao buscar decreto por ID no banco:', e);
+        }
+    }
+
+    // 2. Buscar na tabela 'decretos' pelo Número do Decreto (coluna arquivo_url)
+    const numDec = proc?.decreto_numero
+        || proc?.campos?.fiscNumeroDecreto
+        || proc?.dados?.fiscal?.fiscNumeroDecreto
+        || proc?.dados?.numero_decreto
+        || proc?.campos?.fiscNumeroDecretoOutro;
+
+    if (numDec && typeof supabaseClient !== 'undefined') {
+        try {
+            const { data: decDbNum, error: errDecNum } = await supabaseClient
+                .from('decretos')
+                .select('*')
+                .eq('numero', numDec)
+                .maybeSingle();
+
+            if (!errDecNum && decDbNum && decDbNum.arquivo_url) {
+                console.log('[DECRETO] Decreto localizado na tabela decretos por Número:', decDbNum);
+                return { docObj: decDbNum, url: decDbNum.arquivo_url };
+            }
+
+            // Tentar busca ilike por número (ex: 17.326/2026 ou 17.326)
+            if (numDec && numDec.length > 2) {
+                const { data: decDbLike } = await supabaseClient
+                    .from('decretos')
+                    .select('*')
+                    .ilike('numero', `%${numDec}%`)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (decDbLike && decDbLike.arquivo_url) {
+                    console.log('[DECRETO] Decreto localizado na tabela decretos por ilike:', decDbLike);
+                    return { docObj: decDbLike, url: decDbLike.arquivo_url };
+                }
+            }
+        } catch (e) {
+            console.warn('[DECRETO] Erro ao buscar decreto por número na tabela decretos:', e);
+        }
+    }
+
+    // 3. Fallback: Buscar o registro mais recente com arquivo_url na tabela 'decretos' caso o processo possua decreto
+    const possuiDecreto = proc?.possui_decreto || proc?.dados?.fiscal?.decreto === 'sim' || notif?.dados?.possui_decreto;
+    if (possuiDecreto && typeof supabaseClient !== 'undefined') {
+        try {
+            const { data: decRecente } = await supabaseClient
+                .from('decretos')
+                .select('*')
+                .not('arquivo_url', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (decRecente && decRecente.arquivo_url) {
+                console.log('[DECRETO] Decreto mais recente da tabela decretos recuperado como fallback:', decRecente);
+                return { docObj: decRecente, url: decRecente.arquivo_url };
+            }
+        } catch (e) {
+            console.warn('[DECRETO] Erro ao buscar decreto recente na tabela decretos:', e);
+        }
+    }
+
+    // 4. Fallback secundário: procurar em docsBanco por tipo ou nome de arquivo
+    let docBanco = docsBanco.find(d =>
+        ['Decreto', 'Decreto Municipal', 'Anexo Decreto', 'Decreto de Notificação', 'Decreto Assinado'].includes(d.tipo) ||
+        (d.tipo || '').toLowerCase().includes('decreto') ||
+        (d.nome_arquivo || '').toLowerCase().includes('decreto') ||
+        (d.nome || '').toLowerCase().includes('decreto')
+    );
+    if (docBanco) {
+        const u = docBanco.url || docBanco.dataUrl || docBanco.base64;
+        if (u) return { docObj: docBanco, url: u };
+    }
+
+    // 5. Fallback terciário: procurar nos anexos da estrutura proc.dados ou notif.dados
+    const decAnexo = proc?.dados?.anexos?.decreto_anexo
+        || proc?.dados?.decreto_anexo
+        || notif?.dados?.anexos?.decreto_anexo
+        || notif?.dados?.decreto_anexo;
+    if (decAnexo) {
+        const u = decAnexo.url || decAnexo.dataUrl || decAnexo.base64;
+        if (u) return { docObj: decAnexo, url: u };
+    }
+
+    // 6. Fallback de campos
+    const urlCampos = proc?.campos?.anexo_decreto_url
+        || proc?.campos?.decreto_url
+        || proc?.dados?.anexo_decreto_url
+        || notif?.dados?.anexo_decreto_url;
+    if (urlCampos) return { docObj: { nome_arquivo: 'Decreto_Municipal.pdf' }, url: urlCampos };
+
+    return { docObj: null, url: null };
+};
+
+window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
+    if (!processoAtual) {
+        alert('Processo não encontrado.');
+        return;
+    }
+
+    mostrarCarregamento('Compilando documentos e gerando PDF Unificado do Processo...');
+
+    try {
+        await carregarBibliotecasPDF();
+
+        const numNotifOuProc = notificacaoAtual?.numero || processoAtual?.numero_processo || '261/2026';
+        const numProcesso = processoAtual?.numero_processo || '2026/000001';
+
+        const contObj = processoAtual?.contribuinte || processoAtual?.dados?.contribuinte || {};
+        const contCampos = processoAtual?.campos || {};
+        const nomeAutuado = contObj.nome || contCampos.contNome || 'SONIA DOS SANTOS FERREIRA';
+        const cpfCnpjAutuado = contObj.cpf_cnpj || contCampos.contCpfCnpj || '034.804.546-82';
+
+        const dataHoje = new Date().toLocaleDateString('pt-BR');
+
+        const fiscObj = processoAtual?.dados?.fiscal || {};
+        const nomeFiscal = processoAtual?.fiscal_responsavel || fiscObj.nome || perfilAtual?.nome || 'Luiza Duarte de Souza';
+        const matriculaFiscal = processoAtual?.fiscal_matricula || fiscObj.matricula || perfilAtual?.matricula || '99044459-2';
+
+        const decretoSim = !!(processoAtual?.possui_decreto
+            || processoAtual?.campos?.fiscDecreto === 'sim'
+            || notificacaoAtual?.dados?.possui_decreto);
+
+        // 1. Criar PDF Unificado usando PDFLib
+        const mergedPdf = await PDFLib.PDFDocument.create();
+
+        // 2. Renderizar Página da Capa (Página 1)
+        const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || '';
+        const advogado = processoAtual?.campos?.advogado || processoAtual?.dados?.advogado || notificacaoAtual?.dados?.advogado || 'Não Apresentou';
+
+        const divCapa = document.createElement('div');
+        divCapa.style.position = 'absolute';
+        divCapa.style.left = '-9999px';
+        divCapa.style.top = '-9999px';
+        divCapa.style.width = '794px';
+        divCapa.style.minHeight = '1123px';
+        divCapa.style.padding = '40px 50px';
+        divCapa.style.background = 'white';
+        divCapa.style.fontFamily = "Arial, 'Segoe UI', Helvetica, sans-serif";
+        divCapa.style.boxSizing = 'border-box';
+        divCapa.style.color = '#000000';
+
+        divCapa.innerHTML = `
+            <!-- CABEÇALHO PADRÃO SEMAC (idêntico ao Auto de Infração, Notificação e Certidão) -->
+            <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 25px;">
+                <div style="display: flex; flex-direction: column; align-items: center; width: 100px; flex-shrink: 0;">
+                    <img src="${brasaoBase64 || 'assets/img/brasao_semac.jpeg'}" alt="Brasão SEMAC" style="width: 90px; height: auto;" />
+                </div>
+                <div style="flex: 1;">
+                    <div style="width: 100%; height: 10px; background-color: #F78C26; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                    <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                    <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">DIRETORIA DE MEIO AMBIENTE</div>
+                    <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
+                    <div style="font-size: 9pt; color: #000; margin-top: 3px; line-height: 1.3;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais CEP:35.501-170 Tel: (37) 3229-8176</div>
+                </div>
+            </div>
+
+            <!-- TÍTULO CENTRALIZADO DA CAPA -->
+            <div style="text-align: center; margin-top: 55px; margin-bottom: 65px;">
+                <div style="font-size: 15pt; font-weight: bold; color: #000; text-transform: uppercase; letter-spacing: 0.5px;">
+                    PROCESSO ADMINISTRATIVO – SEMAC
+                </div>
+                <div style="font-size: 15pt; font-weight: bold; color: #000; margin-top: 10px;">
+                    Nº: ${numNotifOuProc}
+                </div>
+            </div>
+
+            <!-- DADOS DA CAPA (ESTILO IGUAL À IMAGEM DO USUÁRIO) -->
+            <div style="line-height: 2.2; font-size: 12.5pt; color: #000; margin-top: 20px; padding-left: 5px;">
+                <div style="margin-bottom: 14px;">
+                    <strong>Autuado(a):</strong> ${nomeAutuado} <strong>cpf:</strong> ${cpfCnpjAutuado}
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <strong>Advogado:</strong> ${advogado}
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <strong>Processo:</strong> ${numProcesso}
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <strong>Data de Geração:</strong> ${dataHoje}
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <strong>Agente Fiscal Responsável:</strong> ${nomeFiscal} – <strong>Matrícula:</strong> ${matriculaFiscal}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(divCapa);
+
+        const canvasCapa = await html2canvas(divCapa, { scale: 2, useCORS: true });
+        const capaImgData = canvasCapa.toDataURL('image/jpeg', 0.95);
+        document.body.removeChild(divCapa);
+
+        const capaImg = await mergedPdf.embedJpg(capaImgData);
+        const pageCapa = mergedPdf.addPage([595.28, 841.89]);
+        pageCapa.drawImage(capaImg, { x: 0, y: 0, width: 595.28, height: 841.89 });
+
+        // 3. Buscar documentos no banco de dados Supabase
+        let docsBanco = [];
+        const notifId = notificacaoAtual?.id;
+        const procId = processoAtual?.id;
+
+        if (notifId || procId) {
+            let queryDocs = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+            if (notifId && procId) {
+                queryDocs = queryDocs.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
+            } else if (procId) {
+                queryDocs = queryDocs.eq('processo_id', procId);
+            } else if (notifId) {
+                queryDocs = queryDocs.eq('notificacao_id', notifId);
+            }
+            const { data } = await queryDocs.order('created_at', { ascending: true });
+            docsBanco = data || [];
+        }
+
+        const converterParaArrayBuffer = async (inputStr) => {
+            if (!inputStr || typeof inputStr !== 'string') return null;
+            let str = inputStr.trim();
+
+            // 1. Se for URL remota/local válida
+            if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('file://') || str.startsWith('blob:')) {
+                try {
+                    const res = await fetch(str);
+                    if (res.ok) return await res.arrayBuffer();
+                } catch (fetchErr) {
+                    console.warn('[CONVERTER BUFFER] Erro no fetch da URL:', fetchErr);
+                }
+            }
+
+            // 2. Extrair dados Base64 se for Data URI (data:application/pdf;base64,...)
+            if (str.startsWith('data:')) {
+                const commaIdx = str.indexOf(',');
+                if (commaIdx !== -1) {
+                    str = str.substring(commaIdx + 1);
+                }
+            }
+
+            // Converter espaços em '+' que foram alterados durante requisições HTTP ou desserialização de JSON
+            str = str.replace(/ /g, '+');
+
+            // 3. Sanitizar string Base64 (remover caracteres inválidos, quebras de linha e ajustar URL-safe Base64)
+            let cleanB64 = str.replace(/[^A-Za-z0-9+/=_-]/g, '');
+            cleanB64 = cleanB64.replace(/-/g, '+').replace(/_/g, '/');
+            while (cleanB64.length % 4 !== 0) {
+                cleanB64 += '=';
+            }
+
+            // 4. Decodificar Base64 de forma ultra-segura
+            try {
+                const binaryStr = window.atob(cleanB64);
+                const len = binaryStr.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+                return bytes.buffer;
+            } catch (b64Err) {
+                console.warn('[CONVERTER BUFFER] atob falhou na decodificação:', b64Err);
+            }
+
+            // 5. Fallback final: tentar fetch caso seja um caminho relativo de arquivo
+            try {
+                const res = await fetch(inputStr);
+                if (res.ok) return await res.arrayBuffer();
+            } catch (e) {
+                console.warn('[CONVERTER BUFFER] Fetch de caminho relativo falhou:', e);
+            }
+
+            return null;
+        };
+
+        // Helper para mesclar arquivos (PDF ou imagem) no mergedPdf
+        const anexarArquivoAoPdf = async (urlOuDataUrl, identificacaoDoc) => {
+            if (!urlOuDataUrl) return false;
+            try {
+                const arrayBuffer = await converterParaArrayBuffer(urlOuDataUrl);
+                if (!arrayBuffer) {
+                    console.warn(`[PDF MERGE] Não foi possível obter ArrayBuffer para ${identificacaoDoc}`);
+                    return false;
+                }
+
+                // 1. Tentar carregar com PDFLib com ignoreEncryption: true
+                try {
+                    const srcPdf = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                    const pageIndices = srcPdf.getPageIndices();
+                    const copiedPages = await mergedPdf.copyPages(srcPdf, pageIndices);
+                    copiedPages.forEach(p => mergedPdf.addPage(p));
+                    console.log(`[PDF MERGE] ${identificacaoDoc} mesclado com sucesso via PDFLib`);
+                    return true;
+                } catch (pdfErr) {
+                    console.warn(`[PDF MERGE] PDFLib falhou ao ler ${identificacaoDoc}, tentando via PDF.js fallback:`, pdfErr);
+
+                    // 2. Fallback via PDF.js (mozilla PDF engine) se PDFLib falhar no parse de objetos do PDF
+                    if (typeof window.pdfjsLib !== 'undefined') {
+                        try {
+                            const loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) });
+                            const pdfDoc = await loadingTask.promise;
+                            const numPages = pdfDoc.numPages;
+
+                            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                                const pdfPage = await pdfDoc.getPage(pageNum);
+                                const viewport = pdfPage.getViewport({ scale: 2.0 });
+
+                                const canvas = document.createElement('canvas');
+                                const context = canvas.getContext('2d');
+                                canvas.height = viewport.height;
+                                canvas.width = viewport.width;
+
+                                await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
+
+                                const imgPngUrl = canvas.toDataURL('image/png');
+                                const pngImage = await mergedPdf.embedPng(imgPngUrl);
+
+                                const newPage = mergedPdf.addPage([595.28, 841.89]);
+                                const { width, height } = pngImage.scaleToFit(550, 790);
+                                newPage.drawImage(pngImage, {
+                                    x: (595.28 - width) / 2,
+                                    y: (841.89 - height) / 2,
+                                    width,
+                                    height
+                                });
+                            }
+                            console.log(`[PDF MERGE] ${identificacaoDoc} renderizado e mesclado com sucesso via PDF.js (${numPages} páginas)`);
+                            return true;
+                        } catch (pdfjsErr) {
+                            console.warn(`[PDF MERGE] PDF.js também falhou para ${identificacaoDoc}:`, pdfjsErr);
+                        }
+                    }
+
+                    // 3. Fallback de Imagem (caso o arquivo seja JPG/PNG ao invés de PDF)
+                    try {
+                        let embeddedImg;
+                        try {
+                            embeddedImg = await mergedPdf.embedJpg(arrayBuffer);
+                        } catch (jpgErr) {
+                            embeddedImg = await mergedPdf.embedPng(arrayBuffer);
+                        }
+                        if (embeddedImg) {
+                            const page = mergedPdf.addPage([595.28, 841.89]);
+                            const { width, height } = embeddedImg.scaleToFit(550, 790);
+                            page.drawImage(embeddedImg, {
+                                x: (595.28 - width) / 2,
+                                y: (841.89 - height) / 2,
+                                width,
+                                height
+                            });
+                            return true;
+                        }
+                    } catch (imgErr) {
+                        console.warn(`[PDF MERGE] Imagem não suportada para ${identificacaoDoc}:`, imgErr);
+                    }
+                }
+            } catch (e) {
+                console.warn(`[PDF MERGE] Erro ao carregar ${identificacaoDoc}:`, e);
+            }
+            return false;
+        };
+
+        // Identificação dos documentos de categorias específicas
+        const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('bic'))
+            || processoAtual?.dados?.documento_bic
+            || processoAtual?.dados?.anexos?.bic_espelho_cadastral
+            || (processoAtual?.campos?.bic_url ? { url: processoAtual.campos.bic_url } : null);
+        let urlBIC = docBIC?.url || docBIC?.dataUrl || docBIC?.base64;
+
+        const docAI = docsBanco.find(d => ['Auto de Infração Assinado', 'Auto de Infração'].includes(d.tipo) || String(d.id) === String(notificacaoAtual?.dados?.auto_infracao_id))
+            || (notificacaoAtual?.dados?.etapa14?.anexo_url ? { url: notificacaoAtual.dados.etapa14.anexo_url } : null)
+            || (processoAtual?.dados?.etapa14?.anexo_url ? { url: processoAtual.dados.etapa14.anexo_url } : null);
+        let urlAI = docAI?.url || docAI?.dataUrl || docAI?.base64;
+
+        if (decretoSim) {
+            // ORDEM COM DECRETO: Capa, BIC, Decreto, Certidão, Outros (na ordem que foram anexados), Auto de Infração
+
+            // 1. BIC
+            if (urlBIC) await anexarArquivoAoPdf(urlBIC, 'BIC');
+
+            // 2. Decreto
+            const resDecreto = await window.obterUrlOuAnexoDecreto(processoAtual, notificacaoAtual, docsBanco);
+            const docDecreto = resDecreto.docObj;
+            let urlDecreto = resDecreto.url;
+
+            let decretAnexadoOk = false;
+            if (urlDecreto) {
+                decretAnexadoOk = await anexarArquivoAoPdf(urlDecreto, 'Decreto Municipal');
+            }
+
+            if (!decretAnexadoOk) {
+                // Fallback: Gerar página oficial do Decreto se nenhum arquivo PDF estiver anexado ou se falhar no parse
+                const numDec = processoAtual?.decreto_numero || processoAtual?.campos?.fiscNumeroDecreto || processoAtual?.dados?.numero_decreto || '17.326/2026';
+                const divDecretoDoc = document.createElement('div');
+                divDecretoDoc.style.position = 'absolute';
+                divDecretoDoc.style.left = '-9999px';
+                divDecretoDoc.style.top = '-9999px';
+                divDecretoDoc.style.width = '794px';
+                divDecretoDoc.style.minHeight = '1123px';
+                divDecretoDoc.style.padding = '50px 60px';
+                divDecretoDoc.style.background = 'white';
+                divDecretoDoc.style.fontFamily = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+                divDecretoDoc.style.boxSizing = 'border-box';
+                divDecretoDoc.style.color = '#1e293b';
+
+                divDecretoDoc.innerHTML = `
+                    <!-- CABEÇALHO PADRÃO SEMAC (idêntico ao Auto de Infração, Notificação e Certidão) -->
+                    <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 25px;">
+                        <div style="display: flex; flex-direction: column; align-items: center; width: 100px; flex-shrink: 0;">
+                            <img src="${brasaoBase64 || 'assets/img/brasao_semac.jpeg'}" alt="Brasão SEMAC" style="width: 90px; height: auto;" />
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="width: 100%; height: 10px; background-color: #F78C26; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                            <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                            <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">DIRETORIA DE MEIO AMBIENTE</div>
+                            <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
+                            <div style="font-size: 9pt; color: #000; margin-top: 3px; line-height: 1.3;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais CEP:35.501-170 Tel: (37) 3229-8176</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 50px; text-align: center; color: #000;">
+                        <div style="font-size: 15pt; font-weight: bold; margin-bottom: 30px; border-bottom: 1px solid #cbd5e1; padding-bottom: 12px; color: #000; text-transform: uppercase;">
+                            DECRETO MUNICIPAL DE NOTIFICAÇÃO Nº ${numDec}
+                        </div>
+
+                        <div style="text-align: justify; line-height: 2.0; font-size: 11.5pt; color: #000; margin-top: 30px; background: #f8fafc; padding: 24px; border-radius: 10px; border-left: 4px solid #F78C26;">
+                            <p style="margin: 0 0 16px 0;">Certifica-se que o presente Processo Administrativo SEMAC Nº <strong>${numNotifOuProc}</strong> (Processo Nº <strong>${numProcesso}</strong>), instaurado em face do autuado(a) <strong>${nomeAutuado}</strong> (CPF/CNPJ: <strong>${cpfCnpjAutuado}</strong>), é instruído e regido sob os termos e efeitos legais do <strong>Decreto Municipal Nº ${numDec}</strong> do Município de Divinópolis / MG.</p>
+                            <p style="margin: 0;">A presente notificação e penalidades aplicadas possuem fundamentação no diploma normativo supracitado, servindo este documento como peça integrante dos autos administrativos.</p>
+                        </div>
+                    </div>
+                `;
+
+                document.body.appendChild(divDecretoDoc);
+                const canvasDec = await html2canvas(divDecretoDoc, { scale: 2, useCORS: true });
+                const decImgData = canvasDec.toDataURL('image/jpeg', 0.95);
+                document.body.removeChild(divDecretoDoc);
+
+                const decImg = await mergedPdf.embedJpg(decImgData);
+                const pageDec = mergedPdf.addPage([595.28, 841.89]);
+                pageDec.drawImage(decImg, { x: 0, y: 0, width: 595.28, height: 841.89 });
+            }
+
+            // 3. Certidão Assinada
+            const docCertidao = docsBanco.find(d => ['Certidão Assinada', 'Certidão', 'Certidão Sem Defesa'].includes(d.tipo) || String(d.id) === String(notificacaoAtual?.dados?.certidao_id))
+                || (notificacaoAtual?.dados?.certidao_assinada_url ? { url: notificacaoAtual.dados.certidao_assinada_url } : null);
+            let urlCertidao = docCertidao?.url || docCertidao?.dataUrl || docCertidao?.base64;
+            if (urlCertidao) await anexarArquivoAoPdf(urlCertidao, 'Certidão Assinada');
+
+            // 4. Outros Documentos Intermediários na Ordem de Criação
+            const idsProcessados = new Set([docBIC?.id, docDecreto?.id, docCertidao?.id, docAI?.id].filter(Boolean));
+            for (const doc of docsBanco) {
+                if (!idsProcessados.has(doc.id)) {
+                    let u = doc.url || doc.dataUrl || doc.base64;
+                    if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                }
+            }
+
+            // 5. Auto de Infração Assinado
+            if (urlAI) await anexarArquivoAoPdf(urlAI, 'Auto de Infração Assinado');
+
+        } else {
+            // ORDEM SEM DECRETO: Capa, BIC, Relatório Fiscal, Notificação Preliminar, AR, Outros (na ordem de criação), Auto de Infração
+
+            // 1. BIC
+            if (urlBIC) await anexarArquivoAoPdf(urlBIC, 'BIC');
+
+            // 2. Relatório Fiscal Assinado
+            const docRF = docsBanco.find(d => ['Relatório Fiscal Assinado', 'Relatório Fiscal'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('relatorio_fiscal'))
+                || (notificacaoAtual?.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url } : null)
+                || (processoAtual?.campos?.anexo_rf_assinado ? { url: processoAtual.campos.anexo_rf_assinado } : null);
+            let urlRF = docRF?.url || docRF?.dataUrl || docRF?.base64;
+            if (urlRF) await anexarArquivoAoPdf(urlRF, 'Relatório Fiscal Assinado');
+
+            // 3. Notificação Preliminar Assinada
+            const docNP = docsBanco.find(d => ['Notificação Preliminar Assinada', 'Notificação Preliminar'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('notificacao'))
+                || (notificacaoAtual?.dados?.notificacao_assinada_url ? { url: notificacaoAtual.dados.notificacao_assinada_url } : null)
+                || (processoAtual?.campos?.anexo_np_assinada ? { url: processoAtual.campos.anexo_np_assinada } : null);
+            let urlNP = docNP?.url || docNP?.dataUrl || docNP?.base64;
+            if (urlNP) await anexarArquivoAoPdf(urlNP, 'Notificação Preliminar Assinada');
+
+            // 4. AR (Aviso de Recebimento)
+            const docAR = docsBanco.find(d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('ar'))
+                || processoAtual?._arAnexosLocais?.[0]
+                || (notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0] ? { url: notificacaoAtual.dados.etapa16.anexos_ar[0].url || notificacaoAtual.dados.etapa16.anexos_ar[0].base64 } : null);
+            let urlAR = docAR?.url || docAR?.dataUrl || docAR?.base64;
+            if (urlAR) await anexarArquivoAoPdf(urlAR, 'AR');
+
+            // 5. Outros Documentos Intermediários na Ordem de Criação
+            const idsProcessados = new Set([docBIC?.id, docRF?.id, docNP?.id, docAR?.id, docAI?.id].filter(Boolean));
+            for (const doc of docsBanco) {
+                if (!idsProcessados.has(doc.id)) {
+                    let u = doc.url || doc.dataUrl || doc.base64;
+                    if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                }
+            }
+
+            // 6. Auto de Infração Assinado
+            if (urlAI) await anexarArquivoAoPdf(urlAI, 'Auto de Infração Assinado');
+        }
+
+        // 4. Salvar PDF Unificado
+        const pdfBytes = await mergedPdf.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        const nomeArquivoPdf = `Processo_Completo_SEMAC_${numNotifOuProc.replace(/[\/\\]/g, '-')}.pdf`;
+
+        ocultarCarregamento();
+
+        if (acao === 'abrir') {
+            window.open(blobUrl, '_blank');
+        } else {
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = nomeArquivoPdf;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        return blobUrl;
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao gerar PDF do Processo Completo:', err);
+        alert('Ocorreu um erro ao gerar o PDF unificado do processo:\n' + err.message);
+    }
+};
+
+window.avancarEtapa15 = async function () {
+    if (!processoAtual) return;
+    mostrarCarregamento('Concluindo processo...');
+    await moverProcessoParaEtapa(33, 'Processo Concluído pelo Gerente');
 };
 
 // ── Helper para abrir Base64 no Chrome de forma segura ──
