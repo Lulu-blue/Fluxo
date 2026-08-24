@@ -4570,70 +4570,77 @@ function configurarEventosPainelEtapa1() {
         });
 
         inputArquivoRF.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+            let file = e.target.files[0];
             if (!file) return;
 
-            // Extrai texto para validação do Relatório Fiscal
-            const textoExtraido = await extrairTextoDoArquivo(file);
-            if (textoExtraido && textoExtraido.trim().length > 0) {
-                // Normaliza o texto removendo acentos e colapsando qualquer espaço/quebra de linha
-                const textoNorm = textoExtraido.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+            if (typeof window.otimizarImagemParaUpload === 'function') {
+                file = await window.otimizarImagemParaUpload(file);
+            }
+            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
-                // 1. Valida se contém "RELATORIO FISCAL" ou "RELATORIO"
-                if (!textoNorm.includes('RELATORIO FISCAL') && !textoNorm.includes('RELATORIO')) {
-                    alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém o texto "RELATÓRIO FISCAL". Por favor, verifique se selecionou o documento correto.');
-                    e.target.value = '';
-                    return;
-                }
+            if (!isImagem) {
+                // Extrai texto para validação do Relatório Fiscal
+                const textoExtraido = await extrairTextoDoArquivo(file);
+                if (textoExtraido && textoExtraido.trim().length > 0) {
+                    // Normaliza o texto removendo acentos e colapsando qualquer espaço/quebra de linha
+                    const textoNorm = textoExtraido.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 
-                // 2. Valida se a numeração do Relatório/Processo coincide
-                const numRel = (processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || '').trim();
-                const numProc = (processoAtual.numero_processo || processoAtual.numero || '').trim();
-
-                let bateuNumero = false;
-                if (!numRel && !numProc) {
-                    bateuNumero = true;
-                } else {
-                    const candidatos = [];
-                    for (const raw of [numRel, numProc]) {
-                        if (!raw) continue;
-                        candidatos.push(raw);
-                        candidatos.push(raw.replace('/', ''));
-                        const partes = raw.split('/');
-                        if (partes.length === 2) {
-                            candidatos.push(`${partes[1]}/${partes[0]}`);
-                            const p0Clean = partes[0].replace(/^0+/, '') || '0';
-                            const p1Clean = partes[1].replace(/^0+/, '') || '0';
-                            candidatos.push(`${p0Clean}/${p1Clean}`);
-                            candidatos.push(`${p1Clean}/${p0Clean}`);
-                        }
+                    // 1. Valida se contém "RELATORIO FISCAL" ou "RELATORIO"
+                    if (!textoNorm.includes('RELATORIO FISCAL') && !textoNorm.includes('RELATORIO')) {
+                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém o texto "RELATÓRIO FISCAL". Por favor, verifique se selecionou o documento correto.');
+                        e.target.value = '';
+                        return;
                     }
 
-                    for (const cand of candidatos) {
-                        const candNorm = cand.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                        if (textoNorm.includes(candNorm)) {
-                            bateuNumero = true;
-                            break;
-                        }
-                    }
+                    // 2. Valida se a numeração do Relatório/Processo coincide
+                    const numRel = (processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || '').trim();
+                    const numProc = (processoAtual.numero_processo || processoAtual.numero || '').trim();
 
-                    if (!bateuNumero) {
+                    let bateuNumero = false;
+                    if (!numRel && !numProc) {
+                        bateuNumero = true;
+                    } else {
+                        const candidatos = [];
                         for (const raw of [numRel, numProc]) {
                             if (!raw) continue;
-                            const numsEncontrados = (raw.match(/\d+/g) || []).map(n => n.replace(/^0+/, '')).filter(n => n !== '');
-                            if (numsEncontrados.length > 0 && numsEncontrados.every(n => textoNorm.includes(n))) {
+                            candidatos.push(raw);
+                            candidatos.push(raw.replace('/', ''));
+                            const partes = raw.split('/');
+                            if (partes.length === 2) {
+                                candidatos.push(`${partes[1]}/${partes[0]}`);
+                                const p0Clean = partes[0].replace(/^0+/, '') || '0';
+                                const p1Clean = partes[1].replace(/^0+/, '') || '0';
+                                candidatos.push(`${p0Clean}/${p1Clean}`);
+                                candidatos.push(`${p1Clean}/${p0Clean}`);
+                            }
+                        }
+
+                        for (const cand of candidatos) {
+                            const candNorm = cand.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                            if (textoNorm.includes(candNorm)) {
                                 bateuNumero = true;
                                 break;
                             }
                         }
-                    }
-                }
 
-                if (!bateuNumero) {
-                    const numEsperado = numRel || numProc;
-                    alert(`⚠️ Numeração de Relatório Incompatível!\n\nO Relatório Fiscal anexado não corresponde a este processo.\n\nNúmero esperado: RELATÓRIO FISCAL ${numEsperado}\n\nPor favor, verifique o arquivo e tente novamente.`);
-                    e.target.value = '';
-                    return;
+                        if (!bateuNumero) {
+                            for (const raw of [numRel, numProc]) {
+                                if (!raw) continue;
+                                const numsEncontrados = (raw.match(/\d+/g) || []).map(n => n.replace(/^0+/, '')).filter(n => n !== '');
+                                if (numsEncontrados.length > 0 && numsEncontrados.every(n => textoNorm.includes(n))) {
+                                    bateuNumero = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!bateuNumero) {
+                        const numEsperado = numRel || numProc;
+                        alert(`⚠️ Numeração de Relatório Incompatível!\n\nO Relatório Fiscal anexado não corresponde a este processo.\n\nNúmero esperado: RELATÓRIO FISCAL ${numEsperado}\n\nPor favor, verifique o arquivo e tente novamente.`);
+                        e.target.value = '';
+                        return;
+                    }
                 }
             }
 
@@ -4819,22 +4826,29 @@ window.configurarEventosReplicaAssinada = function () {
         });
 
         inputArquivo.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+            let file = e.target.files[0];
             if (!file) return;
+
+            if (typeof window.otimizarImagemParaUpload === 'function') {
+                file = await window.otimizarImagemParaUpload(file);
+            }
+            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
             mostrarCarregamento('Validando Réplica Assinada...');
 
             try {
-                const textoExtraido = await extrairTextoDoArquivo(file);
-                const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-                const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (!isImagem) {
+                    const textoExtraido = await extrairTextoDoArquivo(file);
+                    const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+                    const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-                // 1. Validação da Nomenclatura "RÉPLICA"
-                if (!textoNorm.includes('REPLICA') && !nomeNorm.includes('REPLICA')) {
-                    ocultarCarregamento();
-                    alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "RÉPLICA". Por favor, verifique se selecionou o documento correto.');
-                    e.target.value = '';
-                    return;
+                    // 1. Validação da Nomenclatura "RÉPLICA"
+                    if (!textoNorm.includes('REPLICA') && !nomeNorm.includes('REPLICA')) {
+                        ocultarCarregamento();
+                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "RÉPLICA". Por favor, verifique se selecionou o documento correto.');
+                        e.target.value = '';
+                        return;
+                    }
                 }
 
                 // 2. Validação da Numeração
@@ -5121,22 +5135,29 @@ window.configurarEventosCertidaoAssinada = function () {
         });
 
         inputArquivo.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+            let file = e.target.files[0];
             if (!file) return;
+
+            if (typeof window.otimizarImagemParaUpload === 'function') {
+                file = await window.otimizarImagemParaUpload(file);
+            }
+            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
             mostrarCarregamento('Validando Certidão Assinada...');
 
             try {
-                const textoExtraido = await extrairTextoDoArquivo(file);
-                const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-                const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (!isImagem) {
+                    const textoExtraido = await extrairTextoDoArquivo(file);
+                    const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+                    const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-                // 1. Validação da Nomenclatura "CERTIDAO"
-                if (!textoNorm.includes('CERTIDAO') && !nomeNorm.includes('CERTIDAO')) {
-                    ocultarCarregamento();
-                    alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "CERTIDÃO". Por favor, verifique se selecionou o documento correto.');
-                    e.target.value = '';
-                    return;
+                    // 1. Validação da Nomenclatura "CERTIDAO"
+                    if (!textoNorm.includes('CERTIDAO') && !nomeNorm.includes('CERTIDAO')) {
+                        ocultarCarregamento();
+                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "CERTIDÃO". Por favor, verifique se selecionou o documento correto.');
+                        e.target.value = '';
+                        return;
+                    }
                 }
 
                 const reader = new FileReader();
@@ -5446,21 +5467,28 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
         });
 
         inputArquivo.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+            let file = e.target.files[0];
             if (!file) return;
+
+            if (typeof window.otimizarImagemParaUpload === 'function') {
+                file = await window.otimizarImagemParaUpload(file);
+            }
+            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
             mostrarCarregamento('Validando Relatório Fiscal Assinado...');
 
             try {
-                const textoExtraido = await extrairTextoDoArquivo(file);
-                const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-                const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (!isImagem) {
+                    const textoExtraido = await extrairTextoDoArquivo(file);
+                    const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+                    const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-                if (!textoNorm.includes('RELATORIO') && !nomeNorm.includes('RELATORIO')) {
-                    ocultarCarregamento();
-                    alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "RELATÓRIO". Por favor, verifique se selecionou o documento correto.');
-                    e.target.value = '';
-                    return;
+                    if (!textoNorm.includes('RELATORIO') && !nomeNorm.includes('RELATORIO')) {
+                        ocultarCarregamento();
+                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "RELATÓRIO". Por favor, verifique se selecionou o documento correto.');
+                        e.target.value = '';
+                        return;
+                    }
                 }
 
                 const reader = new FileReader();
