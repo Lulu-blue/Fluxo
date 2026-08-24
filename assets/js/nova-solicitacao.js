@@ -1463,21 +1463,25 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
             </div>
 
             <!-- Corpo -->
-            <div style="margin-bottom: 40px; text-align: justify;">
+            <div style="margin-bottom: 20px; text-align: justify;">
                 <p style="margin:0 0 6px 0;">Prezado(a),</p>
                 <p style="text-indent: 30px; margin:0 0 6px 0;">informamos que em vistoria${textoDataHora} ao local indicado, verificamos que houve ${textoVistoria}.</p>
-                ${htmlImagens}
-                <p style="text-indent: 30px; margin:0 0 6px 0;">Sem mais para o momento, estamos à disposição para maiores esclarecimentos.</p>
             </div>
 
-            <!-- Assinatura -->
-            <div style="margin-top: 60px;">
-                <p style="margin:0 0 60px 0; text-align: left;">Atenciosamente,</p>
-                <div style="text-align: center;">
-                    <p style="margin:0;">_________________________________________</p>
-                    <p style="margin:5px 0 0 0;"><strong>${fiscalData.nome || 'Nome do Fiscal'}</strong></p>
-                    <p style="margin:2px 0 0 0;">${fiscalData.cargo || 'Cargo do Fiscal'}</p>
-                    <p style="margin:2px 0 0 0;">Matrícula: ${fiscalData.matricula || 'XXXXXXXX'}</p>
+            <!-- Bloco Inseparável: Imagens + Encerramento + Assinatura (Se a assinatura for para a página 2, a imagem desce junto) -->
+            <div style="page-break-inside: avoid; break-inside: avoid; -webkit-region-break-inside: avoid;">
+                ${htmlImagens}
+                <p style="text-indent: 30px; margin: 15px 0 6px 0; text-align: justify;">Sem mais para o momento, estamos à disposição para maiores esclarecimentos.</p>
+
+                <!-- Assinatura -->
+                <div style="margin-top: 40px; page-break-inside: avoid; break-inside: avoid;">
+                    <p style="margin:0 0 40px 0; text-align: left;">Atenciosamente,</p>
+                    <div style="text-align: center;">
+                        <p style="margin:0;">_________________________________________</p>
+                        <p style="margin:5px 0 0 0;"><strong>${fiscalData.nome || 'Nome do Fiscal'}</strong></p>
+                        <p style="margin:2px 0 0 0;">${fiscalData.cargo || 'Cargo do Fiscal'}</p>
+                        <p style="margin:2px 0 0 0;">Matrícula: ${fiscalData.matricula || 'XXXXXXXX'}</p>
+                    </div>
                 </div>
             </div>
 
@@ -1801,7 +1805,7 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
             </table>
 
             <!-- Corpo -->
-            <div style="margin-bottom: 30px; text-align: justify; line-height: 1.5;">
+            <div style="margin-bottom: 20px; text-align: justify; line-height: 1.5;">
                 <p style="text-indent: 30px; margin:0 0 16px 0;">
                     Certifico que o autuado, não se manifestou sobre a interposição de defesa referente ao Decreto <strong>${decretoNumero}</strong>, publicado no dia <strong>${decretoDataFmt}</strong> no Diário Oficial dos Municípios Mineiros, o qual notificou todos os proprietários de imóveis situados na zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${dispositivosTransgredidosStr}</strong> foi de <strong>${prazoDias}</strong> dias, findo aquele no dia <strong>${dataVencimentoFmt}</strong>.
                 </p>
@@ -1809,17 +1813,20 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
                 <p style="text-indent: 30px; margin:0 0 16px 0;">
                     Em vistoria realizada dia <strong>${dataVistoriaFmt}</strong>, certificamos o não cumprimento da obrigação de Limpeza conforme levantamento fotográfico.
                 </p>
-
-                ${htmlImagens}
             </div>
 
-            <!-- Assinatura -->
-            <div style="margin-top: 50px;">
-                <div style="text-align: center;">
-                    <p style="margin:0;">_________________________________________</p>
-                    <p style="margin:5px 0 0 0;"><strong>${fNome}</strong></p>
-                    <p style="margin:2px 0 0 0;">${fCargo}</p>
-                    <p style="margin:2px 0 0 0;">Matrícula: ${fMatricula}</p>
+            <!-- Bloco Inseparável: Imagens + Assinatura (Se a assinatura for para a página 2, a imagem desce junto) -->
+            <div style="page-break-inside: avoid; break-inside: avoid; -webkit-region-break-inside: avoid;">
+                ${htmlImagens}
+
+                <!-- Assinatura -->
+                <div style="margin-top: 40px; page-break-inside: avoid; break-inside: avoid;">
+                    <div style="text-align: center;">
+                        <p style="margin:0;">_________________________________________</p>
+                        <p style="margin:5px 0 0 0;"><strong>${fNome}</strong></p>
+                        <p style="margin:2px 0 0 0;">${fCargo}</p>
+                        <p style="margin:2px 0 0 0;">Matrícula: ${fMatricula}</p>
+                    </div>
                 </div>
             </div>
         </div>
