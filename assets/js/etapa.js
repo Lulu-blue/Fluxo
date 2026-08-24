@@ -5,7 +5,35 @@
 let processoAtual = null;
 let perfilAtual = null;
 let notificacaoAtual = null; // Guarda a notificação em foco se a URL contiver ?notificacao=
-let valorUpfmdAtual = 103.00;
+let valorUpfmdAtual = 0;
+
+async function carregarUPFMDDoBanco() {
+    try {
+        if (typeof supabaseClient !== 'undefined') {
+            const { data: cfgUpfmd, error: errCfg } = await supabaseClient
+                .from('configuracoes_upfmd')
+                .select('valor')
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            if (cfgUpfmd && cfgUpfmd.length > 0 && cfgUpfmd[0].valor) {
+                valorUpfmdAtual = parseFloat(cfgUpfmd[0].valor) || 0;
+                window.valorUpfmdAtual = valorUpfmdAtual;
+                console.log('[UPFMD] Valor dinâmico da UPFMD carregado do banco:', window.valorUpfmdAtual);
+                return valorUpfmdAtual;
+            }
+        }
+    } catch (e) {
+        console.warn('Aviso ao carregar UPFMD da tabela configuracoes_upfmd:', e);
+    }
+    return window.valorUpfmdAtual || valorUpfmdAtual || 0;
+}
+window.carregarUPFMDDoBanco = carregarUPFMDDoBanco;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', carregarUPFMDDoBanco);
+} else {
+    carregarUPFMDDoBanco();
+}
 
 function setVal(id, val) {
     const el = document.getElementById(id);
@@ -1918,19 +1946,7 @@ async function carregarProcessoCompleto(processoId) {
         }
 
         // Buscar valor atual da UPFMD do banco de dados (tabela configuracoes_upfmd)
-        try {
-            const { data: cfgUpfmd, error: errCfg } = await supabaseClient
-                .from('configuracoes_upfmd')
-                .select('valor')
-                .order('created_at', { ascending: false })
-                .limit(1);
-
-            if (cfgUpfmd && cfgUpfmd.length > 0 && cfgUpfmd[0].valor) {
-                valorUpfmdAtual = parseFloat(cfgUpfmd[0].valor) || 103.00;
-            }
-        } catch (e) {
-            console.warn('Usando UPFMD padrão 103.00:', e);
-        }
+        await carregarUPFMDDoBanco();
 
         proc.dados = proc.dados || {};
         proc.campos = proc.campos || proc.dados.campos || {};
@@ -4029,7 +4045,7 @@ window.obterDadosImovelParaCalculo = obterDadosImovelParaCalculo;
 // ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
 function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd) {
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
-    const upfmdVal = parseNumberSafe(upfmd);
+    const upfmdVal = parseNumberSafe(upfmd, window.valorUpfmdAtual || valorUpfmdAtual);
     const area = parseNumberSafe(areaNum);
     const testada = parseNumberSafe(testadaNum);
     const profundidade = parseNumberSafe(profundidadeNum, 0);
@@ -4041,7 +4057,7 @@ function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidade
     const testadaTotal = testada + profCalc;
 
     if (cod === '120000232' || dispLow.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
-        return area * upfmdVal * 0.15;
+        return (area * (upfmdVal * 0.15));
     } else if (cod === '120000228' || dispLow.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
         return testadaTotal * upfmdVal * 2;
     } else if (cod === '120000227' || dispLow.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
@@ -4151,7 +4167,7 @@ async function renderizarPainelEtapa1(proc) {
     if (listaInputs) {
         listaInputs.innerHTML = '';
         const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc);
-        const upfmdAtualProc = valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado) || 103.00;
+        const upfmdAtualProc = window.valorUpfmdAtual || valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado);
         const dispositivos = obterDispositivosDoProcesso(proc);
         console.log('[DEBUG PAINEL] dispositivos encontrados:', dispositivos);
         console.log('[DEBUG PAINEL] areaNum:', areaNum, '| testadaNum:', testadaNum, '| upfmd:', upfmdAtualProc);
@@ -5840,7 +5856,7 @@ function gerarBlocoInfracao(proc, disp, index) {
     const numNotif = `${proc.numero_processo || '1000'}-${index + 1}`;
     const dispLow = (disp || '').toLowerCase();
     const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc);
-    const upfmd = valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado) || 103.00;
+    const upfmd = window.valorUpfmdAtual || valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado);
     const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd);
     const customMulta = proc.campos?.multas_customizadas?.[index];
     const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
@@ -6028,7 +6044,7 @@ function renderizarDocumentoOficial(proc) {
         const numNotif = `${proc.numero_processo || '1000'}-${index + 1}`;
         const dispLow = disp.toLowerCase();
         const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc);
-        const upfmd = valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado) || 103.00;
+        const upfmd = valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado);
         const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd);
         const customMulta = proc.campos?.multas_customizadas?.[index];
         const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
@@ -8653,7 +8669,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
     const dispositivos = obterDispositivosDoProcesso(proc || {});
     let blocosInfracoesHtml = '';
     const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc || {});
-    const upfmd = valorUpfmdAtual || parseFloat(proc?.campos?.upfmd_utilizado) || 103.00;
+    const upfmd = window.valorUpfmdAtual || valorUpfmdAtual || parseFloat(proc?.campos?.upfmd_utilizado);
 
     dispositivos.forEach((disp, index) => {
         const numNotif = `${proc?.numero_processo || '1000'}-${index + 1}`;
@@ -9431,7 +9447,7 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     const cod = window.extrairCodigoSubprocesso(dispItem);
     const dispLow = (dispItem || '').toLowerCase();
 
-    const upfmdVal = window.valorUpfmdAtual || parseNumberSafe(p?.campos?.upfmd_utilizado, 103.00);
+    const upfmdVal = window.valorUpfmdAtual || valorUpfmdAtual || parseNumberSafe(p?.campos?.upfmd_utilizado, 0);
 
     const { areaNum, testadaNum, profundidadeNum, temEsquina } = window.obterDadosImovelParaCalculo
         ? window.obterDadosImovelParaCalculo(p)
