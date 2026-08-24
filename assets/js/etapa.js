@@ -1668,19 +1668,31 @@ function renderizarFormularioDinamico(etapaNum) {
             const listaDiv = formDiv.querySelector('#listaAnexosGenericos');
             listaDiv.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">Carregando arquivo(s)...</div>';
 
-            const readPromises = files.map(file => new Promise(resolve => {
-                const reader = new FileReader();
-                reader.onload = (ev) => resolve({
+            const readPromises = files.map(file => new Promise(async resolve => {
+                let urlFinal = null;
+                if (typeof window.uploadParaCloudinary === 'function') {
+                    try {
+                        urlFinal = await window.uploadParaCloudinary(file, 'semac_anexos');
+                    } catch (cldErr) {
+                        console.warn('[Cloudinary Warning] Upload de anexo falhou, caindo para DataURL:', cldErr);
+                    }
+                }
+                if (!urlFinal) {
+                    urlFinal = await new Promise(resData => {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => resData(ev.target.result);
+                        reader.readAsDataURL(file);
+                    });
+                }
+                resolve({
                     id: Math.random().toString(36).substring(7),
                     nome: file.name,
                     tipo: file.type,
-                    dataUrl: ev.target.result,
+                    dataUrl: urlFinal,
+                    url: urlFinal,
                     data_upload: new Date().toISOString()
                 });
-                reader.readAsDataURL(file);
             }));
-
-            const newAnexos = await Promise.all(readPromises);
 
             const etapaKey = `etapa${etapaNum}`;
             const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
@@ -4611,8 +4623,21 @@ function configurarEventosPainelEtapa1() {
 
             const reader = new FileReader();
             reader.onload = async (ev) => {
-                const fileUrl = ev.target.result;
-                const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+                let fileUrl = ev.target.result;
+                if (typeof window.uploadParaCloudinary === 'function') {
+                    try {
+                        fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                    } catch (cldErr) {
+                        console.warn('[Cloudinary Warning] Upload falhou, usando fallback local DataURL:', cldErr);
+                    }
+                }
+                let perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
+                if (!perfilId) {
+                    try {
+                        const { data: authUser } = await supabaseClient.auth.getUser();
+                        if (authUser?.user) perfilId = authUser.user.id;
+                    } catch (e) {}
+                }
                 const numRel = (processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || '').trim();
 
                 // 1. Salva/Atualiza a URL do arquivo na tabela centralizada 'documentos'
@@ -4625,43 +4650,44 @@ function configurarEventosPainelEtapa1() {
                         .eq('tipo', 'Relatório Fiscal')
                         .maybeSingle();
 
+                    const docPayload = {
+                        url: fileUrl,
+                        nome_arquivo: file.name,
+                        mime_type: file.type,
+                        gerado_automaticamente: false
+                    };
+                    if (perfilId) docPayload.usuario_id = perfilId;
+
                     if (docExistente) {
-                        const { data: docUp } = await supabaseClient
+                        const { data: docUp, error: errUp } = await supabaseClient
                             .from('documentos')
-                            .update({
-                                url: fileUrl,
-                                nome_arquivo: file.name,
-                                mime_type: file.type,
-                                gerado_automaticamente: false,
-                                usuario_id: perfilId || undefined
-                            })
+                            .update(docPayload)
                             .eq('id', docExistente.id)
                             .select('id')
-                            .single();
+                            .maybeSingle();
                         docId = docUp?.id || docExistente.id;
+                        if (errUp) console.warn('Erro ao atualizar documento:', errUp);
                     } else {
-                        const { data: docIns } = await supabaseClient
+                        const insertPayload = {
+                            ...docPayload,
+                            processo_id: processoAtual.id,
+                            etapa_id: processoAtual.etapa_atual_id || 1,
+                            tipo: 'Relatório Fiscal',
+                            numero_sequencial: numRel || null
+                        };
+                        const { data: docIns, error: errIns } = await supabaseClient
                             .from('documentos')
-                            .insert([{
-                                processo_id: processoAtual.id,
-                                etapa_id: processoAtual.etapa_atual_id || 1,
-                                tipo: 'Relatório Fiscal',
-                                nome_arquivo: file.name,
-                                url: fileUrl,
-                                mime_type: file.type,
-                                gerado_automaticamente: false,
-                                numero_sequencial: numRel || null,
-                                usuario_id: perfilId
-                            }])
+                            .insert([insertPayload])
                             .select('id')
-                            .single();
+                            .maybeSingle();
                         docId = docIns?.id;
+                        if (errIns) console.warn('Erro ao inserir documento:', errIns);
                     }
                 } catch (errDoc) {
                     console.error('Erro ao salvar Relatório Fiscal em documentos:', errDoc);
                 }
 
-                // 2. Nos campos do processo, armazena apenas a referência por documento_id
+                // 2. Nos campos do processo, armazena apenas a referência por documento_id (sem duplicar base64 pesado)
                 processoAtual.campos = processoAtual.campos || {};
                 processoAtual.campos.anexo_rf_assinado = {
                     nome: file.name,
@@ -4681,6 +4707,7 @@ function configurarEventosPainelEtapa1() {
                     nome: file.name,
                     data_upload: new Date().toISOString()
                 };
+                delete processoAtual.dados.relatorio_fiscal.anexo_url;
 
                 const { error } = await supabaseClient
                     .from('processos')
@@ -5422,8 +5449,21 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
 
                 const reader = new FileReader();
                 reader.onload = async (ev) => {
-                    const fileUrl = ev.target.result;
-                    const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+                    let fileUrl = ev.target.result;
+                    if (typeof window.uploadParaCloudinary === 'function') {
+                        try {
+                            fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                        } catch (cldErr) {
+                            console.warn('[Cloudinary Warning] Upload falhou, usando fallback DataURL:', cldErr);
+                        }
+                    }
+                    let perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
+                    if (!perfilId) {
+                        try {
+                            const { data: authUser } = await supabaseClient.auth.getUser();
+                            if (authUser?.user) perfilId = authUser.user.id;
+                        } catch (e) {}
+                    }
                     const procId = processoAtual?.id || null;
                     const notifId = notificacaoAtual?.id || null;
 
@@ -5445,36 +5485,37 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
                             .eq('gerado_automaticamente', false)
                             .maybeSingle();
 
+                        const docPayload = {
+                            url: fileUrl,
+                            nome_arquivo: file.name,
+                            mime_type: file.type,
+                            gerado_automaticamente: false
+                        };
+                        if (perfilId) docPayload.usuario_id = perfilId;
+
                         if (docExistente) {
-                            await supabaseClient
+                            const { error: errUpDoc } = await supabaseClient
                                 .from('documentos')
-                                .update({
-                                    url: fileUrl,
-                                    nome_arquivo: file.name,
-                                    mime_type: file.type,
-                                    gerado_automaticamente: false,
-                                    usuario_id: perfilId || undefined
-                                })
+                                .update(docPayload)
                                 .eq('id', docExistente.id);
+                            if (errUpDoc) console.warn('Aviso ao atualizar documento:', errUpDoc);
                             docId = docExistente.id;
                         } else {
                             const numRel = processoAtual?.numero_relatorio || processoAtual?.dados?.relatorio_fiscal?.numero_relatorio || null;
-                            const { data: docIns } = await supabaseClient
+                            const insertPayload = {
+                                ...docPayload,
+                                processo_id: procId,
+                                notificacao_id: notifId,
+                                etapa_id: 14,
+                                tipo: 'Relatório Fiscal',
+                                numero_sequencial: numRel
+                            };
+                            const { data: docIns, error: errInsDoc } = await supabaseClient
                                 .from('documentos')
-                                .insert([{
-                                    processo_id: procId,
-                                    notificacao_id: notifId,
-                                    etapa_id: 14,
-                                    tipo: 'Relatório Fiscal',
-                                    nome_arquivo: file.name,
-                                    url: fileUrl,
-                                    mime_type: file.type,
-                                    gerado_automaticamente: false,
-                                    numero_sequencial: numRel,
-                                    usuario_id: perfilId || undefined
-                                }])
+                                .insert([insertPayload])
                                 .select('id')
-                                .single();
+                                .maybeSingle();
+                            if (errInsDoc) console.warn('Aviso ao inserir documento:', errInsDoc);
                             if (docIns) docId = docIns.id;
                         }
                     } catch (errDb) {
@@ -5483,18 +5524,30 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
 
                     if (processoAtual?.id) {
                         processoAtual.dados = processoAtual.dados || {};
-                        processoAtual.dados.relatorio_fiscal = processoAtual.dados.relatorio_fiscal || {};
-                        processoAtual.dados.relatorio_fiscal.documento_id = docId;
-                        processoAtual.dados.relatorio_fiscal.anexo_url = fileUrl;
-                        processoAtual.dados.relatorio_fiscal.anexo_nome = file.name;
-                        processoAtual.dados.relatorio_fiscal.data_anexo = new Date().toISOString();
-                        processoAtual.dados.relatorio_fiscal.assinado = true;
-                        processoAtual.dados.relatorio_fiscal.gerado_automaticamente = false;
+                        const rfOld = processoAtual.dados.relatorio_fiscal || {};
+                        processoAtual.dados.relatorio_fiscal = {
+                            documento_id: docId,
+                            numero_relatorio: rfOld.numero_relatorio || '',
+                            assinado: true,
+                            nome: file.name,
+                            data_upload: new Date().toISOString(),
+                            gerado_automaticamente: false
+                        };
 
-                        await supabaseClient
+                        // Remove base64 de dados do processo para evitar estouro de limite de payload HTTP 500 do Supabase REST
+                        delete processoAtual.dados.relatorio_fiscal.anexo_url;
+
+                        const { error: errProc } = await supabaseClient
                             .from('processos')
                             .update({ dados: processoAtual.dados })
                             .eq('id', processoAtual.id);
+
+                        if (errProc) {
+                            console.error('Erro ao atualizar dados do processo:', errProc);
+                            alert('Erro ao atualizar dados do processo: ' + errProc.message);
+                            ocultarCarregamento();
+                            return;
+                        }
                     }
 
                     ocultarCarregamento();
@@ -9724,12 +9777,12 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     let corpoHtmlAuto = '';
     if (provenienteDecreto) {
         corpoHtmlAuto = `
-            <div style="font-size: 11pt; line-height: 1.6; color: #000; margin-top: 20px;">
-                <p style="margin: 0 0 10px 0;"><strong>Processo:</strong> ${numProc}</p>
+            <div style="font-size: 10pt; line-height: 1.35; color: #000; margin-top: 10px;">
+                <p style="margin: 0 0 6px 0;"><strong>Processo:</strong> ${numProc}</p>
 
                 <!-- Informações do Contribuinte -->
-                <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 6px; margin-top: 15px;">Informações do Contribuinte</div>
-                <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.45; margin-bottom: 15px;">
+                <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do Contribuinte</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 8px;">
                     <tr>
                         <td width="58%" valign="top">
                             <div><strong>Contribuinte:</strong> ${nomeAutuado}</div>
@@ -9746,8 +9799,8 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </table>
 
                 <!-- Informações do imóvel -->
-                <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 6px; margin-top: 15px;">Informações do imóvel</div>
-                <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.45; margin-bottom: 20px;">
+                <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do imóvel</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 10px;">
                     <tr>
                         <td width="58%" valign="top">
                             <div><strong>Inscrição:</strong> ${inscricaoImvFmt}</div>
@@ -9762,43 +9815,43 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     </tr>
                 </table>
 
-                <p style="margin: 0 0 14px 0; text-align: justify;">
+                <p style="margin: 0 0 8px 0; text-align: justify;">
                     O Imóvel, de propriedade do(a) cidadão(ã) citado(a), cuja Inscrição Imobiliária Municipal: é <strong>${inscricaoImvFmt}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>. Nesse dia foi verificado o não cumprimento da obrigação.
                 </p>
 
-                <p style="margin: 0 0 14px 0; text-align: justify;">
+                <p style="margin: 0 0 8px 0; text-align: justify;">
                     O motivo da infração é baseado no Decreto <strong>${numDecreto}</strong>, publicado no dia <strong>${dataDecretoFmt}</strong>, o qual notificou todos os imóveis dentro da zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para limpeza de terrenos foi de <strong>${prazoDiasDecreto} dias</strong> da publicação do decreto, findo aquele no dia <strong>${dataFimPrazoDecretoFmt}</strong>.
                 </p>
 
-                <p style="margin: 0 0 14px 0; text-align: justify;">
+                <p style="margin: 0 0 8px 0; text-align: justify;">
                     O fundamento legal está nos seguintes dispositivos: <strong>${fundamentoLegalDecreto}</strong>
                 </p>
 
-                <p style="margin: 0 0 16px 0; text-align: justify; font-size: 12pt; font-weight: bold;">
+                <p style="margin: 0 0 10px 0; text-align: justify; font-size: 11pt; font-weight: bold;">
                     MULTA NO VALOR DE R$ ${dadosLegais.valFormatado}
                 </p>
 
-                <p style="margin: 0 0 20px 0; text-align: justify;">
+                <p style="margin: 0 0 10px 0; text-align: justify;">
                     O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa, por escrito, protocolada via protocolo municipal. Instruções: link (<a href="https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201</a>)
                 </p>
             </div>
         `;
     } else {
         corpoHtmlAuto = `
-            <div style="font-size: 11pt; line-height: 1.6; color: #000; margin-top: 20px;">
-                <p style="margin: 0 0 14px 0; text-align: justify;">
+            <div style="font-size: 10pt; line-height: 1.35; color: #000; margin-top: 10px;">
+                <p style="margin: 0 0 8px 0; text-align: justify;">
                     O imóvel, situado na <strong>${imvRua}, n° ${imvNum}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
                 </p>
 
-                <p style="margin: 0 0 14px 0; text-align: justify;">
+                <p style="margin: 0 0 8px 0; text-align: justify;">
                     Até a presente data foi verificado: o não cumprimento da obrigação da Notificação Preliminar nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.
                 </p>
 
-                <p style="margin: 0 0 14px 0; text-align: justify;">
+                <p style="margin: 0 0 8px 0; text-align: justify;">
                     ${dadosLegais.textoCompleto}
                 </p>
 
-                <p style="margin: 0 0 20px 0; text-align: justify;">
+                <p style="margin: 0 0 10px 0; text-align: justify;">
                     O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone). Instruções: <a href="https://www.divinopolis.mg.gov.br/portal/servicos/1053/posturas/" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://www.divinopolis.mg.gov.br</a>.
                 </p>
             </div>
@@ -9806,59 +9859,62 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     }
 
     const htmlAuto = `
-        <div id="documentoPronto" style="margin-top: 20px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
-            <div style="padding: 40px 55px 0 55px; background: white; max-width: 820px; margin: 0 auto; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
+        <div id="documentoPronto" style="margin-top: 10px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
+            <div style="padding: 20px 40px 0 40px; background: white; max-width: 820px; margin: 0 auto; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
                 
                 <!-- CABEÇALHO: idêntico a Certidão e Notificação -->
-                <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 16px;">
-                    <div style="display: flex; flex-direction: column; align-items: center; width: 100px; flex-shrink: 0;">
-                        <img src="assets/img/brasao_semac.jpeg" alt="Brasão SEMAC" style="width: 90px; height: auto;" />
+                <div style="display: flex; align-items: flex-start; gap: 14px; margin-bottom: 10px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 80px; flex-shrink: 0;">
+                        <img src="assets/img/brasao_semac.jpeg" alt="Brasão SEMAC" style="width: 75px; height: auto;" />
                     </div>
                     <div style="flex: 1;">
-                        <div style="width: 100%; height: 10px; background-color: #F78C26; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
-                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
-                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">DIRETORIA DE MEIO AMBIENTE</div>
-                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
-                        <div style="font-size: 9pt; color: #000; margin-top: 3px; line-height: 1.3;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais CEP:35.501-170 Tel: (37) 3229-8176</div>
+                        <div style="width: 100%; height: 8px; background-color: #F78C26; margin-bottom: 4px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                        <div style="font-size: 9.5pt; font-weight: bold; color: #000; line-height: 1.25;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                        <div style="font-size: 9.5pt; font-weight: bold; color: #000; line-height: 1.25;">DIRETORIA DE MEIO AMBIENTE</div>
+                        <div style="font-size: 9.5pt; font-weight: bold; color: #000; line-height: 1.25;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
+                        <div style="font-size: 8.5pt; color: #000; margin-top: 2px; line-height: 1.2;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais CEP:35.501-170 Tel: (37) 3229-8176</div>
                     </div>
                 </div>
 
                 <!-- TÍTULO -->
-                <div style="text-align: center; margin-top: 15px; margin-bottom: 12px;">
-                    <div style="font-size: 14pt; font-weight: bold; color: #000; text-transform: uppercase;">AUTO DE INFRAÇÃO Nº ${numAutoInfracao}</div>
-                    <div style="font-size: 11pt; font-weight: bold; color: #000;">Fiscalização de Posturas</div>
+                <div style="text-align: center; margin-top: 8px; margin-bottom: 8px;">
+                    <div style="font-size: 13pt; font-weight: bold; color: #000; text-transform: uppercase;">AUTO DE INFRAÇÃO Nº ${numAutoInfracao}</div>
+                    <div style="font-size: 10pt; font-weight: bold; color: #000;">Fiscalização de Posturas</div>
                 </div>
-                <div style="text-align: right; font-size: 11pt; margin-bottom: 18px;">Divinópolis- MG ${dataAtualFmt}</div>
+                <div style="text-align: right; font-size: 10pt; margin-bottom: 10px;">Divinópolis- MG ${dataAtualFmt}</div>
                 ${corpoHtmlAuto}
 
-                <!-- ASSINATURA DO FISCAL -->
-                <div style="text-align: center; margin-top: 50px; padding-bottom: 10px; font-size: 11pt;">
-                    <div style="display: inline-block; min-width: 280px; border-top: 1px solid #000; padding-top: 6px;">
-                        <div><strong>${nomeFiscal}</strong></div>
-                        <div>Fiscal de Posturas</div>
-                        <div>Matricula : ${matriculaFiscal}</div>
+                <!-- Wrapper to keep signature and receipt together -->
+                <div style="page-break-inside: avoid;">
+                    <!-- ASSINATURA DO FISCAL -->
+                    <div style="text-align: center; margin-top: 25px; padding-bottom: 5px; font-size: 10pt;">
+                        <div style="display: inline-block; min-width: 250px; border-top: 1px solid #000; padding-top: 4px;">
+                            <div><strong>${nomeFiscal}</strong></div>
+                            <div>Fiscal de Posturas</div>
+                            <div>Matricula : ${matriculaFiscal}</div>
+                        </div>
+                    </div>
+
+                    <!-- RECIBO DO AUTUADO -->
+                    <div style="margin-top: 15px; font-size: 10pt;">
+                        <div style="margin-bottom: 4px;">Recebi 2° via do presente Auto de Infração do cual fico ciente;</div>
+                        <table width="100%" cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border: 1.5px solid #000; font-size: 10pt;">
+                            <tr>
+                                <td width="68%" valign="top" style="border: 1.5px solid #000; height: 50px;">
+                                    <span>Assinatura do Autuado:</span>
+                                </td>
+                                <td width="32%" valign="top" align="center" style="border: 1.5px solid #000; height: 50px;">
+                                    <div style="text-align: left; margin-bottom: 12px;">Ciente em:</div>
+                                    <div style="font-size: 12pt;">____ / ____ / ________</div>
+                                </td>
+                            </tr>
+                        </table>
+                        <div style="margin-top: 4px; font-size: 10pt;">Divinópolis - MG</div>
                     </div>
                 </div>
 
-                <!-- RECIBO DO AUTUADO -->
-                <div style="margin-top: 30px; font-size: 11pt;">
-                    <div style="margin-bottom: 6px;">Recebi 2° via do presente Auto de Infração do qual fico ciente;</div>
-                    <table width="100%" cellpadding="10" cellspacing="0" border="1" style="border-collapse: collapse; border: 2px solid #000; font-size: 11pt;">
-                        <tr>
-                            <td width="68%" valign="top" style="border: 2px solid #000; height: 80px;">
-                                <span>Assinatura do Autuado:</span>
-                            </td>
-                            <td width="32%" valign="top" align="center" style="border: 2px solid #000; height: 80px;">
-                                <div style="text-align: left; margin-bottom: 25px;">Ciente em:</div>
-                                <div style="font-size: 14pt;">____ / ____ / ________</div>
-                            </td>
-                        </tr>
-                    </table>
-                    <div style="margin-top: 6px; font-size: 11pt;">Divinópolis - MG</div>
-                </div>
-
                 <!-- RODAPÉ LARANJA -->
-                <div style="width: calc(100% + 104px); margin-left: -52px; height: 16px; background-color: #F78C26; margin-top: 35px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                <div style="width: calc(100% + 80px); margin-left: -40px; height: 12px; background-color: #F78C26; margin-top: 15px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
 
             </div>
         </div>
@@ -9961,7 +10017,14 @@ window.configurarEventosAIAssinado = function () {
             try {
                 const reader = new FileReader();
                 reader.onload = async (ev) => {
-                    const fileUrl = ev.target.result;
+                    let fileUrl = ev.target.result;
+                    if (typeof window.uploadParaCloudinary === 'function') {
+                        try {
+                            fileUrl = await window.uploadParaCloudinary(file, 'semac_autos');
+                        } catch (cldErr) {
+                            console.warn('[Cloudinary Warning] Upload falhou, usando fallback DataURL:', cldErr);
+                        }
+                    }
                     const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
                     const notifId = notificacaoAtual?.id || null;
                     const procId = processoAtual?.id || null;
@@ -10039,9 +10102,9 @@ window.configurarEventosAIAssinado = function () {
 
                     if (notificacaoAtual?.id) {
                         notificacaoAtual.dados = notificacaoAtual.dados || {};
-                        notificacaoAtual.dados.auto_infracao_id = docId;
+                        notificacaoAtual.dados.auto_infracao_id = docId || notificacaoAtual.dados.auto_infracao_id;
                         notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
-                        notificacaoAtual.dados.etapa14.anexo_url = fileUrl;
+                        delete notificacaoAtual.dados.etapa14.anexo_url;
                         notificacaoAtual.dados.etapa14.anexo_nome = file.name;
                         notificacaoAtual.dados.etapa14.data_anexo = new Date().toISOString();
                         await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
@@ -10049,9 +10112,9 @@ window.configurarEventosAIAssinado = function () {
 
                     if (processoAtual?.id) {
                         processoAtual.dados = processoAtual.dados || {};
-                        processoAtual.dados.auto_infracao_id = docId;
+                        processoAtual.dados.auto_infracao_id = docId || processoAtual.dados.auto_infracao_id;
                         processoAtual.dados.etapa14 = processoAtual.dados.etapa14 || {};
-                        processoAtual.dados.etapa14.anexo_url = fileUrl;
+                        delete processoAtual.dados.etapa14.anexo_url;
                         processoAtual.dados.etapa14.anexo_nome = file.name;
                         processoAtual.dados.etapa14.data_anexo = new Date().toISOString();
                         await supabaseClient

@@ -280,10 +280,9 @@ async function carregarSolicitacoes(tentativa = 1) {
                 dados,
                 created_at,
                 updated_at,
-                fiscal_id,
-                etapas ( numero, nome ),
-                notificacoes ( id, processo_id, numero, status, etapa_atual_id, etapas ( numero ) )
-            `, { count: 'exact' });
+                fiscal_id
+            `, { count: 'exact' })
+            .limit(pageSize);
 
         // Aplicar filtros
         const filtros = coletarFiltros();

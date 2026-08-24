@@ -19,8 +19,16 @@ if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-// ── Helper: converter arquivo para Base64 ───────────────────
-function fileToBase64(file) {
+// ── Helper: enviar arquivo para Cloudinary (ou Base64 DataURL fallback) ──
+async function fileToBase64(file) {
+    if (typeof window.uploadParaCloudinary === 'function') {
+        try {
+            const urlCloud = await window.uploadParaCloudinary(file, 'semac_documentos');
+            return urlCloud;
+        } catch (cldErr) {
+            console.warn('[Cloudinary Warning] Upload de arquivo em nova-solicitacao falhou, caindo para DataURL:', cldErr);
+        }
+    }
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
