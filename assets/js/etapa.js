@@ -4029,9 +4029,9 @@ window.obterDadosImovelParaCalculo = obterDadosImovelParaCalculo;
 // ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
 function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd) {
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
-    const upfmdVal = parseNumberSafe(upfmd, 103.00);
-    const area = parseNumberSafe(areaNum, 288);
-    const testada = parseNumberSafe(testadaNum, 12);
+    const upfmdVal = parseNumberSafe(upfmd);
+    const area = parseNumberSafe(areaNum);
+    const testada = parseNumberSafe(testadaNum);
     const profundidade = parseNumberSafe(profundidadeNum, 0);
 
     let profCalc = 0;
@@ -4636,7 +4636,7 @@ function configurarEventosPainelEtapa1() {
                     try {
                         const { data: authUser } = await supabaseClient.auth.getUser();
                         if (authUser?.user) perfilId = authUser.user.id;
-                    } catch (e) {}
+                    } catch (e) { }
                 }
                 const numRel = (processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || '').trim();
 
@@ -5462,7 +5462,7 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
                         try {
                             const { data: authUser } = await supabaseClient.auth.getUser();
                             if (authUser?.user) perfilId = authUser.user.id;
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                     const procId = processoAtual?.id || null;
                     const notifId = notificacaoAtual?.id || null;
