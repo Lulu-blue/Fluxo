@@ -1262,10 +1262,27 @@ function renderizarFormularioDinamico(etapaNum) {
             || processoAtual?.campos?.fiscDecreto === 'sim'
             || notificacaoAtual?.dados?.possui_decreto;
 
+        const apresentouDefesaVal = processoAtual?.dados?.apresentou_defesa
+            || processoAtual?.campos?.apresentou_defesa
+            || notificacaoAtual?.dados?.apresentou_defesa
+            || 'não';
+
         conteudo = `
             <div style="background:white; border:1px solid #DED9E2; border-radius:12px; padding:24px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
                 <input type="hidden" id="inputNumNotifAutoInfracao" value="${numNotificacao}" />
                 <input type="hidden" id="inputInfracaoAutoInfracao" value="${tipoInfracao}" />
+
+                <!-- Campo Selecionável: Autuado Apresentou defesa? -->
+                <div style="margin-bottom: 20px; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
+                    <label for="selectApresentouDefesaEtapa14" style="display: block; font-weight: 700; color: #1e293b; margin-bottom: 8px; font-size: 0.95rem;">
+                        Autuado Apresentou defesa? <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select id="selectApresentouDefesaEtapa14" style="width: 100%; max-width: 320px; padding: 10px 14px; border: 1px solid #94a3b8; border-radius: 8px; font-size: 0.95rem; font-weight: 600; background: white; color: #0f172a; cursor: pointer;">
+                        <option value="não" ${apresentouDefesaVal.toLowerCase() === 'sim' ? '' : 'selected'}>Não</option>
+                        <option value="sim" ${apresentouDefesaVal.toLowerCase() === 'sim' ? 'selected' : ''}>Sim</option>
+                    </select>
+                    <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">Esta informação será exibida na Capa do Processo ("Autuado não apresentou defesa" ou "Autuado apresentou defesa").</p>
+                </div>
 
                 ${decretoSim && typeof window.obterHtmlBlocoRelatorioFiscalAssinado === 'function' ? window.obterHtmlBlocoRelatorioFiscalAssinado() : ''}
                 ${obterHtmlBlocoAutoInfracaoAssinado()}
@@ -1290,6 +1307,18 @@ function renderizarFormularioDinamico(etapaNum) {
         const nomeFiscal = processoAtual?.fiscal_responsavel || fiscObj.nome || perfilAtual?.nome || 'Luiza Duarte de Souza';
         const matriculaFiscal = processoAtual?.fiscal_matricula || fiscObj.matricula || perfilAtual?.matricula || '99044459-2';
         const dataHoje = new Date().toLocaleDateString('pt-BR');
+
+        const numAutoInfracao15 = processoAtual?.dados?.numero_auto_infracao
+            || processoAtual?.dados?.etapa14?.numero_auto_infracao
+            || notificacaoAtual?.numero_auto_infracao
+            || notificacaoAtual?.dados?.numero_auto_infracao
+            || `${new Date().getFullYear()}/000001`;
+
+        const valDefesaProc15 = processoAtual?.dados?.apresentou_defesa
+            || processoAtual?.campos?.apresentou_defesa
+            || notificacaoAtual?.dados?.apresentou_defesa
+            || 'não';
+        const defesaText15 = valDefesaProc15.toLowerCase() === 'sim' ? 'Autuado apresentou defesa' : 'Autuado não apresentou defesa';
 
         const cargoLogado = normalizarCargo(perfilAtual?.cargo);
         const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
@@ -1326,7 +1355,8 @@ function renderizarFormularioDinamico(etapaNum) {
                         <div><strong style="color:#475569;">PROCESSO ADMINISTRATIVO – SEMAC Nº:</strong> <br><span style="color:#0f172a; font-weight:700;">${numNotificacao}</span></div>
                         <div><strong style="color:#475569;">Autuado(a):</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeAutuado}</span></div>
                         <div><strong style="color:#475569;">cpf:</strong> <br><span style="color:#0f172a; font-weight:600;">${cpfCnpjAutuado}</span></div>
-                        <div><strong style="color:#475569;">Processo:</strong> <br><span style="color:#0f172a; font-weight:600;">${processoAtual?.numero_processo || '---'}</span></div>
+                        <div><strong style="color:#475569;">Auto de Infração:</strong> <br><span style="color:#0f172a; font-weight:600;">${numAutoInfracao15}</span></div>
+                        <div><strong style="color:#475569;">Situação da Defesa:</strong> <br><span style="color:#0f172a; font-weight:700;">${defesaText15}</span></div>
                         <div><strong style="color:#475569;">Data de Geração:</strong> <br><span style="color:#0f172a; font-weight:600;">${dataHoje}</span></div>
                         <div><strong style="color:#475569;">Agente Fiscal Responsável:</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeFiscal} – Matrícula: ${matriculaFiscal}</span></div>
                     </div>
@@ -1829,6 +1859,23 @@ function renderizarFormularioDinamico(etapaNum) {
             }
             const inpInfr = formDiv.querySelector('#inputInfracaoAutoInfracao');
             if (inpInfr) inpInfr.addEventListener('input', () => window.gerarAutoDeInfracao(true));
+
+            const selDef = formDiv.querySelector('#selectApresentouDefesaEtapa14');
+            if (selDef) {
+                selDef.addEventListener('change', () => {
+                    const val = selDef.value;
+                    if (processoAtual) {
+                        processoAtual.dados = processoAtual.dados || {};
+                        processoAtual.dados.apresentou_defesa = val;
+                        processoAtual.campos = processoAtual.campos || {};
+                        processoAtual.campos.apresentou_defesa = val;
+                    }
+                    if (notificacaoAtual) {
+                        notificacaoAtual.dados = notificacaoAtual.dados || {};
+                        notificacaoAtual.dados.apresentou_defesa = val;
+                    }
+                });
+            }
         }, 150);
     }
 }
@@ -4576,6 +4623,9 @@ function configurarEventosPainelEtapa1() {
             if (typeof window.otimizarImagemParaUpload === 'function') {
                 file = await window.otimizarImagemParaUpload(file);
             }
+            if (typeof window.otimizarPdfParaUpload === 'function') {
+                file = await window.otimizarPdfParaUpload(file);
+            }
             const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
             if (!isImagem) {
@@ -4653,6 +4703,11 @@ function configurarEventosPainelEtapa1() {
                     } catch (cldErr) {
                         console.warn('[Cloudinary Warning] Upload falhou, usando fallback local DataURL:', cldErr);
                     }
+                }
+                if (typeof fileUrl === 'string' && fileUrl.startsWith('data:') && fileUrl.length > 7000000) {
+                    alert('⚠️ Arquivo Muito Grande!\n\nO arquivo convertido (' + (fileUrl.length / 1024 / 1024 * 0.75).toFixed(1) + ' MB) excede o limite máximo permitido pelo banco de dados (5 MB).\nPor favor, comprima o arquivo antes de anexar.');
+                    e.target.value = '';
+                    return;
                 }
                 let perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
                 if (!perfilId) {
@@ -5473,6 +5528,9 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
             if (typeof window.otimizarImagemParaUpload === 'function') {
                 file = await window.otimizarImagemParaUpload(file);
             }
+            if (typeof window.otimizarPdfParaUpload === 'function') {
+                file = await window.otimizarPdfParaUpload(file);
+            }
             const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
             mostrarCarregamento('Validando Relatório Fiscal Assinado...');
@@ -5500,6 +5558,12 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
                         } catch (cldErr) {
                             console.warn('[Cloudinary Warning] Upload falhou, usando fallback DataURL:', cldErr);
                         }
+                    }
+                    if (typeof fileUrl === 'string' && fileUrl.startsWith('data:') && fileUrl.length > 7000000) {
+                        ocultarCarregamento();
+                        alert('⚠️ Arquivo Muito Grande!\n\nO arquivo convertido (' + (fileUrl.length / 1024 / 1024 * 0.75).toFixed(1) + ' MB) excede o limite máximo permitido pelo banco de dados (5 MB).\nPor favor, comprima o arquivo antes de anexar.');
+                        e.target.value = '';
+                        return;
                     }
                     let perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
                     if (!perfilId) {
@@ -9794,7 +9858,9 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         }
     }
 
-    const prazoDiasDecreto = 15;
+    const prazoDiasDecreto = typeof obterPrazoNotificacao === 'function'
+        ? obterPrazoNotificacao(inputInfracao)
+        : (typeof obterPrazoNotificacaoNovaSolicitacao === 'function' ? obterPrazoNotificacaoNovaSolicitacao(inputInfracao) : 15);
     let dataFimPrazoDecretoFmt = '17/07/2026';
     try {
         let dDec;
@@ -9864,7 +9930,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
-                    O motivo da infração é baseado no Decreto <strong>${numDecreto}</strong>, publicado no dia <strong>${dataDecretoFmt}</strong>, o qual notificou todos os imóveis dentro da zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para limpeza de terrenos foi de <strong>${prazoDiasDecreto} dias</strong> da publicação do decreto, findo aquele no dia <strong>${dataFimPrazoDecretoFmt}</strong>.
+                    O motivo da infração é baseado no Decreto <strong>${numDecreto}</strong>, publicado no dia <strong>${dataDecretoFmt}</strong>, o qual notificou todos os imóveis dentro da zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${inputInfracao}</strong> foi de <strong>${prazoDiasDecreto} dias</strong> da publicação do decreto, findo aquele no dia <strong>${dataFimPrazoDecretoFmt}</strong>.
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
@@ -10362,15 +10428,20 @@ window.avancarEtapa14 = async function () {
 
     mostrarCarregamento('Avançando para Etapa 15 (Gerente Gera a Multa)...');
 
+    const selDefesaEl = document.getElementById('selectApresentouDefesaEtapa14');
+    const valDefesa = selDefesaEl ? selDefesaEl.value : (processoAtual?.dados?.apresentou_defesa || 'não');
+
     const numAuto = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
 
     if (notificacaoAtual?.id) {
         notificacaoAtual.status = 'auto_infracao';
         notificacaoAtual.dados = notificacaoAtual.dados || {};
         notificacaoAtual.dados.numero_auto_infracao = numAuto;
+        notificacaoAtual.dados.apresentou_defesa = valDefesa;
         notificacaoAtual.dados.etapa14 = notificacaoAtual.dados.etapa14 || {};
         notificacaoAtual.dados.etapa14.data_emissao = new Date().toISOString();
         notificacaoAtual.dados.etapa14.numero_auto_infracao = numAuto;
+        notificacaoAtual.dados.etapa14.apresentou_defesa = valDefesa;
         notificacaoAtual.dados.etapa14.usuario_emissor = perfilAtual?.nome || 'Fiscal de Posturas';
 
         await atualizarNotificacaoNoBanco(notificacaoAtual.id, { status: 'auto_infracao', dados: notificacaoAtual.dados });
@@ -10379,12 +10450,16 @@ window.avancarEtapa14 = async function () {
     if (processoAtual?.id) {
         processoAtual.dados = processoAtual.dados || {};
         processoAtual.dados.numero_auto_infracao = numAuto;
+        processoAtual.dados.apresentou_defesa = valDefesa;
+        processoAtual.campos = processoAtual.campos || {};
+        processoAtual.campos.apresentou_defesa = valDefesa;
         processoAtual.dados.etapa14 = processoAtual.dados.etapa14 || {};
         processoAtual.dados.etapa14.data_emissao = new Date().toISOString();
         processoAtual.dados.etapa14.numero_auto_infracao = numAuto;
+        processoAtual.dados.etapa14.apresentou_defesa = valDefesa;
         processoAtual.dados.etapa14.usuario_emissor = perfilAtual?.nome || 'Fiscal de Posturas';
 
-        await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+        await supabaseClient.from('processos').update({ dados: processoAtual.dados, campos: processoAtual.campos }).eq('id', processoAtual.id);
     }
 
     // Atualiza tabela própria autos_infracao
@@ -10571,6 +10646,17 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
 
         const numNotifOuProc = notificacaoAtual?.numero || processoAtual?.numero_processo || '261/2026';
         const numProcesso = processoAtual?.numero_processo || '2026/000001';
+        const numAutoInfracaoCapa = processoAtual?.dados?.numero_auto_infracao
+            || processoAtual?.dados?.etapa14?.numero_auto_infracao
+            || notificacaoAtual?.numero_auto_infracao
+            || notificacaoAtual?.dados?.numero_auto_infracao
+            || `${new Date().getFullYear()}/000001`;
+
+        const valDefesaCapa = processoAtual?.dados?.apresentou_defesa
+            || processoAtual?.campos?.apresentou_defesa
+            || notificacaoAtual?.dados?.apresentou_defesa
+            || 'não';
+        const defesaTextCapa = valDefesaCapa.toLowerCase() === 'sim' ? 'Autuado apresentou defesa' : 'Autuado não apresentou defesa';
 
         const contObj = processoAtual?.contribuinte || processoAtual?.dados?.contribuinte || {};
         const contCampos = processoAtual?.campos || {};
@@ -10638,7 +10724,11 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
                 </div>
 
                 <div style="margin-bottom: 14px;">
-                    <strong>Processo:</strong> ${numProcesso}
+                    <strong>Auto de Infração:</strong> ${numAutoInfracaoCapa}
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <strong>${defesaTextCapa}</strong>
                 </div>
 
                 <div style="margin-bottom: 14px;">
