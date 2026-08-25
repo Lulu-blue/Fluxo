@@ -1354,7 +1354,7 @@ function renderizarFormularioDinamico(etapaNum) {
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; font-size:0.9rem;">
                         <div><strong style="color:#475569;">PROCESSO ADMINISTRATIVO – SEMAC Nº:</strong> <br><span style="color:#0f172a; font-weight:700;">${numNotificacao}</span></div>
                         <div><strong style="color:#475569;">Autuado(a):</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeAutuado}</span></div>
-                        <div><strong style="color:#475569;">cpf:</strong> <br><span style="color:#0f172a; font-weight:600;">${cpfCnpjAutuado}</span></div>
+                        <div><strong style="color:#475569;">cpf/cnpj:</strong> <br><span style="color:#0f172a; font-weight:600;">${cpfCnpjAutuado}</span></div>
                         <div><strong style="color:#475569;">Auto de Infração:</strong> <br><span style="color:#0f172a; font-weight:600;">${numAutoInfracao15}</span></div>
                         <div><strong style="color:#475569;">Situação da Defesa:</strong> <br><span style="color:#0f172a; font-weight:700;">${defesaText15}</span></div>
                         <div><strong style="color:#475569;">Data de Geração:</strong> <br><span style="color:#0f172a; font-weight:600;">${dataHoje}</span></div>
