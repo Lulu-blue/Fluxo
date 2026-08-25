@@ -10720,7 +10720,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
             <!-- DADOS DA CAPA (ESTILO IGUAL À IMAGEM DO USUÁRIO) -->
             <div style="line-height: 2.2; font-size: 12.5pt; color: #000; margin-top: 20px; padding-left: 5px;">
                 <div style="margin-bottom: 14px;">
-                    <strong>Autuado(a):</strong> ${nomeAutuado} <strong>cpf:</strong> ${cpfCnpjAutuado}
+                    <strong>Autuado(a):</strong> ${nomeAutuado} <strong>cpf/cnpj:</strong> ${cpfCnpjAutuado}
                 </div>
 
                 <div style="margin-bottom: 14px;">
