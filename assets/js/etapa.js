@@ -1806,6 +1806,12 @@ function renderizarFormularioDinamico(etapaNum) {
                         continue;
                     }
 
+                    // Se for etapa 4 e for imagem, salva com tipo 'imagem' conforme pedido
+                    let tipoSalvar = tipoDoc;
+                    if (etapaNum === 3 && itemFile.tipo && itemFile.tipo.startsWith('image/')) {
+                        tipoSalvar = 'imagem';
+                    }
+
                     try {
                         const { data: docIns, error: errDoc } = await supabaseClient
                             .from('documentos')
@@ -1813,7 +1819,7 @@ function renderizarFormularioDinamico(etapaNum) {
                                 processo_id: processoAtual.id,
                                 notificacao_id: notificacaoAtual?.id || null,
                                 etapa_id: etapaNum,
-                                tipo: tipoDoc,
+                                tipo: tipoSalvar,
                                 nome_arquivo: itemFile.nome,
                                 url: itemFile.dataUrl,
                                 mime_type: itemFile.tipo,
@@ -3496,8 +3502,8 @@ window.baixarDocUnico = async function (tipo) {
             }
             ocultarCarregamento();
             alert('Edital do Gerente não encontrado.');
-        } else if (tipo === 'relatorio_fiscal' || tipo === 'relatorio_fiscal_assinado' || tipo === 'certidao') {
-            const docRF = docsBanco.find(d => ['Relatório Fiscal', 'Relatório Fiscal Assinado', 'Certidão', 'Certidão Assinada'].includes(d.tipo))
+        } else if (tipo === 'relatorio_fiscal' || tipo === 'relatorio_fiscal_assinado') {
+            const docRF = docsBanco.find(d => ['Relatório Fiscal', 'Relatório Fiscal Assinado', 'Relatório de Vistoria'].includes(d.tipo))
                 || processoAtual?.campos?.anexo_rf_assinado
                 || (notificacaoAtual.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url, nome_arquivo: notificacaoAtual.dados.relatorio_fiscal_nome } : null);
 
@@ -3507,7 +3513,7 @@ window.baixarDocUnico = async function (tipo) {
                 if (dFetch?.url) urlRF = dFetch.url;
             }
 
-            if (urlRF) {
+            if (urlRF && (typeof ehHtmlRelatorioValido === 'function' ? ehHtmlRelatorioValido(urlRF) : true)) {
                 ocultarCarregamento();
                 const defaultName = `Relatorio_Fiscal_${numNotifLimpo}_Assinado.pdf`;
                 window.abrirOuBaixarDocumento(urlRF, docRF?.nome_arquivo || docRF?.nome || defaultName);
@@ -8675,37 +8681,247 @@ async function baixarRelatorioFiscalPdfEtapa() {
             return;
         }
 
+        const ehHtmlRelatorioValido = (content, nomeArquivo = '') => {
+            if (!content || typeof content !== 'string') return false;
+            const fullStr = (content + ' ' + (nomeArquivo || '')).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if ((fullStr.includes('NOTIFICACAO PRELIMINAR') || fullStr.includes('NOTIFICACAO_PRELIMINAR') || fullStr.includes('AUTO DE INFRACAO') || fullStr.includes('AUTO_DE_INFRACAO')) && !fullStr.includes('RELATORIO FISCAL') && !fullStr.includes('RELATORIO_FISCAL')) {
+                return false;
+            }
+            return true;
+        };
+
         let relatorioUrl = null;
-        const docId = processoAtual.dados?.relatorio_fiscal?.documento_id;
 
-        if (docId) {
-            const { data: doc } = await supabaseClient
+        // 1. Busca na tabela 'documentos' (verificando id do processo e notificação)
+        try {
+            const procId = processoAtual?.id;
+            let queryDoc = supabaseClient
                 .from('documentos')
-                .select('url')
-                .eq('id', docId)
-                .maybeSingle();
-            if (doc && doc.url) relatorioUrl = doc.url;
+                .select('url, tipo, nome_arquivo')
+                .in('tipo', ['Relatório Fiscal', 'Relatório Fiscal Assinado', 'Relatório de Vistoria'])
+                .not('url', 'is', null)
+                .order('created_at', { ascending: false });
+
+            if (procId) {
+                queryDoc = queryDoc.eq('processo_id', procId);
+            }
+
+            const { data: docsFound } = await queryDoc.limit(5);
+            if (docsFound && docsFound.length > 0) {
+                for (const d of docsFound) {
+                    if (d.url && d.url.trim() !== '' && ehHtmlRelatorioValido(d.url, d.nome_arquivo)) {
+                        relatorioUrl = d.url;
+                        break;
+                    }
+                }
+            }
+        } catch (eDoc) {
+            console.warn('Erro ao buscar relatório na tabela documentos:', eDoc);
         }
 
-        if (!relatorioUrl) {
-            const { data: doc } = await supabaseClient
-                .from('documentos')
-                .select('url')
-                .eq('processo_id', processoAtual.id)
-                .eq('tipo', 'Relatório Fiscal')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-            if (doc && doc.url) relatorioUrl = doc.url;
+        // 2. Se não encontrou em documentos (ou se era inválido), busca no próprio objeto processoAtual
+        if (!relatorioUrl && processoAtual?.dados) {
+            const rProc = processoAtual.dados?.relatorio_fiscal;
+            if (rProc?.url && ehHtmlRelatorioValido(rProc.url)) {
+                relatorioUrl = rProc.url;
+            } else if (processoAtual.dados?.relatorio_fiscal_url && ehHtmlRelatorioValido(processoAtual.dados.relatorio_fiscal_url)) {
+                relatorioUrl = processoAtual.dados.relatorio_fiscal_url;
+            } else if (processoAtual.campos?.anexo_rf_assinado && ehHtmlRelatorioValido(processoAtual.campos.anexo_rf_assinado)) {
+                relatorioUrl = processoAtual.campos.anexo_rf_assinado;
+            }
         }
 
-        if (!relatorioUrl) {
-            const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || '';
-            const docEl = document.getElementById('documentoPronto');
-            relatorioUrl = docEl ? prepararConteudoDocumento(docEl.outerHTML, brasaoBase64) : gerarHtmlCompativelComWordDoc(processoAtual, brasaoBase64);
+        // 3. Se não encontrou, busca na tabela 'autos_infracao' (garantindo que bate o processo_id)
+        if (!relatorioUrl && processoAtual?.id) {
+            try {
+                const { data: autoObj } = await supabaseClient
+                    .from('autos_infracao')
+                    .select('dados')
+                    .eq('processo_id', processoAtual.id)
+                    .maybeSingle();
+
+                if (autoObj) {
+                    const cand = autoObj.dados?.relatorio_fiscal_url
+                        || autoObj.dados?.relatorio_fiscal?.url;
+                    if (cand && ehHtmlRelatorioValido(cand)) {
+                        relatorioUrl = cand;
+                    }
+                }
+            } catch (eAuto) {
+                console.warn('Erro ao buscar relatório na tabela autos_infracao:', eAuto);
+            }
+
+            if (!relatorioUrl && notificacaoAtual?.dados?.relatorio_fiscal_url && ehHtmlRelatorioValido(notificacaoAtual.dados.relatorio_fiscal_url)) {
+                relatorioUrl = notificacaoAtual.dados.relatorio_fiscal_url;
+            }
         }
 
         const numeroRelatorio = processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || 'XXX';
+
+        // 4. Se não encontrar salvo em nenhum dos 3 lugares, gera um novo Relatório Fiscal e salva no banco
+        if (!relatorioUrl || !ehHtmlRelatorioValido(relatorioUrl)) {
+            console.log('Nenhum Relatório Fiscal válido pré-existente encontrado. Gerando novo relatório inline...');
+            const numeroProcesso = processoAtual.numero_processo || 'XXX';
+            const dProc = processoAtual.dados || {};
+            const iProc = dProc.imovel || {};
+            const cProc = dProc.contribuinte || {};
+            const rProc = dProc.relatorio_fiscal || {};
+            const fProc = dProc.fiscal || {};
+            const ano = new Date().getFullYear();
+            const nrTBD = numeroRelatorio || processoAtual.numero_relatorio || rProc.numero_relatorio || `XXX/${ano}`;
+            const npTBD = numeroProcesso || processoAtual.numero_processo || `XXX/${ano}`;
+            const dataAtualFmt = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const ehDecreto = processoAtual.possui_decreto || processoAtual.campos?.fiscDecreto === 'sim' || notificacaoAtual?.dados?.possui_decreto || fProc.decreto === 'sim';
+
+            // Imagens: busca no processo E na tabela documentos E no DOM
+            let htmlImagens = '';
+
+            // Tenta pegar do DOM primeiro (se estiver na tela de geração)
+            const containerLegenda = document.getElementById('lista-imagens-legenda');
+            if (containerLegenda && containerLegenda.children.length > 0) {
+                htmlImagens = containerLegenda.innerHTML;
+            }
+
+            if (!htmlImagens) {
+                const listaImagens = dProc.anexos?.imagens_vistoria || dProc.imagens_vistoria || processoAtual.campos?.imagens_vistoria || [];
+                if (Array.isArray(listaImagens) && listaImagens.length > 0) {
+                    listaImagens.forEach(img => {
+                        const src = img.dataUrl || img.url || img.base64 || img;
+                        if (src && typeof src === 'string' && src.startsWith('data:image')) {
+                            htmlImagens += `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;resize:both;overflow:hidden;max-width:100%;min-width:150px;min-height:150px;border:1px dashed #ccc;padding:4px;"><img src="${src}" style="width:100%;height:100%;object-fit:contain;display:block;"/></div>${img.nome ? `<p style="margin-top:5px;font-style:italic;color:#555;">${img.nome}</p>` : ''}</div>`;
+                        }
+                    });
+                }
+            }
+
+            if (!htmlImagens && processoAtual?.id) {
+                try {
+                    const { data: imgDocs } = await supabaseClient.from('documentos').select('url, nome_arquivo').eq('processo_id', processoAtual.id).in('tipo', ['imagem', 'Imagem Vistoria']).not('url', 'is', null);
+                    if (imgDocs && imgDocs.length > 0) {
+                        imgDocs.forEach(img => {
+                            htmlImagens += `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;resize:both;overflow:hidden;max-width:100%;min-width:150px;min-height:150px;border:1px dashed #ccc;padding:4px;"><img src="${img.url}" style="width:100%;height:100%;object-fit:contain;display:block;"/></div>${img.nome_arquivo ? `<p style="margin-top:5px;font-style:italic;color:#555;">${img.nome_arquivo}</p>` : ''}</div>`;
+                        });
+                    }
+                } catch (eImg) { console.warn('Erro ao buscar imagens de vistoria:', eImg); }
+            }
+
+            const brasaoImg = window.BRASAO_SEMAC_BASE64 || (typeof BRASAO_PREFEITURA_BASE64 !== 'undefined' ? BRASAO_PREFEITURA_BASE64 : 'assets/img/brasao_semac.jpeg');
+            const fiscAutor = (typeof window.obterFiscalAutorDoProcesso === 'function') ? window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual) : {};
+            const fNome = fProc.nome || fProc.fiscNome || processoAtual.fiscal_responsavel || fiscAutor.nome || (typeof perfilAtual !== 'undefined' && perfilAtual?.nome) || 'Nome do Fiscal';
+            const fCargo = fProc.cargo || fiscAutor.cargo || (typeof perfilAtual !== 'undefined' && perfilAtual?.cargo) || 'Cargo do Fiscal';
+            const fMatricula = fProc.matricula || fProc.fiscMatricula || processoAtual.fiscal_matricula || fiscAutor.matricula || (typeof perfilAtual !== 'undefined' && perfilAtual?.matricula) || 'XXXXXXXX';
+
+            // Cabeçalho comum
+            const cabecalhoHtml = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;border-collapse:collapse;"><tr><td width="100" rowspan="2" align="center" valign="top" style="padding-right:12px;width:100px;"><img src="${brasaoImg}" alt="Brasão" style="width:85px;height:auto;display:block;margin:0 auto;"></td><td bgcolor="#F78C26" style="background-color:#F78C26;height:14px;font-size:1px;line-height:14px;">&nbsp;</td></tr><tr><td valign="top" style="padding-top:10px;font-size:9.5pt;color:#000;line-height:1.4;"><strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>DIRETORIA DE MEIO AMBIENTE<br>GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br><span style="font-size:9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br><span style="font-size:9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span></td></tr></table>`;
+            const tituloHtml = `<div style="text-align:center;font-weight:bold;margin-top:25px;margin-bottom:5px;"><p style="margin:0;font-size:12pt;">RELATÓRIO FISCAL ${nrTBD}</p></div><div style="text-align:center;margin-bottom:15px;"><p style="margin:0;">Fiscalização de Posturas</p></div><div style="text-align:right;margin-bottom:20px;"><p style="margin:0;">Divinópolis- MG ${dataAtualFmt}</p></div>`;
+            const assinaturaHtml = `<div style="page-break-inside:avoid;break-inside:avoid;">${htmlImagens}<div style="margin-top:40px;page-break-inside:avoid;break-inside:avoid;"><div style="text-align:center;"><p style="margin:0;">_________________________________________</p><p style="margin:5px 0 0 0;"><strong>${fNome}</strong></p><p style="margin:2px 0 0 0;">${fCargo}</p><p style="margin:2px 0 0 0;">Matrícula: ${fMatricula}</p></div></div></div>`;
+
+            let corpoHtml = '';
+            if (ehDecreto) {
+                // ── Template Decreto ──
+                const contNome = cProc.nome || 'Contribuinte';
+                const contCpfCnpj = cProc.cpf_cnpj || 'Não informado';
+                const logrCont = cProc.logradouro || 'Não informado';
+                const numCont = cProc.numero || 'S/N';
+                const compCont = cProc.complemento || '';
+                const bairroCont = cProc.bairro || 'Não informado';
+                const cepCont = cProc.cep || '35500-000';
+                const munCont = cProc.municipio || cProc.cidade || 'Divinópolis';
+                const imvInscricao = iProc.inscricao || 'XX.XXX.XXXXX.XXXXX';
+                const imvLogradouro = iProc.logradouro || 'Não informado';
+                const imvNumero = iProc.numero || '0';
+                const compImv = iProc.complemento || '';
+                const imvBairro = iProc.bairro || 'Não informado';
+                let imvZona = iProc.zona || 'XXX', imvQuadra = iProc.quadra || 'XXXX', imvLote = iProc.lote || 'XXXXX';
+                if (imvInscricao) { const pp = imvInscricao.replace(/\s/g, '').split('.'); if (pp.length >= 4) { imvZona = pp[1] || imvZona; imvQuadra = pp[2] || imvQuadra; imvLote = pp[3] || imvLote; } }
+                const decretoNumero = fProc.numero_decreto || '17.326/2026';
+                const decretoDataRaw = fProc.data_decreto;
+                let decretoDataFmt = '02/07/2026';
+                if (decretoDataRaw) { const pp = decretoDataRaw.split('T')[0].split('-'); if (pp.length === 3) decretoDataFmt = `${pp[2]}/${pp[1]}/${pp[0]}`; }
+                const dispositivosStr = dProc.infracoes?.descricao || fProc.infracao || rProc.texto_vistoria || 'falta de limpeza e conservação de imóvel não edificado';
+                const prazoDias = 15;
+                let dataVencimentoFmt = '';
+                const decDateStr = decretoDataRaw || '2026-07-02';
+                try { const pp = decDateStr.split('T')[0].split('-'); if (pp.length === 3) { const dt = new Date(+pp[0], +pp[1] - 1, +pp[2]); dt.setDate(dt.getDate() + prazoDias); dataVencimentoFmt = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`; } } catch (e) { }
+                const dataVistoriaRaw2 = fProc.data_vistoria || processoAtual.data_vistoria;
+                let dataVistoriaFmt = dataAtualFmt;
+                if (dataVistoriaRaw2) { const pp = dataVistoriaRaw2.split('T')[0].split('-'); if (pp.length === 3) dataVistoriaFmt = `${pp[2]}/${pp[1]}/${pp[0]}`; }
+
+                corpoHtml = `<div style="margin-bottom:20px;"><p style="margin:0 0 10px 0;"><strong>Processo:</strong> ${npTBD}</p></div>
+                <div style="font-size:10.5pt;font-weight:bold;margin-bottom:6px;margin-top:15px;">Informações do Contribuinte</div>
+                <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size:10pt;line-height:1.45;margin-bottom:15px;"><tr><td width="58%" valign="top"><div><strong>Contribuinte:</strong> ${contNome}</div><div><strong>Logradouro:</strong> ${logrCont}</div><div><strong>CEP:</strong> ${cepCont}</div><div><strong>Município:</strong> ${munCont}</div></td><td width="42%" valign="top"><div><strong>CPF/CNPJ:</strong> ${contCpfCnpj}</div><div><strong>Bairro:</strong> ${bairroCont}</div><div><strong>Número:</strong> ${numCont}</div>${compCont ? `<div><strong>Complemento:</strong> ${compCont}</div>` : ''}</td></tr></table>
+                <div style="font-size:10.5pt;font-weight:bold;margin-bottom:6px;margin-top:15px;">Informações do imóvel</div>
+                <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size:10pt;line-height:1.45;margin-bottom:25px;"><tr><td width="58%" valign="top"><div><strong>Inscrição:</strong> ${imvInscricao}</div><div><strong>Logradouro:</strong> ${imvLogradouro}, n° ${imvNumero}</div><div><strong>Bairro:</strong> ${imvBairro}</div></td><td width="42%" valign="top"><div><strong>Zona:</strong> ${imvZona}</div><div><strong>Quadra:</strong> ${imvQuadra}</div><div><strong>Lote:</strong> ${imvLote}</div>${compImv ? `<div><strong>Complemento:</strong> ${compImv}</div>` : ''}</td></tr></table>
+                <div style="margin-bottom:20px;text-align:justify;line-height:1.5;">
+                    <p style="text-indent:30px;margin:0 0 16px 0;">Certifico que o autuado, não se manifestou sobre a interposição de defesa referente ao Decreto <strong>${decretoNumero}</strong>, publicado no dia <strong>${decretoDataFmt}</strong> no Diário Oficial dos Municípios Mineiros, o qual notificou todos os proprietários de imóveis situados na zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${dispositivosStr}</strong> foi de <strong>${prazoDias}</strong> dias${dataVencimentoFmt ? `, findo aquele no dia <strong>${dataVencimentoFmt}</strong>` : ''}.</p>
+                    <p style="text-indent:30px;margin:0 0 16px 0;">Em vistoria realizada dia <strong>${dataVistoriaFmt}</strong>, certificamos o não cumprimento da obrigação de Limpeza conforme levantamento fotográfico.</p>
+                </div>`;
+            } else {
+                // ── Template Comum (denúncia) ──
+                const atendimento = rProc.atendimento || fProc.atendimento || 'campo escrito';
+                const assunto = rProc.assunto || fProc.assunto || 'colocar aqui o título da denúncia';
+                const pa = rProc.pa || fProc.pa || '';
+                const logradouroImv = iProc.logradouro || 'XXX';
+                const numeroImv = iProc.numero || 'XXXX';
+                const bairroImv = iProc.bairro || 'XXXX';
+                const textoVistoria = rProc.texto_vistoria || fProc.texto_vistoria || 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
+                const paHtml = pa ? `<p style="margin:0 0 6px 0;"><strong>PA:</strong> ${pa}</p>` : '';
+                const inscricaoValor = iProc.inscricao || 'Não informada';
+                const inscricaoLabel = inscricaoValor.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'Inscrição Imobiliária';
+                const dataVistoriaRaw2 = fProc.data_vistoria || processoAtual.data_vistoria;
+                let textoDataHora = '';
+                if (dataVistoriaRaw2) { const pp = dataVistoriaRaw2.split('T'); const dp = pp[0]; const hp = pp[1] || ''; if (dp) { const da = dp.split('-'); const df = da.length === 3 ? `${da[2]}/${da[1]}/${da[0]}` : dp; textoDataHora = hp ? ` no dia ${df} às ${hp.substring(0, 5)}` : ` no dia ${df}`; } }
+
+                corpoHtml = `<div style="margin-bottom:20px;">
+                    <p style="margin:0 0 6px 0;"><strong>Para atendimento:</strong> ${atendimento}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Assunto:</strong> ${assunto}</p>
+                    <p style="margin:0 0 6px 0;"><strong>Processo:</strong> ${npTBD}</p>${paHtml}
+                </div>
+                <div style="margin-bottom:30px;"><div style="font-size:10.5pt;font-weight:bold;margin-bottom:6px;">Local da Autuação</div>
+                <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size:10pt;line-height:1.45;"><tr><td width="58%" valign="top"><div><strong>Logradouro:</strong> ${logradouroImv}, n° ${numeroImv}</div><div><strong>Bairro:</strong> ${bairroImv}</div></td><td width="42%" valign="top"><div><strong>${inscricaoLabel}:</strong> ${inscricaoValor}</div></td></tr></table></div>
+                <div style="margin-bottom:20px;text-align:justify;">
+                    <p style="margin:0 0 6px 0;">Prezado(a),</p>
+                    <p style="text-indent:30px;margin:0 0 6px 0;">informamos que em vistoria${textoDataHora} ao local indicado, verificamos que houve ${textoVistoria}.</p>
+                </div>`;
+            }
+
+            relatorioUrl = `<div style="font-family:Calibri,'Segoe UI',sans-serif;color:black;max-width:820px;margin:0 auto;line-height:1.3;font-size:10pt;padding:40px 55px 30px 55px;background:white;">${cabecalhoHtml}${tituloHtml}${corpoHtml}${assinaturaHtml}<div style="height:10px;background:#F78C26;margin-top:12px;"></div></div>`;
+
+            // Salva o novo relatório gerado na tabela 'documentos'
+            if (relatorioUrl && processoAtual?.id) {
+                try {
+                    const etapaIdFinal = processoAtual.etapa_atual_id || 1;
+                    const usuarioDocs = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : (processoAtual?.fiscal_id || null);
+                    const { data: newDoc, error: errInsDoc } = await supabaseClient
+                        .from('documentos')
+                        .insert([{
+                            processo_id: processoAtual.id,
+                            etapa_id: etapaIdFinal,
+                            tipo: 'Relatório Fiscal',
+                            nome_arquivo: `Relatorio_Fiscal_${String(numeroRelatorio).replace(/[\/\\]/g, '-')}.html`,
+                            url: relatorioUrl,
+                            gerado_automaticamente: true,
+                            numero_sequencial: numeroRelatorio,
+                            usuario_id: usuarioDocs
+                        }])
+                        .select()
+                        .single();
+
+                    if (!errInsDoc && newDoc) {
+                        processoAtual.dados = processoAtual.dados || {};
+                        processoAtual.dados.relatorio_fiscal = processoAtual.dados.relatorio_fiscal || {};
+                        processoAtual.dados.relatorio_fiscal.documento_id = newDoc.id;
+                        processoAtual.dados.relatorio_fiscal.url = relatorioUrl;
+                        await supabaseClient
+                            .from('processos')
+                            .update({ dados: processoAtual.dados })
+                            .eq('id', processoAtual.id);
+                    }
+                } catch (eSaveDoc) {
+                    console.warn('Erro ao salvar relatório em documentos:', eSaveDoc);
+                }
+            }
+        }
         const numLimpo = numeroRelatorio.replace(/[\/\\]/g, '-');
         const nomeArquivo = `Relatorio Fiscal ${numLimpo}.pdf`;
         const tituloDoc = `Relatorio Fiscal ${numLimpo}`;

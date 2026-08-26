@@ -826,7 +826,10 @@ async function finalizarSolicitacao() {
 
         // 5.5 Registrar o documento Relatório Fiscal na tabela documentos centralizada
         try {
-            const relatorioUrl = window.relatorioCustomizadoHTML || construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso);
+            let relatorioUrl = construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
+            if (window.relatorioCustomizadoHTML && window.relatorioCustomizadoHTML.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('RELATORIO FISCAL')) {
+                relatorioUrl = window.relatorioCustomizadoHTML;
+            }
             const { data: docRF } = await supabaseClient.from('documentos').insert([{
                 processo_id: procCriado.id,
                 etapa_id: etapaId,
@@ -1065,35 +1068,49 @@ async function finalizarSolicitacao() {
         }
 
         // Imagens de vistoria
-        if (selectedImages.length > 0) {
-            anexosParaSalvar.imagens_vistoria = [];
-            for (const imgFile of selectedImages) {
-                try {
-                    const imgBase64 = await fileToBase64(imgFile);
-                    anexosParaSalvar.imagens_vistoria.push({
-                        nome: imgFile.name,
-                        tipo: imgFile.type,
-                        dataUrl: imgBase64,
-                        data_upload: new Date().toISOString()
-                    });
+        const containerImagensSalvar = document.getElementById('lista-imagens-legenda');
+        if (containerImagensSalvar) {
+            const itensSalvar = containerImagensSalvar.querySelectorAll('.item-imagem-legenda');
+            if (itensSalvar.length > 0) {
+                anexosParaSalvar.imagens_vistoria = [];
+                for (let i = 0; i < itensSalvar.length; i++) {
+                    const item = itensSalvar[i];
+                    const imgInput = item.querySelector('.imagem-arquivo');
+                    const legInput = item.querySelector('.imagem-legenda');
+                    
+                    const imgBase64 = imgInput ? imgInput.getAttribute('data-base64') : null;
+                    const legenda = legInput ? legInput.value : '';
+                    const imgFile = imgInput && imgInput.files ? imgInput.files[0] : null;
 
-                    if (procCriado && procCriado.id) {
+                    if (imgBase64 && imgFile) {
                         try {
-                            await supabaseClient.from('documentos').insert([{
-                                processo_id: procCriado.id,
-                                etapa_id: etapaId,
-                                tipo: 'Imagem Vistoria',
-                                nome_arquivo: imgFile.name,
-                                url: imgBase64,
-                                gerado_automaticamente: false,
-                                usuario_id: profileId
-                            }]);
-                        } catch (eImgDoc) {
-                            console.warn('Aviso ao registrar imagem na tabela documentos:', eImgDoc);
+                            anexosParaSalvar.imagens_vistoria.push({
+                                nome: imgFile.name,
+                                tipo: imgFile.type,
+                                dataUrl: imgBase64,
+                                legenda: legenda,
+                                data_upload: new Date().toISOString()
+                            });
+
+                            if (procCriado && procCriado.id) {
+                                try {
+                                    await supabaseClient.from('documentos').insert([{
+                                        processo_id: procCriado.id,
+                                        etapa_id: etapaId,
+                                        tipo: 'imagem',
+                                        nome_arquivo: imgFile.name,
+                                        url: imgBase64,
+                                        gerado_automaticamente: false,
+                                        usuario_id: profileId
+                                    }]);
+                                } catch (eImgDoc) {
+                                    console.warn('Aviso ao registrar imagem na tabela documentos:', eImgDoc);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Erro ao salvar imagem:', e);
                         }
                     }
-                } catch (e) {
-                    console.warn('Erro ao converter imagem:', e);
                 }
             }
         }

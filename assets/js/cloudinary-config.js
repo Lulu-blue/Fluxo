@@ -95,79 +95,8 @@ window.otimizarImagemParaUpload = async function (fileOrDataUrl) {
  * renderiza cada página em canvas e recompila em PDF leve e otimizado.
  */
 window.otimizarPdfParaUpload = async function (file) {
-    if (!file || !(file instanceof File || file instanceof Blob)) return file;
-    if (file.size < 2.5 * 1024 * 1024) return file; // PDFs < 2.5MB não precisam de reconstrução
-
-    const isPdf = (file.type && file.type === 'application/pdf') || /\.pdf$/i.test(file.name || '');
-    if (!isPdf) return file;
-
-    console.log(`[PDF Optimizer] Comprimindo PDF pesado (${(file.size / 1024 / 1024).toFixed(2)} MB)...`);
-
-    try {
-        if (typeof window.pdfjsLib === 'undefined') {
-            await new Promise((res) => {
-                const s = document.createElement('script');
-                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-                s.onload = res;
-                s.onerror = res;
-                document.head.appendChild(s);
-            });
-        }
-        if (typeof window.PDFLib === 'undefined') {
-            await new Promise((res) => {
-                const s = document.createElement('script');
-                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
-                s.onload = res;
-                s.onerror = res;
-                document.head.appendChild(s);
-            });
-        }
-
-        if (typeof window.pdfjsLib === 'undefined' || typeof window.PDFLib === 'undefined') {
-            console.warn('[PDF Optimizer] Dependências PDF.js ou PDFLib não carregadas.');
-            return file;
-        }
-
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const arrayBuffer = await file.arrayBuffer();
-        const loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
-        const pdfDoc = await loadingTask.promise;
-        const numPages = pdfDoc.numPages;
-
-        const mergedPdf = await window.PDFLib.PDFDocument.create();
-
-        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-            const page = await pdfDoc.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 1.2 });
-            const canvas = document.createElement('canvas');
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            const ctx = canvas.getContext('2d');
-
-            await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
-            const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.65);
-            const jpegImage = await mergedPdf.embedJpg(jpegDataUrl);
-
-            const newPage = mergedPdf.addPage([viewport.width, viewport.height]);
-            newPage.drawImage(jpegImage, {
-                x: 0,
-                y: 0,
-                width: viewport.width,
-                height: viewport.height
-            });
-        }
-
-        const compressedPdfBytes = await mergedPdf.save();
-        const compressedBlob = new Blob([compressedPdfBytes], { type: 'application/pdf' });
-        const compressedFile = new File([compressedBlob], file.name, { type: 'application/pdf' });
-
-        console.log(`[PDF Optimizer] PDF comprimido com sucesso: de ${(file.size / 1024 / 1024).toFixed(2)} MB para ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB.`);
-        return compressedFile;
-    } catch (err) {
-        console.warn('[PDF Optimizer] Falha ao comprimir PDF, mantendo arquivo original:', err);
-        return file;
-    }
+    // Desativada a pedido do usuário para não perder qualidade.
+    return file;
 };
 
 /**
@@ -195,7 +124,7 @@ window.uploadParaCloudinary = async function (fileOrDataUrl, folder = 'semac_doc
     }
 
     const isImg = (fileOrDataUrl instanceof File && (fileOrDataUrl.type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|bmp)$/i.test(fileOrDataUrl.name)))
-               || (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:image/'));
+        || (typeof fileOrDataUrl === 'string' && fileOrDataUrl.startsWith('data:image/'));
 
     const formData = new FormData();
     formData.append('file', fileOrDataUrl);
@@ -210,7 +139,7 @@ window.uploadParaCloudinary = async function (fileOrDataUrl, folder = 'semac_doc
 
     const endpoints = isImg
         ? [`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`]
-        : [`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload` ];
+        : [`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`];
 
     for (const url of endpoints) {
         try {
