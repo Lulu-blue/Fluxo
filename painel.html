@@ -246,26 +246,34 @@
                 </section>
 
                 <!-- Contador de resultados -->
-                <div class="results-bar">
-                    <span class="results-count" id="resultsCount">Carregando...</span>
-                </div>
+                        <div class="results-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="results-count" id="resultsCount">Carregando...</span>
+                            <div id="devActionsContainer" style="display: none; align-items: center; gap: 10px;">
+                                <span id="lblSelecionados" style="font-size: 0.85rem; color: #64748b;">0 selecionados</span>
+                                <button type="button" id="btnExcluirSelecionados" style="padding: 6px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; transition: background 0.2s;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                    Excluir Selecionados
+                                </button>
+                            </div>
+                        </div>
 
-                <!-- Tabela de Solicitações -->
-                <section class="table-container">
-                    <table class="data-table" id="tabelaSolicitacoes">
-                        <thead>
-                            <tr>
-                                <th class="col-protocolo">Protocolo</th>
-                                <th class="col-cpf">CPF/CNPJ</th>
-                                <th class="col-nome">Nome do Solicitante</th>
-                                <th class="col-data">Data Início</th>
-                                <th class="col-data">Data Final</th>
-                                <th class="col-dias">Dias p/ Venc.</th>
-                                <th class="col-descricao">Fiscal</th>
-                                <th class="col-etapa">Etapa</th>
-                                <th class="col-acoes">Detalhes</th>
-                            </tr>
-                        </thead>
+                        <!-- Tabela de Solicitações -->
+                        <section class="table-container">
+                            <table class="data-table" id="tabelaSolicitacoes">
+                                <thead>
+                                    <tr>
+                                        <th class="col-check" style="width: 40px; text-align: center; display: none;" id="thCheck"><input type="checkbox" id="chkSelectAll" /></th>
+                                        <th class="col-protocolo">Protocolo</th>
+                                        <th class="col-cpf">CPF/CNPJ</th>
+                                        <th class="col-nome">Nome do Solicitante</th>
+                                        <th class="col-data">Data Início</th>
+                                        <th class="col-data">Data Final</th>
+                                        <th class="col-dias">Dias p/ Venc.</th>
+                                        <th class="col-descricao">Fiscal</th>
+                                        <th class="col-etapa">Etapa</th>
+                                        <th class="col-acoes">Detalhes</th>
+                                    </tr>
+                                </thead>
                         <tbody id="tabelaBody">
                             <!-- Linhas serão inseridas via JavaScript -->
                         </tbody>

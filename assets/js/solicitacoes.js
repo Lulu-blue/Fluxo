@@ -397,7 +397,18 @@ function renderizarTabela(dados, cargoFiltro) {
 
         const linkEtapa = montarLinkEtapa(item, cargoFiltro);
 
+        const isDev = window.currentUserProfile && normalizarCargo(window.currentUserProfile.cargo) === 'Dev';
+        if (isDev) {
+            const thCheck = document.getElementById('thCheck');
+            const devActions = document.getElementById('devActionsContainer');
+            if (thCheck) thCheck.style.display = 'table-cell';
+            if (devActions) devActions.style.display = 'flex';
+        }
+
+        const devCheckHtml = isDev ? `<td class="col-check" style="text-align: center;"><input type="checkbox" class="chk-process" data-id="${item.id}" onclick="event.stopPropagation(); window.atualizarContagemSelecionados && window.atualizarContagemSelecionados();" /></td>` : '';
+
         tr.innerHTML = `
+            ${devCheckHtml}
             <td class="col-protocolo">
                 <span class="protocolo-badge">${item.numero_processo || '—'}</span>
             </td>
@@ -621,6 +632,24 @@ function bindEventos() {
 
     // Exportar CSV
     document.getElementById('btnExportCSV').addEventListener('click', exportarCSV);
+
+    // Eventos Exclusivos DEV
+    const chkSelectAll = document.getElementById('chkSelectAll');
+    if (chkSelectAll) {
+        chkSelectAll.addEventListener('change', (e) => {
+            document.querySelectorAll('.chk-process').forEach(chk => {
+                chk.checked = e.target.checked;
+            });
+            if (window.atualizarContagemSelecionados) window.atualizarContagemSelecionados();
+        });
+    }
+
+    const btnExcluir = document.getElementById('btnExcluirSelecionados');
+    if (btnExcluir) {
+        btnExcluir.addEventListener('click', async () => {
+            if (window.excluirProcessosSelecionados) await window.excluirProcessosSelecionados();
+        });
+    }
 
     // Nova Solicitação → abre modal (handler em nova-solicitacao.js)
 
@@ -1041,3 +1070,103 @@ document.addEventListener('click', function (e) {
         dropdown.style.display = 'none';
     }
 });
+
+// ── Funções Exclusivas DEV: Seleção e Exclusão em Lote ─────────────────────────────
+window.atualizarContagemSelecionados = function() {
+    const chks = document.querySelectorAll('.chk-process:checked');
+    const lbl = document.getElementById('lblSelecionados');
+    if (lbl) {
+        lbl.textContent = `${chks.length} selecionado${chks.length !== 1 ? 's' : ''}`;
+    }
+};
+
+window.excluirProcessosSelecionados = async function() {
+    const chks = document.querySelectorAll('.chk-process:checked');
+    if (chks.length === 0) {
+        alert('Nenhum processo selecionado para exclusão.');
+        return;
+    }
+
+    if (!confirm(`Tem certeza que deseja EXCLUIR DEFINITIVAMENTE ${chks.length} processo(s)?\n\nATENÇÃO: Esta ação é irreversível. O sistema apagará todos os dados anexados e devolverá todas as numerações (Protocolo, Relatório, Autos, Certidões) para a tabela de números descartados.`)) {
+        return;
+    }
+
+    mostrarLoading(true);
+    let excluidos = 0;
+
+    try {
+        for (let i = 0; i < chks.length; i++) {
+            const pid = chks[i].getAttribute('data-id');
+            const pItem = dadosTabela.find(p => p.id === pid);
+            if (!pItem) continue;
+
+            console.log(`[EXCLUSÃO LOTE DEV] Processando exclusão do processo ${pid}`);
+
+            // 1. Devolver Número do Processo e Relatório (se tiver)
+            if (pItem.numero_processo) {
+                await supabaseClient.rpc('devolver_numero', { p_numero: pItem.numero_processo, p_categoria: 'Processo' });
+            }
+            const nRel = pItem.dados?.relatorio_fiscal?.numero_relatorio || pItem.numero_relatorio || pItem.dados?.numero_relatorio;
+            if (nRel) {
+                await supabaseClient.rpc('devolver_numero', { p_numero: nRel, p_categoria: 'Relatório Fiscal' });
+            }
+
+            // 2. Devolver números de Notificações
+            const { data: notifs } = await supabaseClient.from('notificacoes').select('numero, dados').eq('processo_id', pid);
+            if (notifs && notifs.length > 0) {
+                for (const n of notifs) {
+                    const numNotif = n.numero || n.dados?.numero || n.dados?.numero_notificacao;
+                    if (numNotif) {
+                        await supabaseClient.rpc('devolver_numero', { p_numero: numNotif, p_categoria: 'Notificação' });
+                    }
+                }
+            }
+
+            // 3. Devolver números de Autos de Infração
+            const { data: autos } = await supabaseClient.from('autos_infracao').select('numero').eq('processo_id', pid);
+            if (autos && autos.length > 0) {
+                for (const a of autos) {
+                    if (a.numero) {
+                        await supabaseClient.rpc('devolver_numero', { p_numero: a.numero, p_categoria: 'Auto de Infração' });
+                    }
+                }
+            }
+
+            // 4. Devolver números de Documentos Sequenciais (Ex: Certidão)
+            const { data: docs } = await supabaseClient.from('documentos').select('numero_sequencial, tipo').eq('processo_id', pid).not('numero_sequencial', 'is', null);
+            if (docs && docs.length > 0) {
+                for (const d of docs) {
+                    if (d.numero_sequencial) {
+                        let cat = d.tipo;
+                        if (cat === 'Relatório Fiscal Assinado') cat = 'Relatório Fiscal';
+                        else if (cat === 'Auto de Infração Assinado') cat = 'Auto de Infração';
+                        else if (cat === 'Notificação Preliminar Assinada' || cat === 'Notificação Preliminar') cat = 'Notificação';
+                        else if (cat === 'Certidão Assinada') cat = 'Certidão Sem Defesa';
+                        await supabaseClient.rpc('devolver_numero', { p_numero: d.numero_sequencial, p_categoria: cat });
+                    }
+                }
+            }
+
+            // 5. Exclusão em cascata (O banco apagará processo_infracoes, notificacoes, historico_etapas, documentos, autos_infracao...)
+            const { error: errDel } = await supabaseClient.from('processos').delete().eq('id', pid);
+            
+            if (errDel) {
+                console.error(`Erro ao excluir processo ${pid}:`, errDel);
+            } else {
+                excluidos++;
+            }
+        }
+
+        alert(`${excluidos} processo(s) excluído(s) com sucesso. As numerações foram devolvidas para os Descartes.`);
+        const chkAll = document.getElementById('chkSelectAll');
+        if (chkAll) chkAll.checked = false;
+        window.atualizarContagemSelecionados();
+        
+        carregarSolicitacoes();
+    } catch (err) {
+        console.error('Erro na exclusão em lote:', err);
+        alert('Erro ao excluir processos em lote.');
+    } finally {
+        mostrarLoading(false);
+    }
+};
