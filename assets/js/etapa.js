@@ -449,6 +449,7 @@ const ETAPAS_MAP = {
 
 // Mapa de etapas que cada cargo pode editar.
 const ETAPAS_POR_CARGO = {
+    'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
     'Administrativo de Posturas': [16],
     'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
@@ -2152,6 +2153,7 @@ async function carregarPerfilUsuario() {
 function normalizarCargo(cargo) {
     if (!cargo) return 'Fiscal de Postura';
     const limpo = cargo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (limpo === 'dev' || limpo.includes('desenvolvedor') || limpo.includes('developer')) return 'Dev';
     if (limpo.includes('interface') || (limpo.includes('gerente') && limpo.includes('juridic'))) return 'Gerente de Interface Jurídica';
     if (limpo.includes('administrativo')) return 'Administrativo de Posturas';
     if (limpo.includes('fiscal')) return 'Fiscal de Postura';
@@ -2166,6 +2168,8 @@ function determinarModoAcesso(proc, perfil) {
     if (!proc || !perfil) return MODO_ACESSO.LEITURA_NOTIFICACAO;
 
     const cargo = normalizarCargo(perfil.cargo);
+    if (cargo === 'Dev') return MODO_ACESSO.NORMAL;
+
     const etapaAtual = parseInt(proc.etapa_atual || proc.etapa_atual_id || 1, 10);
     const isCriador = perfil.id && proc.fiscal_id && perfil.id === proc.fiscal_id;
 
@@ -2271,6 +2275,7 @@ function aplicarModoAcesso(modo) {
 function podeGerenciarEtapaAtual() {
     if (!processoAtual || !perfilAtual) return false;
     const cargo = normalizarCargo(perfilAtual.cargo);
+    if (cargo === 'Dev') return true;
     const etapaAtual = notificacaoAtual
         ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
         : parseInt(processoAtual.etapa_atual || processoAtual.etapa_atual_id || 1, 10);
@@ -6339,7 +6344,7 @@ function renderizarDocumentoOficial(proc) {
                     <div>
                         <div><strong>CPF/CNPJ:</strong> ${cont.cpf_cnpj || 'Não informado'}</div>
                         <div><strong>Bairro:</strong> ${cont.bairro || 'Não informado'}</div>
-                        <div><strong>Número:</strong> ${cont.numero || 'S/N'}</div>
+                        <div><strong>Número:</strong> ${cont.numero || 'Não informado'}</div>
                         ${cont.complemento ? `<div><strong>Complemento:</strong> ${cont.complemento}</div>` : ''}
                     </div>
                 </div>
@@ -6349,7 +6354,7 @@ function renderizarDocumentoOficial(proc) {
                 <div class="doc-info-grid">
                     <div>
                         <div><strong>Inscrição:</strong> ${imv.inscricao || 'XX.XXX.XXXX.XXXXX'}</div>
-                        <div><strong>Logradouro:</strong> ${imv.logradouro || 'Não informado'}, n° ${imv.numero || 'S/N'}</div>
+                        <div><strong>Logradouro:</strong> ${imv.logradouro || 'Não informado'}, n° ${imv.numero || '0'}</div>
                         <div><strong>Bairro:</strong> ${imv.bairro || 'Não informado'}</div>
                     </div>
                     <div>
@@ -8208,7 +8213,6 @@ async function salvarEdicoesProcesso() {
             .from('processos')
             .update({
                 dados: novosDados,
-                campos: processoAtual.campos,
                 updated_at: new Date().toISOString()
             })
             .eq('id', processoId);
@@ -8253,16 +8257,14 @@ async function salvarEdicoesProcesso() {
 
         // 3. Atualiza tabela autos_infracao se existir registro vinculado
         try {
-            let filterQuery = `processo_id.eq.${processoId}`;
-            if (notificacaoAtual?.id) filterQuery += `,notificacao_id.eq.${notificacaoAtual.id}`;
-            await supabaseClient
-                .from('autos_infracao')
-                .update({
-                    autuado_nome: novosDados.contribuinte.nome,
-                    autuado_cpf_cnpj: novosDados.contribuinte.cpf_cnpj,
-                    updated_at: new Date().toISOString()
-                })
-                .or(filterQuery);
+            if (processoId) {
+                await supabaseClient
+                    .from('autos_infracao')
+                    .update({
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('processo_id', processoId);
+            }
         } catch (errAuto) {
             console.warn('Aviso ao atualizar autos_infracao:', errAuto);
         }
@@ -8304,8 +8306,7 @@ async function salvarEdicoesProcesso() {
                 complemento: novosDados.contribuinte.complemento || null,
                 bairro: novosDados.contribuinte.bairro || null,
                 municipio: novosDados.contribuinte.municipio || null,
-                cep: novosDados.contribuinte.cep || null,
-                updated_at: new Date().toISOString()
+                cep: novosDados.contribuinte.cep || null
             };
 
             const { data: contsProc } = await supabaseClient
@@ -8353,8 +8354,7 @@ async function salvarEdicoesProcesso() {
                 numero: novosDados.imovel.numero || null,
                 bairro: novosDados.imovel.bairro || null,
                 testada: pFloat(novosDados.imovel.testada),
-                area_total: pFloat(novosDados.imovel.area_total),
-                updated_at: new Date().toISOString()
+                area_total: pFloat(novosDados.imovel.area_total)
             };
 
             const { data: imvsProc } = await supabaseClient
@@ -8404,21 +8404,29 @@ async function salvarEdicoesProcesso() {
         // 5. Atualiza objeto global na memória
         processoAtual.dados = novosDados;
 
-        // 6. Recalcula e re-renderiza todos os documentos e a interface da etapa
-        if (typeof renderizarDocumentoOficial === 'function') {
-            renderizarDocumentoOficial(processoAtual);
+        // 6. Recalcula e re-renderiza o documento correto para a etapa atual
+        const numEtapa = parseInt(processoAtual.etapa_atual_id || processoAtual.etapa_atual || 1, 10);
+        const ehAuto = (typeof ehStatusAutoInfracao === 'function' && ehStatusAutoInfracao(processoAtual)) || numEtapa >= 14;
+
+        if (ehAuto) {
+            if (typeof window.gerarAutoDeInfracao === 'function') {
+                window.gerarAutoDeInfracao(true);
+            }
+        } else if (numEtapa === 10) {
+            if (typeof window.gerarCertidaoSemDefesa === 'function') {
+                window.gerarCertidaoSemDefesa(true);
+            }
+        } else if (numEtapa === 5 || numEtapa === 13) {
+            if (typeof window.gerarReplicaFiscalHtml === 'function') {
+                window.gerarReplicaFiscalHtml();
+            }
+        } else {
+            if (typeof renderizarDocumentoOficial === 'function') {
+                renderizarDocumentoOficial(processoAtual);
+            }
         }
-        if (typeof window.gerarAutoDeInfracao === 'function') {
-            window.gerarAutoDeInfracao(true);
-        }
-        if (typeof window.gerarCertidaoSemDefesa === 'function') {
-            window.gerarCertidaoSemDefesa(true);
-        }
-        if (typeof window.gerarReplicaFiscalHtml === 'function') {
-            window.gerarReplicaFiscalHtml();
-        }
+
         if (typeof window.renderizarEtapa === 'function') {
-            const numEtapa = processoAtual.etapa_atual_id || processoAtual.etapa_atual;
             window.renderizarEtapa(numEtapa);
         }
 
@@ -8692,8 +8700,9 @@ async function baixarRelatorioFiscalPdfEtapa() {
         }
 
         if (!relatorioUrl) {
-            alert('Não há relatório fiscal salvo na tabela documentos para este processo.');
-            return;
+            const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || '';
+            const docEl = document.getElementById('documentoPronto');
+            relatorioUrl = docEl ? prepararConteudoDocumento(docEl.outerHTML, brasaoBase64) : gerarHtmlCompativelComWordDoc(processoAtual, brasaoBase64);
         }
 
         const numeroRelatorio = processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || 'XXX';
@@ -9205,7 +9214,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
                 <td width="42%" valign="top">
                     <div><strong>CPF/CNPJ:</strong> ${cont.cpf_cnpj || 'Não informado'}</div>
                     <div><strong>Bairro:</strong> ${cont.bairro || 'Não informado'}</div>
-                    <div><strong>Número:</strong> ${cont.numero || 'S/N'}</div>
+                    <div><strong>Número:</strong> ${cont.numero || 'Não informado'}</div>
                     ${cont.complemento ? `<div><strong>Complemento:</strong> ${cont.complemento}</div>` : ''}
                 </td>
             </tr>
@@ -9217,7 +9226,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             <tr>
                 <td width="58%" valign="top">
                     <div><strong>Inscrição:</strong> ${imv.inscricao || 'XX.XXX.XXXX.XXXXX'}</div>
-                    <div><strong>Logradouro:</strong> ${imv.logradouro || 'Não informado'}, n° ${imv.numero || 'S/N'}</div>
+                    <div><strong>Logradouro:</strong> ${imv.logradouro || 'Não informado'}, n° ${imv.numero || '0'}</div>
                     <div><strong>Bairro:</strong> ${imv.bairro || 'Não informado'}</div>
                 </td>
                 <td width="42%" valign="top">
@@ -10752,7 +10761,7 @@ window.avancarEtapa14 = async function () {
         processoAtual.dados.etapa14.apresentou_defesa = valDefesa;
         processoAtual.dados.etapa14.usuario_emissor = perfilAtual?.nome || 'Fiscal de Posturas';
 
-        await supabaseClient.from('processos').update({ dados: processoAtual.dados, campos: processoAtual.campos }).eq('id', processoAtual.id);
+        await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
     }
 
     // Atualiza tabela própria autos_infracao

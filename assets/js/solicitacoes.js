@@ -81,6 +81,7 @@ function calcularEtapaProcesso(item) {
 }
 
 const ETAPAS_POR_CARGO = {
+    'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
     'Administrativo de Posturas': [16, 17],
     'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
@@ -93,6 +94,7 @@ const ETAPAS_POR_CARGO = {
 function normalizarCargo(cargo) {
     if (!cargo) return 'Fiscal de Postura';
     const c = cargo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (c === 'dev' || c.includes('desenvolvedor') || c.includes('developer')) return 'Dev';
     if (c.includes('interface') || (c.includes('gerente') && c.includes('juridic'))) return 'Gerente de Interface Jurídica';
     if (c.includes('gerente')) return 'Gerente';
     if (c.includes('fiscal')) return 'Fiscal de Postura';
@@ -100,7 +102,7 @@ function normalizarCargo(cargo) {
     if (c.includes('secretar')) return 'Secretário';
     if (c.includes('jurid')) return 'Jurídico';
     if (c.includes('fazend')) return 'Fazenda';
-    return 'Fiscal de Postura';
+    return cargo;
 }
 
 function obterCargoResponsavelPelaEtapa(etapaNum) {

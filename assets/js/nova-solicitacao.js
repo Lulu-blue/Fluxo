@@ -762,28 +762,65 @@ async function finalizarSolicitacao() {
             }
         };
 
-        novoProcessoObj.numero_processo = numeroProcesso;
-        novoProcessoObj.numero_relatorio = numeroRelatorio;
-
         let procCriado = null;
         let errProc = null;
+        let tentativasProc = 0;
+        const maxTentativasProc = 5;
 
-        const resIns = await supabaseClient
-            .from('processos')
-            .insert([novoProcessoObj])
-            .select()
-            .single();
+        while (tentativasProc < maxTentativasProc) {
+            tentativasProc++;
+            novoProcessoObj.numero_processo = numeroProcesso;
+            novoProcessoObj.numero_relatorio = numeroRelatorio;
 
-        procCriado = resIns.data;
-        errProc = resIns.error;
+            const resIns = await supabaseClient
+                .from('processos')
+                .insert([novoProcessoObj])
+                .select()
+                .single();
+
+            procCriado = resIns.data;
+            errProc = resIns.error;
+
+            if (!errProc && procCriado) {
+                break; // Inserção com sucesso!
+            }
+
+            const errMsg = errProc?.message || '';
+            const isDupProc = errMsg.includes('processos_numero_processo_key') || errProc?.code === '23505';
+            const isDupRel = errMsg.includes('processos_numero_relatorio_key');
+
+            if (isDupProc || isDupRel) {
+                console.warn(`[TENTATIVA ${tentativasProc}/${maxTentativasProc}] Colisão de número na inserção do processo. Proc: ${numeroProcesso}, Rel: ${numeroRelatorio}. Solicitando novo número...`);
+
+                if (isDupProc) {
+                    const { data: np } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Processo' });
+                    if (np) {
+                        numeroProcesso = np;
+                    } else {
+                        numeroProcesso = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
+                    }
+                }
+
+                if (isDupRel) {
+                    const { data: nr } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
+                    if (nr) {
+                        numeroRelatorio = nr;
+                    } else {
+                        numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
+                    }
+                    dados.relatorio_fiscal = dados.relatorio_fiscal || {};
+                    dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
+                    novoProcessoObj.dados.relatorio_fiscal = dados.relatorio_fiscal;
+                }
+            } else {
+                break;
+            }
+        }
 
         if (errProc || !procCriado) {
-            console.error('Erro ao inserir processo:', errProc);
-            // Devolve os números para a fila caso a inserção falhe
-            await supabaseClient.rpc('devolver_numero', { p_numero: numeroProcesso, p_categoria: 'Processo' });
-            if (numeroRelatorio) {
-                await supabaseClient.rpc('devolver_numero', { p_numero: numeroRelatorio, p_categoria: 'Relatório Fiscal' });
-            }
+            console.error('Erro ao inserir processo após tentativas:', errProc);
+            if (numeroProcesso) await supabaseClient.rpc('devolver_numero', { p_numero: numeroProcesso, p_categoria: 'Processo' });
+            if (numeroRelatorio) await supabaseClient.rpc('devolver_numero', { p_numero: numeroRelatorio, p_categoria: 'Relatório Fiscal' });
             throw new Error(errProc?.message || 'Falha ao gravar o processo no banco de dados.');
         }
 
@@ -1039,13 +1076,27 @@ async function finalizarSolicitacao() {
                         dataUrl: imgBase64,
                         data_upload: new Date().toISOString()
                     });
+
+                    if (procCriado && procCriado.id) {
+                        try {
+                            await supabaseClient.from('documentos').insert([{
+                                processo_id: procCriado.id,
+                                etapa_id: etapaId,
+                                tipo: 'Imagem Vistoria',
+                                nome_arquivo: imgFile.name,
+                                url: imgBase64,
+                                gerado_automaticamente: false,
+                                usuario_id: profileId
+                            }]);
+                        } catch (eImgDoc) {
+                            console.warn('Aviso ao registrar imagem na tabela documentos:', eImgDoc);
+                        }
+                    }
                 } catch (e) {
                     console.warn('Erro ao converter imagem:', e);
                 }
             }
         }
-
-
 
         // Gravar anexos no banco se houver algum
         if (Object.keys(anexosParaSalvar).length > 0) {
@@ -1271,34 +1322,39 @@ function renderizarDocumentoRelatorio() {
     }
 }
 
-function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
-    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim' || (typeof processoAtual !== 'undefined' && (processoAtual?.possui_decreto || processoAtual?.campos?.fiscDecreto === 'sim'));
+function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj = null) {
+    const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    const dProc = proc?.dados || {};
+    const iProc = dProc.imovel || {};
+    const rProc = dProc.relatorio_fiscal || {};
+
+    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim' || (proc && (proc.possui_decreto || dProc.fiscal?.decreto === 'sim'));
     if (decretoSim) {
-        return construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso);
+        return construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, proc);
     }
 
     const ano = new Date().getFullYear();
-    const numeroRelatorioTBD = numeroRelatorio || `XXX/${ano}`;
-    const numeroProcessoTBD = numeroProcesso || `XXX/${ano}`;
+    const numeroRelatorioTBD = numeroRelatorio || proc?.numero_relatorio || rProc.numero_relatorio || `XXX/${ano}`;
+    const numeroProcessoTBD = numeroProcesso || proc?.numero_processo || `XXX/${ano}`;
     const dataAtual = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const atendimentoTipo = document.getElementById('relAtendimentoTipo')?.value || '';
     const atendimentoValor = document.getElementById('relAtendimentoValor')?.value || '';
-    const atendimento = (atendimentoTipo + ' ' + atendimentoValor).trim() || 'campo escrito';
+    const atendimento = (atendimentoTipo || atendimentoValor) ? (atendimentoTipo + ' ' + atendimentoValor).trim() : (rProc.atendimento || 'campo escrito');
 
-    const assunto = document.getElementById('relAssunto')?.value || 'colocar aqui o título da denúncia';
-    const pa = document.getElementById('relPA')?.value || '';
+    const assunto = document.getElementById('relAssunto')?.value || rProc.assunto || 'colocar aqui o título da denúncia';
+    const pa = document.getElementById('relPA')?.value || rProc.pa || '';
 
     // Imovel info
-    const logradouroImv = document.getElementById('imvLogradouro')?.value || 'XXX';
-    const numeroImv = document.getElementById('imvNumero')?.value || 'XXXX';
-    const bairroImv = document.getElementById('imvBairro')?.value || 'XXXX';
-    const textoVistoria = document.getElementById('relTextoVistoria')?.value ||
+    const logradouroImv = document.getElementById('imvLogradouro')?.value || iProc.logradouro || 'XXX';
+    const numeroImv = document.getElementById('imvNumero')?.value || iProc.numero || 'XXXX';
+    const bairroImv = document.getElementById('imvBairro')?.value || iProc.bairro || 'XXXX';
+    const textoVistoria = document.getElementById('relTextoVistoria')?.value || rProc.texto_vistoria ||
         'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
 
     const paHtml = pa ? `<p style="margin:0;"><strong>PA:</strong> ${pa}</p>` : '';
 
-    const dataVistoriaRaw = document.getElementById('fiscDataVistoria')?.value;
+    const dataVistoriaRaw = document.getElementById('fiscDataVistoria')?.value || dProc.fiscal?.data_vistoria || proc?.data_vistoria;
     let textoDataHora = '';
     if (dataVistoriaRaw) {
         const parts = dataVistoriaRaw.split('T');
@@ -1317,16 +1373,16 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
         }
     }
 
-    const inscricaoValor = document.getElementById('imvInscricao')?.value || 'Não informada';
-    const inscricaoLabel = inscricaoValor.replace(/\\D/g, '').length === 14 ? 'CNPJ' : 'Inscrição Imobiliária';
+    const inscricaoValor = document.getElementById('imvInscricao')?.value || iProc.inscricao || 'Não informada';
+    const inscricaoLabel = inscricaoValor.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'Inscrição Imobiliária';
 
-    // Coleta das imagens adicionadas no painel
+    // Coleta das imagens adicionadas no painel ou salvas no processo
     let htmlImagens = '';
     const containerImagens = document.getElementById('lista-imagens-legenda');
     if (containerImagens) {
         const itens = containerImagens.querySelectorAll('.item-imagem-legenda');
         if (itens.length > 0) {
-            itens.forEach((item, index) => {
+            itens.forEach((item) => {
                 const imgInput = item.querySelector('.imagem-arquivo');
                 const legInput = item.querySelector('.imagem-legenda');
                 const base64 = imgInput ? imgInput.getAttribute('data-base64') : null;
@@ -1344,6 +1400,22 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso) {
                 }
             });
         }
+    }
+
+    if (!htmlImagens && dProc.anexos?.imagens_vistoria && Array.isArray(dProc.anexos.imagens_vistoria)) {
+        dProc.anexos.imagens_vistoria.forEach(img => {
+            const src = img.dataUrl || img.url;
+            if (src) {
+                htmlImagens += `
+                    <div style="text-align: center; margin: 20px 0; page-break-inside: avoid;">
+                        <div style="display: inline-block; resize: both; overflow: hidden; max-width: 100%; min-width: 150px; min-height: 150px; border: 1px dashed #ccc; padding: 4px;">
+                            <img src="${src}" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
+                        </div>
+                        ${img.nome ? `<p style="margin-top: 5px; font-style: italic; color: #555;">${img.nome}</p>` : ''}
+                    </div>
+                `;
+            }
+        });
     }
 
     return `
@@ -3289,7 +3361,7 @@ function mostrarFeedbackParseSucesso() {
     box.style.display = 'flex';
 }
 
-// ── Fallback JS de Reserva de Números (Prioriza numeros_descartados) ──
+// ── Fallback JS de Reserva de Números (Prioriza numeros_descartados com verificação de unicidade) ──
 async function obterNumeroFallbackJS(anoAtual, categoria, tamanhoPad, tabela, coluna) {
     try {
         const { data: desc } = await supabaseClient
@@ -3297,14 +3369,27 @@ async function obterNumeroFallbackJS(anoAtual, categoria, tamanhoPad, tabela, co
             .select('id, numero_sequencial')
             .eq('ano', anoAtual)
             .ilike('categoria', categoria)
-            .order('numero_sequencial', { ascending: true })
-            .limit(1);
+            .order('numero_sequencial', { ascending: true });
 
         if (desc && desc.length > 0) {
-            const item = desc[0];
-            await supabaseClient.from('numeros_descartados').delete().eq('id', item.id);
-            const numPadded = String(item.numero_sequencial).replace(/\D/g, '').padStart(tamanhoPad, '0');
-            return `${anoAtual}/${numPadded}`;
+            for (const item of desc) {
+                const numPadded = String(item.numero_sequencial).replace(/\D/g, '').padStart(tamanhoPad, '0');
+                const candidato = `${anoAtual}/${numPadded}`;
+
+                // Verifica se o número já existe na tabela de destino
+                const { data: ex } = await supabaseClient
+                    .from(tabela)
+                    .select(coluna)
+                    .eq(coluna, candidato)
+                    .maybeSingle();
+
+                // Remove da tabela de descartados
+                await supabaseClient.from('numeros_descartados').delete().eq('id', item.id);
+
+                if (!ex) {
+                    return candidato;
+                }
+            }
         }
     } catch (e) {
         console.warn('Fallback JS ao buscar numeros_descartados:', e);
@@ -3327,6 +3412,20 @@ async function obterNumeroFallbackJS(anoAtual, categoria, tamanhoPad, tabela, co
                     }
                 }
             });
+        }
+
+        let proximo = max + 1;
+        while (proximo < max + 1000) {
+            const candidato = `${anoAtual}/${String(proximo).padStart(tamanhoPad, '0')}`;
+            const { data: ex } = await supabaseClient
+                .from(tabela)
+                .select(coluna)
+                .eq(coluna, candidato)
+                .maybeSingle();
+            if (!ex) {
+                return candidato;
+            }
+            proximo++;
         }
         return `${anoAtual}/${String(max + 1).padStart(tamanhoPad, '0')}`;
     } catch (e) {
