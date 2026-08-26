@@ -31,8 +31,8 @@ Segundo Formulario: Dados do Imóvel
     - Codigo Reduzido do Imóvel (No modelo NP esta em INFORMAÇÕES DO IMÓVEL na frente de Código:)
     - Inscrição do Imovel (No modelo NP esta em INFORMAÇÕES DO IMÓVEL na frente de Inscrição do Imóvel:)
         - Com base no numero preenchido, seja automatico ou manual, deve fazer uma separação automatica: cada parte da sua numeração 01.036.00181.00300.00000.0:
-            - 01 (Zona): É a macrorregião ou distrito geográfico da cidade onde o imóvel está localizado.
-            - 036 (Setor): Uma subdivisão dentro da zona, geralmente englobando um bairro específico ou um conjunto de bairros.
+            - 01 (Setor): É a macrorregião ou distrito geográfico da cidade onde o imóvel está localizado.
+            - 036 (Zona): Uma subdivisão dentro da zona, geralmente englobando um bairro específico ou um conjunto de bairros.
             - 00181 (Quadra): É o número do quarteirão exato onde o imóvel se encontra dentro desse setor.
             - 00300 (Lote): Identifica a posição do terreno específico dentro dessa quadra.
     - Logradouro Imóvel (No modelo NP esta em INFORMAÇÕES DO IMÓVEL na frente de Logradouro::)

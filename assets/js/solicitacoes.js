@@ -280,7 +280,10 @@ async function carregarSolicitacoes(tentativa = 1) {
                 dados,
                 created_at,
                 updated_at,
-                fiscal_id
+                fiscal_id,
+                profiles:fiscal_id (
+                    nome
+                )
             `, { count: 'exact' })
             .limit(pageSize);
 
@@ -384,7 +387,8 @@ function renderizarTabela(dados, cargoFiltro) {
         const dataInicio = formatarData(item.created_at);
         const dataFinal = item.dados?.data_final ? formatarData(item.dados.data_final) : '—';
         const diasVenc = calcularDiasVencimento(item.dados?.data_final);
-        const descricao = item.dados?.descricao || '—';
+        const profileObj = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+        const nomeFiscal = profileObj?.nome || item.dados?.fiscal?.nome || item.dados?.fiscal_nome || item.dados?.fiscal?.fiscNome || '—';
         const etapaNumero = item.status === 'cancelado' ? '—' : (calcularEtapaProcesso(item) || '—');
         const etapaNome = item.status === 'cancelado' ? 'Cancelado' : (etapaNumero === '—' ? 'Concluído' : (item.etapas?.nome || ETAPAS_MAP[etapaNumero] || '—'));
         const statusClass = item.status || 'em_aberto';
@@ -402,7 +406,7 @@ function renderizarTabela(dados, cargoFiltro) {
             <td class="col-dias">
                 <span class="dias-badge ${diasVenc <= 5 ? 'urgente' : diasVenc <= 15 ? 'alerta' : ''}">${diasVenc >= 0 ? diasVenc + ' dias' : '—'}</span>
             </td>
-            <td class="col-descricao" title="${descricao}">${truncar(descricao, 40)}</td>
+            <td class="col-descricao" title="${nomeFiscal}">${truncar(nomeFiscal, 30)}</td>
             <td class="col-etapa">
                 ${etapaNumero === '—' ? '' : `<span class="etapa-badge">E${etapaNumero}</span>`}
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
@@ -501,7 +505,7 @@ function exportarCSV() {
         return;
     }
 
-    const headers = ['Protocolo', 'CPF/CNPJ', 'Nome do Solicitante', 'Data Início', 'Data Final', 'Dias p/ Vencimento', 'Descrição', 'Etapa'];
+    const headers = ['Protocolo', 'CPF/CNPJ', 'Nome do Solicitante', 'Data Início', 'Data Final', 'Dias p/ Vencimento', 'Fiscal', 'Etapa'];
 
     const rows = dadosTabela.map(item => {
         const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '';
@@ -509,7 +513,8 @@ function exportarCSV() {
         const dataInicio = formatarData(item.created_at);
         const dataFinal = item.dados?.data_final ? formatarData(item.dados.data_final) : '';
         const diasVenc = calcularDiasVencimento(item.dados?.data_final);
-        const descricao = item.dados?.descricao || '';
+        const profileObj = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+        const nomeFiscal = profileObj?.nome || item.dados?.fiscal?.nome || item.dados?.fiscal_nome || item.dados?.fiscal?.fiscNome || '';
         const etapa = `${item.etapas?.numero || ''} - ${item.etapas?.nome || ETAPAS_MAP[item.etapas?.numero] || ''}`;
 
         return [
@@ -519,7 +524,7 @@ function exportarCSV() {
             dataInicio,
             dataFinal,
             diasVenc >= 0 ? diasVenc : '',
-            descricao,
+            nomeFiscal,
             etapa
         ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
     });

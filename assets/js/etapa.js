@@ -35,6 +35,34 @@ if (document.readyState === 'loading') {
     carregarUPFMDDoBanco();
 }
 
+// ── Helper para determinar o Fiscal Autor (Criador/Emissor) do Processo / Documento ──
+window.obterFiscalAutorDoProcesso = function (proc, notif) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    const n = notif || (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null);
+    const dProc = p?.dados || {};
+    const dNotif = n?.dados || {};
+    const fProc = dProc.fiscal || {};
+    const fNotif = dNotif.fiscal || {};
+
+    const nome = fNotif.nome || fNotif.fiscNome || dNotif.fiscal_nome || dNotif.etapa14?.usuario_emissor
+        || fProc.nome || fProc.fiscNome || dProc.fiscal_nome || dProc.etapa14?.usuario_emissor
+        || p?.fiscal_responsavel || p?.profiles?.nome || p?.usuario_criador?.nome || p?.criador_nome
+        || (typeof perfilAtual !== 'undefined' && perfilAtual ? perfilAtual.nome : null)
+        || 'Fiscal de Posturas';
+
+    const matricula = fNotif.matricula || fNotif.fiscMatricula || dNotif.fiscal_matricula
+        || fProc.matricula || fProc.fiscMatricula || dProc.fiscal_matricula
+        || p?.fiscal_matricula || p?.profiles?.matricula
+        || (typeof perfilAtual !== 'undefined' && perfilAtual ? perfilAtual.matricula : null)
+        || 'XXXXXXX';
+
+    const cargo = fNotif.cargo || fProc.cargo || p?.profiles?.cargo
+        || (typeof perfilAtual !== 'undefined' && perfilAtual ? perfilAtual.cargo : null)
+        || 'Fiscal de Postura';
+
+    return { nome, matricula, cargo };
+};
+
 function setVal(id, val) {
     const el = document.getElementById(id);
     if (el) el.value = val !== undefined && val !== null ? val : '';
@@ -2366,8 +2394,12 @@ function configurarBotoesNavegacaoPadrao() {
     }
 
     if (btnCancelar) {
-        btnCancelar.style.display = podeGerenciar ? '' : 'none';
-        if (podeGerenciar) {
+        const cargoNormalizado = normalizarCargo(perfilAtual?.cargo);
+        const ehFiscalDePosturas = cargoNormalizado === 'Fiscal de Postura';
+        if (ehFiscalDePosturas || !podeGerenciar) {
+            btnCancelar.style.display = 'none';
+        } else {
+            btnCancelar.style.display = '';
             vincularEventoUnico(btnCancelar, 'click', cancelarProcesso);
         }
     }
@@ -3850,6 +3882,11 @@ async function voltarEtapaPadrao() {
 
 async function cancelarProcesso() {
     if (!processoAtual) return;
+    const cargoNormalizado = normalizarCargo(perfilAtual?.cargo);
+    if (cargoNormalizado === 'Fiscal de Postura') {
+        alert('Fiscais de Postura não possuem permissão para cancelar processos.');
+        return;
+    }
     if (!podeGerenciarEtapaAtual()) {
         alert('Você não tem permissão para cancelar este processo.');
         return;
@@ -6104,18 +6141,19 @@ function renderizarDocumentoOficial(proc) {
     const d = proc.dados || {};
     const cont = d.contribuinte || {};
     const imv = d.imovel || {};
-    const fisc = d.fiscal || {};
+    const fiscAutor = window.obterFiscalAutorDoProcesso(proc, notificacaoAtual);
+    const fisc = { ...d.fiscal, nome: fiscAutor.nome, matricula: fiscAutor.matricula, cargo: fiscAutor.cargo };
     const inf = d.infracoes || {};
 
     // Data de Vistoria formatada
     const dataFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || fisc.data || proc?.created_at) || new Date().toLocaleDateString('pt-BR');
 
-    // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Zona, Quadra, Lote)
-    let zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
+    // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Setor, Zona, Quadra, Lote)
+    let setor = 'XX', zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
     if (imv.inscricao) {
         const parts = imv.inscricao.replace(/\s/g, '').split('.');
         if (parts.length >= 4) {
-            zona = parts[0] || 'XXX';
+            zona = parts[1] || 'XXX';
             quadra = parts[2] || 'XXXX';
             lote = parts[3] || 'XXXXX';
         }
@@ -6302,6 +6340,7 @@ function renderizarDocumentoOficial(proc) {
                         <div><strong>CPF/CNPJ:</strong> ${cont.cpf_cnpj || 'Não informado'}</div>
                         <div><strong>Bairro:</strong> ${cont.bairro || 'Não informado'}</div>
                         <div><strong>Número:</strong> ${cont.numero || 'S/N'}</div>
+                        ${cont.complemento ? `<div><strong>Complemento:</strong> ${cont.complemento}</div>` : ''}
                     </div>
                 </div>
 
@@ -6317,12 +6356,13 @@ function renderizarDocumentoOficial(proc) {
                         <div><strong>Zona:</strong> ${zona}</div>
                         <div><strong>Quadra:</strong> ${quadra}</div>
                         <div><strong>Lote:</strong> ${lote}</div>
+                        ${imv.complemento ? `<div><strong>Complemento:</strong> ${imv.complemento}</div>` : ''}
                     </div>
                 </div>
 
                 <!-- 5. TEXTO INTRODUTÓRIO -->
                 <div class="doc-intro-p">
-                    Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
+                    Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}${imv.complemento ? ' - ' + imv.complemento : ''}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
                 </div>
 
                 <!-- 6. BLOCOS DE INFRAÇÃO -->
@@ -8090,9 +8130,10 @@ function configurarAbasPagina() {
 
 // ── Salvar Edições do Processo ────────────────────────────────────────────
 async function salvarEdicoesProcesso() {
-    const processoId = document.getElementById('editProcId')?.value;
+    const processoId = document.getElementById('editProcId')?.value || processoAtual?.id;
     if (!processoId) return;
 
+    if (typeof mostrarCarregamento === 'function') mostrarCarregamento('Salvando alterações e atualizando documentos...');
     try {
         const getVal = id => document.getElementById(id)?.value?.trim() || '';
 
@@ -8129,21 +8170,262 @@ async function salvarEdicoesProcesso() {
             }
         };
 
+        // Expelir / Limpar referências de anexos de documentos gerados anteriormente no objeto processo
+        delete novosDados.anexo_np_assinada;
+        delete novosDados.anexo_rf_assinado;
+        delete novosDados.notificacao_assinada_url;
+        delete novosDados.notificacao_assinada_nome;
+        delete novosDados.relatorio_fiscal_url;
+        delete novosDados.relatorio_fiscal_nome;
+        delete novosDados.replica_assinada_url;
+        delete novosDados.replica_assinada_nome;
+        delete novosDados.anexo_replica_url;
+        delete novosDados.certidao_assinada_url;
+        delete novosDados.certidao_assinada_nome;
+        if (novosDados.relatorio_fiscal) {
+            delete novosDados.relatorio_fiscal.anexo_url;
+            delete novosDados.relatorio_fiscal.anexo_nome;
+        }
+        if (novosDados.etapa14) {
+            delete novosDados.etapa14.anexo_url;
+            delete novosDados.etapa14.anexo_nome;
+            delete novosDados.etapa14.anexo_auto_infracao;
+        }
+
+        processoAtual.campos = processoAtual.campos || {};
+        delete processoAtual.campos.anexo_np_assinada;
+        delete processoAtual.campos.anexo_rf_assinado;
+        delete processoAtual.campos.anexo_replica_assinada;
+        delete processoAtual.campos.anexo_certidao_assinada;
+        if (processoAtual.campos.etapa14) {
+            delete processoAtual.campos.etapa14.anexo_url;
+            delete processoAtual.campos.etapa14.anexo_nome;
+            delete processoAtual.campos.etapa14.anexo_auto_infracao;
+        }
+
+        // 1. Atualiza tabela processos no Supabase
         const { error } = await supabaseClient
             .from('processos')
             .update({
                 dados: novosDados,
+                campos: processoAtual.campos,
                 updated_at: new Date().toISOString()
             })
             .eq('id', processoId);
 
         if (error) throw error;
 
-        processoAtual.dados = novosDados;
-        renderizarDocumentoOficial(processoAtual);
+        // 2. Atualiza tabela notificacoes se houver notificação ativa
+        if (notificacaoAtual?.id) {
+            notificacaoAtual.dados = {
+                ...(notificacaoAtual.dados || {}),
+                contribuinte: novosDados.contribuinte,
+                imovel: novosDados.imovel,
+                fiscal: {
+                    ...(notificacaoAtual.dados?.fiscal || {}),
+                    ...novosDados.fiscal
+                }
+            };
+            delete notificacaoAtual.dados.notificacao_assinada_url;
+            delete notificacaoAtual.dados.notificacao_assinada_nome;
+            delete notificacaoAtual.dados.relatorio_fiscal_url;
+            delete notificacaoAtual.dados.relatorio_fiscal_nome;
+            delete notificacaoAtual.dados.replica_assinada_url;
+            delete notificacaoAtual.dados.replica_assinada_nome;
+            delete notificacaoAtual.dados.anexo_replica_url;
+            delete notificacaoAtual.dados.certidao_assinada_url;
+            delete notificacaoAtual.dados.certidao_assinada_nome;
+            if (notificacaoAtual.dados.etapa14) {
+                delete notificacaoAtual.dados.etapa14.anexo_url;
+                delete notificacaoAtual.dados.etapa14.anexo_nome;
+                delete notificacaoAtual.dados.etapa14.anexo_auto_infracao;
+            }
+            if (notificacaoAtual.dados.relatorio_fiscal) {
+                delete notificacaoAtual.dados.relatorio_fiscal.anexo_url;
+                delete notificacaoAtual.dados.relatorio_fiscal.anexo_nome;
+            }
 
-        alert('Alterações salvas com sucesso!');
+            await supabaseClient
+                .from('notificacoes')
+                .update({ dados: notificacaoAtual.dados, updated_at: new Date().toISOString() })
+                .eq('id', notificacaoAtual.id);
+        }
+
+        // 3. Atualiza tabela autos_infracao se existir registro vinculado
+        try {
+            let filterQuery = `processo_id.eq.${processoId}`;
+            if (notificacaoAtual?.id) filterQuery += `,notificacao_id.eq.${notificacaoAtual.id}`;
+            await supabaseClient
+                .from('autos_infracao')
+                .update({
+                    autuado_nome: novosDados.contribuinte.nome,
+                    autuado_cpf_cnpj: novosDados.contribuinte.cpf_cnpj,
+                    updated_at: new Date().toISOString()
+                })
+                .or(filterQuery);
+        } catch (errAuto) {
+            console.warn('Aviso ao atualizar autos_infracao:', errAuto);
+        }
+
+        // 4. Expulsa (deleta) registros de documentos gerados anteriormente na tabela documentos
+        try {
+            const tiposParaLimpar = [
+                'Notificação Preliminar Assinada',
+                'Auto de Infração Assinado',
+                'Relatório Fiscal Assinado',
+                'Certidão Assinada',
+                'Réplica Assinada',
+                'Notificação Preliminar',
+                'Auto de Infração',
+                'Relatório Fiscal',
+                'Certidão',
+                'Réplica'
+            ];
+            let queryDel = supabaseClient.from('documentos').delete().in('tipo', tiposParaLimpar);
+            if (notificacaoAtual?.id && processoId) {
+                queryDel = queryDel.or(`processo_id.eq.${processoId},notificacao_id.eq.${notificacaoAtual.id}`);
+            } else if (processoId) {
+                queryDel = queryDel.eq('processo_id', processoId);
+            } else if (notificacaoAtual?.id) {
+                queryDel = queryDel.eq('notificacao_id', notificacaoAtual.id);
+            }
+            await queryDel;
+        } catch (eDel) {
+            console.warn('Aviso ao expurgar anexos gerados do banco:', eDel);
+        }
+
+        // 5. Atualiza registro na tabela 'contribuintes' do banco de dados
+        try {
+            const payloadContribuinte = {
+                nome: novosDados.contribuinte.nome,
+                cpf_cnpj: novosDados.contribuinte.cpf_cnpj || null,
+                logradouro: novosDados.contribuinte.logradouro || null,
+                numero: novosDados.contribuinte.numero || null,
+                complemento: novosDados.contribuinte.complemento || null,
+                bairro: novosDados.contribuinte.bairro || null,
+                municipio: novosDados.contribuinte.municipio || null,
+                cep: novosDados.contribuinte.cep || null,
+                updated_at: new Date().toISOString()
+            };
+
+            const { data: contsProc } = await supabaseClient
+                .from('contribuintes')
+                .select('id')
+                .eq('processo_id', processoId);
+
+            if (contsProc && contsProc.length > 0) {
+                await supabaseClient
+                    .from('contribuintes')
+                    .update(payloadContribuinte)
+                    .eq('processo_id', processoId);
+            } else {
+                let contIdToUpdate = null;
+                if (novosDados.contribuinte.cpf_cnpj) {
+                    const { data: cData } = await supabaseClient
+                        .from('contribuintes')
+                        .select('id')
+                        .eq('cpf_cnpj', novosDados.contribuinte.cpf_cnpj)
+                        .limit(1);
+                    if (cData && cData.length > 0) contIdToUpdate = cData[0].id;
+                }
+                if (contIdToUpdate) {
+                    await supabaseClient
+                        .from('contribuintes')
+                        .update(payloadContribuinte)
+                        .eq('id', contIdToUpdate);
+                } else {
+                    await supabaseClient
+                        .from('contribuintes')
+                        .insert([{ ...payloadContribuinte, processo_id: processoId }]);
+                }
+            }
+        } catch (errCont) {
+            console.warn('Aviso ao atualizar tabela contribuintes:', errCont);
+        }
+
+        // 6. Atualiza registro na tabela 'imoveis' do banco de dados
+        try {
+            const pFloat = (v) => v ? parseFloat(String(v).replace(',', '.')) || null : null;
+            const payloadImovel = {
+                codigo_reduzido: novosDados.imovel.codigo_reduzido || null,
+                inscricao_imovel: novosDados.imovel.inscricao || null,
+                logradouro: novosDados.imovel.logradouro || null,
+                numero: novosDados.imovel.numero || null,
+                bairro: novosDados.imovel.bairro || null,
+                testada: pFloat(novosDados.imovel.testada),
+                area_total: pFloat(novosDados.imovel.area_total),
+                updated_at: new Date().toISOString()
+            };
+
+            const { data: imvsProc } = await supabaseClient
+                .from('imoveis')
+                .select('id')
+                .eq('processo_id', processoId);
+
+            if (imvsProc && imvsProc.length > 0) {
+                await supabaseClient
+                    .from('imoveis')
+                    .update(payloadImovel)
+                    .eq('processo_id', processoId);
+            } else {
+                let imvIdToUpdate = null;
+                if (novosDados.imovel.codigo_reduzido) {
+                    const { data: iData } = await supabaseClient
+                        .from('imoveis')
+                        .select('id')
+                        .eq('codigo_reduzido', novosDados.imovel.codigo_reduzido)
+                        .limit(1);
+                    if (iData && iData.length > 0) imvIdToUpdate = iData[0].id;
+                }
+                if (!imvIdToUpdate && novosDados.imovel.inscricao) {
+                    const { data: iData } = await supabaseClient
+                        .from('imoveis')
+                        .select('id')
+                        .eq('inscricao_imovel', novosDados.imovel.inscricao)
+                        .limit(1);
+                    if (iData && iData.length > 0) imvIdToUpdate = iData[0].id;
+                }
+
+                if (imvIdToUpdate) {
+                    await supabaseClient
+                        .from('imoveis')
+                        .update(payloadImovel)
+                        .eq('id', imvIdToUpdate);
+                } else {
+                    await supabaseClient
+                        .from('imoveis')
+                        .insert([{ ...payloadImovel, processo_id: processoId }]);
+                }
+            }
+        } catch (errImv) {
+            console.warn('Aviso ao atualizar tabela imoveis:', errImv);
+        }
+
+        // 5. Atualiza objeto global na memória
+        processoAtual.dados = novosDados;
+
+        // 6. Recalcula e re-renderiza todos os documentos e a interface da etapa
+        if (typeof renderizarDocumentoOficial === 'function') {
+            renderizarDocumentoOficial(processoAtual);
+        }
+        if (typeof window.gerarAutoDeInfracao === 'function') {
+            window.gerarAutoDeInfracao(true);
+        }
+        if (typeof window.gerarCertidaoSemDefesa === 'function') {
+            window.gerarCertidaoSemDefesa(true);
+        }
+        if (typeof window.gerarReplicaFiscalHtml === 'function') {
+            window.gerarReplicaFiscalHtml();
+        }
+        if (typeof window.renderizarEtapa === 'function') {
+            const numEtapa = processoAtual.etapa_atual_id || processoAtual.etapa_atual;
+            window.renderizarEtapa(numEtapa);
+        }
+
+        if (typeof ocultarCarregamento === 'function') ocultarCarregamento();
+        alert('Alterações salvas com sucesso! Os documentos foram atualizados e os anexos antigos foram expelidos para permitir novos downloads com os dados corretos.');
     } catch (err) {
+        if (typeof ocultarCarregamento === 'function') ocultarCarregamento();
         console.error('Erro ao salvar alterações:', err);
         alert('Erro ao salvar alterações: ' + err.message);
     }
@@ -8739,17 +9021,18 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
     const d = proc?.dados || {};
     const cont = d.contribuinte || {};
     const imv = d.imovel || {};
-    const fisc = d.fiscal || {};
+    const fiscAutor = window.obterFiscalAutorDoProcesso(proc, notificacaoAtual);
+    const fisc = { ...d.fiscal, nome: fiscAutor.nome, matricula: fiscAutor.matricula, cargo: fiscAutor.cargo };
 
     const dataFmt = fisc.data_vistoria
         ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR')
         : new Date().toLocaleDateString('pt-BR');
 
-    let zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
+    let setor = 'XX', zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
     if (imv.inscricao) {
         const parts = imv.inscricao.replace(/\s/g, '').split('.');
         if (parts.length >= 4) {
-            zona = parts[0] || 'XXX';
+            zona = parts[1] || 'XXX';
             quadra = parts[2] || 'XXXX';
             lote = parts[3] || 'XXXXX';
         }
@@ -8923,6 +9206,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
                     <div><strong>CPF/CNPJ:</strong> ${cont.cpf_cnpj || 'Não informado'}</div>
                     <div><strong>Bairro:</strong> ${cont.bairro || 'Não informado'}</div>
                     <div><strong>Número:</strong> ${cont.numero || 'S/N'}</div>
+                    ${cont.complemento ? `<div><strong>Complemento:</strong> ${cont.complemento}</div>` : ''}
                 </td>
             </tr>
         </table>
@@ -8940,13 +9224,14 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
                     <div><strong>Zona:</strong> ${zona}</div>
                     <div><strong>Quadra:</strong> ${quadra}</div>
                     <div><strong>Lote:</strong> ${lote}</div>
+                    ${imv.complemento ? `<div><strong>Complemento:</strong> ${imv.complemento}</div>` : ''}
                 </td>
             </tr>
         </table>
 
         <!-- 5. TEXTO INTRODUTÓRIO -->
         <div style="font-size: 11pt; text-align: justify; margin: 22px 0 20px 0; line-height: 1.45;">
-            Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
+            Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}${imv.complemento ? ' - ' + imv.complemento : ''}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
         </div>
 
         <!-- 6. BLOCOS DE INFRAÇÃO -->
@@ -9113,7 +9398,9 @@ window.gerarCertidaoSemDefesa = async function (auto = false) {
     }
 
     const dataAtualFmt = new Date().toLocaleDateString('pt-BR');
-    const nomeFiscal = perfilAtual?.nome || 'Fiscal de Posturas';
+    const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
+    const nomeFiscal = fiscAutor.nome || 'Fiscal de Posturas';
+    const matriculaFiscal = fiscAutor.matricula || '';
     const _anoAtual = new Date().getFullYear();
 
     // ── Número da certidão: sequencial atômico ──────────────────────────────
@@ -9258,6 +9545,7 @@ window.gerarCertidaoSemDefesa = async function (auto = false) {
                     <div style="display: inline-block; min-width: 280px; border-top: 1px solid #000; padding-top: 6px;">
                         <div>${nomeFiscal}</div>
                         <div>Fiscal de Posturas</div>
+                        ${matriculaFiscal ? `<div>Matrícula: ${matriculaFiscal}</div>` : ''}
                     </div>
                 </div>
 
@@ -9711,18 +9999,20 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     const endAutuadoNumVal = cont.numero || 'Não informado';
     const endAutuadoBairroVal = cont.bairro || 'Não informado';
     const endAutuadoCepVal = cont.cep || 'Não informado';
+    const contComplemento = (cont.complemento || cont.comp || '').trim();
 
     // Imóvel Fiscalizado
     const imvRua = imv.logradouro || imv.rua || 'Não informado';
     const imvNum = imv.numero || 'XXXX';
     const imvBairro = imv.bairro || 'Não informado';
+    const imvComplemento = (imv.complemento || imv.comp || '').trim();
 
-    // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Zona, Quadra, Lote)
-    let zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
+    // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Setor, Zona, Quadra, Lote)
+    let setor = 'XX', zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
     if (imv.inscricao) {
         const parts = imv.inscricao.replace(/\s/g, '').split('.');
         if (parts.length >= 4) {
-            zona = parts[0] || 'XXX';
+            zona = parts[1] || 'XXX';
             quadra = parts[2] || 'XXXX';
             lote = parts[3] || 'XXXXX';
         }
@@ -9732,8 +10022,9 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     const dataVistoriaFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || fisc.data || notificacaoAtual?.created_at || processoAtual?.created_at) || new Date().toLocaleDateString('pt-BR');
 
     const dataAtualFmt = new Date().toLocaleDateString('pt-BR');
-    const nomeFiscal = perfilAtual?.nome || fisc.nome || 'Nome Fiscal';
-    const matriculaFiscal = perfilAtual?.matricula || fisc.matricula || 'XXXXXXX';
+    const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
+    const nomeFiscal = fiscAutor.nome || 'Nome Fiscal';
+    const matriculaFiscal = fiscAutor.matricula || 'XXXXXXX';
     const _anoAtual = new Date().getFullYear();
 
     // Número do Auto de Infração: sequencial atômico próprio da tabela autos_infracao
@@ -9904,6 +10195,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                             <div><strong>CPF/CNPJ:</strong> ${cpfCnpj}</div>
                             <div><strong>Bairro:</strong> ${endAutuadoBairroVal}</div>
                             <div><strong>Número:</strong> ${endAutuadoNumVal}</div>
+                            ${contComplemento ? `<div><strong>Complemento:</strong> ${contComplemento}</div>` : ''}
                         </td>
                     </tr>
                 </table>
@@ -9921,12 +10213,13 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                             <div><strong>Zona:</strong> ${zona}</div>
                             <div><strong>Quadra:</strong> ${quadra}</div>
                             <div><strong>Lote:</strong> ${lote}</div>
+                            ${imvComplemento ? `<div><strong>Complemento:</strong> ${imvComplemento}</div>` : ''}
                         </td>
                     </tr>
                 </table>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
-                    O Imóvel, de propriedade do(a) cidadão(ã) citado(a), cuja Inscrição Imobiliária Municipal: é <strong>${inscricaoImvFmt}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>. Nesse dia foi verificado o não cumprimento da obrigação.
+                    O Imóvel, de propriedade do(a) cidadão(ã) citado(a), cuja Inscrição Imobiliária Municipal: é <strong>${inscricaoImvFmt}</strong>, situado na <strong>${imvRua}, n° ${imvNum}${imvComplemento ? ' - ' + imvComplemento : ''}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>. Nesse dia foi verificado o não cumprimento da obrigação.
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
@@ -9950,7 +10243,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         corpoHtmlAuto = `
             <div style="font-size: 10pt; line-height: 1.35; color: #000; margin-top: 10px;">
                 <p style="margin: 0 0 8px 0; text-align: justify;">
-                    O imóvel, situado na <strong>${imvRua}, n° ${imvNum}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
+                    O imóvel, situado na <strong>${imvRua}, n° ${imvNum}${imvComplemento ? ' - ' + imvComplemento : ''}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
@@ -11621,8 +11914,9 @@ window.gerarReplica = async function () {
         }
     }
 
-    const nomeFiscal = typeof perfilAtual !== 'undefined' && perfilAtual?.nome ? perfilAtual.nome : (processoAtual?.profiles?.nome || window.obterPerfilUsuario?.()?.nome || 'Fiscal de Posturas');
-    const matriculaFiscal = typeof perfilAtual !== 'undefined' && perfilAtual?.matricula ? perfilAtual.matricula : (processoAtual?.profiles?.matricula || window.obterPerfilUsuario?.()?.matricula || '');
+    const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
+    const nomeFiscal = fiscAutor.nome || 'Fiscal de Posturas';
+    const matriculaFiscal = fiscAutor.matricula || '';
     const dataAtual = new Date().toLocaleDateString('pt-BR');
 
     // Construir Imagens HTML a partir do container form

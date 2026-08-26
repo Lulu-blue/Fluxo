@@ -453,7 +453,21 @@ INSERT INTO transicoes (etapa_origem_id, etapa_destino_id, condicao) VALUES
 -- (anti-race-condition, reutilização de números cancelados)
 -- ============================================================
 
--- Fila única de números disponíveis para reutilização
+-- Fila de números descartados para reutilização
+CREATE TABLE IF NOT EXISTS numeros_descartados (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    categoria TEXT NOT NULL,
+    numero_sequencial TEXT NOT NULL,
+    ano INTEGER NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(categoria, numero_sequencial, ano)
+);
+ALTER TABLE numeros_descartados ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "numeros_descartados_acesso_total" ON numeros_descartados;
+CREATE POLICY "numeros_descartados_acesso_total"
+    ON numeros_descartados FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Manter compatibilidade com numeros_disponiveis se existir
 CREATE TABLE IF NOT EXISTS numeros_disponiveis (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     categoria TEXT NOT NULL,
@@ -470,15 +484,28 @@ CREATE POLICY "numeros_disponiveis_acesso_total"
 -- Coluna para armazenar o número da certidão na notificação (se aplicável)
 ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS numero_certidao TEXT;
 
-DROP FUNCTION IF EXISTS reservar_numero(INTEGER, TEXT);
+-- Drop de TODAS as assinaturas sobrecarregadas de reservar_numero e devolver_numero no banco de dados
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN 
+    FOR r IN (
+        SELECT proname, oidvectortypes(proargtypes) as argtypes 
+        FROM pg_proc 
+        WHERE proname IN ('reservar_numero', 'devolver_numero')
+    ) LOOP
+        EXECUTE 'DROP FUNCTION IF EXISTS ' || r.proname || '(' || r.argtypes || ') CASCADE';
+    END LOOP;
+END $$;
 
--- RPC: Reserva próximo número de forma atômica por categoria
+-- RPC: Reserva próximo número de forma atômica por categoria, priorizando numeros_descartados
 CREATE OR REPLACE FUNCTION reservar_numero(p_ano INTEGER, p_categoria TEXT)
 RETURNS TEXT AS $$
 DECLARE
     v_seq  TEXT;
     v_prox INTEGER;
     v_tamanho_pad INTEGER;
+    v_id_desc UUID;
 BEGIN
     IF p_categoria IS NULL OR TRIM(p_categoria) = '' THEN
         RAISE EXCEPTION 'Categoria inválida para reserva de número.';
@@ -489,28 +516,59 @@ BEGIN
         ELSE 3 
     END;
 
-    -- Tenta pegar o menor número devolvido da fila (com lock SKIP LOCKED)
-    SELECT numero_sequencial INTO v_seq
-    FROM numeros_disponiveis
-    WHERE ano = p_ano AND (
-        categoria = p_categoria OR 
-        (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND categoria IN ('Certidão Sem Defesa', 'Certidão'))
-    )
-    ORDER BY LPAD(numero_sequencial, 10, '0') ASC
-    LIMIT 1
-    FOR UPDATE SKIP LOCKED;
-
-    IF v_seq IS NOT NULL THEN
-        DELETE FROM numeros_disponiveis 
+    -- 1. PRIORIDADE MÁXIMA: Buscar primeiro na tabela numeros_descartados
+    BEGIN
+        SELECT id, numero_sequencial INTO v_id_desc, v_seq
+        FROM numeros_descartados
         WHERE ano = p_ano AND (
-            categoria = p_categoria OR 
-            (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND categoria IN ('Certidão Sem Defesa', 'Certidão'))
-        ) AND numero_sequencial = v_seq;
-        
-        RETURN p_ano::TEXT || '/' || LPAD(v_seq, v_tamanho_pad, '0');
-    END IF;
+            LOWER(categoria) = LOWER(p_categoria) OR 
+            (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
+        )
+        ORDER BY LPAD(regexp_replace(numero_sequencial, '\D', '', 'g'), 10, '0')::BIGINT ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED;
 
-    -- Se não houver números reciclados, gera o próximo da sequência
+        IF v_seq IS NOT NULL AND v_id_desc IS NOT NULL THEN
+            DELETE FROM numeros_descartados WHERE id = v_id_desc;
+            BEGIN
+                DELETE FROM numeros_disponiveis 
+                WHERE ano = p_ano AND (
+                    LOWER(categoria) = LOWER(p_categoria) OR 
+                    (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
+                ) AND numero_sequencial = v_seq;
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+
+            RETURN p_ano::TEXT || '/' || LPAD(regexp_replace(v_seq, '\D', '', 'g'), v_tamanho_pad, '0');
+        END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    -- 1.1 Tentar em numeros_disponiveis (legado)
+    BEGIN
+        SELECT numero_sequencial INTO v_seq
+        FROM numeros_disponiveis
+        WHERE ano = p_ano AND (
+            LOWER(categoria) = LOWER(p_categoria) OR 
+            (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
+        )
+        ORDER BY LPAD(regexp_replace(numero_sequencial, '\D', '', 'g'), 10, '0')::BIGINT ASC
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED;
+
+        IF v_seq IS NOT NULL THEN
+            DELETE FROM numeros_disponiveis 
+            WHERE ano = p_ano AND (
+                LOWER(categoria) = LOWER(p_categoria) OR 
+                (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
+            ) AND numero_sequencial = v_seq;
+
+            RETURN p_ano::TEXT || '/' || LPAD(regexp_replace(v_seq, '\D', '', 'g'), v_tamanho_pad, '0');
+        END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    -- 2. Se não houver números reciclados/descartados, gera o próximo sequencial incremento da base
     IF p_categoria = 'Processo' THEN
         SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_processo, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
         INTO v_prox FROM processos WHERE numero_processo LIKE p_ano::TEXT || '/%';
@@ -535,17 +593,56 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- RPC: Devolve número cancelado para a fila
+-- RPC: Devolve número cancelado para a fila de descartes (sem inverter ano e numero_sequencial)
 CREATE OR REPLACE FUNCTION devolver_numero(p_numero TEXT, p_categoria TEXT)
 RETURNS VOID AS $$
 DECLARE
     v_partes TEXT[];
+    v_ano INTEGER;
+    v_seq TEXT;
+    v_p1_num INTEGER;
+    v_p2_num INTEGER;
 BEGIN
+    IF p_numero IS NULL OR TRIM(p_numero) = '' OR p_categoria IS NULL OR TRIM(p_categoria) = '' THEN
+        RETURN;
+    END IF;
+
     v_partes := string_to_array(p_numero, '/');
-    IF array_length(v_partes, 1) < 2 THEN RETURN; END IF;
-    INSERT INTO numeros_disponiveis (categoria, numero_sequencial, ano)
-    VALUES (p_categoria, v_partes[2], v_partes[1]::INTEGER)
-    ON CONFLICT (categoria, numero_sequencial, ano) DO NOTHING;
+    IF array_length(v_partes, 1) < 2 THEN 
+        RETURN; 
+    END IF;
+
+    v_p1_num := NULLIF(regexp_replace(v_partes[1], '\D', '', 'g'), '')::INTEGER;
+    v_p2_num := NULLIF(regexp_replace(v_partes[2], '\D', '', 'g'), '')::INTEGER;
+
+    -- Detectar qual parte é o ano (4 dígitos e entre 1900 e 2100)
+    IF v_p1_num IS NOT NULL AND v_p1_num >= 1900 AND v_p1_num <= 2100 AND LENGTH(TRIM(v_partes[1])) = 4 THEN
+        -- Formato "ANO/NUMERO" (ex: 2026/000123) -> v_ano = 2026, v_seq = "000123"
+        v_ano := v_p1_num;
+        v_seq := TRIM(v_partes[2]);
+    ELSIF v_p2_num IS NOT NULL AND v_p2_num >= 1900 AND v_p2_num <= 2100 AND LENGTH(TRIM(v_partes[2])) = 4 THEN
+        -- Formato "NUMERO/ANO" (ex: 000123/2026) -> v_ano = 2026, v_seq = "000123"
+        v_ano := v_p2_num;
+        v_seq := TRIM(v_partes[1]);
+    ELSE
+        -- Fallback seguro
+        v_ano := COALESCE(v_p2_num, EXTRACT(YEAR FROM NOW())::INTEGER);
+        v_seq := TRIM(v_partes[1]);
+    END IF;
+
+    BEGIN
+        INSERT INTO numeros_descartados (categoria, numero_sequencial, ano)
+        VALUES (p_categoria, v_seq, v_ano)
+        ON CONFLICT (categoria, numero_sequencial, ano) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    BEGIN
+        INSERT INTO numeros_disponiveis (categoria, numero_sequencial, ano)
+        VALUES (p_categoria, v_seq, v_ano)
+        ON CONFLICT (categoria, numero_sequencial, ano) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

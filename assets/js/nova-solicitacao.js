@@ -475,9 +475,14 @@ function validarStep(step) {
             return true;
         }
         case 4: {
-            const checked = document.querySelectorAll('input[name="infracao"]:checked');
+            const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
+            const checked = document.querySelectorAll('#infracoesList input[name="infracao"]:checked');
             if (checked.length === 0) {
                 alert('Selecione pelo menos um dispositivo legal transgredido.');
+                return false;
+            }
+            if (decretoSim && checked.length > 1) {
+                alert('Para processos decorrentes de Decreto, é permitido selecionar apenas 1 dispositivo legal transgredido.');
                 return false;
             }
             return true;
@@ -496,7 +501,8 @@ function validarStep(step) {
                 document.getElementById('relAtendimentoTipo')?.focus();
                 return false;
             }
-            if (!atendimentoValor) {
+            const semNumero = atendimentoTipo === 'Constatação do Fiscal inloco sem denuncia Formalizada';
+            if (!semNumero && !atendimentoValor) {
                 alert('Informe o Número em "Para atendimento" (Ex: 123/2026).');
                 document.getElementById('relAtendimentoValor')?.focus();
                 return false;
@@ -576,8 +582,8 @@ function decomporInscricao(inscricao) {
     // Formato: 01.036.00181.00300.00000.0
     const parts = inscricao.replace(/\s/g, '').split('.');
     if (parts.length >= 4) {
-        document.getElementById('imvZona').textContent = parts[0] || '—';
-        document.getElementById('imvSetor').textContent = parts[1] || '—';
+        document.getElementById('imvSetor').textContent = parts[0] || '—';
+        document.getElementById('imvZona').textContent = parts[1] || '—';
         document.getElementById('imvQuadra').textContent = parts[2] || '—';
         document.getElementById('imvLote').textContent = parts[3] || '—';
         document.getElementById('inscriptionBreakdown').style.display = 'flex';
@@ -642,23 +648,7 @@ async function finalizarSolicitacao() {
                 numeroProcesso = np;
             } else {
                 console.warn('RPC reservar_numero para Processo falhou no envio final, buscando fallback:', errNumProc?.message);
-                const { data } = await supabaseClient
-                    .from('processos')
-                    .select('numero_processo')
-                    .like('numero_processo', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_processo) {
-                            const p = item.numero_processo.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numeroProcesso = `${anoAtual}/${String(max + 1).padStart(6, '0')}`;
+                numeroProcesso = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
             }
         }
 
@@ -670,23 +660,7 @@ async function finalizarSolicitacao() {
                 numeroRelatorio = nr;
             } else {
                 console.warn('RPC reservar_numero para Relatório Fiscal falhou no envio final, buscando fallback:', errNumRel?.message);
-                const { data } = await supabaseClient
-                    .from('processos')
-                    .select('numero_relatorio')
-                    .like('numero_relatorio', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_relatorio) {
-                            const p = item.numero_relatorio.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numeroRelatorio = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
+                numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
             }
         }
 
@@ -1238,23 +1212,7 @@ async function garantirNumerosReservados() {
                 numerosReservadosEditor.processo = np;
             } else {
                 console.warn('RPC reservar_numero para Processo falhou, executando fallback local:', errProc?.message);
-                const { data } = await supabaseClient
-                    .from('processos')
-                    .select('numero_processo')
-                    .like('numero_processo', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_processo) {
-                            const p = item.numero_processo.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numerosReservadosEditor.processo = `${anoAtual}/${String(max + 1).padStart(6, '0')}`;
+                numerosReservadosEditor.processo = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
             }
         } catch (e) {
             console.warn('Erro ao reservar número de processo:', e);
@@ -1268,23 +1226,7 @@ async function garantirNumerosReservados() {
                 numerosReservadosEditor.relatorio = nr;
             } else {
                 console.warn('RPC reservar_numero para Relatório Fiscal falhou, executando fallback local:', errRel?.message);
-                const { data } = await supabaseClient
-                    .from('processos')
-                    .select('numero_relatorio')
-                    .like('numero_relatorio', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_relatorio) {
-                            const p = item.numero_relatorio.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numerosReservadosEditor.relatorio = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
+                numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
             }
         } catch (e) {
             console.warn('Erro ao reservar número de relatório:', e);
@@ -1596,6 +1538,7 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
 
     const logrCont = document.getElementById('contLogradouro')?.value?.trim() || cProc.logradouro || 'Rua MINAS GERAIS';
     const numCont = document.getElementById('contNumero')?.value?.trim() || cProc.numero || '309';
+    const compCont = document.getElementById('contComplemento')?.value?.trim() || cProc.complemento || '';
     const bairroCont = document.getElementById('contBairro')?.value?.trim() || cProc.bairro || 'CENTRO';
     const cepCont = document.getElementById('contCep')?.value?.trim() || cProc.cep || '35500-007';
     const munCont = document.getElementById('contMunicipio')?.value?.trim() || cProc.municipio || cProc.cidade || 'Divinópolis';
@@ -1604,16 +1547,17 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
     const imvInscricao = document.getElementById('imvInscricao')?.value?.trim() || iProc.inscricao || '01.025.00183.00033.00000.0';
     const imvLogradouro = document.getElementById('imvLogradouro')?.value?.trim() || iProc.logradouro || 'Rua CATALUNHA';
     const imvNumero = document.getElementById('imvNumero')?.value?.trim() || iProc.numero || '0';
+    const compImv = document.getElementById('imvComplemento')?.value?.trim() || iProc.complemento || '';
     const imvBairro = document.getElementById('imvBairro')?.value?.trim() || iProc.bairro || 'PARAISO';
 
     // Extraction of Zona, Quadra, Lote from Inscrição Imobiliária
-    let imvZona = iProc.zona || '01';
-    let imvQuadra = iProc.quadra || '00183';
-    let imvLote = iProc.lote || '00033';
+    let imvZona = iProc.zona || 'XXX';
+    let imvQuadra = iProc.quadra || 'XXXX';
+    let imvLote = iProc.lote || 'XXXXX';
     if (imvInscricao) {
         const parts = imvInscricao.replace(/\s/g, '').split('.');
         if (parts.length >= 4) {
-            imvZona = parts[0] || imvZona;
+            imvZona = parts[1] || imvZona;
             imvQuadra = parts[2] || imvQuadra;
             imvLote = parts[3] || imvLote;
         }
@@ -1726,9 +1670,10 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
         });
     }
 
-    const fNome = (typeof fiscalData !== 'undefined' ? fiscalData?.nome : null) || (typeof perfilAtual !== 'undefined' ? perfilAtual?.nome : null) || 'Nome do Fiscal';
-    const fCargo = (typeof fiscalData !== 'undefined' ? fiscalData?.cargo : null) || (typeof perfilAtual !== 'undefined' ? perfilAtual?.cargo : null) || 'Cargo do Fiscal';
-    const fMatricula = (typeof fiscalData !== 'undefined' ? fiscalData?.matricula : null) || (typeof perfilAtual !== 'undefined' ? perfilAtual?.matricula : null) || 'XXXXXXXX';
+    const fiscAutor = typeof window.obterFiscalAutorDoProcesso === 'function' ? window.obterFiscalAutorDoProcesso(proc, null) : {};
+    const fNome = fProc.nome || fProc.fiscNome || proc?.fiscal_responsavel || fiscAutor.nome || (typeof fiscalData !== 'undefined' ? fiscalData?.nome : null) || (typeof perfilAtual !== 'undefined' ? perfilAtual?.nome : null) || 'Nome do Fiscal';
+    const fCargo = fProc.cargo || fiscAutor.cargo || (typeof fiscalData !== 'undefined' ? fiscalData?.cargo : null) || (typeof perfilAtual !== 'undefined' ? perfilAtual?.cargo : null) || 'Cargo do Fiscal';
+    const fMatricula = fProc.matricula || fProc.fiscMatricula || proc?.fiscal_matricula || fiscAutor.matricula || (typeof fiscalData !== 'undefined' ? fiscalData?.matricula : null) || (typeof perfilAtual !== 'undefined' ? perfilAtual?.matricula : null) || 'XXXXXXXX';
 
     return `
         <div style="font-family: Calibri, 'Segoe UI', sans-serif; color: black; max-width: 820px; margin: 0 auto; line-height: 1.3; font-size: 10pt; padding: 40px 55px 30px 55px; background: white;">
@@ -1783,6 +1728,7 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
                         <div><strong>CPF/CNPJ:</strong> ${contCpfCnpj}</div>
                         <div><strong>Bairro:</strong> ${bairroCont}</div>
                         <div><strong>Número:</strong> ${numCont}</div>
+                        ${compCont ? `<div><strong>Complemento:</strong> ${compCont}</div>` : ''}
                     </td>
                 </tr>
             </table>
@@ -1800,6 +1746,7 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
                         <div><strong>Zona:</strong> ${imvZona}</div>
                         <div><strong>Quadra:</strong> ${imvQuadra}</div>
                         <div><strong>Lote:</strong> ${imvLote}</div>
+                        ${compImv ? `<div><strong>Complemento:</strong> ${compImv}</div>` : ''}
                     </td>
                 </tr>
             </table>
@@ -2245,6 +2192,15 @@ function bindWizardEventos() {
                 if (elNumDecreto && elGroupOutro) {
                     elGroupOutro.style.display = elNumDecreto.value === 'outro' ? 'block' : 'none';
                 }
+                const checkedList = document.querySelectorAll('#infracoesList input[name="infracao"]:checked');
+                if (checkedList.length > 1) {
+                    checkedList.forEach((cb, idx) => {
+                        if (idx > 0) cb.checked = false;
+                    });
+                    if (typeof atualizarDescricaoFiscalizacaoPadrao === 'function') {
+                        atualizarDescricaoFiscalizacaoPadrao();
+                    }
+                }
             }
         });
     }
@@ -2272,8 +2228,34 @@ function bindWizardEventos() {
 
     // Auto-preenchimento das respostas padrão de infração na Descrição da Fiscalização
     document.querySelectorAll('#infracoesList input[name="infracao"]').forEach(cb => {
-        cb.addEventListener('change', atualizarDescricaoFiscalizacaoPadrao);
+        cb.addEventListener('change', (e) => {
+            const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
+            if (decretoSim && e.target.checked) {
+                document.querySelectorAll('#infracoesList input[name="infracao"]').forEach(otherCb => {
+                    if (otherCb !== e.target) {
+                        otherCb.checked = false;
+                    }
+                });
+            }
+            atualizarDescricaoFiscalizacaoPadrao();
+        });
     });
+
+    const elRelTipo = document.getElementById('relAtendimentoTipo');
+    const elRelVal = document.getElementById('relAtendimentoValor');
+    if (elRelTipo && elRelVal) {
+        const toggleAtendimentoValor = () => {
+            const semNumero = elRelTipo.value === 'Constatação do Fiscal inloco sem denuncia Formalizada';
+            if (semNumero) {
+                elRelVal.value = '';
+                elRelVal.style.display = 'none';
+            } else {
+                elRelVal.style.display = 'block';
+            }
+        };
+        elRelTipo.addEventListener('change', toggleAtendimentoValor);
+        toggleAtendimentoValor();
+    }
     const descEl = document.getElementById('fiscDescricao');
     if (descEl) {
         descEl.addEventListener('input', () => {
@@ -3305,4 +3287,50 @@ function mostrarFeedbackParseSucesso() {
     box.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
     <div><strong>Dados extraídos automaticamente com sucesso!</strong><br>Os passos 1 (Contribuinte) e 2 (Imóvel) foram preenchidos com as informações do arquivo.</div>`;
     box.style.display = 'flex';
+}
+
+// ── Fallback JS de Reserva de Números (Prioriza numeros_descartados) ──
+async function obterNumeroFallbackJS(anoAtual, categoria, tamanhoPad, tabela, coluna) {
+    try {
+        const { data: desc } = await supabaseClient
+            .from('numeros_descartados')
+            .select('id, numero_sequencial')
+            .eq('ano', anoAtual)
+            .ilike('categoria', categoria)
+            .order('numero_sequencial', { ascending: true })
+            .limit(1);
+
+        if (desc && desc.length > 0) {
+            const item = desc[0];
+            await supabaseClient.from('numeros_descartados').delete().eq('id', item.id);
+            const numPadded = String(item.numero_sequencial).replace(/\D/g, '').padStart(tamanhoPad, '0');
+            return `${anoAtual}/${numPadded}`;
+        }
+    } catch (e) {
+        console.warn('Fallback JS ao buscar numeros_descartados:', e);
+    }
+
+    try {
+        const { data } = await supabaseClient
+            .from(tabela)
+            .select(coluna)
+            .like(coluna, `${anoAtual}/%`);
+        let max = 0;
+        if (data && data.length > 0) {
+            data.forEach(item => {
+                const val = item[coluna];
+                if (val) {
+                    const p = val.split('/');
+                    if (p.length === 2) {
+                        const v = parseInt(p[1].replace(/\D/g, ''), 10);
+                        if (!isNaN(v) && v > max) max = v;
+                    }
+                }
+            });
+        }
+        return `${anoAtual}/${String(max + 1).padStart(tamanhoPad, '0')}`;
+    } catch (e) {
+        console.error('Erro no fallback MAX:', e);
+        return `${anoAtual}/${String(1).padStart(tamanhoPad, '0')}`;
+    }
 }
