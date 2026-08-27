@@ -12,32 +12,7 @@ if (urlMatch && keyMatch) {
         const { data, error, count } = await supabaseClient
             .from('processos')
             .select(`
-                id,
-                numero_processo,
-                status,
-                etapa_atual_id,
-                dados,
-                created_at,
-                updated_at,
-                fiscal_id,
-                profiles:fiscal_id (
-                    nome
-                ),
-                etapas (
-                    numero,
-                    nome
-                ),
-                notificacoes (
-                    id,
-                    status,
-                    etapa_atual_id,
-                    numero,
-                    dados,
-                    etapas (
-                        numero,
-                        nome
-                    )
-                )
+                id
             `, { count: 'exact' })
             .order('created_at', { ascending: false })
             .range(0, 19);
@@ -48,9 +23,8 @@ if (urlMatch && keyMatch) {
             console.log(error);
         } else {
             console.log("SUCCESS! Got rows:", data.length);
+            console.log("Total count:", count);
         }
     }
     test();
-} else {
-    console.log("Could not find keys");
 }

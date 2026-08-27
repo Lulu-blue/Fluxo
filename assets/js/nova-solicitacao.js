@@ -1082,31 +1082,40 @@ async function finalizarSolicitacao() {
                     const legenda = legInput ? legInput.value : '';
                     const imgFile = imgInput && imgInput.files ? imgInput.files[0] : null;
 
-                    if (imgBase64 && imgFile) {
+                    if (imgFile) {
                         try {
-                            anexosParaSalvar.imagens_vistoria.push({
-                                nome: imgFile.name,
-                                tipo: imgFile.type,
-                                dataUrl: imgBase64,
-                                legenda: legenda,
-                                data_upload: new Date().toISOString()
-                            });
+                            // Faz upload para o Cloudinary (ou pega Base64 se falhar)
+                            const imgFinalUrl = await fileToBase64(imgFile);
 
+                            let docId = null;
                             if (procCriado && procCriado.id) {
                                 try {
-                                    await supabaseClient.from('documentos').insert([{
+                                    const { data: docCriado, error: errDoc } = await supabaseClient.from('documentos').insert([{
                                         processo_id: procCriado.id,
                                         etapa_id: etapaId,
                                         tipo: 'imagem',
                                         nome_arquivo: imgFile.name,
-                                        url: imgBase64,
+                                        url: imgFinalUrl,
                                         gerado_automaticamente: false,
                                         usuario_id: profileId
-                                    }]);
+                                    }]).select();
+                                    
+                                    if (docCriado && docCriado.length > 0) {
+                                        docId = docCriado[0].id;
+                                    }
                                 } catch (eImgDoc) {
                                     console.warn('Aviso ao registrar imagem na tabela documentos:', eImgDoc);
                                 }
                             }
+
+                            anexosParaSalvar.imagens_vistoria.push({
+                                nome: imgFile.name,
+                                tipo: imgFile.type,
+                                documento_id: docId,
+                                url: imgFinalUrl,
+                                legenda: legenda,
+                                data_upload: new Date().toISOString()
+                            });
                         } catch (e) {
                             console.warn('Erro ao salvar imagem:', e);
                         }

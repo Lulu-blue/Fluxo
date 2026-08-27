@@ -32,11 +32,7 @@ if (urlMatch && keyMatch) {
                     status,
                     etapa_atual_id,
                     numero,
-                    dados,
-                    etapas (
-                        numero,
-                        nome
-                    )
+                    dados
                 )
             `, { count: 'exact' })
             .order('created_at', { ascending: false })
@@ -51,6 +47,4 @@ if (urlMatch && keyMatch) {
         }
     }
     test();
-} else {
-    console.log("Could not find keys");
 }

@@ -38,7 +38,7 @@ if (urlMatch && keyMatch) {
                         nome
                     )
                 )
-            `, { count: 'exact' })
+            `, { count: 'estimated' })
             .order('created_at', { ascending: false })
             .range(0, 19);
         
@@ -48,9 +48,8 @@ if (urlMatch && keyMatch) {
             console.log(error);
         } else {
             console.log("SUCCESS! Got rows:", data.length);
+            console.log("Total count:", count);
         }
     }
     test();
-} else {
-    console.log("Could not find keys");
 }

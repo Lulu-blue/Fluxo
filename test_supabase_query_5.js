@@ -9,7 +9,7 @@ if (urlMatch && keyMatch) {
     async function test() {
         console.log("Starting query...");
         const start = Date.now();
-        const { data, error, count } = await supabaseClient
+        const { data, error } = await supabaseClient
             .from('processos')
             .select(`
                 id,
@@ -32,13 +32,9 @@ if (urlMatch && keyMatch) {
                     status,
                     etapa_atual_id,
                     numero,
-                    dados,
-                    etapas (
-                        numero,
-                        nome
-                    )
+                    dados
                 )
-            `, { count: 'exact' })
+            `)
             .order('created_at', { ascending: false })
             .range(0, 19);
         
@@ -51,6 +47,4 @@ if (urlMatch && keyMatch) {
         }
     }
     test();
-} else {
-    console.log("Could not find keys");
 }

@@ -585,7 +585,7 @@ BEGIN
     -- 2. Se não houver números reciclados/descartados, usa a sequenciais_contadores
     -- Tenta atualizar e pegar o próximo
     UPDATE sequenciais_contadores 
-    SET ultimo_numero = ultimo_numero + 1, updated_at = NOW()
+    SET ultimo_numero = ultimo_numero + 1
     WHERE ano = p_ano AND categoria = p_categoria
     RETURNING ultimo_numero INTO v_prox;
 
@@ -611,12 +611,12 @@ BEGIN
             INSERT INTO sequenciais_contadores (categoria, ano, ultimo_numero)
             VALUES (p_categoria, p_ano, v_prox)
             ON CONFLICT (categoria, ano) DO UPDATE 
-            SET ultimo_numero = sequenciais_contadores.ultimo_numero + 1, updated_at = NOW()
+            SET ultimo_numero = sequenciais_contadores.ultimo_numero + 1
             RETURNING ultimo_numero INTO v_prox;
         EXCEPTION WHEN OTHERS THEN
             -- Em caso de race condition exata no insert inicial, fallback
             UPDATE sequenciais_contadores 
-            SET ultimo_numero = ultimo_numero + 1, updated_at = NOW()
+            SET ultimo_numero = ultimo_numero + 1
             WHERE ano = p_ano AND categoria = p_categoria
             RETURNING ultimo_numero INTO v_prox;
         END;

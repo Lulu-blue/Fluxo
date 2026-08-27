@@ -295,13 +295,9 @@ async function carregarSolicitacoes(tentativa = 1) {
                     status,
                     etapa_atual_id,
                     numero,
-                    dados,
-                    etapas (
-                        numero,
-                        nome
-                    )
+                    dados
                 )
-            `, { count: 'exact' });
+            `);
 
         // Aplicar filtros
         const filtros = coletarFiltros();
@@ -357,7 +353,7 @@ async function carregarSolicitacoes(tentativa = 1) {
             // Paginação Client-Side
             resultData = resultData.slice(from, from + pageSize);
         } else {
-            totalRecords = count || 0;
+            totalRecords = from + resultData.length + (resultData.length === pageSize ? 1 : 0);
         }
 
         dadosTabela = resultData;

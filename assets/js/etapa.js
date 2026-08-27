@@ -8871,9 +8871,10 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 const listaImagens = dProc.anexos?.imagens_vistoria || dProc.imagens_vistoria || processoAtual.campos?.imagens_vistoria || [];
                 if (Array.isArray(listaImagens) && listaImagens.length > 0) {
                     listaImagens.forEach(img => {
-                        const src = img.dataUrl || img.url || img.base64 || img;
-                        if (src && typeof src === 'string' && src.startsWith('data:image')) {
-                            htmlImagens += `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;resize:both;overflow:hidden;max-width:100%;min-width:150px;min-height:150px;border:1px dashed #ccc;padding:4px;"><img src="${src}" style="width:100%;height:100%;object-fit:contain;display:block;"/></div>${img.nome ? `<p style="margin-top:5px;font-style:italic;color:#555;">${img.nome}</p>` : ''}</div>`;
+                        const src = img.dataUrl || img.url || img.base64 || (typeof img === 'string' ? img : null);
+                        const leg = img.legenda || img.nome || '';
+                        if (src && typeof src === 'string' && (src.startsWith('data:image') || src.startsWith('http'))) {
+                            htmlImagens += `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;resize:both;overflow:hidden;max-width:100%;min-width:150px;min-height:150px;border:1px dashed #ccc;padding:4px;"><img src="${src}" style="width:100%;height:100%;object-fit:contain;display:block;"/></div>${leg ? `<p style="margin-top:5px;font-style:italic;color:#555;">${leg}</p>` : ''}</div>`;
                         }
                     });
                 }
@@ -9078,8 +9079,8 @@ async function baixarRelatorioFiscalPdfEtapa() {
                     document.body.removeChild(printIframe);
                 }
                 document.title = tituloOriginal;
-            }, 1000);
-        }, 500);
+            }, 2000);
+        }, 2000);
 
     } catch (err) {
         console.error('Erro ao baixar relatório fiscal:', err);
