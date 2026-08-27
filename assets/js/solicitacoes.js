@@ -285,9 +285,23 @@ async function carregarSolicitacoes(tentativa = 1) {
                 fiscal_id,
                 profiles:fiscal_id (
                     nome
+                ),
+                etapas (
+                    numero,
+                    nome
+                ),
+                notificacoes (
+                    id,
+                    status,
+                    etapa_atual_id,
+                    numero,
+                    dados,
+                    etapas (
+                        numero,
+                        nome
+                    )
                 )
-            `, { count: 'exact' })
-            .limit(pageSize);
+            `, { count: 'exact' });
 
         // Aplicar filtros
         const filtros = coletarFiltros();
@@ -317,24 +331,31 @@ async function carregarSolicitacoes(tentativa = 1) {
             query = query.eq('fiscal_id', currentUserId);
         }
 
-        // Paginação
+        // Paginação e Execução
+        const requiresClientFilter = !!filtros.responsavel;
         const from = (currentPage - 1) * pageSize;
         const to = from + pageSize - 1;
 
+        if (!requiresClientFilter) {
+            query = query.range(from, to);
+        }
+
         const { data, error, count } = await query
-            .order('created_at', { ascending: false })
-            .range(from, to);
+            .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         let resultData = data || [];
-        if (filtros.responsavel) {
+        if (requiresClientFilter) {
             let cargoAlvo = filtros.responsavel;
             if (cargoAlvo === 'minha_responsabilidade') {
                 cargoAlvo = window.currentUserProfile?.cargo || 'Fiscal de Postura';
             }
             resultData = resultData.filter(item => itemPertenceAoCargo(item, cargoAlvo));
             totalRecords = resultData.length;
+            
+            // Paginação Client-Side
+            resultData = resultData.slice(from, from + pageSize);
         } else {
             totalRecords = count || 0;
         }

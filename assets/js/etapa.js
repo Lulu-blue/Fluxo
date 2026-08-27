@@ -4538,6 +4538,23 @@ function configurarEventosPainelEtapa1() {
             if (e.target !== inputArquivoNP) inputArquivoNP.click();
         });
 
+        areaDropNP.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            areaDropNP.classList.add('dragover');
+        });
+        areaDropNP.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            areaDropNP.classList.remove('dragover');
+        });
+        areaDropNP.addEventListener('drop', (e) => {
+            e.preventDefault();
+            areaDropNP.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                inputArquivoNP.files = e.dataTransfer.files;
+                inputArquivoNP.dispatchEvent(new Event('change'));
+            }
+        });
+
         inputArquivoNP.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -4662,6 +4679,23 @@ function configurarEventosPainelEtapa1() {
     if (areaDropRF && inputArquivoRF) {
         areaDropRF.addEventListener('click', (e) => {
             if (e.target !== inputArquivoRF) inputArquivoRF.click();
+        });
+
+        areaDropRF.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            areaDropRF.classList.add('dragover');
+        });
+        areaDropRF.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            areaDropRF.classList.remove('dragover');
+        });
+        areaDropRF.addEventListener('drop', (e) => {
+            e.preventDefault();
+            areaDropRF.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                inputArquivoRF.files = e.dataTransfer.files;
+                inputArquivoRF.dispatchEvent(new Event('change'));
+            }
         });
 
         inputArquivoRF.addEventListener('change', async (e) => {
@@ -4925,6 +4959,23 @@ window.configurarEventosReplicaAssinada = function () {
         areaDrop.addEventListener('click', (e) => {
             if (e.target !== inputArquivo && !e.target.classList.contains('btn-selecionar-arquivo')) {
                 inputArquivo.click();
+            }
+        });
+
+        areaDrop.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            areaDrop.classList.add('dragover');
+        });
+        areaDrop.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            areaDrop.classList.remove('dragover');
+        });
+        areaDrop.addEventListener('drop', (e) => {
+            e.preventDefault();
+            areaDrop.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                inputArquivo.files = e.dataTransfer.files;
+                inputArquivo.dispatchEvent(new Event('change'));
             }
         });
 
@@ -5234,6 +5285,23 @@ window.configurarEventosCertidaoAssinada = function () {
         areaDrop.addEventListener('click', (e) => {
             if (e.target !== inputArquivo && !e.target.classList.contains('btn-selecionar-arquivo')) {
                 inputArquivo.click();
+            }
+        });
+
+        areaDrop.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            areaDrop.classList.add('dragover');
+        });
+        areaDrop.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            areaDrop.classList.remove('dragover');
+        });
+        areaDrop.addEventListener('drop', (e) => {
+            e.preventDefault();
+            areaDrop.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                inputArquivo.files = e.dataTransfer.files;
+                inputArquivo.dispatchEvent(new Event('change'));
             }
         });
 
@@ -5566,6 +5634,23 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
         areaDrop.addEventListener('click', (e) => {
             if (e.target !== inputArquivo && !e.target.classList.contains('btn-selecionar-arquivo')) {
                 inputArquivo.click();
+            }
+        });
+
+        areaDrop.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            areaDrop.classList.add('dragover');
+        });
+        areaDrop.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            areaDrop.classList.remove('dragover');
+        });
+        areaDrop.addEventListener('drop', (e) => {
+            e.preventDefault();
+            areaDrop.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                inputArquivo.files = e.dataTransfer.files;
+                inputArquivo.dispatchEvent(new Event('change'));
             }
         });
 
@@ -11275,7 +11360,11 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
         const procId = processoAtual?.id;
 
         if (notifId || procId) {
-            let queryDocs = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+            let queryDocs = supabaseClient.from('documentos')
+                .select('*')
+                .not('url', 'is', null)
+                .neq('tipo', 'imagem')
+                .neq('tipo', 'Imagem Vistoria');
             if (notifId && procId) {
                 queryDocs = queryDocs.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
             } else if (procId) {

@@ -2448,25 +2448,66 @@ function bindWizardEventos() {
 
     // Upload Imagens vistoria (removido, imagens agora são inseridas no passo 5)
 
-    // Upload Decreto (legado/opcional)
+    // Upload Decreto (Drag & Drop + Seleção)
+    const dropAreaDecreto = document.getElementById('uploadAreaDecreto');
     const elInputDecreto = document.getElementById('inputDecreto');
-    if (elInputDecreto) {
-        elInputDecreto.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+    if (dropAreaDecreto && elInputDecreto) {
+        dropAreaDecreto.addEventListener('click', (e) => {
+            if (e.target !== elInputDecreto && e.target.tagName !== 'LABEL') {
+                elInputDecreto.click();
+            }
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropAreaDecreto.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropAreaDecreto.classList.add('drag-active');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropAreaDecreto.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropAreaDecreto.classList.remove('drag-active');
+            }, false);
+        });
+
+        const handleDecretoFile = (file) => {
             if (file) {
                 const nameEl = document.getElementById('decretoFileName');
                 if (nameEl) nameEl.textContent = file.name;
                 const infoEl = document.getElementById('decretoFileInfo');
                 if (infoEl) infoEl.style.display = 'flex';
+                dropAreaDecreto.style.display = 'none';
+            }
+        };
+
+        dropAreaDecreto.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                // Set the file to the input manually (DataTransfer object trick)
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                elInputDecreto.files = dt.files;
+                handleDecretoFile(file);
             }
         });
+
+        elInputDecreto.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleDecretoFile(file);
+        });
     }
+
     const elBtnRemoveDecreto = document.getElementById('btnRemoveDecreto');
     if (elBtnRemoveDecreto) {
         elBtnRemoveDecreto.addEventListener('click', () => {
             if (elInputDecreto) elInputDecreto.value = '';
             const infoEl = document.getElementById('decretoFileInfo');
             if (infoEl) infoEl.style.display = 'none';
+            if (dropAreaDecreto) dropAreaDecreto.style.display = 'flex';
         });
     }
 
@@ -2718,7 +2759,9 @@ async function extrairTextoPdf(file) {
 
 function extrairDadosEspelhoCadastral(textoCompleto) {
     const dados = {};
-    const linhas = textoCompleto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const linhas = textoCompleto.split('\n')
+        .map(l => l.trim().replace(/^Endere[çc]o:\s*/i, ''))
+        .filter(l => l.length > 0);
 
     console.log('=== BIC PDF TEXTO COMPLETO ===\n', textoCompleto);
 
@@ -2763,6 +2806,19 @@ function extrairDadosEspelhoCadastral(textoCompleto) {
         }
     }
 
+    // Limpar o nome caso o CPF/CNPJ ou labels tenham vindo na mesma linha
+    if (dados.responsavel_nome) {
+        dados.responsavel_nome = dados.responsavel_nome
+            .replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}\b/g, '')
+            .replace(/\b\d{3}\.\d{3}\.\d{3}\-\d{2}\b/g, '')
+            .replace(/CPF\/CNPJ/i, '')
+            .replace(/CPF:/i, '')
+            .replace(/CNPJ:/i, '')
+            .replace(/[-\s]+$/g, '') // remove hífens e espaços do final
+            .replace(/\s{2,}/g, ' ') // remove espaços duplos
+            .trim();
+    }
+
     // 5. CEPs no documento
     const ceps = (textoCompleto.match(/\b\d{5}\-\d{3}\b/g) || []);
     dados.cep_responsavel = ceps[0] || null;
@@ -2772,8 +2828,9 @@ function extrairDadosEspelhoCadastral(textoCompleto) {
     const ruas = linhas.filter(l => /^(?:Rua|Av|Avenida|Alameda|Praça|Rodovia|Servidão|Viela)\b/i.test(l));
 
     // Endereço do Contribuinte
-    let endRespLine = ruas.find(r => /CENTRO|MINAS/i.test(r)) || ruas[0] || '';
-    const idxResp = linhas.indexOf(endRespLine);
+    let baseRespLine = ruas.length > 0 ? ruas[0] : '';
+    let endRespLine = baseRespLine;
+    const idxResp = linhas.indexOf(baseRespLine);
     if (idxResp >= 0 && idxResp < linhas.length - 1) {
         if (linhas[idxResp + 1].startsWith('-') || /\d{5}\-\d{3}/.test(linhas[idxResp + 1])) {
             endRespLine += ' ' + linhas[idxResp + 1];
@@ -2782,8 +2839,8 @@ function extrairDadosEspelhoCadastral(textoCompleto) {
     dados.endereco_responsavel = endRespLine;
 
     // Endereço do Imóvel
-    let endImvLine = ruas.find(r => r !== endRespLine && /CATALUNHA|PARAISO/i.test(r)) || ruas.find(r => r !== endRespLine) || ruas[0] || '';
-    dados.endereco_imovel = endImvLine;
+    let baseImvLine = ruas.length > 1 ? ruas[1] : (ruas.length > 0 ? ruas[0] : '');
+    dados.endereco_imovel = baseImvLine;
 
     // 7. Métricas do Imóvel
     const areaM = textoCompleto.match(/Area Total do Terreno:[\s\n]*([\d\.,]+)/i);
@@ -2796,12 +2853,13 @@ function extrairDadosEspelhoCadastral(textoCompleto) {
     return dados;
 }
 
-// ── Manipulador de upload do BIC (PDF) ──────────────────────
+// ── Manipulador de upload do BIC (PDF/DOC) ──────────────────────
 async function handleArquivoBic(file) {
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-        alert('Por favor, selecione um arquivo PDF do Espelho Cadastral (BIC).');
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    if (!['pdf', 'doc', 'docx'].includes(ext)) {
+        alert('Por favor, selecione um arquivo válido (.pdf, .doc ou .docx) do Espelho Cadastral (BIC).');
         return;
     }
 
@@ -2812,10 +2870,18 @@ async function handleArquivoBic(file) {
     const dropEl = document.getElementById('uploadAreaBic');
     if (dropEl) dropEl.style.display = 'none';
 
-    mostrarFeedback('bicFeedback', 'Lendo arquivo PDF do Espelho Cadastral...', 'info');
+    mostrarFeedback('bicFeedback', `Lendo arquivo ${ext.toUpperCase()} do Espelho Cadastral...`, 'info');
 
     try {
-        const textoCompleto = await extrairTextoPdf(file);
+        let textoCompleto = '';
+        if (ext === 'pdf') {
+            textoCompleto = await extrairTextoPdf(file);
+        } else if (ext === 'docx') {
+            textoCompleto = await extrairTextoDocx(file);
+        } else if (ext === 'doc') {
+            textoCompleto = await extrairTextoDoc(file);
+        }
+
         const dadosExt = extrairDadosEspelhoCadastral(textoCompleto);
 
         bicArquivoAnexado = file;

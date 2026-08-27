@@ -481,6 +481,20 @@ DROP POLICY IF EXISTS "numeros_disponiveis_acesso_total" ON numeros_disponiveis;
 CREATE POLICY "numeros_disponiveis_acesso_total"
     ON numeros_disponiveis FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- Tabela para gerenciar a sequência atômica de contadores (já existente no banco)
+CREATE TABLE IF NOT EXISTS sequenciais_contadores (
+    id SERIAL PRIMARY KEY,
+    categoria TEXT NOT NULL,
+    ano INTEGER NOT NULL,
+    ultimo_numero INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(categoria, ano)
+);
+ALTER TABLE sequenciais_contadores ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "sequenciais_contadores_acesso_total" ON sequenciais_contadores;
+CREATE POLICY "sequenciais_contadores_acesso_total" ON sequenciais_contadores FOR ALL USING (true) WITH CHECK (true);
+
 -- Coluna para armazenar o número da certidão na notificação (se aplicável)
 ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS numero_certidao TEXT;
 
@@ -568,25 +582,44 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN NULL;
     END;
 
-    -- 2. Se não houver números reciclados/descartados, gera o próximo sequencial incremento da base
-    IF p_categoria = 'Processo' THEN
-        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_processo, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
-        INTO v_prox FROM processos WHERE numero_processo LIKE p_ano::TEXT || '/%';
-    ELSIF p_categoria = 'Relatório Fiscal' THEN
-        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_relatorio, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
-        INTO v_prox FROM processos WHERE numero_relatorio IS NOT NULL AND numero_relatorio LIKE p_ano::TEXT || '/%';
-    ELSIF p_categoria = 'Réplica' THEN
-        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
-        INTO v_prox FROM documentos WHERE tipo = 'Réplica' AND numero_sequencial LIKE p_ano::TEXT || '/%';
-    ELSIF p_categoria IN ('Certidão Sem Defesa', 'Certidão') THEN
-        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
-        INTO v_prox FROM documentos WHERE tipo IN ('Certidão', 'Certidão Sem Defesa') AND numero_sequencial LIKE p_ano::TEXT || '/%';
-    ELSIF p_categoria = 'Auto de Infração' THEN
-        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
-        INTO v_prox FROM autos_infracao WHERE numero LIKE p_ano::TEXT || '/%';
-    ELSE
-        SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1
-        INTO v_prox FROM documentos WHERE tipo = p_categoria AND numero_sequencial LIKE p_ano::TEXT || '/%';
+    -- 2. Se não houver números reciclados/descartados, usa a sequenciais_contadores
+    -- Tenta atualizar e pegar o próximo
+    UPDATE sequenciais_contadores 
+    SET ultimo_numero = ultimo_numero + 1, updated_at = NOW()
+    WHERE ano = p_ano AND categoria = p_categoria
+    RETURNING ultimo_numero INTO v_prox;
+
+    -- Se não atualizou nada, significa que o contador para esta categoria/ano ainda não existe.
+    -- Precisamos descobrir o valor atual na tabela principal correspondente para não gerar conflito.
+    IF v_prox IS NULL THEN
+        IF p_categoria = 'Processo' THEN
+            SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_processo, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1 INTO v_prox FROM processos WHERE numero_processo LIKE p_ano::TEXT || '/%';
+        ELSIF p_categoria = 'Relatório Fiscal' THEN
+            SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_relatorio, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1 INTO v_prox FROM processos WHERE numero_relatorio IS NOT NULL AND numero_relatorio LIKE p_ano::TEXT || '/%';
+        ELSIF p_categoria = 'Réplica' THEN
+            SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1 INTO v_prox FROM documentos WHERE tipo = 'Réplica' AND numero_sequencial LIKE p_ano::TEXT || '/%';
+        ELSIF p_categoria IN ('Certidão Sem Defesa', 'Certidão') THEN
+            SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1 INTO v_prox FROM documentos WHERE tipo IN ('Certidão', 'Certidão Sem Defesa') AND numero_sequencial LIKE p_ano::TEXT || '/%';
+        ELSIF p_categoria = 'Auto de Infração' THEN
+            SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1 INTO v_prox FROM autos_infracao WHERE numero LIKE p_ano::TEXT || '/%';
+        ELSE
+            SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) + 1 INTO v_prox FROM documentos WHERE tipo = p_categoria AND numero_sequencial LIKE p_ano::TEXT || '/%';
+        END IF;
+
+        -- Agora insere com o valor descoberto
+        BEGIN
+            INSERT INTO sequenciais_contadores (categoria, ano, ultimo_numero)
+            VALUES (p_categoria, p_ano, v_prox)
+            ON CONFLICT (categoria, ano) DO UPDATE 
+            SET ultimo_numero = sequenciais_contadores.ultimo_numero + 1, updated_at = NOW()
+            RETURNING ultimo_numero INTO v_prox;
+        EXCEPTION WHEN OTHERS THEN
+            -- Em caso de race condition exata no insert inicial, fallback
+            UPDATE sequenciais_contadores 
+            SET ultimo_numero = ultimo_numero + 1, updated_at = NOW()
+            WHERE ano = p_ano AND categoria = p_categoria
+            RETURNING ultimo_numero INTO v_prox;
+        END;
     END IF;
 
     RETURN p_ano::TEXT || '/' || LPAD(v_prox::TEXT, v_tamanho_pad, '0');

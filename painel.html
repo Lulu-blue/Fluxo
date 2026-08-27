@@ -136,11 +136,11 @@
                     <div class="filters-grid">
                         <div class="filter-group">
                             <label for="filtroProtocolo">Protocolo</label>
-                            <input type="text" id="filtroProtocolo" placeholder="Nº do protocolo..." autocomplete="off">
+                            <input type="text" id="filtroProtocolo" name="filtro_protocolo_search" placeholder="Nº do protocolo..." autocomplete="new-password" data-lpignore="true">
                         </div>
                         <div class="filter-group">
                             <label for="filtroNome">Nome do Solicitante</label>
-                            <input type="text" id="filtroNome" placeholder="Nome..." autocomplete="off">
+                            <input type="text" id="filtroNome" name="filtro_nome_search" placeholder="Nome..." autocomplete="new-password" data-lpignore="true" spellcheck="false">
                         </div>
                         <div class="filter-group">
                             <label for="filtroStatus">Status</label>
@@ -484,10 +484,10 @@
                                 <line x1="12" y1="18" x2="12" y2="12" />
                                 <line x1="9" y1="15" x2="15" y2="15" />
                             </svg>
-                            <p>Arraste o arquivo PDF aqui ou <label for="inputBic" class="upload-link">clique para
+                            <p>Arraste o arquivo PDF ou Word aqui ou <label for="inputBic" class="upload-link">clique para
                                     selecionar</label></p>
-                            <small>Formato aceito: .pdf (BIC - Espelho Cadastral)</small>
-                            <input type="file" id="inputBic" accept=".pdf" hidden>
+                            <small>Formatos aceitos: .pdf, .doc, .docx (BIC - Espelho Cadastral)</small>
+                            <input type="file" id="inputBic" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
                         </div>
                         <div class="upload-file-info" id="bicFileInfo" style="display:none;">
                             <span class="file-name" id="bicFileName"></span>
@@ -687,9 +687,22 @@
                                 </div>
                                 <div class="form-row" style="margin-top: 8px;">
                                     <div class="form-group fg-large">
-                                        <label for="inputDecreto">Anexo do Decreto (PDF/Doc) <span
-                                                class="required">*</span></label>
-                                        <input type="file" id="inputDecreto" accept=".pdf,.doc,.docx">
+                                        <label>Anexo do Decreto (PDF/Doc) <span class="required">*</span></label>
+                                        <div class="upload-area" id="uploadAreaDecreto" style="margin-top: 4px;">
+                                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                <polyline points="14 2 14 8 20 8" />
+                                                <line x1="12" y1="18" x2="12" y2="12" />
+                                                <line x1="9" y1="15" x2="15" y2="15" />
+                                            </svg>
+                                            <p>Arraste o arquivo aqui ou <label for="inputDecreto" class="upload-link">clique para selecionar</label></p>
+                                            <small>Formatos aceitos: .pdf, .doc, .docx</small>
+                                            <input type="file" id="inputDecreto" accept=".pdf,.doc,.docx" hidden>
+                                        </div>
+                                        <div class="upload-file-info" id="decretoFileInfo" style="display:none; margin-top: 8px;">
+                                            <span class="file-name" id="decretoFileName"></span>
+                                            <button type="button" class="btn-remove-file" id="btnRemoveDecreto" title="Remover">✕</button>
+                                        </div>
                                         <div id="decretoFileFeedback" class="field-feedback"></div>
                                     </div>
                                 </div>
