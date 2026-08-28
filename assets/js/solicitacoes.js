@@ -267,8 +267,12 @@ async function verificarSessao() {
 
 // ── Carregar solicitações com filtros ────────────────────────
 // ── Carregar solicitações com filtros (com retry automático) ──
+let currentFetchId = 0;
+
 async function carregarSolicitacoes(tentativa = 1) {
     mostrarLoading(true);
+    
+    const myFetchId = ++currentFetchId;
 
     try {
         // Montar query base
@@ -330,16 +334,20 @@ async function carregarSolicitacoes(tentativa = 1) {
         // Paginação e Execução
         const requiresClientFilter = !!filtros.responsavel;
         const from = (currentPage - 1) * pageSize;
-        const to = from + pageSize - 1;
+        // Pede 1 item a mais para saber se tem próxima página (sem precisar de count)
+        const to = from + pageSize; 
 
         if (!requiresClientFilter) {
             query = query.range(from, to);
         }
 
-        const { data, error, count } = await query
+        const { data, error } = await query
             .order('created_at', { ascending: false });
 
         if (error) throw error;
+        
+        // Ignorar se outra requisição já foi feita
+        if (myFetchId !== currentFetchId) return;
 
         let resultData = data || [];
         if (requiresClientFilter) {
@@ -353,7 +361,14 @@ async function carregarSolicitacoes(tentativa = 1) {
             // Paginação Client-Side
             resultData = resultData.slice(from, from + pageSize);
         } else {
-            totalRecords = from + resultData.length + (resultData.length === pageSize ? 1 : 0);
+            const hasNextPage = resultData.length > pageSize;
+            if (hasNextPage) {
+                // Remove o item extra da exibição
+                resultData.pop();
+                totalRecords = from + pageSize + 1; // Força ter mais páginas
+            } else {
+                totalRecords = from + resultData.length; // É a última página exata
+            }
         }
 
         dadosTabela = resultData;
