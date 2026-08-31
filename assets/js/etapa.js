@@ -10611,7 +10611,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
 
                     <!-- RECIBO DO AUTUADO -->
                     <div style="margin-top: 15px; font-size: 10pt;">
-                        <div style="margin-bottom: 4px;">Recebi 2° via do presente Auto de Infração do cual fico ciente;</div>
+                        <div style="margin-bottom: 4px;">Recebi 2° via do presente Auto de Infração do qual fico ciente;</div>
                         <table width="100%" cellpadding="6" cellspacing="0" border="1" style="border-collapse: collapse; border: 1.5px solid #000; font-size: 10pt;">
                             <tr>
                                 <td width="68%" valign="top" style="border: 1.5px solid #000; height: 50px;">
