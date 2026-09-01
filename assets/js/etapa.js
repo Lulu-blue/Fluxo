@@ -6160,7 +6160,7 @@ window.removerCampoImagemLegendaEdit = function (id) {
 };
 
 // ── Preencher Formulário da Aba "Editar Dados" ────────────────────────────
-function preencherFormularioEdicao(proc) {
+async function preencherFormularioEdicao(proc) {
     const setVal = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.value = val !== undefined && val !== null ? val : '';
@@ -6198,7 +6198,32 @@ function preencherFormularioEdicao(proc) {
     const containerImagensEdit = document.getElementById('lista-imagens-legenda-edit');
     if (containerImagensEdit) {
         containerImagensEdit.innerHTML = '';
-        const imgsExistentes = d.anexos?.imagens_vistoria || d.imagens_vistoria || proc.campos?.imagens_vistoria || [];
+        let imgsExistentes = d.anexos?.imagens_vistoria || d.imagens_vistoria || proc.campos?.imagens_vistoria || [];
+
+        // Se estiver vazio no JSON do processo, busca na tabela 'documentos'
+        if ((!Array.isArray(imgsExistentes) || imgsExistentes.length === 0) && proc.id) {
+            try {
+                const { data: imgDocs } = await supabaseClient
+                    .from('documentos')
+                    .select('id, url, nome_arquivo')
+                    .eq('processo_id', proc.id)
+                    .in('tipo', ['imagem', 'Imagem Vistoria'])
+                    .not('url', 'is', null);
+
+                if (imgDocs && imgDocs.length > 0) {
+                    imgsExistentes = imgDocs.map(doc => ({
+                        documento_id: doc.id,
+                        url: doc.url,
+                        dataUrl: doc.url,
+                        nome: doc.nome_arquivo || 'Imagem de Vistoria',
+                        legenda: doc.nome_arquivo || ''
+                    }));
+                }
+            } catch (eImg) {
+                console.warn('Erro ao carregar imagens da tabela documentos para edição:', eImg);
+            }
+        }
+
         if (Array.isArray(imgsExistentes) && imgsExistentes.length > 0) {
             imgsExistentes.forEach(img => {
                 window.adicionarCampoImagemLegendaEdit(img);
@@ -8433,6 +8458,31 @@ async function salvarEdicoesProcesso() {
             }
         }
 
+        // Excluir da tabela 'documentos' as imagens que foram removidas pelo usuário (clicando no X)
+        if (processoId) {
+            try {
+                const keptDocIds = imagensVistoriaSalvar.map(img => img.documento_id).filter(Boolean);
+                const { data: currentDocs } = await supabaseClient
+                    .from('documentos')
+                    .select('id')
+                    .eq('processo_id', processoId)
+                    .in('tipo', ['imagem', 'Imagem Vistoria']);
+
+                if (currentDocs && currentDocs.length > 0) {
+                    const docsToDelete = currentDocs.filter(d => !keptDocIds.includes(d.id)).map(d => d.id);
+                    if (docsToDelete.length > 0) {
+                        await supabaseClient
+                            .from('documentos')
+                            .delete()
+                            .in('id', docsToDelete);
+                        console.log(`[Imagens Edição] Removidos ${docsToDelete.length} registro(s) de imagem excluídos da tabela documentos.`);
+                    }
+                }
+            } catch (eDelDoc) {
+                console.warn('Aviso ao remover imagens excluídas da tabela documentos:', eDelDoc);
+            }
+        }
+
         const anexosSalvar = {
             ...(dadosAtuais.anexos || {}),
             imagens_vistoria: imagensVistoriaSalvar
@@ -8478,14 +8528,17 @@ async function salvarEdicoesProcesso() {
         delete novosDados.notificacao_assinada_nome;
         delete novosDados.relatorio_fiscal_url;
         delete novosDados.relatorio_fiscal_nome;
+        delete novosDados.relatorio_fiscal_html;
         delete novosDados.replica_assinada_url;
         delete novosDados.replica_assinada_nome;
         delete novosDados.anexo_replica_url;
         delete novosDados.certidao_assinada_url;
         delete novosDados.certidao_assinada_nome;
         if (novosDados.relatorio_fiscal) {
+            delete novosDados.relatorio_fiscal.url;
             delete novosDados.relatorio_fiscal.anexo_url;
             delete novosDados.relatorio_fiscal.anexo_nome;
+            delete novosDados.relatorio_fiscal.html;
         }
         if (novosDados.etapa14) {
             delete novosDados.etapa14.anexo_url;
@@ -8498,11 +8551,17 @@ async function salvarEdicoesProcesso() {
         delete processoAtual.campos.anexo_rf_assinado;
         delete processoAtual.campos.anexo_replica_assinada;
         delete processoAtual.campos.anexo_certidao_assinada;
+        delete processoAtual.campos.relatorio_fiscal_url;
+        delete processoAtual.campos.relatorio_fiscal_nome;
         if (processoAtual.campos.etapa14) {
             delete processoAtual.campos.etapa14.anexo_url;
             delete processoAtual.campos.etapa14.anexo_nome;
             delete processoAtual.campos.etapa14.anexo_auto_infracao;
         }
+
+        // Atualiza as referências em memória local
+        processoAtual.campos.imagens_vistoria = imagensVistoriaSalvar;
+        processoAtual.dados = novosDados;
 
         // 1. Atualiza tabela processos no Supabase
         const { error } = await supabaseClient
@@ -8535,6 +8594,7 @@ async function salvarEdicoesProcesso() {
             delete notificacaoAtual.dados.notificacao_assinada_nome;
             delete notificacaoAtual.dados.relatorio_fiscal_url;
             delete notificacaoAtual.dados.relatorio_fiscal_nome;
+            delete notificacaoAtual.dados.relatorio_fiscal_html;
             delete notificacaoAtual.dados.replica_assinada_url;
             delete notificacaoAtual.dados.replica_assinada_nome;
             delete notificacaoAtual.dados.anexo_replica_url;
@@ -8546,8 +8606,10 @@ async function salvarEdicoesProcesso() {
                 delete notificacaoAtual.dados.etapa14.anexo_auto_infracao;
             }
             if (notificacaoAtual.dados.relatorio_fiscal) {
+                delete notificacaoAtual.dados.relatorio_fiscal.url;
                 delete notificacaoAtual.dados.relatorio_fiscal.anexo_url;
                 delete notificacaoAtual.dados.relatorio_fiscal.anexo_nome;
+                delete notificacaoAtual.dados.relatorio_fiscal.html;
             }
 
             await supabaseClient
@@ -8559,12 +8621,31 @@ async function salvarEdicoesProcesso() {
         // 3. Atualiza tabela autos_infracao se existir registro vinculado
         try {
             if (processoId) {
-                await supabaseClient
+                const { data: autoObj } = await supabaseClient
                     .from('autos_infracao')
-                    .update({
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('processo_id', processoId);
+                    .select('dados')
+                    .eq('processo_id', processoId)
+                    .maybeSingle();
+
+                if (autoObj && autoObj.dados) {
+                    const dadosAutoNovos = { ...autoObj.dados };
+                    delete dadosAutoNovos.relatorio_fiscal_url;
+                    delete dadosAutoNovos.relatorio_fiscal_nome;
+                    delete dadosAutoNovos.relatorio_fiscal_html;
+                    if (dadosAutoNovos.relatorio_fiscal) {
+                        delete dadosAutoNovos.relatorio_fiscal.url;
+                        delete dadosAutoNovos.relatorio_fiscal.anexo_url;
+                        delete dadosAutoNovos.relatorio_fiscal.anexo_nome;
+                        delete dadosAutoNovos.relatorio_fiscal.html;
+                    }
+                    await supabaseClient
+                        .from('autos_infracao')
+                        .update({
+                            dados: dadosAutoNovos,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('processo_id', processoId);
+                }
             }
         } catch (errAuto) {
             console.warn('Aviso ao atualizar autos_infracao:', errAuto);
@@ -9070,24 +9151,16 @@ async function baixarRelatorioFiscalPdfEtapa() {
 
             // Imagens: busca no processo E na tabela documentos E no DOM
             let htmlImagens = '';
+            const listaImagens = dProc.anexos?.imagens_vistoria || dProc.imagens_vistoria || processoAtual.campos?.imagens_vistoria || [];
 
-            // Tenta pegar do DOM primeiro (se estiver na tela de geração)
-            const containerLegenda = document.getElementById('lista-imagens-legenda');
-            if (containerLegenda && containerLegenda.children.length > 0) {
-                htmlImagens = containerLegenda.innerHTML;
-            }
-
-            if (!htmlImagens) {
-                const listaImagens = dProc.anexos?.imagens_vistoria || dProc.imagens_vistoria || processoAtual.campos?.imagens_vistoria || [];
-                if (Array.isArray(listaImagens) && listaImagens.length > 0) {
-                    listaImagens.forEach(img => {
-                        const src = img.dataUrl || img.url || img.base64 || (typeof img === 'string' ? img : null);
-                        const leg = img.legenda || img.nome || '';
-                        if (src && typeof src === 'string' && (src.startsWith('data:image') || src.startsWith('http'))) {
-                            htmlImagens += `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;resize:both;overflow:hidden;max-width:100%;min-width:150px;min-height:150px;border:1px dashed #ccc;padding:4px;"><img src="${src}" style="width:100%;height:100%;object-fit:contain;display:block;"/></div>${leg ? `<p style="margin-top:5px;font-style:italic;color:#555;">${leg}</p>` : ''}</div>`;
-                        }
-                    });
-                }
+            if (Array.isArray(listaImagens) && listaImagens.length > 0) {
+                listaImagens.forEach(img => {
+                    const src = img.dataUrl || img.url || img.base64 || (typeof img === 'string' ? img : null);
+                    const leg = img.legenda || img.nome || '';
+                    if (src && typeof src === 'string' && (src.startsWith('data:image') || src.startsWith('http'))) {
+                        htmlImagens += `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;resize:both;overflow:hidden;max-width:100%;min-width:150px;min-height:150px;border:1px dashed #ccc;padding:4px;"><img src="${src}" style="width:100%;height:100%;object-fit:contain;display:block;"/></div>${leg ? `<p style="margin-top:5px;font-style:italic;color:#555;">${leg}</p>` : ''}</div>`;
+                    }
+                });
             }
 
             if (!htmlImagens && processoAtual?.id) {
@@ -9099,6 +9172,23 @@ async function baixarRelatorioFiscalPdfEtapa() {
                         });
                     }
                 } catch (eImg) { console.warn('Erro ao buscar imagens de vistoria:', eImg); }
+            }
+
+            // Fallback para DOM se houver elementos de edição ativos na tela
+            if (!htmlImagens) {
+                const containerEdit = document.getElementById('lista-imagens-legenda-edit') || document.getElementById('lista-imagens-legenda');
+                if (containerEdit) {
+                    const itens = containerEdit.querySelectorAll('.item-imagem-legenda-edit, .item-imagem-legenda');
+                    itens.forEach(item => {
+                        const imgEl = item.querySelector('img');
+                        const legEl = item.querySelector('.imagem-legenda-edit, .imagem-legenda, input[type="text"]');
+                        const src = imgEl ? imgEl.src : null;
+                        const leg = legEl ? legEl.value : '';
+                        if (src && (src.startsWith('data:image') || src.startsWith('http'))) {
+                            htmlImagens += `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;resize:both;overflow:hidden;max-width:100%;min-width:150px;min-height:150px;border:1px dashed #ccc;padding:4px;"><img src="${src}" style="width:100%;height:100%;object-fit:contain;display:block;"/></div>${leg ? `<p style="margin-top:5px;font-style:italic;color:#555;">${leg}</p>` : ''}</div>`;
+                        }
+                    });
+                }
             }
 
             const brasaoImg = window.BRASAO_SEMAC_BASE64 || (typeof BRASAO_PREFEITURA_BASE64 !== 'undefined' ? BRASAO_PREFEITURA_BASE64 : 'assets/img/brasao_semac.jpeg');
