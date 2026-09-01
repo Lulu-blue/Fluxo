@@ -459,15 +459,32 @@ const ETAPAS_POR_CARGO = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Obter ID do processo pela URL
+    // 1. Obter ID do processo pela URL (suporta ?processo=, ?id= ou ?proc=)
     const params = new URLSearchParams(window.location.search);
-    const processoId = params.get('processo');
+    let processoId = params.get('processo') || params.get('id') || params.get('proc');
 
-    if (!processoId) {
-        alert('Processo não especificado na URL.');
+    // Tentar auto-recuperar do localStorage caso a URL tenha vindo sem parâmetro
+    if (!processoId || processoId === 'undefined' || processoId === 'null' || processoId.trim() === '') {
+        const ultimoId = localStorage.getItem('ultimoProcessoId');
+        if (ultimoId && ultimoId !== 'undefined' && ultimoId !== 'null' && ultimoId.trim() !== '') {
+            processoId = ultimoId;
+            try {
+                const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?processo=' + encodeURIComponent(processoId);
+                window.history.replaceState({ path: newUrl }, '', newUrl);
+            } catch (e) {
+                console.warn('Erro ao atualizar URL no histórico:', e);
+            }
+        }
+    }
+
+    if (!processoId || processoId === 'undefined' || processoId === 'null' || processoId.trim() === '') {
+        console.warn('Processo não especificado na URL e nenhum cache encontrado.');
         window.location.href = 'painel.html';
         return;
     }
+
+    // Salva o ID atual para permitir navegação contínua e recargas de página
+    localStorage.setItem('ultimoProcessoId', processoId);
 
     // 2. Carregar perfil do usuário logado
     await carregarPerfilUsuario();
@@ -1999,15 +2016,36 @@ function mostrarModalSelecaoNotificacao(proc) {
 // ── Carregar Dados do Processo no Supabase ────────────────────────────────
 async function carregarProcessoCompleto(processoId) {
     try {
-        const { data: proc, error } = await supabaseClient
-            .from('processos')
-            .select('*, etapas(numero, nome)')
-            .eq('id', processoId)
-            .single();
+        let proc = null;
+        let error = null;
+
+        // Se for um UUID válido, busca direto por ID
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(processoId);
+        if (isUuid) {
+            const res = await supabaseClient
+                .from('processos')
+                .select('*, etapas(numero, nome)')
+                .eq('id', processoId)
+                .maybeSingle();
+            proc = res.data;
+            error = res.error;
+        }
+
+        // Fallback: se não encontrou por UUID ou se o parâmetro for número de processo
+        if (!proc) {
+            const res = await supabaseClient
+                .from('processos')
+                .select('*, etapas(numero, nome)')
+                .or(`numero_processo.eq.${processoId},id.eq.${processoId}`)
+                .maybeSingle();
+            proc = res.data;
+            if (!error) error = res.error;
+        }
 
         if (error || !proc) {
             console.error('Erro ao carregar processo:', error);
-            alert('Não foi possível carregar o processo.');
+            alert('Não foi possível carregar o processo especificado.');
+            window.location.href = 'painel.html';
             return;
         }
 
@@ -6040,6 +6078,87 @@ function preencherCabecalhoPagina(proc) {
     }
 }
 
+// ── Gerenciamento de Imagens da Vistoria com Legenda na Edição ────────────
+let contadorImagensEdit = 0;
+
+if (typeof fileToBase64 !== 'function') {
+    window.fileToBase64 = function (file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    };
+}
+
+window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
+    contadorImagensEdit++;
+    const container = document.getElementById('lista-imagens-legenda-edit');
+    if (!container) return;
+
+    const idNum = contadorImagensEdit;
+    const div = document.createElement('div');
+    div.className = 'item-imagem-legenda-edit form-group';
+    div.id = `item-imagem-legenda-edit-${idNum}`;
+    div.style = 'display: flex; flex-direction: column; gap: 8px; border: 1px solid #cbd5e1; padding: 12px; border-radius: 6px; background: #f8fafc; position: relative; margin-top: 10px;';
+
+    const initialSrc = imgObj ? (imgObj.dataUrl || imgObj.url || imgObj.base64 || '') : '';
+    const initialLeg = imgObj ? (imgObj.legenda || '') : '';
+    const initialDocId = imgObj ? (imgObj.documento_id || '') : '';
+    const initialName = imgObj ? (imgObj.nome || '') : '';
+
+    div.innerHTML = `
+        <button type="button" onclick="removerCampoImagemLegendaEdit(${idNum})" style="position: absolute; top: 8px; right: 8px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; z-index: 10;" title="Remover">✕</button>
+
+        ${initialSrc ? `
+            <div class="preview-img-container" style="margin-bottom:4px;">
+                <img src="${initialSrc}" style="max-width: 140px; max-height: 100px; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 4px; display: block;" />
+            </div>
+        ` : `<div class="preview-img-container" style="display:none; margin-bottom:4px;"><img style="max-width: 140px; max-height: 100px; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 4px;" /></div>`}
+
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Selecione a Imagem ${initialSrc ? '(ou substitua)' : ''}</label>
+            <input type="file" class="imagem-arquivo-edit form-input" accept="image/*" style="padding: 6px;" 
+                data-url="${initialSrc}" data-docid="${initialDocId}" data-nome="${initialName}">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Legenda da Imagem</label>
+            <input type="text" class="imagem-legenda-edit form-input" value="${initialLeg.replace(/"/g, '&quot;')}" placeholder="Ex: Vista frontal do lote..." style="padding: 8px;">
+        </div>
+    `;
+    container.appendChild(div);
+
+    const fileInput = div.querySelector('.imagem-arquivo-edit');
+    const previewContainer = div.querySelector('.preview-img-container');
+    const previewImg = previewContainer ? previewContainer.querySelector('img') : null;
+
+    fileInput.addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                fileInput.setAttribute('data-base64', evt.target.result);
+                if (previewImg && previewContainer) {
+                    previewImg.src = evt.target.result;
+                    previewContainer.style.display = 'block';
+                }
+            };
+            reader.readAsDataURL(file);
+        } else {
+            fileInput.removeAttribute('data-base64');
+            if (!fileInput.getAttribute('data-url') && previewContainer) {
+                previewContainer.style.display = 'none';
+            }
+        }
+    });
+};
+
+window.removerCampoImagemLegendaEdit = function (id) {
+    const el = document.getElementById(`item-imagem-legenda-edit-${id}`);
+    if (el) el.remove();
+};
+
 // ── Preencher Formulário da Aba "Editar Dados" ────────────────────────────
 function preencherFormularioEdicao(proc) {
     const setVal = (id, val) => {
@@ -6074,6 +6193,18 @@ function preencherFormularioEdicao(proc) {
     setVal('editFiscDataVistoria', fisc.data_vistoria);
     setVal('editFiscDecreto', fisc.decreto || 'não');
     setVal('editFiscDescricao', fisc.descricao);
+
+    // Preenche a lista de imagens da vistoria
+    const containerImagensEdit = document.getElementById('lista-imagens-legenda-edit');
+    if (containerImagensEdit) {
+        containerImagensEdit.innerHTML = '';
+        const imgsExistentes = d.anexos?.imagens_vistoria || d.imagens_vistoria || proc.campos?.imagens_vistoria || [];
+        if (Array.isArray(imgsExistentes) && imgsExistentes.length > 0) {
+            imgsExistentes.forEach(img => {
+                window.adicionarCampoImagemLegendaEdit(img);
+            });
+        }
+    }
 }
 
 // ── Gera o HTML do bloco de uma única notificação/infração ────────────────
@@ -8235,8 +8366,82 @@ async function salvarEdicoesProcesso() {
 
         const dadosAtuais = processoAtual?.dados || {};
 
+        // Processa imagens da vistoria com legenda da aba Editar Dados
+        const containerImagensEdit = document.getElementById('lista-imagens-legenda-edit');
+        const imagensVistoriaSalvar = [];
+
+        if (containerImagensEdit) {
+            const itensEdit = containerImagensEdit.querySelectorAll('.item-imagem-legenda-edit');
+            for (let i = 0; i < itensEdit.length; i++) {
+                const item = itensEdit[i];
+                const fileInput = item.querySelector('.imagem-arquivo-edit');
+                const legInput = item.querySelector('.imagem-legenda-edit');
+
+                const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+                const newBase64 = fileInput ? fileInput.getAttribute('data-base64') : null;
+                const existingUrl = fileInput ? fileInput.getAttribute('data-url') : null;
+                const existingDocId = fileInput ? fileInput.getAttribute('data-docid') : null;
+                const existingName = fileInput ? fileInput.getAttribute('data-nome') : null;
+                const legenda = legInput ? legInput.value.trim() : '';
+
+                if (file) {
+                    try {
+                        const imgFinalUrl = newBase64 || await fileToBase64(file);
+                        let docId = null;
+
+                        if (processoId) {
+                            try {
+                                const { data: docCriado } = await supabaseClient.from('documentos').insert([{
+                                    processo_id: processoId,
+                                    etapa_id: processoAtual?.etapa_atual_id || 1,
+                                    tipo: 'imagem',
+                                    nome_arquivo: file.name,
+                                    url: imgFinalUrl,
+                                    gerado_automaticamente: false,
+                                    usuario_id: perfilAtual?.id || null
+                                }]).select();
+                                if (docCriado && docCriado.length > 0) {
+                                    docId = docCriado[0].id;
+                                }
+                            } catch (eDoc) {
+                                console.warn('Erro ao cadastrar imagem na tabela documentos:', eDoc);
+                            }
+                        }
+
+                        imagensVistoriaSalvar.push({
+                            nome: file.name,
+                            tipo: file.type,
+                            documento_id: docId,
+                            url: imgFinalUrl,
+                            dataUrl: imgFinalUrl,
+                            legenda: legenda,
+                            data_upload: new Date().toISOString()
+                        });
+                    } catch (eFile) {
+                        console.warn('Erro ao processar imagem da vistoria:', eFile);
+                    }
+                } else if (existingUrl) {
+                    imagensVistoriaSalvar.push({
+                        nome: existingName || 'Imagem de Vistoria',
+                        documento_id: existingDocId || null,
+                        url: existingUrl,
+                        dataUrl: existingUrl,
+                        legenda: legenda,
+                        data_upload: new Date().toISOString()
+                    });
+                }
+            }
+        }
+
+        const anexosSalvar = {
+            ...(dadosAtuais.anexos || {}),
+            imagens_vistoria: imagensVistoriaSalvar
+        };
+
         const novosDados = {
             ...dadosAtuais,
+            anexos: anexosSalvar,
+            imagens_vistoria: imagensVistoriaSalvar,
             contribuinte: {
                 ...dadosAtuais.contribuinte,
                 nome: getVal('editContNome'),
@@ -8314,6 +8519,11 @@ async function salvarEdicoesProcesso() {
         if (notificacaoAtual?.id) {
             notificacaoAtual.dados = {
                 ...(notificacaoAtual.dados || {}),
+                anexos: {
+                    ...(notificacaoAtual.dados?.anexos || {}),
+                    imagens_vistoria: imagensVistoriaSalvar
+                },
+                imagens_vistoria: imagensVistoriaSalvar,
                 contribuinte: novosDados.contribuinte,
                 imovel: novosDados.imovel,
                 fiscal: {

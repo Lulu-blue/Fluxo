@@ -57,27 +57,85 @@ function obterNotificacoesProcesso(item) {
 }
 
 function numeroEtapaNotificacao(n) {
-    if (n.etapas?.numero) return parseInt(n.etapas.numero, 10);
-    if (n.etapa_atual_id) {
-        // Fallback: se não vier o join de etapas, assume mapeamento direto (em geral id == numero)
-        return parseInt(n.etapa_atual_id, 10);
+    if (!n) return 1;
+
+    // 1. Tentar n.etapa_atual_id (chave int4 da etapa)
+    if (n.etapa_atual_id !== undefined && n.etapa_atual_id !== null) {
+        const num = parseInt(n.etapa_atual_id, 10);
+        if (!isNaN(num) && num > 0) return num;
     }
-    return parseInt(n.etapa_atual || 2, 10);
+
+    // 2. Tentar objeto da junção etapas
+    const etapaObj = Array.isArray(n.etapas) ? n.etapas[0] : n.etapas;
+    if (etapaObj?.numero !== undefined && etapaObj?.numero !== null) {
+        const num = parseInt(etapaObj.numero, 10);
+        if (!isNaN(num) && num > 0) return num;
+    }
+    if (etapaObj?.id !== undefined && etapaObj?.id !== null) {
+        const num = parseInt(etapaObj.id, 10);
+        if (!isNaN(num) && num > 0) return num;
+    }
+
+    // 3. Fallbacks
+    if (n.etapa_atual !== undefined && n.etapa_atual !== null) {
+        const num = parseInt(n.etapa_atual, 10);
+        if (!isNaN(num) && num > 0) return num;
+    }
+
+    return 2;
+}
+
+function extrairEtapaNumero(proc) {
+    if (!proc) return 1;
+
+    // 1. Tentar proc.etapa_atual_id (chave int4 da etapa)
+    if (proc.etapa_atual_id !== undefined && proc.etapa_atual_id !== null) {
+        const num = parseInt(proc.etapa_atual_id, 10);
+        if (!isNaN(num) && num > 0) return num;
+    }
+
+    // 2. Tentar objeto da junção etapas
+    const etapaObj = Array.isArray(proc.etapas) ? proc.etapas[0] : proc.etapas;
+    if (etapaObj?.numero !== undefined && etapaObj?.numero !== null) {
+        const num = parseInt(etapaObj.numero, 10);
+        if (!isNaN(num) && num > 0) return num;
+    }
+    if (etapaObj?.id !== undefined && etapaObj?.id !== null) {
+        const num = parseInt(etapaObj.id, 10);
+        if (!isNaN(num) && num > 0) return num;
+    }
+
+    // 3. Fallbacks
+    if (proc.etapa_atual !== undefined && proc.etapa_atual !== null) {
+        const num = parseInt(proc.etapa_atual, 10);
+        if (!isNaN(num) && num > 0) return num;
+    }
+
+    const d = proc.dados || {};
+    const camposEtapa = [d.etapa_atual_id, d.etapa_atual, d.etapa, d.etapa_id, d.etapaAtual, d.etapa_numero];
+    for (const val of camposEtapa) {
+        if (val !== undefined && val !== null) {
+            const num = parseInt(val, 10);
+            if (!isNaN(num) && num > 0) return num;
+        }
+    }
+
+    return 1;
 }
 
 function calcularEtapaProcesso(item) {
     const notificacoes = obterNotificacoesProcesso(item);
     if (!notificacoes || notificacoes.length === 0) {
-        return parseInt(item?.etapas?.numero || item?.etapa_atual_id || 1, 10);
+        return extrairEtapaNumero(item);
     }
 
     const ativas = notificacoes.filter(n => n.status !== 'atendida');
-    if (ativas.length === 0) return null;
+    if (ativas.length === 0) return extrairEtapaNumero(item);
 
     return ativas.reduce((maior, n) => {
         const etapa = numeroEtapaNotificacao(n);
         return etapa > maior ? etapa : maior;
-    }, 0) || parseInt(item?.etapas?.numero || item?.etapa_atual_id || 1, 10);
+    }, 0) || extrairEtapaNumero(item);
 }
 
 const ETAPAS_POR_CARGO = {
@@ -85,6 +143,7 @@ const ETAPAS_POR_CARGO = {
     'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
     'Administrativo de Posturas': [16, 17],
     'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
+    'Gerente de Posturas': [11, 12, 15, 17, 22, 25, 29, 30],
     'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Secretário': [24],
     'Jurídico': [23],
@@ -118,23 +177,39 @@ function obterCargoResponsavelPelaEtapa(etapaNum) {
 function itemPertenceAoCargo(item, cargoAlvo) {
     if (!cargoAlvo) return true;
     const cargoNorm = normalizarCargo(cargoAlvo);
-    const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || [];
+    const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || ETAPAS_POR_CARGO[cargoAlvo] || ETAPAS_POR_CARGO['Gerente'] || [];
     if (etapasPermitidas.length === 0) return true;
 
+    // 1. Verificar se a etapa calculada do processo pertence ao cargo
+    const etapaCalculada = calcularEtapaProcesso(item);
+    if (etapasPermitidas.includes(etapaCalculada)) return true;
+
+    // 2. Verificar se a etapa bruta do processo pertence ao cargo
+    const etapaProcBruta = extrairEtapaNumero(item);
+    if (etapasPermitidas.includes(etapaProcBruta)) return true;
+
+    // 3. Verificar se alguma notificação do processo pertence ao cargo
     const notificacoes = obterNotificacoesProcesso(item);
     if (notificacoes && notificacoes.length > 0) {
-        const ativas = notificacoes.filter(n => n.status !== 'atendida');
-        const targetNotifs = ativas.length > 0 ? ativas : notificacoes;
-        return targetNotifs.some(n => etapasPermitidas.includes(numeroEtapaNotificacao(n)));
-    } else {
-        const etapaProc = parseInt(item.etapas?.numero || item.etapa_atual_id || 1, 10);
-        return etapasPermitidas.includes(etapaProc);
+        return notificacoes.some(n => etapasPermitidas.includes(numeroEtapaNotificacao(n)));
     }
+
+    return false;
 }
 
 function montarLinkEtapa(item) {
-    return `etapa.html?processo=${item.id}`;
+    const id = item?.id || item?.processo_id || item?.numero_processo || '';
+    return `etapa.html?processo=${id}`;
 }
+
+window.abrirProcessoAuto = function(id) {
+    if (id && String(id).trim() !== '' && String(id) !== 'undefined') {
+        localStorage.setItem('ultimoProcessoId', id);
+        window.location.href = `etapa.html?processo=${id}`;
+    } else {
+        window.location.href = 'painel.html';
+    }
+};
 
 // ── Estado da aplicação ─────────────────────────────────────
 let currentPage = 1;
@@ -298,8 +373,7 @@ async function carregarSolicitacoes(tentativa = 1) {
                     id,
                     status,
                     etapa_atual_id,
-                    numero,
-                    dados
+                    numero
                 )
             `);
 
@@ -339,6 +413,8 @@ async function carregarSolicitacoes(tentativa = 1) {
 
         if (!requiresClientFilter) {
             query = query.range(from, to);
+        } else {
+            query = query.limit(100);
         }
 
         const { data, error } = await query
@@ -423,7 +499,7 @@ function renderizarTabela(dados, cargoFiltro) {
         const diasVenc = calcularDiasVencimento(item.dados?.data_final);
         const profileObj = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
         const nomeFiscal = profileObj?.nome || item.dados?.fiscal?.nome || item.dados?.fiscal_nome || item.dados?.fiscal?.fiscNome || '—';
-        const etapaNumero = item.status === 'cancelado' ? '—' : (calcularEtapaProcesso(item) || '—');
+        const etapaNumero = item.status === 'cancelado' ? '—' : (extrairEtapaNumero(item) || '—');
         const etapaNome = item.status === 'cancelado' ? 'Cancelado' : (etapaNumero === '—' ? 'Concluído' : (item.etapas?.nome || ETAPAS_MAP[etapaNumero] || '—'));
         const statusClass = item.status || 'em_aberto';
 
@@ -457,7 +533,7 @@ function renderizarTabela(dados, cargoFiltro) {
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
             </td>
             <td class="col-acoes">
-                <button type="button" class="btn-abrir-processo" onclick="window.location.href='${linkEtapa}'" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo">
+                <button type="button" class="btn-abrir-processo" onclick="window.abrirProcessoAuto('${item.id || item.processo_id || item.numero_processo}')" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Abrir
                 </button>
@@ -467,8 +543,8 @@ function renderizarTabela(dados, cargoFiltro) {
         tr.style.borderLeft = `4px solid ${STATUS_COLORS[statusClass] || '#94a3b8'}`;
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', (e) => {
-            if (!e.target.closest('button')) {
-                window.location.href = linkEtapa;
+            if (!e.target.closest('button') && !e.target.closest('input')) {
+                window.abrirProcessoAuto(item.id || item.processo_id || item.numero_processo);
             }
         });
 
@@ -617,7 +693,23 @@ function truncar(str, max) {
 
 // ── Loading / Paginação / Contador ──────────────────────────
 function mostrarLoading(show) {
-    loadingState.style.display = show ? 'flex' : 'none';
+    if (loadingState) loadingState.style.display = show ? 'flex' : 'none';
+
+    const btnPesquisar = document.getElementById('btnAplicarFiltros');
+    if (btnPesquisar) {
+        btnPesquisar.disabled = show;
+        if (show) {
+            if (!btnPesquisar.dataset.originalContent) {
+                btnPesquisar.dataset.originalContent = btnPesquisar.innerHTML;
+            }
+            btnPesquisar.innerHTML = `
+                <div class="spinner" style="width: 14px; height: 14px; border-width: 2px; border-top-color: #ffffff; border-right-color: transparent; margin-right: 6px; display: inline-block; vertical-align: middle;"></div>
+                <span>Carregando...</span>
+            `;
+        } else if (btnPesquisar.dataset.originalContent) {
+            btnPesquisar.innerHTML = btnPesquisar.dataset.originalContent;
+        }
+    }
 }
 
 function atualizarPaginacao() {
@@ -658,6 +750,8 @@ function bindEventos() {
         document.getElementById('filtroEtapa').value = '';
         document.getElementById('filtroDescricao').value = '';
         document.getElementById('filtroCriador').value = '';
+        const elResp = document.getElementById('filtroResponsavel');
+        if (elResp) elResp.value = '';
         currentPage = 1;
         carregarSolicitacoes();
     });

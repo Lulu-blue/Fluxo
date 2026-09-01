@@ -11,6 +11,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap"
         rel="stylesheet">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
     <!-- Estilos do Painel -->
     <link rel="stylesheet" href="assets/css/painel.css">
     <style>
@@ -1041,6 +1042,13 @@
                             <div class="form-group" style="margin-top:12px;">
                                 <label>Descrição / Relato da Fiscalização</label>
                                 <textarea id="editFiscDescricao" class="form-input" rows="3"></textarea>
+                            </div>
+                            <div class="form-group" style="margin-top:16px;">
+                                <label style="font-weight:600;">Imagens da Vistoria com Legenda <span class="optional" style="font-size:0.8rem; color:#64748b; font-weight:normal;">(opcional)</span></label>
+                                <div id="container-imagens-legenda-edit" style="display: flex; flex-direction: column; gap: 10px; margin-top:6px;">
+                                    <button type="button" class="btn-secondary" style="align-self: flex-start; padding: 6px 14px; font-size: 0.85rem; border-radius: 6px; cursor: pointer;" onclick="adicionarCampoImagemLegendaEdit()">+ Adicionar Imagem e Legenda</button>
+                                    <div id="lista-imagens-legenda-edit" style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;"></div>
+                                </div>
                             </div>
                         </div>
 
