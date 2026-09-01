@@ -177,6 +177,7 @@ function obterCargoResponsavelPelaEtapa(etapaNum) {
 function itemPertenceAoCargo(item, cargoAlvo) {
     if (!cargoAlvo) return true;
     const cargoNorm = normalizarCargo(cargoAlvo);
+    if (cargoNorm === 'Dev') return true;
     const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || ETAPAS_POR_CARGO[cargoAlvo] || ETAPAS_POR_CARGO['Gerente'] || [];
     if (etapasPermitidas.length === 0) return true;
 

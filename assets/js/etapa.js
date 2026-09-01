@@ -1367,7 +1367,7 @@ function renderizarFormularioDinamico(etapaNum) {
         const defesaText15 = valDefesaProc15.toLowerCase() === 'sim' ? 'Autuado apresentou defesa' : 'Autuado não apresentou defesa';
 
         const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-        const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+        const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
 
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:28px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
@@ -12012,7 +12012,7 @@ window.carregarAnexosMultaEtapa15 = async function () {
         || (notificacaoAtual?.dados?.etapa15?.multa_url ? { url: notificacaoAtual.dados.etapa15.multa_url, nome_arquivo: notificacaoAtual.dados.etapa15.multa_nome } : null);
 
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
 
     if (docMulta && (docMulta.url || docMulta.base64 || docMulta.dataUrl)) {
         const urlMulta = docMulta.url || docMulta.dataUrl || docMulta.base64;
@@ -12059,7 +12059,7 @@ window.carregarAnexosMultaEtapa15 = async function () {
 
 window.salvarMultaEtapa15 = async function () {
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
     if (!ehGerente) {
         alert('⚠️ Apenas o Gerente de Fiscalização tem permissão para anexar a Multa nesta etapa.');
         return false;
@@ -12099,7 +12099,7 @@ window.salvarMultaEtapa15 = async function () {
         // 2. Salvar na tabela 'documentos' no Supabase usando colunas padrão da tabela (processo_id, notificacao_id, etapa_id, etc.)
         const docPayload = {
             processo_id: processoAtual?.id || null,
-            notificacao_id: notificacaoAtual?.id || docIdAI || null,
+            notificacao_id: (notificacaoAtual?.id && typeof notificacaoAtual.id === 'string' && notificacaoAtual.id.length > 20) ? notificacaoAtual.id : null,
             etapa_id: 15,
             tipo: 'Multa',
             nome_arquivo: file.name,
@@ -12109,10 +12109,22 @@ window.salvarMultaEtapa15 = async function () {
 
         let multaDocId = null;
         if (typeof supabaseClient !== 'undefined') {
-            const { data: resInsert, error: errInsert } = await supabaseClient
+            let { data: resInsert, error: errInsert } = await supabaseClient
                 .from('documentos')
                 .insert([docPayload])
                 .select('id');
+
+            // Fallback se notificacao_id violar Foreign Key constraint
+            if (errInsert && errInsert.code === '23503' && errInsert.message?.includes('notificacao_id')) {
+                console.warn('[SALVAR MULTA] notificacao_id não encontrado na tabela notificacoes, tentando salvar com notificacao_id = null');
+                docPayload.notificacao_id = null;
+                const retry = await supabaseClient
+                    .from('documentos')
+                    .insert([docPayload])
+                    .select('id');
+                resInsert = retry.data;
+                errInsert = retry.error;
+            }
 
             if (errInsert) {
                 console.warn('[SALVAR MULTA] Erro ao inserir na tabela documentos:', errInsert);
@@ -12150,6 +12162,37 @@ window.salvarMultaEtapa15 = async function () {
             }
         }
 
+        // 4. Salva a referência do id da multa na tabela 'autos_infracao'
+        if (typeof supabaseClient !== 'undefined' && processoAtual?.id) {
+            try {
+                let queryAI = supabaseClient.from('autos_infracao').select('id, dados');
+                if (notificacaoAtual?.id) {
+                    queryAI = queryAI.or(`processo_id.eq.${processoAtual.id},notificacao_id.eq.${notificacaoAtual.id}`);
+                } else {
+                    queryAI = queryAI.eq('processo_id', processoAtual.id);
+                }
+                const { data: aiList } = await queryAI;
+
+                if (aiList && aiList.length > 0) {
+                    for (const aiRec of aiList) {
+                        const aiDadosNovos = {
+                            ...(aiRec.dados || {}),
+                            multa_id: multaDocId,
+                            multa_url: dataUrl,
+                            multa_nome: file.name
+                        };
+                        await supabaseClient
+                            .from('autos_infracao')
+                            .update({ dados: aiDadosNovos, updated_at: new Date().toISOString() })
+                            .eq('id', aiRec.id);
+                    }
+                    console.log('[SALVAR MULTA] Tabela autos_infracao vinculada com sucesso ao id da multa:', multaDocId);
+                }
+            } catch (eAiUpd) {
+                console.warn('[SALVAR MULTA] Aviso ao vincular multa na tabela autos_infracao:', eAiUpd);
+            }
+        }
+
         ocultarCarregamento();
         alert('✅ Documento da Multa anexado e vinculado ao Auto de Infração com sucesso!');
         await window.carregarAnexosMultaEtapa15();
@@ -12164,7 +12207,7 @@ window.salvarMultaEtapa15 = async function () {
 
 window.removerMultaEtapa15 = async function () {
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
     if (!ehGerente) {
         alert('⚠️ Apenas o Gerente pode remover/substituir o documento de Multa.');
         return;
@@ -12182,6 +12225,28 @@ window.removerMultaEtapa15 = async function () {
             if (notificacaoAtual) await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
             if (processoAtual?.id) {
                 await supabaseClient.from('documentos').delete().eq('processo_id', processoAtual.id).eq('tipo', 'Multa');
+
+                // Limpa referência da multa da tabela autos_infracao
+                try {
+                    const { data: aiList } = await supabaseClient
+                        .from('autos_infracao')
+                        .select('id, dados')
+                        .eq('processo_id', processoAtual.id);
+                    if (aiList && aiList.length > 0) {
+                        for (const aiRec of aiList) {
+                            const aiDados = aiRec.dados || {};
+                            delete aiDados.multa_id;
+                            delete aiDados.multa_url;
+                            delete aiDados.multa_nome;
+                            await supabaseClient
+                                .from('autos_infracao')
+                                .update({ dados: aiDados, updated_at: new Date().toISOString() })
+                                .eq('id', aiRec.id);
+                        }
+                    }
+                } catch (eAiRem) {
+                    console.warn('Aviso ao remover multa de autos_infracao:', eAiRem);
+                }
             }
         }
 
@@ -12197,7 +12262,7 @@ window.avancarEtapa15 = async function () {
     if (!processoAtual) return;
 
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
     if (!ehGerente) {
         alert('⚠️ Apenas o Gerente de Fiscalização tem permissão para avançar e concluir a Etapa 15.');
         return;
@@ -12238,8 +12303,8 @@ window.avancarEtapa15 = async function () {
         return;
     }
 
-    mostrarCarregamento('Concluindo processo...');
-    await moverProcessoParaEtapa(33, 'Processo Concluído pelo Gerente com Multa Anexada');
+    mostrarCarregamento('Avançando para Etapa 16 (Retorno do AR)...');
+    await moverProcessoParaEtapa(16, 'Processo enviado pelo Gerente para a Etapa 16 (Retorno do AR) com Multa Anexada');
 };
 
 // ── Helper para abrir Base64 no Chrome de forma segura ──

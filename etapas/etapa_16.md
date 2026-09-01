@@ -10,7 +10,7 @@ Essa etapa é quando o Fiscal de posturas insere a Notificação assinada. O fis
 | Retorno sem sucesso  feito 3 vezes| → Etapa 17|
 | Data de recebimento pelo Proprietario preenchida
  - Se for logo depois da etapa 1| → Etapa 2|
- - Se for logo depois da etapa 14| → Etapa 18|
+ - Se tiver passado pela etapa 14| → Etapa 18|
 
 ## Campos da Tela
 Agora apos o fiscal avançar, essa etapa vai para um outro cargo, o Administrativo de Posturas.
