@@ -67,6 +67,14 @@
                         <!-- Notificações -->
                     </div>
                 </div>
+                <a href="#" id="tab-apuracao" data-page="apuracao" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span>Apuração de dados</span>
+                </a>
                 <a href="#" data-page="configuracoes">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="3" />
@@ -316,6 +324,167 @@
                     <div id="msgFimRegistros" style="display: none; color: #475569; font-size: 0.9rem; font-weight: 600; background: #f8fafc; padding: 12px 24px; border-radius: 20px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
                         ✨ Todos os registros foram carregados! Total: <span id="totalSumCount" style="color: #0f172a; font-weight: 800;">0</span> solicitações.
                     </div>
+                </div>
+            </main>
+
+            <!-- Seção de Apuração de Dados Executiva -->
+            <main class="painel-content" id="secao-apuracao" style="display: none; padding: 20px;">
+                <div class="apuracao-wrapper" style="max-width: 1300px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
+                    
+                    <!-- Header & Filtros da Apuração -->
+                    <div style="background: white; border-radius: 16px; padding: 20px 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #F78C26 0%, #d97706 100%); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 12px rgba(247, 140, 38, 0.3);">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                                </div>
+                                <div>
+                                    <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;">Apuração de Dados</h2>
+                                    <p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #64748b;">Relatório Gerencial de Desempenho dos Fiscais de Postura e Arrecadação de Multas</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Controles e Filtros -->
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px 12px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                                <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">Início:</label>
+                                <input type="date" id="apuracaoDataInicio" style="border: none; background: transparent; font-size: 0.82rem; font-weight: 600; color: #1e293b; outline: none;">
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px; background: #f8fafc; padding: 6px 12px; border-radius: 10px; border: 1px solid #cbd5e1;">
+                                <label style="font-size: 0.8rem; font-weight: 700; color: #475569;">Fim:</label>
+                                <input type="date" id="apuracaoDataFim" style="border: none; background: transparent; font-size: 0.82rem; font-weight: 600; color: #1e293b; outline: none;">
+                            </div>
+                            <button type="button" id="btnFiltrarApuracao" onclick="window.carregarEExibirApuracaoDados()" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 10px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(37,99,235,0.25);">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                                Filtrar / Atualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 4 CARDS DE KPI DE ALTO IMPACTO -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
+                        
+                        <!-- KPI 1: Total de Processos -->
+                        <div style="background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid #e2e8f0; position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px;">
+                            <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(37, 99, 235, 0.1); color: #2563eb; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Valor Total de Processos</span>
+                                <h3 id="kpiApuracaoTotalProcessos" style="margin: 4px 0 0 0; font-size: 1.8rem; font-weight: 800; color: #0f172a;">--</h3>
+                                <span style="font-size: 0.75rem; color: #16a34a; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;">
+                                    • Total de Processos Registrados
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- KPI 2: Valor Total de Multas Geradas -->
+                        <div style="background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid #e2e8f0; position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px;">
+                            <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(16, 185, 129, 0.1); color: #059669; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Total de Multas Geradas</span>
+                                <h3 id="kpiApuracaoTotalMultas" style="margin: 4px 0 0 0; font-size: 1.65rem; font-weight: 800; color: #059669;">R$ 0,00</h3>
+                                <span style="font-size: 0.75rem; color: #059669; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;">
+                                    • Soma acumulada de multas
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- KPI 3: Média de Processos por Fiscal -->
+                        <div style="background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid #e2e8f0; position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px;">
+                            <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(139, 92, 246, 0.1); color: #7c3aed; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Fiscais Ativos</span>
+                                <h3 id="kpiApuracaoTotalFiscais" style="margin: 4px 0 0 0; font-size: 1.8rem; font-weight: 800; color: #0f172a;">--</h3>
+                                <span id="subkpiMediaProc" style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">
+                                    • Média: 0 proc/fiscal
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- KPI 4: Multa Média por Fiscal -->
+                        <div style="background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid #e2e8f0; position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px;">
+                            <div style="width: 52px; height: 52px; border-radius: 14px; background: rgba(247, 140, 38, 0.1); color: #F78C26; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v12"/></svg>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Média Multa / Fiscal</span>
+                                <h3 id="kpiApuracaoMediaMultaFiscal" style="margin: 4px 0 0 0; font-size: 1.65rem; font-weight: 800; color: #d97706;">R$ 0,00</h3>
+                                <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">
+                                    • Média por Fiscal de Postura
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ÁREA DE GRÁFICOS (2 Colunas com Charts em Canvas) -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 24px;">
+                        
+                        <!-- Gráfico 1: Processos por Fiscal -->
+                        <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                <div>
+                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">📋 Processos por Fiscal de Postura</h3>
+                                    <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Quantidade total de processos instaurados/atribuídos a cada fiscal</p>
+                                </div>
+                            </div>
+                            <div style="position: relative; height: 320px; width: 100%;">
+                                <canvas id="chartProcessosPorFiscal"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Gráfico 2: Valor Total de Multas por Fiscal -->
+                        <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                <div>
+                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">💰 Valor Total de Multas Geradas por Fiscal (R$)</h3>
+                                    <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Soma em Reais das autuações/multas por fiscal de postura</p>
+                                </div>
+                            </div>
+                            <div style="position: relative; height: 320px; width: 100%;">
+                                <canvas id="chartMultasPorFiscal"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TABELA DETALHADA DE APURAÇÃO POR FISCAL -->
+                    <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                            <div>
+                                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">👩‍✈️ Detalhamento Individual por Fiscal de Postura</h3>
+                                <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Produtividade acumulada e valores gerados por fiscal no período</p>
+                            </div>
+                            <button type="button" onclick="window.exportarApuracaoCSV()" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Exportar Relatório CSV
+                            </button>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.88rem; color: #1e293b;">
+                                <thead>
+                                    <tr style="background: #f8fafc; color: #475569; text-align: left; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; border-top-left-radius: 8px;">Fiscal de Postura</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Total Processos</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Multas Geradas</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">Total Multas (R$)</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">% da Arrecadação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaApuracaoFiscaisBody">
+                                    <tr>
+                                        <td colspan="5" style="padding: 24px; text-align: center; color: #64748b;">Carregando dados da apuração...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
             </main>
 
@@ -962,6 +1131,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="assets/js/supabase-config.js"></script>
     <script src="assets/js/cloudinary-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/solicitacoes.js"></script>
     <script src="assets/js/nova-solicitacao.js"></script>
     <script src="assets/js/chat_juridico.js"></script>

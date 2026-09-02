@@ -214,7 +214,7 @@ window.abrirProcessoAuto = function(id) {
 
 // ── Estado da aplicação ─────────────────────────────────────
 let currentOffset = 0;
-const BATCH_SIZE = 1000;
+const BATCH_SIZE = 50;
 let hasMoreRecords = true;
 let isFetchingMore = false;
 let currentUserId = null;
@@ -229,21 +229,65 @@ const resultsCount = document.getElementById('resultsCount');
 
 // ── Inicialização ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-    await verificarSessao();
     limparAutofillInvasivoFiltros();
-    await carregarSolicitacoes();
     bindEventos();
+    
+    // Primeiro valida a sessão de forma segura
+    const sessaoValida = await verificarSessao();
+    if (sessaoValida) {
+        await carregarSolicitacoes();
+    }
+
     setTimeout(limparAutofillInvasivoFiltros, 300);
 });
+
+// ── Auxiliar para limpar tokens de autenticação corrompidos ────
+function limparTokensAutenticacao() {
+    try {
+        sessionStorage.removeItem('currentUserProfile');
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth-token'))) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+        console.warn('Erro ao limpar tokens:', e);
+    }
+}
 
 // ── Verificar sessão ativa ──────────────────────────────────
 async function verificarSessao() {
     try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-            window.location.href = 'index.html';
-            return;
+        // Tentar preencher com perfil do cache para renderização instantânea
+        const cached = sessionStorage.getItem('currentUserProfile');
+        if (cached) {
+            try {
+                const uCached = JSON.parse(cached);
+                if (uCached && uCached.id) {
+                    currentUserId = uCached.id;
+                    window.currentUserProfile = uCached;
+                    window.tabelaPerfilAlvo = 'profiles';
+                    preencherDadosInterfaceUsuario(uCached);
+                }
+            } catch (e) {}
         }
+
+        const authRes = await supabaseClient.auth.getSession().catch(err => {
+            console.warn('Falha ao comunicar com Auth Supabase (CORS/Network/522):', err);
+            return { data: { session: null }, error: err };
+        });
+
+        const session = authRes?.data?.session;
+        if (authRes?.error || !session) {
+            console.warn('Sessão expirada ou inválida. Redirecionando para login...');
+            limparTokensAutenticacao();
+            window.location.href = 'index.html';
+            return false;
+        }
+
         // Buscar dados do usuário na tabela profiles
         let { data: usuario } = await supabaseClient
             .from('profiles')
@@ -301,7 +345,6 @@ async function verificarSessao() {
             if (criado) {
                 usuario = criado;
             } else {
-                // Caso não retorne por inserção, cria objeto em memória
                 usuario = novoPerfil;
             }
         }
@@ -310,36 +353,51 @@ async function verificarSessao() {
             currentUserId = usuario.id || session.user.id;
             window.currentUserProfile = usuario;
             window.tabelaPerfilAlvo = 'profiles';
-            const nomeExibicao = usuario.nome || 'Usuário';
-            const elUserName = document.getElementById('userName');
-            if (elUserName) elUserName.textContent = nomeExibicao;
-
-            const elMatricula = document.getElementById('userMatricula');
-            if (elMatricula) elMatricula.textContent = "Matrícula: " + (usuario.matricula || '---');
-
-            // Aplicar avatar customizado ou iniciais
-            aplicarAvatarUsuario(usuario, nomeExibicao);
-
-            // Preencher campos da aba Configurações
-            const pNome = document.getElementById('perfil-nome');
-            const pEmail = document.getElementById('perfil-email');
-            const pCpf = document.getElementById('perfil-cpf');
-            const pMatricula = document.getElementById('perfil-matricula');
-            const pCargo = document.getElementById('perfil-cargo');
-            if (pNome) pNome.value = nomeExibicao;
-            if (pEmail) pEmail.value = usuario.email || session.user.email || '';
-            if (pCpf) pCpf.value = usuario.cpf || '';
-            if (pMatricula) pMatricula.value = usuario.matricula || '';
-            if (pCargo) pCargo.value = usuario.cargo || 'Fiscal de Postura';
-
-            // Atualizar o banner no topo da aba de configurações se já estiver no DOM
-            const nomeHeader = document.getElementById('perfilHeaderNome');
-            const cargoHeader = document.getElementById('perfilHeaderCargo');
-            if (nomeHeader) nomeHeader.textContent = nomeExibicao;
-            if (cargoHeader) cargoHeader.textContent = usuario.cargo || 'Fiscal de Postura';
+            sessionStorage.setItem('currentUserProfile', JSON.stringify(usuario));
+            preencherDadosInterfaceUsuario(usuario);
         }
+        return true;
     } catch (err) {
         console.error('Erro ao verificar sessão:', err);
+        limparTokensAutenticacao();
+        window.location.href = 'index.html';
+        return false;
+    }
+}
+
+function preencherDadosInterfaceUsuario(usuario) {
+    const nomeExibicao = usuario.nome || 'Usuário';
+    const elUserName = document.getElementById('userName');
+    if (elUserName) elUserName.textContent = nomeExibicao;
+
+    const elMatricula = document.getElementById('userMatricula');
+    if (elMatricula) elMatricula.textContent = "Matrícula: " + (usuario.matricula || '---');
+
+    // Aplicar avatar customizado ou iniciais
+    if (typeof aplicarAvatarUsuario === 'function') {
+        aplicarAvatarUsuario(usuario, nomeExibicao);
+    }
+
+    // Preencher campos da aba Configurações
+    const pNome = document.getElementById('perfil-nome');
+    const pEmail = document.getElementById('perfil-email');
+    const pCpf = document.getElementById('perfil-cpf');
+    const pMatricula = document.getElementById('perfil-matricula');
+    const pCargo = document.getElementById('perfil-cargo');
+    if (pNome) pNome.value = nomeExibicao;
+    if (pEmail) pEmail.value = usuario.email || '';
+    if (pCpf) pCpf.value = usuario.cpf || '';
+    if (pMatricula) pMatricula.value = usuario.matricula || '';
+    if (pCargo) pCargo.value = usuario.cargo || 'Fiscal de Postura';
+
+    const nomeHeader = document.getElementById('perfilHeaderNome');
+    const cargoHeader = document.getElementById('perfilHeaderCargo');
+    if (nomeHeader) nomeHeader.textContent = nomeExibicao;
+    if (cargoHeader) cargoHeader.textContent = usuario.cargo || 'Fiscal de Postura';
+
+    // Verificar visibilidade da aba Apuração de Dados (Secretário(a) e Dev)
+    if (typeof verificarEExibirTabApuracao === 'function') {
+        verificarEExibirTabApuracao(usuario);
     }
 }
 
@@ -377,16 +435,6 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
                 fiscal_id,
                 profiles:fiscal_id (
                     nome
-                ),
-                etapas (
-                    numero,
-                    nome
-                ),
-                notificacoes (
-                    id,
-                    status,
-                    etapa_atual_id,
-                    numero
                 )
             `);
 
@@ -853,9 +901,42 @@ function bindEventos() {
     });
 
     // Logout
-    document.getElementById('btnLogout').addEventListener('click', async () => {
-        await supabaseClient.auth.signOut();
-        window.location.href = 'index.html';
+    const btnLogout = document.getElementById('btnLogout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'index.html';
+        });
+    }
+
+    // Eventos do Filtro de Apuração de Dados
+    const btnFiltrarAp = document.getElementById('btnFiltrarApuracao');
+    if (btnFiltrarAp) {
+        btnFiltrarAp.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (typeof window.carregarEExibirApuracaoDados === 'function') {
+                window.carregarEExibirApuracaoDados();
+            }
+        });
+    }
+
+    ['apuracaoDataInicio', 'apuracaoDataFim'].forEach(idInput => {
+        const inp = document.getElementById(idInput);
+        if (inp) {
+            inp.addEventListener('change', () => {
+                if (typeof window.carregarEExibirApuracaoDados === 'function') {
+                    window.carregarEExibirApuracaoDados();
+                }
+            });
+            inp.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (typeof window.carregarEExibirApuracaoDados === 'function') {
+                        window.carregarEExibirApuracaoDados();
+                    }
+                }
+            });
+        }
     });
 
     // Navegação Menu Lateral (Solicitações / Configurações)
@@ -868,12 +949,14 @@ function bindEventos() {
             const page = link.getAttribute('data-page');
             const secaoSolicitacoes = document.getElementById('secao-solicitacoes');
             const secaoConfiguracoes = document.getElementById('secao-configuracoes');
+            const secaoApuracao = document.getElementById('secao-apuracao');
             const pageTitle = document.getElementById('pageTitle');
             const headerActions = document.querySelector('.header-actions');
 
             if (page === 'configuracoes') {
                 if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'none';
                 if (secaoConfiguracoes) secaoConfiguracoes.style.display = 'block';
+                if (secaoApuracao) secaoApuracao.style.display = 'none';
                 if (pageTitle) pageTitle.textContent = 'Configurações';
                 if (headerActions) headerActions.style.display = 'none';
 
@@ -886,9 +969,21 @@ function bindEventos() {
                     if (cargoHeader) cargoHeader.textContent = window.currentUserProfile.cargo || 'Fiscal de Postura';
                     aplicarAvatarUsuario(window.currentUserProfile, n);
                 }
+            } else if (page === 'apuracao') {
+                if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'none';
+                if (secaoConfiguracoes) secaoConfiguracoes.style.display = 'none';
+                if (secaoApuracao) secaoApuracao.style.display = 'block';
+                if (pageTitle) pageTitle.textContent = 'Apuração de Dados';
+                if (headerActions) headerActions.style.display = 'none';
+
+                // Carregar/Renderizar Apuração
+                if (typeof window.carregarEExibirApuracaoDados === 'function') {
+                    window.carregarEExibirApuracaoDados();
+                }
             } else {
                 if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'block';
                 if (secaoConfiguracoes) secaoConfiguracoes.style.display = 'none';
+                if (secaoApuracao) secaoApuracao.style.display = 'none';
                 if (pageTitle) pageTitle.textContent = 'Solicitações';
                 if (headerActions) headerActions.style.display = 'flex';
             }
@@ -1343,4 +1438,429 @@ window.excluirProcessosSelecionados = async function() {
     } finally {
         mostrarLoading(false);
     }
+};
+
+// ============================================================================
+// APURAÇÃO DE DADOS EXECUTIVA (SECRETÁRIO E DEV)
+// ============================================================================
+
+function verificarEExibirTabApuracao(usuario) {
+    const tabApuracao = document.getElementById('tab-apuracao');
+    if (!tabApuracao) return;
+
+    const cargoRaw = usuario?.cargo || '';
+    const cargoNorm = (typeof normalizarCargo === 'function') ? normalizarCargo(cargoRaw) : cargoRaw;
+
+    // Apenas cargo Secretário(a) ou Dev tem permissão
+    const ehSecretarioOuDev = (cargoNorm === 'Secretário' || cargoNorm === 'Dev');
+
+    if (ehSecretarioOuDev) {
+        tabApuracao.style.display = 'flex';
+    } else {
+        tabApuracao.style.display = 'none';
+    }
+}
+
+window.verificarEExibirTabApuracao = verificarEExibirTabApuracao;
+
+let chartProcessosInst = null;
+let chartMultasInst = null;
+
+function inicializarDatasApuracao() {
+    const elInicio = document.getElementById('apuracaoDataInicio');
+    const elFim = document.getElementById('apuracaoDataFim');
+
+    const agora = new Date();
+    const ano = agora.getFullYear();
+    const mes = String(agora.getMonth() + 1).padStart(2, '0');
+    const dia = String(agora.getDate()).padStart(2, '0');
+
+    if (elInicio && !elInicio.value) {
+        elInicio.value = `${ano}-${mes}-01`;
+    }
+    if (elFim && !elFim.value) {
+        elFim.value = `${ano}-${mes}-${dia}`;
+    }
+}
+
+window.inicializarDatasApuracao = inicializarDatasApuracao;
+
+window.carregarEExibirApuracaoDados = async function () {
+    inicializarDatasApuracao();
+
+    const elTabelaBody = document.getElementById('tabelaApuracaoFiscaisBody');
+    if (elTabelaBody) {
+        elTabelaBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="padding: 24px; text-align: center; color: #64748b;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        Carregando apuração gerencial do banco de dados...
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    try {
+        const dInicio = document.getElementById('apuracaoDataInicio')?.value;
+        const dFim = document.getElementById('apuracaoDataFim')?.value;
+
+        let todosProcessos = [];
+        let offset = 0;
+        const limitBatch = 100;
+        let temMais = true;
+
+        while (temMais) {
+            let query = supabaseClient
+                .from('processos')
+                .select(`
+                    id,
+                    numero_processo,
+                    status,
+                    etapa_atual_id,
+                    created_at,
+                    fiscal_id,
+                    campos:dados->campos,
+                    etapa14:dados->etapa14,
+                    etapa15:dados->etapa15,
+                    solicitacao:dados->solicitacao,
+                    infracoes:dados->infracoes,
+                    fiscal_dados:dados->fiscal,
+                    multa_valor:dados->multa_valor,
+                    valor_multa:dados->valor_multa,
+                    multas_customizadas:dados->multas_customizadas,
+                    profiles:fiscal_id (
+                        id,
+                        nome,
+                        matricula,
+                        cargo
+                    )
+                `);
+
+            if (dInicio) query = query.gte('created_at', dInicio + 'T00:00:00');
+            if (dFim) query = query.lte('created_at', dFim + 'T23:59:59');
+
+            const { data: lote, error } = await query
+                .range(offset, offset + limitBatch - 1)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('[APURAÇÃO] Erro ao carregar processos:', error);
+                if (elTabelaBody) elTabelaBody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #ef4444;">Erro ao carregar dados do banco de dados.</td></tr>`;
+                return;
+            }
+
+            if (lote && lote.length > 0) {
+                todosProcessos.push(...lote);
+                if (lote.length < limitBatch) {
+                    temMais = false;
+                } else {
+                    offset += limitBatch;
+                }
+            } else {
+                temMais = false;
+            }
+        }
+
+        const procs = todosProcessos;
+        const fiscaisMap = {};
+
+        let globalTotalProcessos = procs.length;
+        let globalTotalMultasValor = 0;
+        let globalQtdMultas = 0;
+
+        procs.forEach(p => {
+            const profileObj = p.profiles || {};
+            const fiscalNome = profileObj.nome || p.fiscal_dados?.nome || p.campos?.fiscal?.nome || 'Fiscal Não Atribuído';
+            const fiscalIdKey = p.fiscal_id || profileObj.id || fiscalNome;
+            const matricula = profileObj.matricula || p.fiscal_dados?.matricula || p.campos?.fiscal?.matricula || '---';
+
+            if (!fiscaisMap[fiscalIdKey]) {
+                fiscaisMap[fiscalIdKey] = {
+                    nome: fiscalNome,
+                    matricula: matricula,
+                    totalProcessos: 0,
+                    qtdMultas: 0,
+                    valorMultas: 0
+                };
+            }
+
+            fiscaisMap[fiscalIdKey].totalProcessos += 1;
+
+            let valMultaProc = 0;
+
+            // 1. Verificar valores diretos de multa
+            if (p.multa_valor) {
+                valMultaProc = parseFloat(p.multa_valor) || 0;
+            } else if (p.valor_multa) {
+                valMultaProc = parseFloat(p.valor_multa) || 0;
+            } else if (p.campos?.valor_multa) {
+                valMultaProc = parseFloat(p.campos.valor_multa) || 0;
+            } else if (p.campos?.multa_valor) {
+                valMultaProc = parseFloat(p.campos.multa_valor) || 0;
+            }
+
+            // 2. Verificar multas customizadas (Array, Objeto ou Valor individual)
+            if (valMultaProc === 0) {
+                const custom = p.multas_customizadas || p.campos?.multas_customizadas;
+                if (custom) {
+                    if (Array.isArray(custom)) {
+                        valMultaProc = custom.reduce((acc, v) => acc + (parseFloat(v) || 0), 0);
+                    } else if (typeof custom === 'object') {
+                        valMultaProc = Object.values(custom).reduce((acc, v) => acc + (parseFloat(v) || 0), 0);
+                    } else if (typeof custom === 'number' || typeof custom === 'string') {
+                        valMultaProc = parseFloat(custom) || 0;
+                    }
+                }
+            }
+
+            // 3. Verificar dados específicos das etapas de multa (Etapa 15 ou 14)
+            if (valMultaProc === 0) {
+                if (p.etapa15?.valor_multa || p.etapa15?.multa_valor) {
+                    valMultaProc = parseFloat(p.etapa15.valor_multa || p.etapa15.multa_valor) || 0;
+                } else if (p.etapa14?.valor_multa || p.etapa14?.multa_valor) {
+                    valMultaProc = parseFloat(p.etapa14.valor_multa || p.etapa14.multa_valor) || 0;
+                }
+            }
+
+            // 4. Se o processo está em Etapa 14+ (Auto de Infração em diante) ou possui multa gerada
+            const temAutoOuMulta = (p.etapa_atual_id >= 14 || p.status === 'multa' || p.etapa14 || p.etapa15);
+            if (valMultaProc === 0 && temAutoOuMulta) {
+                if (typeof window.obterDadosLegaisEValoresAuto === 'function') {
+                    try {
+                        const infracaoDesc = p.infracoes?.descricao || p.solicitacao?.infracao || p.campos?.infracao || p.fiscal_dados?.infracao || '';
+                        const fiscObj = p.fiscal_dados || p.campos?.fiscal || {};
+                        const pFake = {
+                            ...p,
+                            campos: p.campos || {},
+                            dados: {
+                                campos: p.campos || {},
+                                infracoes: p.infracoes,
+                                fiscal: fiscObj
+                            }
+                        };
+                        const resLegais = window.obterDadosLegaisEValoresAuto(infracaoDesc, fiscObj, pFake);
+                        if (resLegais && resLegais.valMultaFinal && resLegais.valMultaFinal > 0) {
+                            valMultaProc = parseFloat(resLegais.valMultaFinal);
+                        } else if (resLegais && resLegais.valFormatado) {
+                            const valParsed = parseFloat(resLegais.valFormatado.replace(/\./g, '').replace(',', '.'));
+                            if (!isNaN(valParsed) && valParsed > 0) {
+                                valMultaProc = valParsed;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[APURAÇÃO] Erro ao calcular valor legal da multa:', e);
+                    }
+                }
+
+                // Fallback legal padrão (10 UPFMDs ~ R$ 1.050,00 se o cálculo retornar 0)
+                if (valMultaProc === 0) {
+                    const upfmd = window.valorUpfmdAtual || parseFloat(p.campos?.upfmd_utilizado) || 105.00;
+                    valMultaProc = 10 * upfmd;
+                }
+            }
+
+            if (valMultaProc > 0) {
+                fiscaisMap[fiscalIdKey].qtdMultas += 1;
+                fiscaisMap[fiscalIdKey].valorMultas += valMultaProc;
+                globalTotalMultasValor += valMultaProc;
+                globalQtdMultas += 1;
+            }
+        });
+
+        const listaFiscais = Object.values(fiscaisMap).sort((a, b) => b.totalProcessos - a.totalProcessos);
+        const qtdFiscais = listaFiscais.length;
+
+        // Atualizar os KPIs
+        const elTotalProc = document.getElementById('kpiApuracaoTotalProcessos');
+        const elTotalMultas = document.getElementById('kpiApuracaoTotalMultas');
+        const elTotalFiscais = document.getElementById('kpiApuracaoTotalFiscais');
+        const elMediaProc = document.getElementById('subkpiMediaProc');
+        const elMediaMultaFiscal = document.getElementById('kpiApuracaoMediaMultaFiscal');
+
+        if (elTotalProc) elTotalProc.textContent = globalTotalProcessos.toLocaleString('pt-BR');
+        if (elTotalMultas) elTotalMultas.textContent = globalTotalMultasValor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        if (elTotalFiscais) elTotalFiscais.textContent = qtdFiscais;
+        if (elMediaProc) elMediaProc.textContent = `• Média: ${(globalTotalProcessos / (qtdFiscais || 1)).toFixed(1)} proc/fiscal`;
+        if (elMediaMultaFiscal) elMediaMultaFiscal.textContent = (globalTotalMultasValor / (qtdFiscais || 1)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        // Renderizar Tabela
+        if (elTabelaBody) {
+            if (listaFiscais.length === 0) {
+                elTabelaBody.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #64748b;">Nenhum registro encontrado no período selecionado.</td></tr>`;
+            } else {
+                let htmlTabela = '';
+                listaFiscais.forEach(f => {
+                    const pctArrecadacao = globalTotalMultasValor > 0 ? ((f.valorMultas / globalTotalMultasValor) * 100).toFixed(1) : '0,0';
+                    const valFmt = f.valorMultas.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    htmlTabela += `
+                        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.15s ease;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                            <td style="padding: 14px 16px; font-weight: 700; color: #0f172a;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div style="width:32px; height:32px; border-radius:50%; background:#e0f2fe; color:#0369a1; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:0.8rem;">
+                                        ${f.nome.slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div>${f.nome}</div>
+                                        <div style="font-size:0.75rem; color:#64748b; font-weight:normal;">Matrícula: ${f.matricula}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="padding: 14px 16px; text-align: center; font-weight: 800; color: #2563eb; font-size: 1.05rem;">
+                                ${f.totalProcessos}
+                            </td>
+                            <td style="padding: 14px 16px; text-align: center; font-weight: 700; color: #475569;">
+                                ${f.qtdMultas}
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 800; color: #059669; font-size: 1rem;">
+                                ${valFmt}
+                            </td>
+                            <td style="padding: 14px 16px; text-align: right; font-weight: 700; color: #64748b;">
+                                <span style="background:#ecfdf5; color:#047857; padding:4px 8px; border-radius:6px; font-size:0.78rem;">${pctArrecadacao}%</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+                elTabelaBody.innerHTML = htmlTabela;
+            }
+        }
+
+        renderizarGraficosApuracao(listaFiscais);
+
+    } catch (err) {
+        console.error('[APURAÇÃO] Erro inesperado:', err);
+    }
+};
+
+function renderizarGraficosApuracao(listaFiscais) {
+    if (typeof Chart === 'undefined') {
+        console.warn('[APURAÇÃO] Chart.js ainda não foi carregado.');
+        return;
+    }
+
+    const labelsFiscais = listaFiscais.map(f => f.nome.length > 18 ? f.nome.slice(0, 16) + '...' : f.nome);
+    const dataProcessos = listaFiscais.map(f => f.totalProcessos);
+    const dataMultas = listaFiscais.map(f => f.valorMultas);
+
+    if (chartProcessosInst) chartProcessosInst.destroy();
+    if (chartMultasInst) chartMultasInst.destroy();
+
+    const ctxProc = document.getElementById('chartProcessosPorFiscal')?.getContext('2d');
+    if (ctxProc) {
+        chartProcessosInst = new Chart(ctxProc, {
+            type: 'bar',
+            data: {
+                labels: labelsFiscais,
+                datasets: [{
+                    label: 'Qtd. de Processos',
+                    data: dataProcessos,
+                    backgroundColor: 'rgba(37, 99, 235, 0.75)',
+                    borderColor: '#1d4ed8',
+                    borderWidth: 1.5,
+                    borderRadius: 8,
+                    hoverBackgroundColor: '#2563eb'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) { return ` ${ctx.raw} processo(s)`; }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, font: { weight: 'bold' } },
+                        grid: { color: '#f1f5f9' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11, weight: 'bold' } }
+                    }
+                }
+            }
+        });
+    }
+
+    const ctxMultas = document.getElementById('chartMultasPorFiscal')?.getContext('2d');
+    if (ctxMultas) {
+        chartMultasInst = new Chart(ctxMultas, {
+            type: 'bar',
+            data: {
+                labels: labelsFiscais,
+                datasets: [{
+                    label: 'Valor de Multas (R$)',
+                    data: dataMultas,
+                    backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                    borderColor: '#047857',
+                    borderWidth: 1.5,
+                    borderRadius: 8,
+                    hoverBackgroundColor: '#059669'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const val = ctx.raw || 0;
+                                return ' ' + val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$ ' + value.toLocaleString('pt-BR');
+                            },
+                            font: { weight: 'bold' }
+                        },
+                        grid: { color: '#f1f5f9' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11, weight: 'bold' } }
+                    }
+                }
+            }
+        });
+    }
+}
+
+window.exportarApuracaoCSV = function () {
+    const elTabela = document.getElementById('tabelaApuracaoFiscaisBody');
+    if (!elTabela) return;
+
+    let csvContent = "data:text/csv;charset=utf-8,Fiscal;Matricula;Total Processos;Multas Geradas;Valor Total (R$)\n";
+    const rows = elTabela.querySelectorAll('tr');
+
+    rows.forEach(tr => {
+        const tds = tr.querySelectorAll('td');
+        if (tds.length >= 4) {
+            const fiscalInfo = tds[0].innerText.replace(/\n/g, ' ').trim();
+            const procCount = tds[1].innerText.trim();
+            const multasCount = tds[2].innerText.trim();
+            const valorTotal = tds[3].innerText.replace('R$', '').trim();
+            csvContent += `"${fiscalInfo}";"${procCount}";"${multasCount}";"${valorTotal}"\n`;
+        }
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `apuracao_dados_fiscais_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };

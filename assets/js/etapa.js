@@ -4134,6 +4134,89 @@ function obterDispositivosDoProcesso(proc) {
     return ['Falta de limpeza e conservação de imóvel não edificado (120000232)'];
 }
 
+window.obterDispositivosDoProcesso = obterDispositivosDoProcesso;
+
+window.obterTextoInfracoesProcesso = function (procObj) {
+    const checkedEls = document.querySelectorAll('#infracoesList input[name="infracao"]:checked, input[name="infracao"]:checked');
+    if (checkedEls && checkedEls.length > 0) {
+        const sel = Array.from(checkedEls).map(el => {
+            const txt = el.nextElementSibling ? el.nextElementSibling.textContent.trim() : el.value;
+            return (typeof window.obterDescricaoInfracao === 'function') ? window.obterDescricaoInfracao(txt) : txt;
+        }).filter(Boolean);
+        if (sel.length > 0) return sel.join(', ');
+    }
+
+    const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    if (!proc) return 'falta de limpeza e conservação de imóvel não edificado';
+
+    let listDisp = [];
+    if (typeof window.obterDispositivosDoProcesso === 'function') {
+        listDisp = window.obterDispositivosDoProcesso(proc);
+    } else if (proc.dados?.infracoes?.dispositivos && Array.isArray(proc.dados.infracoes.dispositivos)) {
+        listDisp = proc.dados.infracoes.dispositivos;
+    } else if (Array.isArray(proc.infracoes_lista)) {
+        listDisp = proc.infracoes_lista;
+    }
+
+    if (listDisp && listDisp.length > 0) {
+        const descs = listDisp.map(item => {
+            if (typeof window.obterDescricaoInfracao === 'function') {
+                return window.obterDescricaoInfracao(item);
+            }
+            return String(item);
+        }).filter(Boolean);
+        if (descs.length > 0) return descs.join(', ');
+    }
+
+    const dProc = proc.dados || {};
+    const fProc = dProc.fiscal || {};
+    const rProc = dProc.relatorio_fiscal || {};
+
+    if (dProc.infracoes?.descricao) return dProc.infracoes.descricao;
+    if (typeof dProc.infracoes === 'string') return dProc.infracoes;
+    if (fProc.infracao) return fProc.infracao;
+    if (rProc.texto_vistoria) return rProc.texto_vistoria;
+
+    return 'falta de limpeza e conservação de imóvel não edificado';
+};
+
+window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
+    if (!infraTexto) return 'Limpeza';
+    const low = String(infraTexto).toLowerCase();
+    const partes = [];
+
+    if (low.includes('quintal')) {
+        partes.push('Limpeza de Quintal');
+    } else if (low.includes('limpeza') || low.includes('conservação') || low.includes('conservacao')) {
+        partes.push('Limpeza');
+    }
+
+    if (low.includes('cercamento') || low.includes('fechamento')) {
+        partes.push('Cercamento');
+    }
+    if (low.includes('passeio') || low.includes('calçada') || low.includes('calcada')) {
+        partes.push('Construção/Reparo de Passeio');
+    }
+    if (low.includes('muro')) {
+        partes.push('Construção/Reparo de Muro');
+    }
+    if (low.includes('obstáculo') || low.includes('obstaculo')) {
+        partes.push('Desobstrução de Calçada');
+    }
+    if (low.includes('água servida') || low.includes('agua servida')) {
+        partes.push('Cessação de Descarte de Água Servida');
+    }
+    if (low.includes('alvará') || low.includes('alvara')) {
+        partes.push('Regularização de Alvará');
+    }
+    if (low.includes('piso tátil') || low.includes('piso tatil')) {
+        partes.push('Adequação de Piso Tátil');
+    }
+
+    if (partes.length > 0) return partes.join(' e ');
+    return infraTexto;
+};
+
 // ── Helper para Converter Números com Vírgula ou Ponto com Segurança ──────
 function parseNumberSafe(val, defaultVal = 0) {
     if (val === null || val === undefined || val === '') return defaultVal;
@@ -9132,6 +9215,10 @@ async function baixarRelatorioFiscalPdfEtapa() {
             }
         }
 
+        if (relatorioUrl && (relatorioUrl.startsWith('<div') || relatorioUrl.startsWith('<!DOCTYPE') || relatorioUrl.startsWith('<html'))) {
+            relatorioUrl = null;
+        }
+
         const numeroRelatorio = processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || 'XXX';
 
         // 4. Se não encontrar salvo em nenhum dos 3 lugares, gera um novo Relatório Fiscal e salva no banco
@@ -9224,7 +9311,14 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 const decretoDataRaw = fProc.data_decreto;
                 let decretoDataFmt = '02/07/2026';
                 if (decretoDataRaw) { const pp = decretoDataRaw.split('T')[0].split('-'); if (pp.length === 3) decretoDataFmt = `${pp[2]}/${pp[1]}/${pp[0]}`; }
-                const dispositivosStr = dProc.infracoes?.descricao || fProc.infracao || rProc.texto_vistoria || 'falta de limpeza e conservação de imóvel não edificado';
+                
+                const dispositivosStr = (typeof window.obterTextoInfracoesProcesso === 'function') 
+                    ? window.obterTextoInfracoesProcesso(processoAtual) 
+                    : (dProc.infracoes?.descricao || fProc.infracao || rProc.texto_vistoria || 'falta de limpeza e conservação de imóvel não edificado');
+                const obrigacaoStr = (typeof window.obterObrigacaoPelaInfracaoText === 'function') 
+                    ? window.obterObrigacaoPelaInfracaoText(dispositivosStr) 
+                    : 'Limpeza';
+
                 const prazoDias = 15;
                 let dataVencimentoFmt = '';
                 const decDateStr = decretoDataRaw || '2026-07-02';
@@ -9240,7 +9334,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size:10pt;line-height:1.45;margin-bottom:25px;"><tr><td width="58%" valign="top"><div><strong>Inscrição:</strong> ${imvInscricao}</div><div><strong>Logradouro:</strong> ${imvLogradouro}, n° ${imvNumero}</div><div><strong>Bairro:</strong> ${imvBairro}</div></td><td width="42%" valign="top"><div><strong>Zona:</strong> ${imvZona}</div><div><strong>Quadra:</strong> ${imvQuadra}</div><div><strong>Lote:</strong> ${imvLote}</div>${compImv ? `<div><strong>Complemento:</strong> ${compImv}</div>` : ''}</td></tr></table>
                 <div style="margin-bottom:20px;text-align:justify;line-height:1.5;">
                     <p style="text-indent:30px;margin:0 0 16px 0;">Certifico que o autuado, não se manifestou sobre a interposição de defesa referente ao Decreto <strong>${decretoNumero}</strong>, publicado no dia <strong>${decretoDataFmt}</strong> no Diário Oficial dos Municípios Mineiros, o qual notificou todos os proprietários de imóveis situados na zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${dispositivosStr}</strong> foi de <strong>${prazoDias}</strong> dias${dataVencimentoFmt ? `, findo aquele no dia <strong>${dataVencimentoFmt}</strong>` : ''}.</p>
-                    <p style="text-indent:30px;margin:0 0 16px 0;">Em vistoria realizada dia <strong>${dataVistoriaFmt}</strong>, certificamos o não cumprimento da obrigação de Limpeza conforme levantamento fotográfico.</p>
+                    <p style="text-indent:30px;margin:0 0 16px 0;">Em vistoria realizada dia <strong>${dataVistoriaFmt}</strong>, certificamos o não cumprimento da obrigação de <strong>${obrigacaoStr}</strong> conforme levantamento fotográfico.</p>
                 </div>`;
             } else {
                 // ── Template Comum (denúncia) ──
@@ -9250,7 +9344,10 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 const logradouroImv = iProc.logradouro || 'XXX';
                 const numeroImv = iProc.numero || 'XXXX';
                 const bairroImv = iProc.bairro || 'XXXX';
-                const textoVistoria = rProc.texto_vistoria || fProc.texto_vistoria || 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
+                const dispositivosStrComum = (typeof window.obterTextoInfracoesProcesso === 'function') 
+                    ? window.obterTextoInfracoesProcesso(processoAtual) 
+                    : 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
+                const textoVistoria = rProc.texto_vistoria || fProc.texto_vistoria || dispositivosStrComum;
                 const paHtml = pa ? `<p style="margin:0 0 6px 0;"><strong>PA:</strong> ${pa}</p>` : '';
                 const inscricaoValor = iProc.inscricao || 'Não informada';
                 const inscricaoLabel = inscricaoValor.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'Inscrição Imobiliária';
@@ -10371,6 +10468,29 @@ window.obterDescricaoInfracao = function (disp) {
     }
 };
 
+window.obterPrazoDefesaAutoInfracao = function (infracaoDesc) {
+    const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(infracaoDesc) : '';
+    const dispLow = String(infracaoDesc || '').toLowerCase();
+
+    // 10 dias úteis para:
+    // Limpeza de Quintal - 120000233
+    // Obstáculos em calçadas - 120000237
+    // Água servida - 120000239
+    // Estabelecimento sem Alvará - 120000236
+    // Reparos por concessionárias - 120000234
+    // Piso Tátil - 120000230
+    const eh10DiasUteis = (
+        cod === '120000233' || dispLow.includes('quintal') ||
+        cod === '120000237' || dispLow.includes('obstáculo') || dispLow.includes('obstaculo') ||
+        cod === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida') ||
+        cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara') ||
+        cod === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria') ||
+        cod === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')
+    );
+
+    return eh10DiasUteis ? '10 DIAS ÚTEIS' : '20 DIAS';
+};
+
 window.obterFundamentoLegalDecreto = function (infracaoDesc) {
     const cod = window.extrairCodigoSubprocesso(infracaoDesc);
     const dispLow = (infracaoDesc || '').toLowerCase();
@@ -10785,6 +10905,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     }
 
     const fundamentoLegalDecreto = window.obterFundamentoLegalDecreto ? window.obterFundamentoLegalDecreto(inputInfracao) : 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
+    const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao(inputInfracao) : '20 DIAS';
 
     let corpoHtmlAuto = '';
     if (provenienteDecreto) {
@@ -10846,7 +10967,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
-                    O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa, por escrito, protocolada via protocolo municipal. Instruções: link (<a href="https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201</a>)
+                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, por escrito, protocolada via protocolo municipal. Instruções: link (<a href="https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201</a>)
                 </p>
             </div>
         `;
@@ -10866,7 +10987,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
-                    O autuado tem o prazo de <strong>20 DIAS</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone). Instruções: <a href="https://www.divinopolis.mg.gov.br/portal/servicos/1053/posturas/" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://www.divinopolis.mg.gov.br</a>.
+                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone). Instruções: <a href="https://www.divinopolis.mg.gov.br/portal/servicos/1053/posturas/" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://www.divinopolis.mg.gov.br</a>.
                 </p>
             </div>
         `;

@@ -1697,12 +1697,13 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
     }
 
     // Transgressões & Prazos
-    const infracoesSelecionadas = Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked')).map(el => {
-        return el.nextElementSibling.textContent.trim().toLowerCase();
-    });
-    const dispositivosTransgredidosStr = infracoesSelecionadas.length > 0
-        ? infracoesSelecionadas.join(', ')
+    const dispositivosTransgredidosStr = (typeof window.obterTextoInfracoesProcesso === 'function')
+        ? window.obterTextoInfracoesProcesso(proc)
         : (dProc.infracoes?.descricao || fProc.infracao || 'falta de limpeza e conservação de imóvel não edificado');
+
+    const obrigacaoStr = (typeof window.obterObrigacaoPelaInfracaoText === 'function')
+        ? window.obterObrigacaoPelaInfracaoText(dispositivosTransgredidosStr)
+        : 'Limpeza';
 
     const prazoDias = typeof obterPrazoNotificacaoNovaSolicitacao === 'function'
         ? obterPrazoNotificacaoNovaSolicitacao(dispositivosTransgredidosStr)
@@ -1881,7 +1882,7 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
                 </p>
 
                 <p style="text-indent: 30px; margin:0 0 16px 0;">
-                    Em vistoria realizada dia <strong>${dataVistoriaFmt}</strong>, certificamos o não cumprimento da obrigação de Limpeza conforme levantamento fotográfico.
+                    Em vistoria realizada dia <strong>${dataVistoriaFmt}</strong>, certificamos o não cumprimento da obrigação de <strong>${obrigacaoStr}</strong> conforme levantamento fotográfico.
                 </p>
             </div>
 
