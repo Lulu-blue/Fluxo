@@ -141,7 +141,7 @@ function calcularEtapaProcesso(item) {
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
-    'Administrativo de Posturas': [16, 17],
+    'Administrativo de Posturas': [15, 16, 17],
     'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
     'Gerente de Posturas': [11, 12, 15, 17, 22, 25, 29, 30],
     'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
@@ -213,11 +213,12 @@ window.abrirProcessoAuto = function(id) {
 };
 
 // ── Estado da aplicação ─────────────────────────────────────
-let currentPage = 1;
-const pageSize = 20;
-let totalRecords = 0;
+let currentOffset = 0;
+const BATCH_SIZE = 1000;
+let hasMoreRecords = true;
+let isFetchingMore = false;
 let currentUserId = null;
-let dadosTabela = []; // dados exibidos atualmente (para exportação)
+let dadosTabela = []; // dados exibidos acumulados (para exportação)
 
 // ── Elementos do DOM ────────────────────────────────────────
 const filtersPanel = document.getElementById('filtersPanel');
@@ -225,13 +226,14 @@ const tabelaBody = document.getElementById('tabelaBody');
 const emptyState = document.getElementById('emptyState');
 const loadingState = document.getElementById('loadingState');
 const resultsCount = document.getElementById('resultsCount');
-const paginationInfo = document.getElementById('paginationInfo');
 
 // ── Inicialização ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     await verificarSessao();
+    limparAutofillInvasivoFiltros();
     await carregarSolicitacoes();
     bindEventos();
+    setTimeout(limparAutofillInvasivoFiltros, 300);
 });
 
 // ── Verificar sessão ativa ──────────────────────────────────
@@ -342,12 +344,22 @@ async function verificarSessao() {
 }
 
 // ── Carregar solicitações com filtros ────────────────────────
-// ── Carregar solicitações com filtros (com retry automático) ──
+// ── Carregar solicitações com filtros (em lotes de até 1000 com "Carregar mais") ──
 let currentFetchId = 0;
 
-async function carregarSolicitacoes(tentativa = 1) {
-    mostrarLoading(true);
-    
+async function carregarSolicitacoes(append = false, tentativa = 1) {
+    if (isFetchingMore && append) return;
+
+    if (!append) {
+        currentOffset = 0;
+        dadosTabela = [];
+        hasMoreRecords = true;
+        mostrarLoading(true);
+    } else {
+        isFetchingMore = true;
+        mostrarLoadingCarregarMais(true);
+    }
+
     const myFetchId = ++currentFetchId;
 
     try {
@@ -406,68 +418,63 @@ async function carregarSolicitacoes(tentativa = 1) {
             query = query.eq('fiscal_id', currentUserId);
         }
 
-        // Paginação e Execução
-        const requiresClientFilter = !!filtros.responsavel;
-        const from = (currentPage - 1) * pageSize;
-        // Pede 1 item a mais para saber se tem próxima página (sem precisar de count)
-        const to = from + pageSize; 
-
-        if (!requiresClientFilter) {
-            query = query.range(from, to);
-        } else {
-            query = query.limit(100);
-        }
+        // Execução em lote de até BATCH_SIZE (1000)
+        const from = currentOffset;
+        const to = currentOffset + BATCH_SIZE - 1;
 
         const { data, error } = await query
+            .range(from, to)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-        
-        // Ignorar se outra requisição já foi feita
+
+        // Ignorar se outra requisição já foi disparada
         if (myFetchId !== currentFetchId) return;
 
-        let resultData = data || [];
-        if (requiresClientFilter) {
+        const rawData = data || [];
+
+        // Se retornou menos que BATCH_SIZE (1000), indica fim dos dados
+        if (rawData.length < BATCH_SIZE) {
+            hasMoreRecords = false;
+        } else {
+            hasMoreRecords = true;
+        }
+
+        currentOffset += rawData.length;
+
+        let novosDados = rawData;
+        if (filtros.responsavel) {
             let cargoAlvo = filtros.responsavel;
             if (cargoAlvo === 'minha_responsabilidade') {
                 cargoAlvo = window.currentUserProfile?.cargo || 'Fiscal de Postura';
             }
-            resultData = resultData.filter(item => itemPertenceAoCargo(item, cargoAlvo));
-            totalRecords = resultData.length;
-            
-            // Paginação Client-Side
-            resultData = resultData.slice(from, from + pageSize);
-        } else {
-            const hasNextPage = resultData.length > pageSize;
-            if (hasNextPage) {
-                // Remove o item extra da exibição
-                resultData.pop();
-                totalRecords = from + pageSize + 1; // Força ter mais páginas
-            } else {
-                totalRecords = from + resultData.length; // É a última página exata
-            }
+            novosDados = rawData.filter(item => itemPertenceAoCargo(item, cargoAlvo));
         }
 
-        dadosTabela = resultData;
+        if (append) {
+            dadosTabela = [...dadosTabela, ...novosDados];
+        } else {
+            dadosTabela = novosDados;
+        }
 
         renderizarTabela(dadosTabela, filtros.responsavel);
-        atualizarPaginacao();
-        atualizarContador();
+        atualizarContadorECarregarMais();
         setTimeout(() => { if (window.atualizarInterfaceNotificacoesPainel) window.atualizarInterfaceNotificacoesPainel(); }, 150);
 
     } catch (err) {
         console.error(`Erro ao carregar solicitações (tentativa ${tentativa}):`, err);
         if (tentativa < 3) {
             console.log(`Re-tentando carregar solicitações em 1.5s (tentativa ${tentativa + 1})...`);
-            setTimeout(() => carregarSolicitacoes(tentativa + 1), 1500);
+            setTimeout(() => carregarSolicitacoes(append, tentativa + 1), 1500);
             return;
         }
         if (resultsCount) {
-            resultsCount.innerHTML = `Erro ao carregar dados. <a href="#" onclick="carregarSolicitacoes(1); return false;" style="color:#2563eb; text-decoration:underline; font-weight:600; margin-left:6px;">Tentar novamente</a>`;
+            resultsCount.innerHTML = `Erro ao carregar dados. <a href="#" onclick="carregarSolicitacoes(false, 1); return false;" style="color:#2563eb; text-decoration:underline; font-weight:600; margin-left:6px;">Tentar novamente</a>`;
         }
-        renderizarTabela([]);
     } finally {
+        isFetchingMore = false;
         mostrarLoading(false);
+        mostrarLoadingCarregarMais(false);
     }
 }
 
@@ -604,8 +611,25 @@ function renderizarTabela(dados, cargoFiltro) {
     });
 }
 
+// ── Limpar Autofill Invasivo ────────────────────────────────
+function limparAutofillInvasivoFiltros() {
+    const elDesc = document.getElementById('filtroDescricao');
+    if (!elDesc) return;
+
+    const val = elDesc.value.trim();
+    if (!val) return;
+
+    const cpfUser = window.currentUserProfile?.cpf;
+    const isCpfMatch = val.match(/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/) || (cpfUser && val === cpfUser) || (val.replace(/\D/g, '').length === 11 && !isNaN(val.replace(/\D/g, '')));
+
+    if (isCpfMatch) {
+        elDesc.value = '';
+    }
+}
+
 // ── Coletar valores dos filtros ─────────────────────────────
 function coletarFiltros() {
+    limparAutofillInvasivoFiltros();
     const elResp = document.getElementById('filtroResponsavel');
     return {
         protocolo: document.getElementById('filtroProtocolo').value.trim(),
@@ -693,6 +717,7 @@ function truncar(str, max) {
 }
 
 // ── Loading / Paginação / Contador ──────────────────────────
+// ── Loading / Carregar Mais / Contador ──────────────────────────
 function mostrarLoading(show) {
     if (loadingState) loadingState.style.display = show ? 'flex' : 'none';
 
@@ -713,32 +738,63 @@ function mostrarLoading(show) {
     }
 }
 
-function atualizarPaginacao() {
-    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
-    paginationInfo.textContent = `Página ${currentPage} de ${totalPages}`;
-    document.getElementById('btnPrevPage').disabled = currentPage <= 1;
-    document.getElementById('btnNextPage').disabled = currentPage >= totalPages;
+function mostrarLoadingCarregarMais(show) {
+    const btn = document.getElementById('btnCarregarMais');
+    if (!btn) return;
+    btn.disabled = show;
+    if (show) {
+        if (!btn.dataset.originalContent) btn.dataset.originalContent = btn.innerHTML;
+        btn.innerHTML = `<div class="spinner" style="width: 16px; height: 16px; border-width: 2px; border-top-color: #ffffff; border-right-color: transparent; margin-right: 8px; display: inline-block; vertical-align: middle;"></div> Carregando mais...`;
+    } else if (btn.dataset.originalContent) {
+        btn.innerHTML = btn.dataset.originalContent;
+    }
 }
 
-function atualizarContador() {
-    if (totalRecords === 0) {
-        resultsCount.textContent = 'Nenhuma solicitação encontrada';
+function atualizarContadorECarregarMais() {
+    const btnCarregarMais = document.getElementById('btnCarregarMais');
+    const msgFim = document.getElementById('msgFimRegistros');
+    const totalSumCount = document.getElementById('totalSumCount');
+
+    const totalLoaded = dadosTabela.length;
+
+    if (totalLoaded === 0) {
+        if (resultsCount) resultsCount.textContent = 'Nenhuma solicitação encontrada';
+        if (btnCarregarMais) btnCarregarMais.style.display = 'none';
+        if (msgFim) msgFim.style.display = 'none';
     } else {
-        resultsCount.textContent = `${totalRecords} solicitação${totalRecords > 1 ? 'ões' : ''} encontrada${totalRecords > 1 ? 's' : ''}`;
+        if (resultsCount) {
+            resultsCount.textContent = `${totalLoaded} solicitação${totalLoaded > 1 ? 'ões' : ''} carregada${totalLoaded > 1 ? 's' : ''}`;
+        }
+
+        if (hasMoreRecords) {
+            if (btnCarregarMais) btnCarregarMais.style.display = 'inline-flex';
+            if (msgFim) msgFim.style.display = 'none';
+        } else {
+            if (btnCarregarMais) btnCarregarMais.style.display = 'none';
+            if (msgFim) {
+                msgFim.style.display = 'block';
+                if (totalSumCount) totalSumCount.textContent = totalLoaded;
+            }
+        }
     }
 }
 
 // ── Bind de eventos ─────────────────────────────────────────
 function bindEventos() {
     // Toggle filtros
-    document.getElementById('btnToggleFilters').addEventListener('click', () => {
-        filtersPanel.classList.toggle('open');
-    });
+    const btnToggleFilters = document.getElementById('btnToggleFilters');
+    if (btnToggleFilters) {
+        btnToggleFilters.addEventListener('click', () => {
+            filtersPanel.classList.toggle('open');
+            limparAutofillInvasivoFiltros();
+            setTimeout(limparAutofillInvasivoFiltros, 100);
+            setTimeout(limparAutofillInvasivoFiltros, 300);
+        });
+    }
 
     // Pesquisar
     document.getElementById('btnAplicarFiltros').addEventListener('click', () => {
-        currentPage = 1;
-        carregarSolicitacoes();
+        carregarSolicitacoes(false);
     });
 
     // Limpar filtros
@@ -753,8 +809,7 @@ function bindEventos() {
         document.getElementById('filtroCriador').value = '';
         const elResp = document.getElementById('filtroResponsavel');
         if (elResp) elResp.value = '';
-        currentPage = 1;
-        carregarSolicitacoes();
+        carregarSolicitacoes(false);
     });
 
     // Exportar CSV
@@ -778,29 +833,21 @@ function bindEventos() {
         });
     }
 
-    // Nova Solicitação → abre modal (handler em nova-solicitacao.js)
-
-    // Paginação
-    document.getElementById('btnPrevPage').addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            carregarSolicitacoes();
-        }
-    });
-    document.getElementById('btnNextPage').addEventListener('click', () => {
-        const totalPages = Math.ceil(totalRecords / pageSize);
-        if (currentPage < totalPages) {
-            currentPage++;
-            carregarSolicitacoes();
-        }
-    });
+    // Botão Carregar Mais
+    const btnCarregarMais = document.getElementById('btnCarregarMais');
+    if (btnCarregarMais) {
+        btnCarregarMais.addEventListener('click', () => {
+            if (!isFetchingMore && hasMoreRecords) {
+                carregarSolicitacoes(true);
+            }
+        });
+    }
 
     // Enter nos campos de filtro para pesquisar
     document.querySelectorAll('.filters-grid input, .filters-grid select').forEach(el => {
         el.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                currentPage = 1;
-                carregarSolicitacoes();
+                carregarSolicitacoes(false);
             }
         });
     });

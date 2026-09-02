@@ -451,7 +451,7 @@ const ETAPAS_MAP = {
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
-    'Administrativo de Posturas': [16],
+    'Administrativo de Posturas': [15, 16],
     'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
     'Secretário': [24],
     'Jurídico': [23],
@@ -1367,7 +1367,7 @@ function renderizarFormularioDinamico(etapaNum) {
         const defesaText15 = valDefesaProc15.toLowerCase() === 'sim' ? 'Autuado apresentou defesa' : 'Autuado não apresentou defesa';
 
         const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-        const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
+        const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
 
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:14px; padding:28px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
@@ -12012,7 +12012,7 @@ window.carregarAnexosMultaEtapa15 = async function () {
         || (notificacaoAtual?.dados?.etapa15?.multa_url ? { url: notificacaoAtual.dados.etapa15.multa_url, nome_arquivo: notificacaoAtual.dados.etapa15.multa_nome } : null);
 
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
 
     if (docMulta && (docMulta.url || docMulta.base64 || docMulta.dataUrl)) {
         const urlMulta = docMulta.url || docMulta.dataUrl || docMulta.base64;
@@ -12059,9 +12059,9 @@ window.carregarAnexosMultaEtapa15 = async function () {
 
 window.salvarMultaEtapa15 = async function () {
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
     if (!ehGerente) {
-        alert('⚠️ Apenas o Gerente de Fiscalização tem permissão para anexar a Multa nesta etapa.');
+        alert('⚠️ Apenas o Gerente ou Administrativo de Posturas tem permissão para anexar a Multa nesta etapa.');
         return false;
     }
 
@@ -12207,9 +12207,9 @@ window.salvarMultaEtapa15 = async function () {
 
 window.removerMultaEtapa15 = async function () {
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
     if (!ehGerente) {
-        alert('⚠️ Apenas o Gerente pode remover/substituir o documento de Multa.');
+        alert('⚠️ Apenas o Gerente ou Administrativo de Posturas pode remover/substituir o documento de Multa.');
         return;
     }
 
@@ -12262,9 +12262,9 @@ window.avancarEtapa15 = async function () {
     if (!processoAtual) return;
 
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
-    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Dev';
+    const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
     if (!ehGerente) {
-        alert('⚠️ Apenas o Gerente de Fiscalização tem permissão para avançar e concluir a Etapa 15.');
+        alert('⚠️ Apenas o Gerente de Fiscalização ou Administrativo de Posturas tem permissão para avançar a Etapa 15.');
         return;
     }
 

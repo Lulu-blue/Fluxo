@@ -433,6 +433,31 @@ function validarStep(step) {
                 return false;
             }
 
+            // Validação das Imagens da Vistoria com Legenda (Obrigatório)
+            const containerImagens = document.getElementById('lista-imagens-legenda');
+            const itensImagens = containerImagens ? containerImagens.querySelectorAll('.item-imagem-legenda') : [];
+            let temImagemValida = false;
+
+            for (const item of itensImagens) {
+                const imgInput = item.querySelector('.imagem-arquivo');
+                if (imgInput && (imgInput.files?.length > 0 || imgInput.getAttribute('data-base64'))) {
+                    temImagemValida = true;
+                    break;
+                }
+            }
+
+            if (!temImagemValida) {
+                alert('É OBRIGATÓRIO anexar pelo menos 1 Imagem da Vistoria com Legenda.');
+                if (containerImagens && itensImagens.length === 0) {
+                    if (typeof window.adicionarCampoImagemLegenda === 'function') {
+                        window.adicionarCampoImagemLegenda();
+                    }
+                }
+                const areaImagens = document.getElementById('container-imagens-legenda');
+                if (areaImagens) areaImagens.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return false;
+            }
+
             const decreto = document.getElementById('fiscDecreto')?.value;
             if (!decreto) {
                 alert('Informe se é decorrente de Decreto de Notificação.');
