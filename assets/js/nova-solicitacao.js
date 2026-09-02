@@ -1185,25 +1185,55 @@ async function finalizarSolicitacao() {
 
 // ── Prazos padrão de cada tipo de notificação ─────────────────────────────
 const PRAZOS_NOTIFICACAO = {
-    'falta de limpeza e conservação de imóvel não edificado': 15,
+    '120000232': 15,
+    '120000211': 60,
+    '120000226': 60,
+    '120000228': 60,
+    '120000227': 60,
+    '120000229': 15,
+    '120000240': 15,
+    '120000233': 10,
+    '120000237': 10,
+    '120000239': 10,
+    '120000236': 10,
+    '120000234': 10,
+    '120000230': 10,
+
+    'falta de limpeza e conservação': 15,
+    'não edificado': 15,
+    'nao edificado': 15,
+    'limpeza e conservação': 15,
     'inexistência de cercamento': 60,
+    'inexistencia de cercamento': 60,
+    'cercamento': 60,
     'inexistência de passeio': 60,
+    'inexistencia de passeio': 60,
+    'passeio': 60,
     'reincidência na inexistência de cercamento': 60,
     'reincidência na inexistência de passeio': 60,
     'reconstrução e/ou reparos em muro': 15,
     'reconstrução e/ou reparos passeio': 15,
     'reconstrução e/ou reparos muro': 15,
     'limpeza de quintal': 10,
+    'quintal': 10,
     'obstáculos em calçadas': 10,
+    'obstáculo': 10,
+    'obstaculo': 10,
     'água servida': 10,
+    'agua servida': 10,
     'estabelecimento sem alvará': 10,
+    'alvará': 10,
+    'alvara': 10,
     'reparos por concessionárias': 10,
-    'piso tátil': 10
+    'concessionária': 10,
+    'concessionaria': 10,
+    'piso tátil': 10,
+    'piso tatil': 10
 };
 
 function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     if (!descricao) return 15;
-    const descLow = descricao.toLowerCase();
+    const descLow = String(descricao).toLowerCase();
     for (const [termo, prazo] of Object.entries(PRAZOS_NOTIFICACAO)) {
         if (descLow.includes(termo)) return prazo;
     }
