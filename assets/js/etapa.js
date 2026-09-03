@@ -6341,13 +6341,7 @@ function gerarBlocoInfracao(proc, disp, index) {
     const dataAI = proc.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
     const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
-    if (disp.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
-        titulo = 'Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
-        prazo = '15 DIAS';
-        itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
-                 <li><strong>Proibido:</strong> queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
-        penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, IV da LEI 7.174/2010, e outras legislações. MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-    } else if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
+    if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
         titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
         prazo = '60 DIAS';
         itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
@@ -6355,24 +6349,30 @@ function gerarBlocoInfracao(proc, disp, index) {
                  <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, I, da Lei 7.174/2010, e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         obsFiscal = textoObsReincidencia;
-    } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
+    } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio') || dispLow.includes('reincidencia na inexistencia de passeio')) {
         titulo = 'Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
         prazo = '60 DIAS';
         itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, II, da Lei 7.174/2010 e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong> (valor dobrado em face da reincidência na infração).`;
         obsFiscal = textoObsReincidencia;
-    } else if (disp.includes('120000211') || dispLow.includes('cercamento')) {
+    } else if (disp.includes('120000226') || dispLow.includes('inexistência de passeio') || dispLow.includes('inexistencia de passeio') || (dispLow.includes('passeio') && !dispLow.includes('reconstrução') && !dispLow.includes('reconstrucao') && !dispLow.includes('reparo'))) {
+        titulo = 'Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
+        prazo = '60 DIAS';
+        itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
+        penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, II e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+    } else if (disp.includes('120000211') || dispLow.includes('inexistência de cercamento') || dispLow.includes('inexistencia de cercamento') || (dispLow.includes('cercamento') && !dispLow.includes('reconstrução') && !dispLow.includes('reconstrucao') && !dispLow.includes('reparo'))) {
         titulo = 'Inexistência de cercamento: infração ao artigo 1º da Lei 7.174/2010.';
         prazo = '60 DIAS';
         itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
                  <li><strong>Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010:</strong> muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.</li>
                  <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, I e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-    } else if (disp.includes('120000226') || dispLow.includes('inexistência de passeio')) {
-        titulo = 'Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
-        prazo = '60 DIAS';
-        itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
-        penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, II e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+    } else if (disp.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('limpeza e conservacao') || dispLow.includes('não edificado') || dispLow.includes('nao edificado')) {
+        titulo = 'Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
+        prazo = '15 DIAS';
+        itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
+                 <li><strong>Proibido:</strong> queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
+        penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, IV da LEI 7.174/2010, e outras legislações. MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000229') || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
         titulo = 'Reconstrução e/ou reparo de muro: infração ao artigo 2º, II, da Lei 7.174/2010.';
         prazo = '15 DIAS';
@@ -6530,13 +6530,7 @@ function renderizarDocumentoOficial(proc) {
         const dataAI = proc.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
         const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
-        if (disp.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
-            titulo = 'Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
-            prazo = '15 DIAS';
-            itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
-                     <li><strong>Proibido:</strong> queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
-            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, IV da LEI 7.174/2010, e outras legislações. MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-        } else if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
+        if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
             titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
             prazo = '60 DIAS';
             itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
@@ -6544,24 +6538,30 @@ function renderizarDocumentoOficial(proc) {
                      <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, I, da Lei 7.174/2010, e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
             obsFiscal = textoObsReincidencia;
-        } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
+        } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio') || dispLow.includes('reincidencia na inexistencia de passeio')) {
             titulo = 'Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
             prazo = '60 DIAS';
             itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, II, da Lei 7.174/2010 e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong> (valor dobrado em face da reincidência na infração).`;
             obsFiscal = textoObsReincidencia;
-        } else if (disp.includes('120000211') || dispLow.includes('cercamento')) {
+        } else if (disp.includes('120000226') || dispLow.includes('inexistência de passeio') || dispLow.includes('inexistencia de passeio') || (dispLow.includes('passeio') && !dispLow.includes('reconstrução') && !dispLow.includes('reconstrucao') && !dispLow.includes('reparo'))) {
+            titulo = 'Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
+            prazo = '60 DIAS';
+            itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
+            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, II e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+        } else if (disp.includes('120000211') || dispLow.includes('inexistência de cercamento') || dispLow.includes('inexistencia de cercamento') || (dispLow.includes('cercamento') && !dispLow.includes('reconstrução') && !dispLow.includes('reconstrucao') && !dispLow.includes('reparo'))) {
             titulo = 'Inexistência de cercamento: infração ao artigo 1º da Lei 7.174/2010.';
             prazo = '60 DIAS';
             itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
                      <li><strong>Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010:</strong> muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.</li>
                      <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, I e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-        } else if (disp.includes('120000226') || dispLow.includes('inexistência de passeio')) {
-            titulo = 'Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
-            prazo = '60 DIAS';
-            itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
-            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, II e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+        } else if (disp.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('limpeza e conservacao') || dispLow.includes('não edificado') || dispLow.includes('nao edificado')) {
+            titulo = 'Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
+            prazo = '15 DIAS';
+            itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
+                     <li><strong>Proibido:</strong> queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
+            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, IV da LEI 7.174/2010, e outras legislações. MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000229') || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
             titulo = 'Reconstrução e/ou reparo de muro: infração ao artigo 2º, II, da Lei 7.174/2010.';
             prazo = '15 DIAS';
@@ -6750,11 +6750,29 @@ function renderizarDocumentoOficial(proc) {
 // ============================================================================
 
 const PRAZOS_NOTIFICACAO = {
+    '120000232': 15,
+    '120000211': 60,
+    '120000226': 60,
+    '120000228': 60,
+    '120000227': 60,
+    '120000229': 15,
+    '120000240': 15,
+    '120000233': 10,
+    '120000237': 10,
+    '120000239': 10,
+    '120000236': 10,
+    '120000234': 10,
+    '120000230': 10,
+
     'falta de limpeza e conservação de imóvel não edificado': 15,
     'inexistência de cercamento': 60,
+    'inexistencia de cercamento': 60,
     'inexistência de passeio': 60,
+    'inexistencia de passeio': 60,
     'reincidência na inexistência de cercamento': 60,
     'reincidência na inexistência de passeio': 60,
+    'reincidencia na inexistencia de cercamento': 60,
+    'reincidencia na inexistencia de passeio': 60,
     'reconstrução e/ou reparos em muro': 15,
     'reconstrução e/ou reparos passeio': 15,
     'reconstrução e/ou reparos muro': 15,
@@ -6768,10 +6786,59 @@ const PRAZOS_NOTIFICACAO = {
 
 function obterPrazoNotificacao(descricao) {
     if (!descricao) return 15;
-    const descLow = descricao.toLowerCase();
-    for (const [termo, prazo] of Object.entries(PRAZOS_NOTIFICACAO)) {
-        if (descLow.includes(termo)) return prazo;
+    const descStr = String(descricao).toLowerCase();
+
+    // 1. Códigos numéricos explícitos (Prioridade Máxima)
+    if (descStr.includes('120000226') || descStr.includes('120000211') || descStr.includes('120000228') || descStr.includes('120000227')) {
+        return 60;
     }
+    if (descStr.includes('120000232') || descStr.includes('120000229') || descStr.includes('120000240')) {
+        return 15;
+    }
+    if (descStr.includes('120000233') || descStr.includes('120000237') || descStr.includes('120000239') || descStr.includes('120000236') || descStr.includes('120000234') || descStr.includes('120000230')) {
+        return 10;
+    }
+
+    // 2. Infringimentos de 60 Dias: Inexistência de Passeio / Cercamento e Reincidências
+    const ehInexistenciaPasseioOuCercamento = (
+        (descStr.includes('inexistência') || descStr.includes('inexistencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
+    ) || (
+        (descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
+    ) || (
+        descStr.includes('cercamento') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')
+    );
+
+    if (ehInexistenciaPasseioOuCercamento) {
+        return 60;
+    }
+
+    // 3. Infringimentos de 10 Dias
+    if (
+        descStr.includes('quintal') ||
+        descStr.includes('obstáculo') || descStr.includes('obstaculo') ||
+        descStr.includes('água servida') || descStr.includes('agua servida') ||
+        descStr.includes('alvará') || descStr.includes('alvara') ||
+        descStr.includes('concessionária') || descStr.includes('concessionaria') ||
+        descStr.includes('piso tátil') || descStr.includes('piso tatil')
+    ) {
+        return 10;
+    }
+
+    // 4. Infringimentos de 15 Dias
+    if (
+        descStr.includes('reconstrução') || descStr.includes('reconstrucao') ||
+        descStr.includes('reparo') ||
+        descStr.includes('limpeza e conservação') || descStr.includes('limpeza e conservacao') ||
+        descStr.includes('não edificado') || descStr.includes('nao edificado')
+    ) {
+        return 15;
+    }
+
+    // Se contiver passeio sem reparo/reconstrução, padrão 60 dias
+    if (descStr.includes('passeio') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')) {
+        return 60;
+    }
+
     return 15;
 }
 
@@ -9699,7 +9766,9 @@ async function baixarRelatorioFiscalPdfEtapa() {
                     ? window.obterObrigacaoPelaInfracaoText(dispositivosStr)
                     : 'Limpeza';
 
-                const prazoDias = 15;
+                const prazoDias = typeof obterPrazoNotificacao === 'function'
+                    ? obterPrazoNotificacao(dispositivosStr)
+                    : (typeof obterPrazoNotificacaoNovaSolicitacao === 'function' ? obterPrazoNotificacaoNovaSolicitacao(dispositivosStr) : 15);
                 let dataVencimentoFmt = '';
                 const decDateStr = decretoDataRaw || '2026-07-02';
                 try { const pp = decDateStr.split('T')[0].split('-'); if (pp.length === 3) { const dt = new Date(+pp[0], +pp[1] - 1, +pp[2]); dt.setDate(dt.getDate() + prazoDias); dataVencimentoFmt = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`; } } catch (e) { }
@@ -10149,13 +10218,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         const dataAI = proc?.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
         const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
-        if (disp.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
-            titulo = 'Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
-            prazo = '15 DIAS';
-            itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
-                     <li><strong>Proibido:</strong> queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
-            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, IV da LEI 7.174/2010, e outras legislações. MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-        } else if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento')) {
+        if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
             titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
             prazo = '60 DIAS';
             itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
@@ -10163,24 +10226,30 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
                      <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, I, da Lei 7.174/2010, e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
             obsFiscal = textoObsReincidencia;
-        } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio')) {
+        } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio') || dispLow.includes('reincidencia na inexistencia de passeio')) {
             titulo = 'Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
             prazo = '60 DIAS';
             itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, II, da Lei 7.174/2010 e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong> (valor dobrado em face da reincidência na infração).`;
             obsFiscal = textoObsReincidencia;
-        } else if (disp.includes('120000211') || dispLow.includes('cercamento')) {
+        } else if (disp.includes('120000226') || dispLow.includes('inexistência de passeio') || dispLow.includes('inexistencia de passeio') || (dispLow.includes('passeio') && !dispLow.includes('reconstrução') && !dispLow.includes('reconstrucao') && !dispLow.includes('reparo'))) {
+            titulo = 'Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
+            prazo = '60 DIAS';
+            itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
+            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, II e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+        } else if (disp.includes('120000211') || dispLow.includes('inexistência de cercamento') || dispLow.includes('inexistencia de cercamento') || (dispLow.includes('cercamento') && !dispLow.includes('reconstrução') && !dispLow.includes('reconstrucao') && !dispLow.includes('reparo'))) {
             titulo = 'Inexistência de cercamento: infração ao artigo 1º da Lei 7.174/2010.';
             prazo = '60 DIAS';
             itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
                      <li><strong>Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010:</strong> muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.</li>
                      <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, I e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-        } else if (disp.includes('120000226') || dispLow.includes('inexistência de passeio')) {
-            titulo = 'Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
-            prazo = '60 DIAS';
-            itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
-            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, II e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+        } else if (disp.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('limpeza e conservacao') || dispLow.includes('não edificado') || dispLow.includes('nao edificado')) {
+            titulo = 'Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
+            prazo = '15 DIAS';
+            itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
+                     <li><strong>Proibido:</strong> queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
+            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, IV da LEI 7.174/2010, e outras legislações. MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000229') || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
             titulo = 'Reconstrução e/ou reparo de muro: infração ao artigo 2º, II, da Lei 7.174/2010.';
             prazo = '15 DIAS';

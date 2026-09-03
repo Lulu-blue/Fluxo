@@ -1199,21 +1199,27 @@ const PRAZOS_NOTIFICACAO = {
     '120000234': 10,
     '120000230': 10,
 
+    'inexistência de cercamento': 60,
+    'inexistencia de cercamento': 60,
+    'inexistência de passeio': 60,
+    'inexistencia de passeio': 60,
+    'reincidência na inexistência de cercamento': 60,
+    'reincidência na inexistência de passeio': 60,
+    'reincidencia na inexistencia de cercamento': 60,
+    'reincidencia na inexistencia de passeio': 60,
+    'cercamento': 60,
+
     'falta de limpeza e conservação': 15,
     'não edificado': 15,
     'nao edificado': 15,
     'limpeza e conservação': 15,
-    'inexistência de cercamento': 60,
-    'inexistencia de cercamento': 60,
-    'cercamento': 60,
-    'inexistência de passeio': 60,
-    'inexistencia de passeio': 60,
-    'passeio': 60,
-    'reincidência na inexistência de cercamento': 60,
-    'reincidência na inexistência de passeio': 60,
     'reconstrução e/ou reparos em muro': 15,
     'reconstrução e/ou reparos passeio': 15,
     'reconstrução e/ou reparos muro': 15,
+    'reconstrucao e/ou reparos em muro': 15,
+    'reconstrucao e/ou reparos passeio': 15,
+    'reconstrucao e/ou reparos muro': 15,
+
     'limpeza de quintal': 10,
     'quintal': 10,
     'obstáculos em calçadas': 10,
@@ -1233,10 +1239,59 @@ const PRAZOS_NOTIFICACAO = {
 
 function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     if (!descricao) return 15;
-    const descLow = String(descricao).toLowerCase();
-    for (const [termo, prazo] of Object.entries(PRAZOS_NOTIFICACAO)) {
-        if (descLow.includes(termo)) return prazo;
+    const descStr = String(descricao).toLowerCase();
+
+    // 1. Códigos numéricos explícitos (Prioridade Máxima)
+    if (descStr.includes('120000226') || descStr.includes('120000211') || descStr.includes('120000228') || descStr.includes('120000227')) {
+        return 60;
     }
+    if (descStr.includes('120000232') || descStr.includes('120000229') || descStr.includes('120000240')) {
+        return 15;
+    }
+    if (descStr.includes('120000233') || descStr.includes('120000237') || descStr.includes('120000239') || descStr.includes('120000236') || descStr.includes('120000234') || descStr.includes('120000230')) {
+        return 10;
+    }
+
+    // 2. Infringimentos de 60 Dias: Inexistência de Passeio / Cercamento e Reincidências
+    const ehInexistenciaPasseioOuCercamento = (
+        (descStr.includes('inexistência') || descStr.includes('inexistencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
+    ) || (
+        (descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
+    ) || (
+        descStr.includes('cercamento') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')
+    );
+
+    if (ehInexistenciaPasseioOuCercamento) {
+        return 60;
+    }
+
+    // 3. Infringimentos de 10 Dias
+    if (
+        descStr.includes('quintal') ||
+        descStr.includes('obstáculo') || descStr.includes('obstaculo') ||
+        descStr.includes('água servida') || descStr.includes('agua servida') ||
+        descStr.includes('alvará') || descStr.includes('alvara') ||
+        descStr.includes('concessionária') || descStr.includes('concessionaria') ||
+        descStr.includes('piso tátil') || descStr.includes('piso tatil')
+    ) {
+        return 10;
+    }
+
+    // 4. Infringimentos de 15 Dias
+    if (
+        descStr.includes('reconstrução') || descStr.includes('reconstrucao') ||
+        descStr.includes('reparo') ||
+        descStr.includes('limpeza e conservação') || descStr.includes('limpeza e conservacao') ||
+        descStr.includes('não edificado') || descStr.includes('nao edificado')
+    ) {
+        return 15;
+    }
+
+    // Se contiver passeio sem reparo/reconstrução, padrão 60 dias
+    if (descStr.includes('passeio') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')) {
+        return 60;
+    }
+
     return 15;
 }
 
