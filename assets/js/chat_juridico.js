@@ -353,11 +353,9 @@
         chatBtn = document.createElement('button');
         chatBtn.id = 'btnFloatingChatJuridico';
         chatBtn.className = 'floating-chat-btn';
-        chatBtn.title = 'Falar com o Gerente de Interface Jurídica';
+        chatBtn.title = 'Falar com a Interface Jurídica / Gerência';
         chatBtn.innerHTML = `
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
+            <img src="assets/img/chat_cat_icon.svg" alt="Chat Logo" style="width: 53px; height: 53px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); display: block;" />
             <span class="chat-badge" id="chatJuridicoBadge">0</span>
         `;
         document.body.appendChild(chatBtn);
@@ -373,13 +371,17 @@
         chatDrawer.innerHTML = `
             <div class="chat-header">
                 <div class="chat-header-info">
-                    <h3>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                        </svg>
-                        Interface Jurídica
+                    <h3 style="display: flex; align-items: center; gap: 8px;">
+                        <img src="assets/img/chat_cat_icon.svg" alt="Chat Logo" style="width: 50px; height: 50px; display: inline-block; vertical-align: middle;" />
+                        Canal de Comunicação
                     </h3>
-                    <p id="chatHeaderSub">Gerente de Interface Jurídica</p>
+                    <div style="margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">Para:</span>
+                        <select id="chatDestinatarioSelect" style="background: rgba(255,255,255,0.25); color: white; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 2px 8px; font-size: 0.78rem; font-weight: 600; outline: none; cursor: pointer;">
+                            <option value="juridico" style="color: #0f172a;">Interface Jurídica</option>
+                            <option value="gerente" style="color: #0f172a;">Gerência de Posturas</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="chat-header-actions">
                     <button type="button" class="chat-btn-subtle" id="btnAlternarListaChat" style="display:none;">&larr; Conversas</button>
@@ -532,7 +534,7 @@
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
                         <p style="font-weight:600; color:#334155; margin-bottom:4px;">Nenhuma conversa iniciada</p>
-                        <p style="font-size:0.78rem;">As conversas sobre os processos com a Interface Jurídica aparecerão aqui.</p>
+                        <p style="font-size:0.78rem;">As conversas sobre os processos com a Interface Jurídica e Gerência aparecerão aqui.</p>
                     </div>
                 `;
                 return;
@@ -633,7 +635,8 @@
             const html = mensagens.map(msg => {
                 const eMinha = (msg.sender_id && msg.sender_id === perfil.id) || (msg.sender_nome === perfil.nome);
                 const dataFmt = msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-                const autorNome = msg.sender_nome && msg.sender_nome !== 'Usuário' ? msg.sender_nome : (eMinha ? (perfil.nome || 'Fiscal') : 'Gerente de Interface Jurídica');
+                const autorNome = msg.sender_nome && msg.sender_nome !== 'Usuário' ? msg.sender_nome : (eMinha ? (perfil.nome || 'Fiscal') : 'Atendimento');
+                const tagDestino = msg.destinatario === 'gerente' ? 'Gerência' : 'Jurídico';
 
                 let anexoHtml = '';
                 if (msg.anexos && msg.anexos.length > 0) {
@@ -650,7 +653,7 @@
 
                 return `
                     <div class="chat-msg ${eMinha ? 'sent' : 'received'}">
-                        <div class="chat-msg-author">${autorNome} (${msg.sender_cargo || 'Fiscal de Postura'})</div>
+                        <div class="chat-msg-author">${autorNome} (${msg.sender_cargo || 'Fiscal'}) &bull; <span style="opacity:0.8; font-size:0.68rem;">Para: ${tagDestino}</span></div>
                         <div class="chat-msg-bubble">
                             <div>${msg.texto || ''}</div>
                             ${anexoHtml}
@@ -705,12 +708,15 @@
 
         const nomeRemetente = perfil.nome && perfil.nome !== 'Usuário' ? perfil.nome : 'Luiza';
         const isGerente = (perfil.cargo && perfil.cargo.toLowerCase().includes('interface')) || (perfil.cargo && perfil.cargo.toLowerCase().includes('gerente'));
+        const destinatarioVal = document.getElementById('chatDestinatarioSelect')?.value || 'juridico';
+        const nomeDestinatarioRotulo = (destinatarioVal === 'gerente') ? 'Gerência de Posturas' : 'Interface Jurídica';
 
         const novaMensagem = {
             id: crypto.randomUUID(),
             sender_id: perfil.id || null,
             sender_nome: nomeRemetente,
             sender_cargo: perfil.cargo || 'Fiscal de Postura',
+            destinatario: destinatarioVal,
             texto: texto,
             anexos: anexos,
             created_at: new Date().toISOString()
@@ -786,16 +792,27 @@
             // Adicionar Notificação do Sistema para o destinatário correto
             dadosAtualizados.notificacoes_menu = dadosAtualizados.notificacoes_menu || [];
 
-            // Se o remetente for o Gerente de Interface Jurídica, notifica os fiscais/usuário
-            // Se for o Usuário/Fiscal, notifica o Gerente de Interface Jurídica
-            const destinatarioCargo = isGerente ? 'Fiscal de Postura' : 'Gerente de Interface Jurídica';
-            const tituloNotif = isGerente ? 'Resposta da Interface Jurídica' : 'Nova mensagem no Chat Jurídico';
+            let destinatarioCargo = 'Fiscal de Postura';
+            let tituloNotif = 'Nova mensagem no Chat';
+
+            if (isGerente) {
+                destinatarioCargo = 'Fiscal de Postura';
+                tituloNotif = (destinatarioVal === 'gerente') ? 'Resposta da Gerência' : 'Resposta da Interface Jurídica';
+            } else {
+                if (destinatarioVal === 'gerente') {
+                    destinatarioCargo = 'Gerente';
+                    tituloNotif = 'Nova mensagem para a Gerência';
+                } else {
+                    destinatarioCargo = 'Gerente de Interface Jurídica';
+                    tituloNotif = 'Nova mensagem no Chat Jurídico';
+                }
+            }
 
             dadosAtualizados.notificacoes_menu.push({
                 id: crypto.randomUUID(),
                 tipo: 'chat_juridico',
                 titulo: tituloNotif,
-                mensagem: `${nomeRemetente} (${perfil.cargo || 'Usuário'}): "${texto.slice(0, 60)}${texto.length > 60 ? '...' : ''}"`,
+                mensagem: `${nomeRemetente} (${perfil.cargo || 'Usuário'}) para [${nomeDestinatarioRotulo}]: "${texto.slice(0, 50)}${texto.length > 50 ? '...' : ''}"`,
                 processo_id: currentProcessoId,
                 numero_processo: numProcesso,
                 notificacao_id: currentNotificacaoId || null,

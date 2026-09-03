@@ -585,6 +585,9 @@ async function inicializarPaginaEtapa() {
     if (etapaAtual === 2 && !notificacaoAtual) {
         await renderizarEtapa2(processoAtual);
         configurarEventosEtapa2();
+    } else if (etapaAtual === 18 && !notificacaoAtual) {
+        await renderizarEtapa18(processoAtual);
+        configurarEventosEtapa18();
     } else if (etapaAtual === 16) {
         await renderizarEtapa16(processoAtual);
         configurarEventosEtapa16();
@@ -597,7 +600,7 @@ async function inicializarPaginaEtapa() {
     } else {
         configurarAbasPagina();
 
-        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 18, 19, 29, 33].includes(etapaAtual)) {
+        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 19, 20, 29, 33].includes(etapaAtual)) {
             renderizarFormularioDinamico(etapaAtual);
             if (etapaAtual === 1 && !notificacaoAtual) {
                 configurarEventosPainelEtapa1();
@@ -6852,7 +6855,25 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
 
 function calcularDataVencimento(dataInicio, dias) {
     const data = new Date(dataInicio);
-    data.setDate(data.getDate() + dias);
+    if (isNaN(data.getTime())) {
+        return new Date().toISOString();
+    }
+    const numDias = parseInt(dias, 10) || 20;
+
+    if (numDias === 10) {
+        // 10 DIAS ÚTEIS: desconsidera sábados (6) e domingos (0)
+        let diasUteisAdicionados = 0;
+        while (diasUteisAdicionados < 10) {
+            data.setDate(data.getDate() + 1);
+            const diaSemana = data.getDay();
+            if (diaSemana !== 0 && diaSemana !== 6) {
+                diasUteisAdicionados++;
+            }
+        }
+    } else {
+        // 20 DIAS CORRIDOS (ou outros valores)
+        data.setDate(data.getDate() + numDias);
+    }
     return data.toISOString();
 }
 
@@ -7437,6 +7458,365 @@ async function avancarNotificacaoEtapa2(index) {
     } catch (err) {
         console.error('Erro ao avançar notificação:', err);
         alert('Erro ao avançar a notificação.');
+        ocultarCarregamento();
+    }
+}
+
+// ============================================================================
+// ETAPA 18 — SOLICITAR DEFESA OU PAGAMENTO DO AUTO DE INFRAÇÃO
+// ============================================================================
+
+function determinarPrazoAutoInfracao(descricao) {
+    if (typeof window.obterPrazoDefesaAutoInfracao === 'function') {
+        const p = window.obterPrazoDefesaAutoInfracao(descricao);
+        if (p && (p.includes('10') || p.toLowerCase().includes('úteis') || p.toLowerCase().includes('uteis'))) return 10;
+    }
+    return 20;
+}
+
+async function obterAutosEtapa18(proc) {
+    const dataArEnviado = proc.campos?.etapa16?.data_insercao_ar
+        || proc.campos?.etapa16?.data_recebimento
+        || proc.dados?.etapa16?.data_insercao_ar
+        || proc.dados?.etapa16?.data_recebimento
+        || proc.dados?.campos?.etapa16?.data_insercao_ar
+        || proc.dados?.campos?.etapa16?.data_recebimento;
+
+    console.log('[DEBUG Etapa 18] Obter Autos — Processo ID:', proc.id, '| Data AR Enviado/Gravado:', dataArEnviado);
+
+    if (proc.notificacoes && Array.isArray(proc.notificacoes) && proc.notificacoes.length > 0) {
+        return normalizarAutosTabelaEtapa18(proc, proc.notificacoes, dataArEnviado);
+    }
+
+    const dispositivos = obterDispositivosDoProcesso(proc);
+    const dados18 = proc.campos?.etapa18 || {};
+    const autosSalvos = dados18.autos || [];
+
+    let dataInicio = dataArEnviado || dados18.data_inicio_etapa18 || proc.created_at || new Date().toISOString();
+
+    return dispositivos.map((disp, index) => {
+        const salva = autosSalvos[index] || {};
+        const numero = salva.numero || proc.campos?.etapa14?.numero_auto_infracao || proc.dados?.etapa14?.numero_auto_infracao || `${proc.numero_processo || 'S/N'}/${String(index + 1).padStart(2, '0')}`;
+        const prazoDias = (salva.prazo_dias && salva.prazo_dias !== 15) ? salva.prazo_dias : determinarPrazoAutoInfracao(disp);
+        const dataVencimento = calcularDataVencimento(dataInicio, prazoDias);
+        return {
+            index,
+            numero,
+            descricao: disp,
+            prazo_dias: prazoDias,
+            data_inicio: dataInicio,
+            data_vencimento: dataVencimento,
+            status: salva.status || 'pendente',
+            etapa_atual: salva.etapa_atual || 18,
+            dados: salva.dados || {}
+        };
+    });
+}
+
+function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
+    let dataInicioGlobal = dataArEnviado || proc.campos?.etapa18?.data_inicio_etapa18 || proc.created_at || new Date().toISOString();
+
+    return notificacoes.map((n, index) => {
+        const etapaNumero = parseInt(n.etapas?.numero || n.etapa_atual_id || n.etapa_atual || 18, 10);
+        const dataInicio = n.dados?.etapa16?.data_insercao_ar || n.dados?.etapa16?.data_recebimento || dataInicioGlobal;
+        const prazoDias = determinarPrazoAutoInfracao(n.descricao);
+        const dataVencimento = calcularDataVencimento(dataInicio, prazoDias);
+        const numAuto = n.dados?.etapa14?.numero_auto_infracao || proc.campos?.etapa14?.numero_auto_infracao || proc.dados?.etapa14?.numero_auto_infracao || n.numero || `${proc.numero_processo || 'S/N'}/${String(index + 1).padStart(2, '0')}`;
+        return {
+            id: n.id,
+            index,
+            numero: numAuto,
+            descricao: n.descricao || 'Auto de Infração',
+            prazo_dias: prazoDias,
+            data_inicio: dataInicio,
+            data_vencimento: dataVencimento,
+            status: n.status || 'pendente',
+            etapa_atual: etapaNumero,
+            data_movimentacao: n.data_movimentacao || null,
+            dados: n.dados || {}
+        };
+    });
+}
+
+async function renderizarEtapa18(proc) {
+    console.log('[DEBUG Etapa 18] Renderizando Etapa 18 para processo:', proc.numero_processo || proc.id);
+    const modo = determinarModoAcesso(proc, perfilAtual);
+
+    const topbarPadrao = document.querySelector('.etapa-topbar:not(#topbarEtapa18)');
+    const stepperPadrao = document.querySelector('.process-stepper-bar:not(#stepperEtapa16)');
+    const abas = document.querySelector('.page-tabs');
+    const tabContent = document.querySelector('.tab-content-box:not(#formularioEtapa18)');
+
+    if (topbarPadrao) topbarPadrao.style.display = '';
+    if (stepperPadrao) stepperPadrao.style.display = '';
+    if (abas) abas.style.display = 'none';
+    if (tabContent) tabContent.style.display = 'none';
+
+    const container18 = document.getElementById('etapa18Container');
+    const topbar18 = document.getElementById('topbarEtapa18');
+    const formulario18 = document.getElementById('formularioEtapa18');
+    if (container18) container18.style.display = 'block';
+    if (topbar18) topbar18.style.display = 'none';
+    if (formulario18) formulario18.style.display = '';
+
+    const elProcNum = document.getElementById('etapa18ProcNumero');
+    if (elProcNum) elProcNum.textContent = proc.numero_processo || proc.id;
+
+    const autos = await obterAutosEtapa18(proc);
+    console.log('[DEBUG Etapa 18] Autos para exibição:', autos);
+
+    // Bypass Etapa 18 se o Auto (ou todos os autos) já avançaram além da Etapa 18
+    if (autos.length > 0 && autos.every(a => a.etapa_atual > 18)) {
+        const autoAlvo = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) 
+            ? autos.find(a => a.id === notificacaoAtual.id) || autos[0] 
+            : autos[0];
+        const destEtapa = autoAlvo.etapa_atual || 19;
+        console.log(`[DEBUG Etapa 18] Auto já avançou para a Etapa ${destEtapa}. Bypass da Etapa 18 executado.`);
+
+        const container18 = document.getElementById('etapa18Container');
+        if (container18) container18.style.display = 'none';
+
+        if (autoAlvo.id && (typeof notificacaoAtual === 'undefined' || !notificacaoAtual)) {
+            window.location.search = `?processo=${proc.id}&notificacao=${autoAlvo.id}`;
+            return;
+        }
+
+        if (typeof configurarAbasPagina === 'function') configurarAbasPagina();
+        if (typeof renderizarFormularioDinamico === 'function') renderizarFormularioDinamico(destEtapa);
+        return;
+    }
+
+    const lista = document.getElementById('listaAutosEtapa18');
+    if (lista) {
+        lista.innerHTML = '';
+        if (autos.length === 0) {
+            lista.innerHTML = '<p style="color:#64748b; font-size:0.95rem;">Nenhum Auto de Infração pendente.</p>';
+        } else {
+            autos.forEach(a => {
+                const infoPrazo = formatarDiasRestantes(a.data_vencimento);
+                const card = document.createElement('div');
+                card.className = 'card-auto-etapa18';
+                card.dataset.index = a.index;
+
+                const etapaAuto = parseInt(a.etapas?.numero || a.etapa_atual_id || a.etapa_atual || 18, 10);
+                const jaAvancou = etapaAuto > 18;
+
+                card.style.cssText = 'background:white; border:1px solid #DED9E2; border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; transition:all 0.2s ease;';
+
+                if (jaAvancou) {
+                    card.style.cursor = 'pointer';
+                    card.style.border = '2px solid #80A1D4';
+                    card.addEventListener('click', (e) => {
+                        if (!e.target.closest('button')) {
+                            window.location.search = `?processo=${processoAtual.id}&notificacao=${a.id || ''}`;
+                        }
+                    });
+                } else {
+                    card.addEventListener('mouseenter', () => { card.style.borderColor = '#C0B9DD'; card.style.boxShadow = '0 4px 12px rgba(192,185,221,0.2)'; });
+                    card.addEventListener('mouseleave', () => { card.style.borderColor = '#DED9E2'; card.style.boxShadow = 'none'; });
+                }
+
+                let statusBadge = '';
+                if (a.status === 'defesa') statusBadge = '<span style="background:#F0F4FA; color:#3B5888; border:1px solid #C0B9DD; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Defesa Selecionada</span>';
+                else if (a.status === 'pagamento') statusBadge = '<span style="background:#EBF9F9; color:#2B7A78; border:1px solid #75C9C8; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pagamento Selecionado</span>';
+                else if (infoPrazo.vencido) statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Vencido</span>';
+                else statusBadge = '<span style="background:#F7F4EA; color:#475569; border:1px solid #DED9E2; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pendente</span>';
+
+                const podeAvancar = !jaAvancou;
+                const btnAvancarHtml = podeAvancar
+                    ? `<button type="button" class="btn-avancar-auto-18" data-index="${a.index}" style="margin-top:8px; padding:10px 18px; border-radius:8px; border:none; background:#80A1D4; color:white; font-weight:600; font-size:0.88rem; cursor:pointer; box-shadow:0 4px 12px rgba(128,161,212,0.3); transition:all 0.2s ease;">Avançar Auto</button>`
+                    : '';
+
+                let dataVencFormatada = '—';
+                try {
+                    const dt = new Date(a.data_vencimento);
+                    if (!isNaN(dt.getTime())) {
+                        dataVencFormatada = dt.toLocaleDateString('pt-BR');
+                    }
+                } catch (e) {
+                    console.warn('[DEBUG Etapa 18] Erro ao formatar data_vencimento:', a.data_vencimento, e);
+                }
+
+                const rotuloPrazo = a.prazo_dias === 10 ? '10 dias úteis' : `${a.prazo_dias || 20} dias corridos`;
+
+                const prazoHtml = jaAvancou
+                    ? ''
+                    : `<div style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#475569; flex-wrap:wrap;">
+                        <span>📅 Prazo para Defesa (${rotuloPrazo}): ${dataVencFormatada}</span>
+                        <span style="${infoPrazo.vencido ? 'color:#B93838; font-weight:600;' : 'color:#2B7A78; font-weight:600;'}">(${infoPrazo.texto})</span>
+                    </div>`;
+
+                const controlesHtml = jaAvancou ?
+                    `<div style="font-size:0.9rem; color:#3B5888; font-weight:600; padding:10px; background:#F0F4FA; border:1px solid #C0B9DD; border-radius:8px; text-align:center;">
+                        Este Auto de Infração avançou e está na Etapa ${etapaAuto}.
+                    </div>` :
+                    `<div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:4px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#334155; cursor:pointer; padding:8px 14px; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; background:#f8fafc;">
+                            <input type="radio" name="opcaoAuto_${a.index}" value="defesa" ${a.status === 'defesa' ? 'checked' : ''} data-index="${a.index}"> Defesa
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#334155; cursor:pointer; padding:8px 14px; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; background:#f8fafc;">
+                            <input type="radio" name="opcaoAuto_${a.index}" value="pagamento" ${a.status === 'pagamento' ? 'checked' : ''} data-index="${a.index}"> Pagamento
+                        </label>
+                    </div>`;
+
+                const tituloCard = String(a.numero).toLowerCase().includes('auto') ? a.numero : `Auto de Infração: ${a.numero}`;
+
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                        <div>
+                            <div style="font-size:0.85rem; color:#64748b; font-weight:700; margin-bottom:2px;">${tituloCard}</div>
+                            <div style="font-size:0.95rem; color:#0f172a; font-weight:600;">${a.descricao}</div>
+                        </div>
+                        ${statusBadge}
+                    </div>
+                    ${prazoHtml}
+                    ${controlesHtml}
+                    ${btnAvancarHtml}
+                `;
+                lista.appendChild(card);
+            });
+        }
+    }
+
+    if (modo !== MODO_ACESSO.NORMAL && formulario18) {
+        formulario18.querySelectorAll('input, select, textarea, button').forEach(el => {
+            el.disabled = true;
+        });
+    }
+}
+
+function configurarEventosEtapa18() {
+    const btnSalvar = document.getElementById('btnSalvarEtapa18');
+    if (btnSalvar) btnSalvar.addEventListener('click', salvarEtapa18);
+
+    const container = document.getElementById('listaAutosEtapa18');
+    if (container) {
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-avancar-auto-18');
+            if (btn) {
+                const index = parseInt(btn.dataset.index, 10);
+                if (!isNaN(index)) {
+                    avancarAutoEtapa18(index);
+                }
+            }
+        });
+    }
+}
+
+async function salvarEtapa18() {
+    if (!processoAtual) return;
+    console.log('[DEBUG Etapa 18] Salvando opções do formulário...');
+    const autos = await obterAutosEtapa18(processoAtual);
+
+    processoAtual.campos = processoAtual.campos || {};
+    processoAtual.campos.etapa18 = processoAtual.campos.etapa18 || {};
+    processoAtual.campos.etapa18.autos = processoAtual.campos.etapa18.autos || [];
+
+    autos.forEach((a, index) => {
+        const rad = document.querySelector(`input[name="opcaoAuto_${index}"]:checked`);
+        if (rad) {
+            a.status = rad.value;
+        }
+        processoAtual.campos.etapa18.autos[index] = a;
+    });
+
+    try {
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.campos = processoAtual.campos;
+
+        await supabaseClient
+            .from('processos')
+            .update({ dados: processoAtual.dados })
+            .eq('id', processoAtual.id);
+        console.log('[DEBUG Etapa 18] Opções salvas com sucesso no banco!');
+        alert('Opções salvas com sucesso.');
+    } catch (err) {
+        console.error('[DEBUG Etapa 18] Erro ao salvar Etapa 18:', err);
+        alert('Erro ao salvar opções.');
+    }
+}
+
+async function avancarAutoEtapa18(index) {
+    if (!processoAtual) return;
+
+    const selectedRadio = document.querySelector(`input[name="opcaoAuto_${index}"]:checked`);
+    if (!selectedRadio) {
+        alert('Selecione uma opção ("Defesa" ou "Pagamento") para avançar este Auto de Infração.');
+        return;
+    }
+
+    const opcao = selectedRadio.value;
+    console.log('[DEBUG Etapa 18] Avançando Auto de Infração no index:', index, 'Opção:', opcao);
+    const autos = await obterAutosEtapa18(processoAtual);
+    const item = autos[index];
+
+    mostrarCarregamento('Avançando Auto de Infração...');
+
+    let proxEtapaNumero = (opcao === 'defesa') ? 19 : 20;
+    let statusProc = (opcao === 'defesa') ? 'defesa_auto' : 'pagamento_auto';
+    let condicao = (opcao === 'defesa') ? 'Defesa do Auto de Infração Apresentada' : 'Solicitado Pagamento do Auto de Infração';
+
+    try {
+        let proxEtapaId = null;
+        if (proxEtapaNumero) {
+            const { data: proxEtapa } = await supabaseClient
+                .from('etapas')
+                .select('id')
+                .eq('numero', proxEtapaNumero)
+                .maybeSingle();
+            proxEtapaId = proxEtapa ? proxEtapa.id : proxEtapaNumero;
+        }
+
+        const dataMov = new Date().toISOString();
+
+        if (item.id) {
+            await atualizarNotificacaoNoBanco(item.id, {
+                status: opcao,
+                etapa_atual_id: proxEtapaId,
+                data_movimentacao: dataMov
+            });
+        }
+
+        processoAtual.campos = processoAtual.campos || {};
+        processoAtual.campos.etapa18 = processoAtual.campos.etapa18 || {};
+        processoAtual.campos.etapa18.autos = processoAtual.campos.etapa18.autos || [];
+        processoAtual.campos.etapa18.autos[index] = {
+            ...item,
+            status: opcao,
+            etapa_atual: proxEtapaNumero,
+            data_movimentacao: dataMov
+        };
+
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.campos = processoAtual.campos;
+
+        console.log('[DEBUG Etapa 18] Movendo processo para Etapa:', proxEtapaNumero, 'ID:', proxEtapaId);
+
+        await supabaseClient
+            .from('processos')
+            .update({
+                etapa_atual_id: proxEtapaId,
+                status: statusProc,
+                dados: processoAtual.dados
+            })
+            .eq('id', processoAtual.id);
+
+        await supabaseClient
+            .from('historico_etapas')
+            .insert([{
+                processo_id: processoAtual.id,
+                notificacao_id: item.id || null,
+                etapa_de_id: processoAtual.etapa_atual_id,
+                etapa_para_id: proxEtapaId,
+                usuario_id: perfilAtual?.id,
+                condicao_aplicada: condicao,
+                observacao: `Auto: ${item.numero} | Opção selecionada: ${opcao.toUpperCase()}`
+            }]);
+
+        window.location.href = `etapa.html?processo=${processoAtual.id}`;
+    } catch (err) {
+        console.error('[DEBUG Etapa 18] Erro ao avançar Etapa 18:', err);
+        alert('Erro ao avançar Auto de Infração.');
         ocultarCarregamento();
     }
 }
@@ -9311,12 +9691,12 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 const decretoDataRaw = fProc.data_decreto;
                 let decretoDataFmt = '02/07/2026';
                 if (decretoDataRaw) { const pp = decretoDataRaw.split('T')[0].split('-'); if (pp.length === 3) decretoDataFmt = `${pp[2]}/${pp[1]}/${pp[0]}`; }
-                
-                const dispositivosStr = (typeof window.obterTextoInfracoesProcesso === 'function') 
-                    ? window.obterTextoInfracoesProcesso(processoAtual) 
+
+                const dispositivosStr = (typeof window.obterTextoInfracoesProcesso === 'function')
+                    ? window.obterTextoInfracoesProcesso(processoAtual)
                     : (dProc.infracoes?.descricao || fProc.infracao || rProc.texto_vistoria || 'falta de limpeza e conservação de imóvel não edificado');
-                const obrigacaoStr = (typeof window.obterObrigacaoPelaInfracaoText === 'function') 
-                    ? window.obterObrigacaoPelaInfracaoText(dispositivosStr) 
+                const obrigacaoStr = (typeof window.obterObrigacaoPelaInfracaoText === 'function')
+                    ? window.obterObrigacaoPelaInfracaoText(dispositivosStr)
                     : 'Limpeza';
 
                 const prazoDias = 15;
@@ -9344,8 +9724,8 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 const logradouroImv = iProc.logradouro || 'XXX';
                 const numeroImv = iProc.numero || 'XXXX';
                 const bairroImv = iProc.bairro || 'XXXX';
-                const dispositivosStrComum = (typeof window.obterTextoInfracoesProcesso === 'function') 
-                    ? window.obterTextoInfracoesProcesso(processoAtual) 
+                const dispositivosStrComum = (typeof window.obterTextoInfracoesProcesso === 'function')
+                    ? window.obterTextoInfracoesProcesso(processoAtual)
                     : 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
                 const textoVistoria = rProc.texto_vistoria || fProc.texto_vistoria || dispositivosStrComum;
                 const paHtml = pa ? `<p style="margin:0 0 6px 0;"><strong>PA:</strong> ${pa}</p>` : '';

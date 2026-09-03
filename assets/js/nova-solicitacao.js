@@ -1347,7 +1347,8 @@ async function garantirNumerosReservados() {
                 numerosReservadosEditor.processo = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
             }
         } catch (e) {
-            console.warn('Erro ao reservar número de processo:', e);
+            console.warn('Erro ao reservar número de processo, executando fallback local:', e);
+            numerosReservadosEditor.processo = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
         }
     }
 
@@ -1361,7 +1362,8 @@ async function garantirNumerosReservados() {
                 numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
             }
         } catch (e) {
-            console.warn('Erro ao reservar número de relatório:', e);
+            console.warn('Erro ao reservar número de relatório, executando fallback local:', e);
+            numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
         }
     }
 }
@@ -1602,26 +1604,11 @@ async function garantirNumerosReservadosCertidao() {
                 numerosReservadosEditor.processo = np;
             } else {
                 console.warn('RPC reservar_numero para Processo falhou, executando fallback local:', errProc?.message);
-                const { data } = await supabaseClient
-                    .from('processos')
-                    .select('numero_processo')
-                    .like('numero_processo', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_processo) {
-                            const p = item.numero_processo.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numerosReservadosEditor.processo = `${anoAtual}/${String(max + 1).padStart(6, '0')}`;
+                numerosReservadosEditor.processo = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
             }
         } catch (e) {
-            console.warn('Erro ao reservar número de processo:', e);
+            console.warn('Erro ao reservar número de processo, executando fallback local:', e);
+            numerosReservadosEditor.processo = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
         }
     }
 
@@ -1632,26 +1619,11 @@ async function garantirNumerosReservadosCertidao() {
                 numerosReservadosEditor.certidao = nc;
             } else {
                 console.warn('RPC reservar_numero para Certidão falhou, executando fallback local:', errCert?.message);
-                const { data } = await supabaseClient
-                    .from('notificacoes')
-                    .select('numero_certidao')
-                    .like('numero_certidao', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_certidao) {
-                            const p = item.numero_certidao.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numerosReservadosEditor.certidao = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
+                numerosReservadosEditor.certidao = await obterNumeroFallbackJS(anoAtual, 'Certidão Sem Defesa', 3, 'notificacoes', 'numero_certidao');
             }
         } catch (e) {
-            console.warn('Erro ao reservar número de certidão:', e);
+            console.warn('Erro ao reservar número de certidão, executando fallback local:', e);
+            numerosReservadosEditor.certidao = await obterNumeroFallbackJS(anoAtual, 'Certidão Sem Defesa', 3, 'notificacoes', 'numero_certidao');
         }
     }
 }

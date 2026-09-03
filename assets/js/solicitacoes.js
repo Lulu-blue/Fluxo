@@ -402,8 +402,9 @@ function preencherDadosInterfaceUsuario(usuario) {
 }
 
 // ── Carregar solicitações com filtros ────────────────────────
-// ── Carregar solicitações com filtros (em lotes de até 1000 com "Carregar mais") ──
+// ── Carregar solicitações com filtros (com lote dinâmico e resiliência a timeout/redes) ──
 let currentFetchId = 0;
+let dynamicBatchSize = 50;
 
 async function carregarSolicitacoes(append = false, tentativa = 1) {
     if (isFetchingMore && append) return;
@@ -420,6 +421,17 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
 
     const myFetchId = ++currentFetchId;
 
+    // Verificar se o cliente está offline antes de iniciar requisição
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        isFetchingMore = false;
+        mostrarLoading(false);
+        mostrarLoadingCarregarMais(false);
+        if (resultsCount) {
+            resultsCount.innerHTML = `Sem conexão com a internet. <a href="#" onclick="carregarSolicitacoes(false, 1); return false;" style="color:#2563eb; text-decoration:underline; font-weight:600; margin-left:6px;">Tentar novamente</a>`;
+        }
+        return;
+    }
+
     try {
         // Montar query base
         let query = supabaseClient
@@ -432,10 +444,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
                 dados,
                 created_at,
                 updated_at,
-                fiscal_id,
-                profiles:fiscal_id (
-                    nome
-                )
+                fiscal_id
             `);
 
         // Aplicar filtros
@@ -466,9 +475,10 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             query = query.eq('fiscal_id', currentUserId);
         }
 
-        // Execução em lote de até BATCH_SIZE (1000)
+        // Execução em lote adaptativo (redimensiona automaticamente se o banco expirar tempo)
+        const effectiveBatch = Math.max(10, dynamicBatchSize);
         const from = currentOffset;
-        const to = currentOffset + BATCH_SIZE - 1;
+        const to = currentOffset + effectiveBatch - 1;
 
         const { data, error } = await query
             .range(from, to)
@@ -481,8 +491,31 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
 
         const rawData = data || [];
 
-        // Se retornou menos que BATCH_SIZE (1000), indica fim dos dados
-        if (rawData.length < BATCH_SIZE) {
+        // Buscar nomes dos fiscais via query separada ultrarrápida
+        const fiscalIds = [...new Set(rawData.map(i => i.fiscal_id).filter(Boolean))];
+        let profilesMap = {};
+        if (fiscalIds.length > 0) {
+            try {
+                const { data: profs } = await supabaseClient
+                    .from('profiles')
+                    .select('id, nome')
+                    .in('id', fiscalIds);
+                if (profs) {
+                    profs.forEach(p => profilesMap[p.id] = p);
+                }
+            } catch (pErr) {
+                console.warn('Erro ao carregar perfis dos fiscais:', pErr);
+            }
+        }
+
+        rawData.forEach(item => {
+            if (item.fiscal_id && profilesMap[item.fiscal_id]) {
+                item.profiles = profilesMap[item.fiscal_id];
+            }
+        });
+
+        // Se retornou menos que o lote efetivo, indica fim dos dados
+        if (rawData.length < effectiveBatch) {
             hasMoreRecords = false;
         } else {
             hasMoreRecords = true;
@@ -511,13 +544,30 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
 
     } catch (err) {
         console.error(`Erro ao carregar solicitações (tentativa ${tentativa}):`, err);
-        if (tentativa < 3) {
-            console.log(`Re-tentando carregar solicitações em 1.5s (tentativa ${tentativa + 1})...`);
-            setTimeout(() => carregarSolicitacoes(append, tentativa + 1), 1500);
+
+        const isTimeout = err?.code === '57014' || String(err?.message || '').toLowerCase().includes('timeout') || String(err?.details || '').toLowerCase().includes('timeout');
+        const isNetworkErr = String(err).includes('Failed to fetch') || String(err?.message || '').includes('Failed to fetch') || String(err).includes('ERR_ADDRESS_UNREACHABLE');
+
+        // Em caso de statement timeout do PostgreSQL (57014), reduz o tamanho do lote para o servidor responder mais rápido
+        if (isTimeout) {
+            dynamicBatchSize = Math.max(15, Math.floor(dynamicBatchSize / 2));
+            console.warn(`Statement timeout detectado no banco de dados. Lote ajustado para ${dynamicBatchSize} registros.`);
+        }
+
+        if (tentativa < 3 && !isNetworkErr) {
+            const delay = isTimeout ? 2000 : 1500;
+            console.log(`Re-tentando carregar solicitações em ${delay/1000}s (tentativa ${tentativa + 1})...`);
+            setTimeout(() => carregarSolicitacoes(append, tentativa + 1), delay);
             return;
         }
+
         if (resultsCount) {
-            resultsCount.innerHTML = `Erro ao carregar dados. <a href="#" onclick="carregarSolicitacoes(false, 1); return false;" style="color:#2563eb; text-decoration:underline; font-weight:600; margin-left:6px;">Tentar novamente</a>`;
+            const msgStatus = isNetworkErr
+                ? `Sem conexão com o servidor Supabase.`
+                : isTimeout
+                ? `Tempo limite excedido na consulta do banco de dados.`
+                : `Erro ao carregar dados.`;
+            resultsCount.innerHTML = `${msgStatus} <a href="#" onclick="dynamicBatchSize = 25; carregarSolicitacoes(false, 1); return false;" style="color:#2563eb; text-decoration:underline; font-weight:600; margin-left:6px;">Tentar novamente</a>`;
         }
     } finally {
         isFetchingMore = false;
@@ -1528,13 +1578,7 @@ window.carregarEExibirApuracaoDados = async function () {
                     fiscal_dados:dados->fiscal,
                     multa_valor:dados->multa_valor,
                     valor_multa:dados->valor_multa,
-                    multas_customizadas:dados->multas_customizadas,
-                    profiles:fiscal_id (
-                        id,
-                        nome,
-                        matricula,
-                        cargo
-                    )
+                    multas_customizadas:dados->multas_customizadas
                 `);
 
             if (dInicio) query = query.gte('created_at', dInicio + 'T00:00:00');
@@ -1562,6 +1606,23 @@ window.carregarEExibirApuracaoDados = async function () {
             }
         }
 
+        // Carregar dados de perfis de forma otimizada
+        const apuracaoFiscalIds = [...new Set(todosProcessos.map(p => p.fiscal_id).filter(Boolean))];
+        let apuracaoProfilesMap = {};
+        if (apuracaoFiscalIds.length > 0) {
+            try {
+                const { data: profs } = await supabaseClient
+                    .from('profiles')
+                    .select('id, nome, matricula, cargo')
+                    .in('id', apuracaoFiscalIds);
+                if (profs) {
+                    profs.forEach(pr => apuracaoProfilesMap[pr.id] = pr);
+                }
+            } catch (eP) {
+                console.warn('[APURAÇÃO] Erro ao carregar perfis de fiscais:', eP);
+            }
+        }
+
         const procs = todosProcessos;
         const fiscaisMap = {};
 
@@ -1570,7 +1631,7 @@ window.carregarEExibirApuracaoDados = async function () {
         let globalQtdMultas = 0;
 
         procs.forEach(p => {
-            const profileObj = p.profiles || {};
+            const profileObj = (p.fiscal_id && apuracaoProfilesMap[p.fiscal_id]) || p.profiles || {};
             const fiscalNome = profileObj.nome || p.fiscal_dados?.nome || p.campos?.fiscal?.nome || 'Fiscal Não Atribuído';
             const fiscalIdKey = p.fiscal_id || profileObj.id || fiscalNome;
             const matricula = profileObj.matricula || p.fiscal_dados?.matricula || p.campos?.fiscal?.matricula || '---';

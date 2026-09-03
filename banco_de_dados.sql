@@ -213,10 +213,11 @@ CREATE TABLE IF NOT EXISTS processos (
 );
 
 -- Índices para consultas frequentes
-CREATE INDEX idx_processos_fiscal ON processos(fiscal_id);
-CREATE INDEX idx_processos_etapa ON processos(etapa_atual_id);
-CREATE INDEX idx_processos_status ON processos(status);
-CREATE INDEX idx_processos_numero ON processos(numero_processo);
+CREATE INDEX IF NOT EXISTS idx_processos_fiscal ON processos(fiscal_id);
+CREATE INDEX IF NOT EXISTS idx_processos_etapa ON processos(etapa_atual_id);
+CREATE INDEX IF NOT EXISTS idx_processos_status ON processos(status);
+CREATE INDEX IF NOT EXISTS idx_processos_numero ON processos(numero_processo);
+CREATE INDEX IF NOT EXISTS idx_processos_created_at ON processos(created_at DESC);
 
 -- Numeração de processos gerenciada via RPC atômica (ver seção de funções abaixo)
 
