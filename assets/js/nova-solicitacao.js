@@ -1102,7 +1102,7 @@ async function finalizarSolicitacao() {
                     const item = itensSalvar[i];
                     const imgInput = item.querySelector('.imagem-arquivo');
                     const legInput = item.querySelector('.imagem-legenda');
-                    
+
                     const imgBase64 = imgInput ? imgInput.getAttribute('data-base64') : null;
                     const legenda = legInput ? legInput.value : '';
                     const imgFile = imgInput && imgInput.files ? imgInput.files[0] : null;
@@ -1124,7 +1124,7 @@ async function finalizarSolicitacao() {
                                         gerado_automaticamente: false,
                                         usuario_id: profileId
                                     }]).select();
-                                    
+
                                     if (docCriado && docCriado.length > 0) {
                                         docId = docCriado[0].id;
                                     }
@@ -1256,10 +1256,10 @@ function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     const ehInexistenciaPasseioOuCercamento = (
         (descStr.includes('inexistência') || descStr.includes('inexistencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
     ) || (
-        (descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
-    ) || (
-        descStr.includes('cercamento') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')
-    );
+            (descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
+        ) || (
+            descStr.includes('cercamento') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')
+        );
 
     if (ehInexistenciaPasseioOuCercamento) {
         return 60;
@@ -1659,11 +1659,26 @@ async function garantirNumerosReservadosCertidao() {
                 numerosReservadosEditor.processo = np;
             } else {
                 console.warn('RPC reservar_numero para Processo falhou, executando fallback local:', errProc?.message);
-                numerosReservadosEditor.processo = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
+                const { data } = await supabaseClient
+                    .from('processos')
+                    .select('numero_processo')
+                    .like('numero_processo', `${anoAtual}/%`);
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        if (item.numero_processo) {
+                            const p = item.numero_processo.split('/');
+                            if (p.length === 2) {
+                                const v = parseInt(p[1], 10);
+                                if (!isNaN(v) && v > max) max = v;
+                            }
+                        }
+                    });
+                }
+                numerosReservadosEditor.processo = `${anoAtual}/${String(max + 1).padStart(6, '0')}`;
             }
         } catch (e) {
-            console.warn('Erro ao reservar número de processo, executando fallback local:', e);
-            numerosReservadosEditor.processo = await obterNumeroFallbackJS(anoAtual, 'Processo', 6, 'processos', 'numero_processo');
+            console.warn('Erro ao reservar número de processo:', e);
         }
     }
 
@@ -1674,11 +1689,26 @@ async function garantirNumerosReservadosCertidao() {
                 numerosReservadosEditor.certidao = nc;
             } else {
                 console.warn('RPC reservar_numero para Certidão falhou, executando fallback local:', errCert?.message);
-                numerosReservadosEditor.certidao = await obterNumeroFallbackJS(anoAtual, 'Certidão Sem Defesa', 3, 'notificacoes', 'numero_certidao');
+                const { data } = await supabaseClient
+                    .from('notificacoes')
+                    .select('numero_certidao')
+                    .like('numero_certidao', `${anoAtual}/%`);
+                let max = 0;
+                if (data && data.length > 0) {
+                    data.forEach(item => {
+                        if (item.numero_certidao) {
+                            const p = item.numero_certidao.split('/');
+                            if (p.length === 2) {
+                                const v = parseInt(p[1], 10);
+                                if (!isNaN(v) && v > max) max = v;
+                            }
+                        }
+                    });
+                }
+                numerosReservadosEditor.certidao = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
             }
         } catch (e) {
-            console.warn('Erro ao reservar número de certidão, executando fallback local:', e);
-            numerosReservadosEditor.certidao = await obterNumeroFallbackJS(anoAtual, 'Certidão Sem Defesa', 3, 'notificacoes', 'numero_certidao');
+            console.warn('Erro ao reservar número de certidão:', e);
         }
     }
 }
@@ -1754,21 +1784,39 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
     }
 
     // Transgressões & Prazos
-    const dispositivosTransgredidosStr = (typeof window.obterTextoInfracoesProcesso === 'function')
-        ? window.obterTextoInfracoesProcesso(proc)
-        : (dProc.infracoes?.descricao || fProc.infracao || 'falta de limpeza e conservação de imóvel não edificado');
+    let dispositivosTransgredidosStr = '';
+    if (proc) {
+        if (typeof window.obterTextoInfracoesProcesso === 'function') {
+            dispositivosTransgredidosStr = window.obterTextoInfracoesProcesso(proc);
+        } else {
+            dispositivosTransgredidosStr = dProc.infracoes?.descricao || fProc.infracao || '';
+        }
+    }
+    if (!dispositivosTransgredidosStr || dispositivosTransgredidosStr === 'falta de limpeza e conservação de imóvel não edificado') {
+        const checkedEls = document.querySelectorAll('#infracoesList input[name="infracao"]:checked, input[name="infracao"]:checked');
+        if (checkedEls && checkedEls.length > 0) {
+            const sel = Array.from(checkedEls).map(el => {
+                const txt = el.nextElementSibling ? el.nextElementSibling.textContent.trim() : el.value;
+                return (typeof window.obterDescricaoInfracao === 'function') ? window.obterDescricaoInfracao(txt) : txt;
+            }).filter(Boolean);
+            if (sel.length > 0) dispositivosTransgredidosStr = sel.join(', ');
+        }
+    }
+    if (!dispositivosTransgredidosStr) {
+        dispositivosTransgredidosStr = dProc.infracoes?.descricao || fProc.infracao || 'falta de limpeza e conservação de imóvel não edificado';
+    }
 
     const obrigacaoStr = (typeof window.obterObrigacaoPelaInfracaoText === 'function')
         ? window.obterObrigacaoPelaInfracaoText(dispositivosTransgredidosStr)
         : 'Limpeza';
 
-    const prazoDias = typeof obterPrazoNotificacaoNovaSolicitacao === 'function'
+    const prazoDias = (typeof obterPrazoNotificacaoNovaSolicitacao === 'function')
         ? obterPrazoNotificacaoNovaSolicitacao(dispositivosTransgredidosStr)
-        : 15;
+        : ((typeof obterPrazoNotificacao === 'function') ? obterPrazoNotificacao(dispositivosTransgredidosStr) : 15);
 
     // Cálculo da data de vencimento com base na data do Decreto (+ prazoDias)
-    let dataVencimentoFmt = '17/07/2026';
-    const decDateStr = decretoDataRaw || '2026-07-02';
+    let dataVencimentoFmt = '';
+    const decDateStr = decretoDataRaw || new Date().toISOString().split('T')[0];
     if (decDateStr) {
         let y, m, d;
         if (decDateStr.includes('-')) {
@@ -2383,6 +2431,8 @@ function bindWizardEventos() {
                     }
                 }
             }
+            window.relatorioCustomizadoHTML = null;
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
         });
     }
 
@@ -2398,6 +2448,24 @@ function bindWizardEventos() {
                 if (groupOutro) groupOutro.style.display = 'none';
                 if (inputOutro) inputOutro.value = '';
             }
+            window.relatorioCustomizadoHTML = null;
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+        });
+    }
+
+    const inputOutroDecreto = document.getElementById('fiscNumeroDecretoOutro');
+    if (inputOutroDecreto) {
+        inputOutroDecreto.addEventListener('input', () => {
+            window.relatorioCustomizadoHTML = null;
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+        });
+    }
+
+    const inputDataDecretoOutro = document.getElementById('fiscDataDecretoOutro');
+    if (inputDataDecretoOutro) {
+        inputDataDecretoOutro.addEventListener('input', () => {
+            window.relatorioCustomizadoHTML = null;
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
         });
     }
 
@@ -2419,6 +2487,8 @@ function bindWizardEventos() {
                 });
             }
             atualizarDescricaoFiscalizacaoPadrao();
+            window.relatorioCustomizadoHTML = null;
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
         });
     });
 

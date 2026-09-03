@@ -4140,6 +4140,38 @@ function obterDispositivosDoProcesso(proc) {
 window.obterDispositivosDoProcesso = obterDispositivosDoProcesso;
 
 window.obterTextoInfracoesProcesso = function (procObj) {
+    const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+
+    if (proc) {
+        let listDisp = [];
+        if (typeof window.obterDispositivosDoProcesso === 'function') {
+            listDisp = window.obterDispositivosDoProcesso(proc);
+        } else if (proc.dados?.infracoes?.dispositivos && Array.isArray(proc.dados.infracoes.dispositivos)) {
+            listDisp = proc.dados.infracoes.dispositivos;
+        } else if (Array.isArray(proc.infracoes_lista)) {
+            listDisp = proc.infracoes_lista;
+        }
+
+        if (listDisp && listDisp.length > 0) {
+            const descs = listDisp.map(item => {
+                if (typeof window.obterDescricaoInfracao === 'function') {
+                    return window.obterDescricaoInfracao(item);
+                }
+                return String(item);
+            }).filter(Boolean);
+            if (descs.length > 0) return descs.join(', ');
+        }
+
+        const dProc = proc.dados || {};
+        const fProc = dProc.fiscal || {};
+        const rProc = dProc.relatorio_fiscal || {};
+
+        if (dProc.infracoes?.descricao) return dProc.infracoes.descricao;
+        if (typeof dProc.infracoes === 'string') return dProc.infracoes;
+        if (fProc.infracao) return fProc.infracao;
+        if (rProc.texto_vistoria) return rProc.texto_vistoria;
+    }
+
     const checkedEls = document.querySelectorAll('#infracoesList input[name="infracao"]:checked, input[name="infracao"]:checked');
     if (checkedEls && checkedEls.length > 0) {
         const sel = Array.from(checkedEls).map(el => {
@@ -4148,37 +4180,6 @@ window.obterTextoInfracoesProcesso = function (procObj) {
         }).filter(Boolean);
         if (sel.length > 0) return sel.join(', ');
     }
-
-    const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
-    if (!proc) return 'falta de limpeza e conservação de imóvel não edificado';
-
-    let listDisp = [];
-    if (typeof window.obterDispositivosDoProcesso === 'function') {
-        listDisp = window.obterDispositivosDoProcesso(proc);
-    } else if (proc.dados?.infracoes?.dispositivos && Array.isArray(proc.dados.infracoes.dispositivos)) {
-        listDisp = proc.dados.infracoes.dispositivos;
-    } else if (Array.isArray(proc.infracoes_lista)) {
-        listDisp = proc.infracoes_lista;
-    }
-
-    if (listDisp && listDisp.length > 0) {
-        const descs = listDisp.map(item => {
-            if (typeof window.obterDescricaoInfracao === 'function') {
-                return window.obterDescricaoInfracao(item);
-            }
-            return String(item);
-        }).filter(Boolean);
-        if (descs.length > 0) return descs.join(', ');
-    }
-
-    const dProc = proc.dados || {};
-    const fProc = dProc.fiscal || {};
-    const rProc = dProc.relatorio_fiscal || {};
-
-    if (dProc.infracoes?.descricao) return dProc.infracoes.descricao;
-    if (typeof dProc.infracoes === 'string') return dProc.infracoes;
-    if (fProc.infracao) return fProc.infracao;
-    if (rProc.texto_vistoria) return rProc.texto_vistoria;
 
     return 'falta de limpeza e conservação de imóvel não edificado';
 };
@@ -11332,14 +11333,15 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     const prazoDiasDecreto = typeof obterPrazoNotificacao === 'function'
         ? obterPrazoNotificacao(inputInfracao)
         : (typeof obterPrazoNotificacaoNovaSolicitacao === 'function' ? obterPrazoNotificacaoNovaSolicitacao(inputInfracao) : 15);
-    let dataFimPrazoDecretoFmt = '17/07/2026';
+    let dataFimPrazoDecretoFmt = '';
+    const dDecRaw = dataDecretoRaw || new Date().toISOString().split('T')[0];
     try {
         let dDec;
-        if (dataDecretoRaw.includes('-')) {
-            const parts = dataDecretoRaw.split('T')[0].split('-');
+        if (dDecRaw.includes('-')) {
+            const parts = dDecRaw.split('T')[0].split('-');
             dDec = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        } else if (dataDecretoRaw.includes('/')) {
-            const parts = dataDecretoRaw.split('/');
+        } else if (dDecRaw.includes('/')) {
+            const parts = dDecRaw.split('/');
             dDec = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
         }
         if (dDec && !isNaN(dDec.getTime())) {
