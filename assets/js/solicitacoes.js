@@ -203,7 +203,7 @@ function montarLinkEtapa(item) {
     return `etapa.html?processo=${id}`;
 }
 
-window.abrirProcessoAuto = function(id) {
+window.abrirProcessoAuto = function (id) {
     if (id && String(id).trim() !== '' && String(id) !== 'undefined') {
         localStorage.setItem('ultimoProcessoId', id);
         window.location.href = `etapa.html?processo=${id}`;
@@ -231,7 +231,8 @@ const resultsCount = document.getElementById('resultsCount');
 document.addEventListener('DOMContentLoaded', async () => {
     limparAutofillInvasivoFiltros();
     bindEventos();
-    
+    carregarOpcoesFiscaisFiltro();
+
     // Primeiro valida a sessão de forma segura
     const sessaoValida = await verificarSessao();
     if (sessaoValida) {
@@ -272,7 +273,7 @@ async function verificarSessao() {
                     window.tabelaPerfilAlvo = 'profiles';
                     preencherDadosInterfaceUsuario(uCached);
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
 
         const authRes = await supabaseClient.auth.getSession().catch(err => {
@@ -453,12 +454,118 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         if (filtros.protocolo) {
             query = query.ilike('numero_processo', `%${filtros.protocolo}%`);
         }
+        if (filtros.relatorio) {
+            const rTerm = filtros.relatorio.trim();
+            const relProcIds = [];
+            try {
+                const { data: docsRel } = await supabaseClient
+                    .from('documentos')
+                    .select('processo_id')
+                    .ilike('tipo', '%relatorio%')
+                    .ilike('numero_sequencial', `%${rTerm}%`);
+                if (docsRel) docsRel.forEach(d => { if (d.processo_id) relProcIds.push(d.processo_id); });
+            } catch (eRel) { }
+
+            const uniqueRelIds = [...new Set(relProcIds)];
+            let orRel = `numero_relatorio.ilike.%${rTerm}%`;
+            if (uniqueRelIds.length > 0) {
+                orRel += `,id.in.(${uniqueRelIds.join(',')})`;
+            }
+            query = query.or(orRel);
+        }
+        if (filtros.auto) {
+            const autoTerm = filtros.auto.trim();
+            const autoProcIds = [];
+            try {
+                const { data: docsAuto } = await supabaseClient
+                    .from('documentos')
+                    .select('processo_id')
+                    .ilike('tipo', '%auto%')
+                    .ilike('numero_sequencial', `%${autoTerm}%`);
+                if (docsAuto) docsAuto.forEach(d => { if (d.processo_id) autoProcIds.push(d.processo_id); });
+            } catch (eDocAuto) { }
+
+            try {
+                const { data: autosMatch } = await supabaseClient
+                    .from('autos_infracao')
+                    .select('processo_id')
+                    .ilike('numero', `%${autoTerm}%`);
+                if (autosMatch) autosMatch.forEach(a => { if (a.processo_id) autoProcIds.push(a.processo_id); });
+            } catch (eAuto) { }
+
+            const uniqueAutoIds = [...new Set(autoProcIds)];
+            if (uniqueAutoIds.length > 0) {
+                query = query.in('id', uniqueAutoIds);
+            } else {
+                query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+            }
+        }
+        if (filtros.notificacao) {
+            const notifTerm = filtros.notificacao.trim();
+            const notifProcIds = [];
+            try {
+                const { data: docsNotif } = await supabaseClient
+                    .from('documentos')
+                    .select('processo_id')
+                    .ilike('tipo', '%notifica%')
+                    .ilike('numero_sequencial', `%${notifTerm}%`);
+                if (docsNotif) docsNotif.forEach(d => { if (d.processo_id) notifProcIds.push(d.processo_id); });
+            } catch (eDocNotif) { }
+
+            try {
+                const { data: notifsMatch } = await supabaseClient
+                    .from('notificacoes')
+                    .select('processo_id')
+                    .ilike('numero', `%${notifTerm}%`);
+                if (notifsMatch) notifsMatch.forEach(n => { if (n.processo_id) notifProcIds.push(n.processo_id); });
+            } catch (eNotif) { }
+
+            const uniqueNotifIds = [...new Set(notifProcIds)];
+            if (uniqueNotifIds.length > 0) {
+                query = query.in('id', uniqueNotifIds);
+            } else {
+                query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+            }
+        }
         if (filtros.nome) {
             query = query.ilike('dados->contribuinte->>nome', `%${filtros.nome}%`);
         }
-        if (filtros.status) {
-            query = query.eq('status', filtros.status);
+        if (filtros.cpf) {
+            const rawCpf = filtros.cpf.trim();
+            const cleanCpf = rawCpf.replace(/\D/g, '');
+            const contribProcIds = [];
+
+            if (cleanCpf || rawCpf) {
+                try {
+                    const { data: contribs } = await supabaseClient
+                        .from('contribuintes')
+                        .select('id')
+                        .or(`cpf_cnpj.ilike.%${cleanCpf || rawCpf}%,cpf_cnpj.ilike.%${rawCpf}%`);
+                    if (contribs && contribs.length > 0) {
+                        const cIds = contribs.map(c => c.id);
+                        const { data: procContribs } = await supabaseClient
+                            .from('processos')
+                            .select('id')
+                            .in('contribuinte_id', cIds);
+                        if (procContribs) procContribs.forEach(p => contribProcIds.push(p.id));
+                    }
+                } catch (eContrib) { }
+            }
+
+            let orCpf = `dados->contribuinte->>cpf_cnpj.ilike.%${rawCpf}%`;
+            if (cleanCpf && cleanCpf !== rawCpf) {
+                orCpf += `,dados->contribuinte->>cpf_cnpj.ilike.%${cleanCpf}%`;
+            }
+            const uniqueContribProcIds = [...new Set(contribProcIds)];
+            if (uniqueContribProcIds.length > 0) {
+                orCpf += `,id.in.(${uniqueContribProcIds.join(',')})`;
+            }
+            query = query.or(orCpf);
         }
+        if (filtros.fiscal) {
+            query = query.eq('fiscal_id', filtros.fiscal);
+        }
+
         if (filtros.dataInicio) {
             query = query.gte('created_at', filtros.dataInicio);
         }
@@ -556,7 +663,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
 
         if (tentativa < 3 && !isNetworkErr) {
             const delay = isTimeout ? 2000 : 1500;
-            console.log(`Re-tentando carregar solicitações em ${delay/1000}s (tentativa ${tentativa + 1})...`);
+            console.log(`Re-tentando carregar solicitações em ${delay / 1000}s (tentativa ${tentativa + 1})...`);
             setTimeout(() => carregarSolicitacoes(append, tentativa + 1), delay);
             return;
         }
@@ -565,8 +672,8 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             const msgStatus = isNetworkErr
                 ? `Sem conexão com o servidor Supabase.`
                 : isTimeout
-                ? `Tempo limite excedido na consulta do banco de dados.`
-                : `Erro ao carregar dados.`;
+                    ? `Tempo limite excedido na consulta do banco de dados.`
+                    : `Erro ao carregar dados.`;
             resultsCount.innerHTML = `${msgStatus} <a href="#" onclick="dynamicBatchSize = 25; carregarSolicitacoes(false, 1); return false;" style="color:#2563eb; text-decoration:underline; font-weight:600; margin-left:6px;">Tentar novamente</a>`;
         }
     } finally {
@@ -725,19 +832,55 @@ function limparAutofillInvasivoFiltros() {
     }
 }
 
+// ── Carregar opções de fiscais para o filtro ───────────────
+async function carregarOpcoesFiscaisFiltro() {
+    const sel = document.getElementById('filtroFiscal');
+    if (!sel) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('profiles')
+            .select('id, nome, cargo')
+            .ilike('cargo', '%fiscal%')
+            .order('nome', { ascending: true });
+
+        if (error) throw error;
+
+        sel.innerHTML = '<option value="">Todos os Fiscais</option>';
+
+        if (data && data.length > 0) {
+            data.forEach(p => {
+                if (!p.nome) return;
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.nome;
+                sel.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.warn('Erro ao carregar lista de fiscais para filtro:', err);
+    }
+}
+
 // ── Coletar valores dos filtros ─────────────────────────────
 function coletarFiltros() {
     limparAutofillInvasivoFiltros();
     const elResp = document.getElementById('filtroResponsavel');
+    const elFiscal = document.getElementById('filtroFiscal');
     return {
-        protocolo: document.getElementById('filtroProtocolo').value.trim(),
-        nome: document.getElementById('filtroNome').value.trim(),
-        status: document.getElementById('filtroStatus').value,
-        dataInicio: document.getElementById('filtroDataInicio').value,
-        dataFim: document.getElementById('filtroDataFim').value,
-        etapa: document.getElementById('filtroEtapa').value,
-        descricao: document.getElementById('filtroDescricao').value.trim(),
-        criador: document.getElementById('filtroCriador').value,
+        protocolo: document.getElementById('filtroProtocolo')?.value.trim() || '',
+        relatorio: document.getElementById('filtroRelatorio')?.value.trim() || '',
+        auto: document.getElementById('filtroAuto')?.value.trim() || '',
+        notificacao: document.getElementById('filtroNotificacao')?.value.trim() || '',
+        nome: document.getElementById('filtroNome')?.value.trim() || '',
+        cpf: document.getElementById('filtroCpf')?.value.trim() || '',
+        fiscal: elFiscal ? elFiscal.value : '',
+        status: document.getElementById('filtroStatus')?.value || '',
+        dataInicio: document.getElementById('filtroDataInicio')?.value || '',
+        dataFim: document.getElementById('filtroDataFim')?.value || '',
+        etapa: document.getElementById('filtroEtapa')?.value || '',
+        descricao: document.getElementById('filtroDescricao')?.value.trim() || '',
+        criador: document.getElementById('filtroCriador')?.value || '',
         responsavel: elResp ? elResp.value : ''
     };
 }
@@ -897,14 +1040,18 @@ function bindEventos() {
 
     // Limpar filtros
     document.getElementById('btnLimparFiltros').addEventListener('click', () => {
-        document.getElementById('filtroProtocolo').value = '';
-        document.getElementById('filtroNome').value = '';
-        document.getElementById('filtroStatus').value = '';
-        document.getElementById('filtroDataInicio').value = '';
-        document.getElementById('filtroDataFim').value = '';
-        document.getElementById('filtroEtapa').value = '';
-        document.getElementById('filtroDescricao').value = '';
-        document.getElementById('filtroCriador').value = '';
+        if (document.getElementById('filtroProtocolo')) document.getElementById('filtroProtocolo').value = '';
+        if (document.getElementById('filtroRelatorio')) document.getElementById('filtroRelatorio').value = '';
+        if (document.getElementById('filtroAuto')) document.getElementById('filtroAuto').value = '';
+        if (document.getElementById('filtroNotificacao')) document.getElementById('filtroNotificacao').value = '';
+        if (document.getElementById('filtroNome')) document.getElementById('filtroNome').value = '';
+        if (document.getElementById('filtroCpf')) document.getElementById('filtroCpf').value = '';
+        if (document.getElementById('filtroFiscal')) document.getElementById('filtroFiscal').value = '';
+        if (document.getElementById('filtroDataInicio')) document.getElementById('filtroDataInicio').value = '';
+        if (document.getElementById('filtroDataFim')) document.getElementById('filtroDataFim').value = '';
+        if (document.getElementById('filtroEtapa')) document.getElementById('filtroEtapa').value = '';
+        if (document.getElementById('filtroDescricao')) document.getElementById('filtroDescricao').value = '';
+        if (document.getElementById('filtroCriador')) document.getElementById('filtroCriador').value = '';
         const elResp = document.getElementById('filtroResponsavel');
         if (elResp) elResp.value = '';
         carregarSolicitacoes(false);
@@ -1145,9 +1292,9 @@ async function alterarFotoPerfil(input) {
     const file = input.files[0];
     const reader = new FileReader();
 
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         const img = new Image();
-        img.onload = async function() {
+        img.onload = async function () {
             const canvas = document.createElement('canvas');
             const MAX_SIZE = 150;
             let width = img.width;
@@ -1391,7 +1538,7 @@ document.addEventListener('click', function (e) {
 });
 
 // ── Funções Exclusivas DEV: Seleção e Exclusão em Lote ─────────────────────────────
-window.atualizarContagemSelecionados = function() {
+window.atualizarContagemSelecionados = function () {
     const chks = document.querySelectorAll('.chk-process:checked');
     const lbl = document.getElementById('lblSelecionados');
     if (lbl) {
@@ -1399,7 +1546,7 @@ window.atualizarContagemSelecionados = function() {
     }
 };
 
-window.excluirProcessosSelecionados = async function() {
+window.excluirProcessosSelecionados = async function () {
     const chks = document.querySelectorAll('.chk-process:checked');
     if (chks.length === 0) {
         alert('Nenhum processo selecionado para exclusão.');
@@ -1468,7 +1615,7 @@ window.excluirProcessosSelecionados = async function() {
 
             // 5. Exclusão em cascata (O banco apagará processo_infracoes, notificacoes, historico_etapas, documentos, autos_infracao...)
             const { error: errDel } = await supabaseClient.from('processos').delete().eq('id', pid);
-            
+
             if (errDel) {
                 console.error(`Erro ao excluir processo ${pid}:`, errDel);
             } else {
@@ -1480,7 +1627,7 @@ window.excluirProcessosSelecionados = async function() {
         const chkAll = document.getElementById('chkSelectAll');
         if (chkAll) chkAll.checked = false;
         window.atualizarContagemSelecionados();
-        
+
         carregarSolicitacoes();
     } catch (err) {
         console.error('Erro na exclusão em lote:', err);
@@ -1829,7 +1976,7 @@ function renderizarGraficosApuracao(listaFiscais) {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: function(ctx) { return ` ${ctx.raw} processo(s)`; }
+                            label: function (ctx) { return ` ${ctx.raw} processo(s)`; }
                         }
                     }
                 },
@@ -1871,7 +2018,7 @@ function renderizarGraficosApuracao(listaFiscais) {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: function(ctx) {
+                            label: function (ctx) {
                                 const val = ctx.raw || 0;
                                 return ' ' + val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
                             }
@@ -1882,7 +2029,7 @@ function renderizarGraficosApuracao(listaFiscais) {
                     y: {
                         beginAtZero: true,
                         ticks: {
-                            callback: function(value) {
+                            callback: function (value) {
                                 return 'R$ ' + value.toLocaleString('pt-BR');
                             },
                             font: { weight: 'bold' }
@@ -1920,7 +2067,7 @@ window.exportarApuracaoCSV = function () {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `apuracao_dados_fiscais_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("download", `apuracao_dados_fiscais_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

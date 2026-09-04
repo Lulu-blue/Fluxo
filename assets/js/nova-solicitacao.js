@@ -21,20 +21,29 @@ if (typeof pdfjsLib !== 'undefined') {
 
 // ── Helper: enviar arquivo para Cloudinary (ou Base64 DataURL fallback) ──
 async function fileToBase64(file) {
+    if (!file) return null;
+    if (typeof file === 'string' && (file.startsWith('http://') || file.startsWith('https://'))) {
+        return file;
+    }
     if (typeof window.uploadParaCloudinary === 'function') {
         try {
             const urlCloud = await window.uploadParaCloudinary(file, 'semac_documentos');
-            return urlCloud;
+            if (urlCloud && (urlCloud.startsWith('http://') || urlCloud.startsWith('https://'))) {
+                return urlCloud;
+            }
         } catch (cldErr) {
-            console.warn('[Cloudinary Warning] Upload de arquivo em nova-solicitacao falhou, caindo para DataURL:', cldErr);
+            console.warn('[Cloudinary Notice] Upload em nova-solicitacao falhou:', cldErr);
         }
     }
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = (err) => reject(err);
-        reader.readAsDataURL(file);
-    });
+    if (file instanceof Blob || file instanceof File) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+        });
+    }
+    return file;
 }
 
 // ── Inicialização ───────────────────────────────────────────
@@ -1103,14 +1112,16 @@ async function finalizarSolicitacao() {
                     const imgInput = item.querySelector('.imagem-arquivo');
                     const legInput = item.querySelector('.imagem-legenda');
 
-                    const imgBase64 = imgInput ? imgInput.getAttribute('data-base64') : null;
+                    const imgBase64 = imgInput ? (imgInput.getAttribute('data-url') || imgInput.getAttribute('data-base64')) : null;
                     const legenda = legInput ? legInput.value : '';
                     const imgFile = imgInput && imgInput.files ? imgInput.files[0] : null;
 
-                    if (imgFile) {
+                    const fonteImagem = imgFile || imgBase64;
+                    if (fonteImagem) {
                         try {
-                            // Faz upload para o Cloudinary (ou pega Base64 se falhar)
-                            const imgFinalUrl = await fileToBase64(imgFile);
+                            const imgFinalUrl = (typeof window.uploadParaCloudinary === 'function')
+                                ? await window.uploadParaCloudinary(fonteImagem, 'semac_relatorios')
+                                : await fileToBase64(fonteImagem);
 
                             let docId = null;
                             if (procCriado && procCriado.id) {
@@ -1119,7 +1130,7 @@ async function finalizarSolicitacao() {
                                         processo_id: procCriado.id,
                                         etapa_id: etapaId,
                                         tipo: 'imagem',
-                                        nome_arquivo: imgFile.name,
+                                        nome_arquivo: imgFile ? imgFile.name : `imagem_${i + 1}.jpg`,
                                         url: imgFinalUrl,
                                         gerado_automaticamente: false,
                                         usuario_id: profileId
@@ -1134,8 +1145,8 @@ async function finalizarSolicitacao() {
                             }
 
                             anexosParaSalvar.imagens_vistoria.push({
-                                nome: imgFile.name,
-                                tipo: imgFile.type,
+                                nome: imgFile ? imgFile.name : `imagem_${i + 1}.jpg`,
+                                tipo: imgFile ? imgFile.type : 'image/jpeg',
                                 documento_id: docId,
                                 url: imgFinalUrl,
                                 legenda: legenda,
@@ -2800,18 +2811,32 @@ window.adicionarCampoImagemLegenda = function () {
     const fileInput = div.querySelector('.imagem-arquivo');
     const legendaInput = div.querySelector('.imagem-legenda');
 
-    fileInput.addEventListener('change', function (e) {
+    fileInput.addEventListener('change', async function (e) {
         const file = e.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = function (evt) {
-                fileInput.setAttribute('data-base64', evt.target.result);
-                window.relatorioCustomizadoHTML = null;
-                if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
-            };
-            reader.readAsDataURL(file);
+            try {
+                if (typeof window.uploadParaCloudinary === 'function') {
+                    const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                    fileInput.setAttribute('data-base64', urlCloud);
+                    fileInput.setAttribute('data-url', urlCloud);
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = function (evt) {
+                        fileInput.setAttribute('data-base64', evt.target.result);
+                        window.relatorioCustomizadoHTML = null;
+                        if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+                    };
+                    reader.readAsDataURL(file);
+                    return;
+                }
+            } catch (err) {
+                console.warn('Erro ao enviar imagem de vistoria para o Cloudinary:', err);
+            }
+            window.relatorioCustomizadoHTML = null;
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
         } else {
             fileInput.removeAttribute('data-base64');
+            fileInput.removeAttribute('data-url');
             window.relatorioCustomizadoHTML = null;
             if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
         }

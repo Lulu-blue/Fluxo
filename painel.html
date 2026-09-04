@@ -149,17 +149,34 @@
                                 placeholder="Nº do protocolo..." autocomplete="new-password" data-lpignore="true">
                         </div>
                         <div class="filter-group">
+                            <label for="filtroRelatorio">Nº Relatório Fiscal</label>
+                            <input type="text" id="filtroRelatorio" name="filtro_relatorio_search"
+                                placeholder="Ex: 2026/001..." autocomplete="new-password" data-lpignore="true">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filtroAuto">Nº Auto de Infração</label>
+                            <input type="text" id="filtroAuto" name="filtro_auto_search"
+                                placeholder="Ex: 2026/001..." autocomplete="new-password" data-lpignore="true">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filtroNotificacao">Nº Notificação</label>
+                            <input type="text" id="filtroNotificacao" name="filtro_notificacao_search"
+                                placeholder="Ex: 2026/001..." autocomplete="new-password" data-lpignore="true">
+                        </div>
+                        <div class="filter-group">
                             <label for="filtroNome">Nome do Solicitante</label>
                             <input type="text" id="filtroNome" name="filtro_nome_search" placeholder="Nome..."
                                 autocomplete="new-password" data-lpignore="true" spellcheck="false">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroStatus">Status</label>
-                            <select id="filtroStatus">
-                                <option value="">Todos</option>
-                                <option value="em_aberto">Em Aberto</option>
-                                <option value="finalizado">Finalizado</option>
-                                <option value="cancelado">Cancelado</option>
+                            <label for="filtroCpf">CPF / CNPJ do Contribuinte</label>
+                            <input type="text" id="filtroCpf" name="filtro_cpf_search" placeholder="CPF ou CNPJ..."
+                                autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filtroFiscal">Fiscal Responsável</label>
+                            <select id="filtroFiscal">
+                                <option value="">Todos os Fiscais</option>
                             </select>
                         </div>
                         <div class="filter-group">

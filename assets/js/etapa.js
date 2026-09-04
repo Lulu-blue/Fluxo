@@ -1913,7 +1913,13 @@ function renderizarFormularioDinamico(etapaNum) {
                 window.gerarAutoDeInfracao(true);
             }
             const inpInfr = formDiv.querySelector('#inputInfracaoAutoInfracao');
-            if (inpInfr) inpInfr.addEventListener('input', () => window.gerarAutoDeInfracao(true));
+            if (inpInfr) {
+                let toAI;
+                inpInfr.addEventListener('input', () => {
+                    clearTimeout(toAI);
+                    toAI = setTimeout(() => window.gerarAutoDeInfracao(true), 500);
+                });
+            }
 
             const selDef = formDiv.querySelector('#selectApresentouDefesaEtapa14');
             if (selDef) {
@@ -3845,8 +3851,8 @@ async function liberarNumerosEReservasEtapa(etapaOrigemNum) {
             }
         }
 
-        // 2) Auto de Infração (Etapa 15)
-        if (etapaOrigemNum === 15) {
+        // 2) Auto de Infração (Etapa 14)
+        if (etapaOrigemNum === 14) {
             const numAutoInfracaoAtual = notificacaoAtual?.dados?.numero_auto_infracao;
 
             if (notificacaoAtual?.id) {
@@ -6169,13 +6175,30 @@ function preencherCabecalhoPagina(proc) {
 let contadorImagensEdit = 0;
 
 if (typeof fileToBase64 !== 'function') {
-    window.fileToBase64 = function (file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
+    window.fileToBase64 = async function (fileOrDataUrl) {
+        if (!fileOrDataUrl) return null;
+        if (typeof fileOrDataUrl === 'string' && (fileOrDataUrl.startsWith('http://') || fileOrDataUrl.startsWith('https://'))) {
+            return fileOrDataUrl;
+        }
+        if (typeof window.uploadParaCloudinary === 'function') {
+            try {
+                const urlCloud = await window.uploadParaCloudinary(fileOrDataUrl, 'semac_relatorios');
+                if (urlCloud && (urlCloud.startsWith('http://') || urlCloud.startsWith('https://'))) {
+                    return urlCloud;
+                }
+            } catch (cldErr) {
+                console.warn('[Cloudinary Notice] Upload em etapa.js falhou:', cldErr);
+            }
+        }
+        if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(fileOrDataUrl);
+            });
+        }
+        return fileOrDataUrl;
     };
 }
 
@@ -6220,18 +6243,32 @@ window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
     const previewContainer = div.querySelector('.preview-img-container');
     const previewImg = previewContainer ? previewContainer.querySelector('img') : null;
 
-    fileInput.addEventListener('change', function (e) {
+    fileInput.addEventListener('change', async function (e) {
         const file = e.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = function (evt) {
-                fileInput.setAttribute('data-base64', evt.target.result);
-                if (previewImg && previewContainer) {
-                    previewImg.src = evt.target.result;
-                    previewContainer.style.display = 'block';
+            try {
+                if (typeof window.uploadParaCloudinary === 'function') {
+                    const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                    fileInput.setAttribute('data-base64', urlCloud);
+                    fileInput.setAttribute('data-url', urlCloud);
+                    if (previewImg && previewContainer) {
+                        previewImg.src = urlCloud;
+                        previewContainer.style.display = 'block';
+                    }
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = function (evt) {
+                        fileInput.setAttribute('data-base64', evt.target.result);
+                        if (previewImg && previewContainer) {
+                            previewImg.src = evt.target.result;
+                            previewContainer.style.display = 'block';
+                        }
+                    };
+                    reader.readAsDataURL(file);
                 }
-            };
-            reader.readAsDataURL(file);
+            } catch (err) {
+                console.warn('Erro ao carregar imagem para o Cloudinary:', err);
+            }
         } else {
             fileInput.removeAttribute('data-base64');
             if (!fileInput.getAttribute('data-url') && previewContainer) {
@@ -8940,9 +8977,12 @@ async function salvarEdicoesProcesso() {
                 const existingName = fileInput ? fileInput.getAttribute('data-nome') : null;
                 const legenda = legInput ? legInput.value.trim() : '';
 
-                if (file) {
+                if (file || newBase64 || existingUrl) {
                     try {
-                        const imgFinalUrl = newBase64 || await fileToBase64(file);
+                        const fonte = file || newBase64 || existingUrl;
+                        const imgFinalUrl = (typeof window.uploadParaCloudinary === 'function')
+                            ? await window.uploadParaCloudinary(fonte, 'semac_relatorios')
+                            : await window.fileToBase64(fonte);
                         let docId = null;
 
                         if (processoId) {
@@ -11154,16 +11194,19 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
 
 window.gerarAutoDeInfracao = async function (auto = false) {
     if (!processoAtual) return;
+    if (window._isGeneratingAuto) return;
+    window._isGeneratingAuto = true;
 
-    const d = {
-        ...(processoAtual?.dados || {}),
-        ...(notificacaoAtual?.dados || {})
-    };
-    const cont = d.contribuinte || processoAtual?.dados?.contribuinte || {};
-    const imv = d.imovel || processoAtual?.dados?.imovel || {};
-    const fisc = d.fiscal || processoAtual?.dados?.fiscal || {};
+    try {
+        const d = {
+            ...(processoAtual?.dados || {}),
+            ...(notificacaoAtual?.dados || {})
+        };
+        const cont = d.contribuinte || processoAtual?.dados?.contribuinte || {};
+        const imv = d.imovel || processoAtual?.dados?.imovel || {};
+        const fisc = d.fiscal || processoAtual?.dados?.fiscal || {};
 
-    const provenienteDecreto = !!(
+        const provenienteDecreto = !!(
         processoAtual?.possui_decreto ||
         processoAtual?.campos?.fiscDecreto === 'sim' ||
         processoAtual?.dados?.campos?.etapa1?.proveniente_decreto ||
@@ -11211,15 +11254,15 @@ window.gerarAutoDeInfracao = async function (auto = false) {
     // Número do Auto de Infração: sequencial atômico próprio da tabela autos_infracao
     let numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '';
 
-    if (!numAutoInfracao && (notificacaoAtual?.id || processoAtual?.id)) {
-        try {
-            // Tenta consultar registro prévio na tabela autos_infracao por processo ou notificação
-            let queryAuto = supabaseClient.from('autos_infracao').select('*');
-            if (notificacaoAtual?.id) {
-                queryAuto = queryAuto.eq('notificacao_id', notificacaoAtual.id);
-            } else {
-                queryAuto = queryAuto.eq('processo_id', processoAtual.id);
-            }
+        if (!numAutoInfracao && (notificacaoAtual?.id || processoAtual?.id)) {
+            try {
+                // Tenta consultar registro prévio na tabela autos_infracao por processo ou notificação
+                let queryAuto = supabaseClient.from('autos_infracao').select('*');
+                if (notificacaoAtual?.id) {
+                    queryAuto = queryAuto.or(`notificacao_id.eq.${notificacaoAtual.id},processo_id.eq.${processoAtual.id}`);
+                } else {
+                    queryAuto = queryAuto.eq('processo_id', processoAtual.id);
+                }
             const { data: autosExistentes } = await queryAuto.order('created_at', { ascending: false });
             const autoExistente = autosExistentes && autosExistentes.length > 0 ? autosExistentes[0] : null;
 
@@ -11512,6 +11555,9 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         if (auto !== true) {
             container.scrollIntoView({ behavior: 'smooth' });
         }
+    }
+    } finally {
+        window._isGeneratingAuto = false;
     }
 };
 
