@@ -6841,10 +6841,10 @@ function obterPrazoNotificacao(descricao) {
     const ehInexistenciaPasseioOuCercamento = (
         (descStr.includes('inexistência') || descStr.includes('inexistencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
     ) || (
-        (descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
-    ) || (
-        descStr.includes('cercamento') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')
-    );
+            (descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
+        ) || (
+            descStr.includes('cercamento') && !descStr.includes('reconstrução') && !descStr.includes('reconstrucao') && !descStr.includes('reparo')
+        );
 
     if (ehInexistenciaPasseioOuCercamento) {
         return 60;
@@ -7672,8 +7672,8 @@ async function renderizarEtapa18(proc) {
 
     // Bypass Etapa 18 se o Auto (ou todos os autos) já avançaram além da Etapa 18
     if (autos.length > 0 && autos.every(a => a.etapa_atual > 18)) {
-        const autoAlvo = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) 
-            ? autos.find(a => a.id === notificacaoAtual.id) || autos[0] 
+        const autoAlvo = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
+            ? autos.find(a => a.id === notificacaoAtual.id) || autos[0]
             : autos[0];
         const destEtapa = autoAlvo.etapa_atual || 19;
         console.log(`[DEBUG Etapa 18] Auto já avançou para a Etapa ${destEtapa}. Bypass da Etapa 18 executado.`);
@@ -10999,7 +10999,7 @@ window.obterFundamentoLegalDecreto = function (infracaoDesc) {
 
         // 2) 120000211 - Inexistência de Cercamento
     } else if (cod === '120000211' || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || (dispLow.includes('inexistencia') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
-        return 'artigo 1º da Lei 7.174/2010. Sob pena do artigo 3º, I.';
+        return ': artigo 1°, §2 e artigo 2° da Lei 7.174/2010, sob pena do artigo 3°, I, da mesma lei';
 
         // 3) 120000226 - Inexistência de passeio
     } else if (cod === '120000226' || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || (dispLow.includes('inexistencia') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
@@ -11207,52 +11207,52 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         const fisc = d.fiscal || processoAtual?.dados?.fiscal || {};
 
         const provenienteDecreto = !!(
-        processoAtual?.possui_decreto ||
-        processoAtual?.campos?.fiscDecreto === 'sim' ||
-        processoAtual?.dados?.campos?.etapa1?.proveniente_decreto ||
-        processoAtual?.dados?.proveniente_decreto ||
-        processoAtual?.proveniente_decreto ||
-        notificacaoAtual?.dados?.possui_decreto
-    );
+            processoAtual?.possui_decreto ||
+            processoAtual?.campos?.fiscDecreto === 'sim' ||
+            processoAtual?.dados?.campos?.etapa1?.proveniente_decreto ||
+            processoAtual?.dados?.proveniente_decreto ||
+            processoAtual?.proveniente_decreto ||
+            notificacaoAtual?.dados?.possui_decreto
+        );
 
-    const nomeAutuado = cont.nome || 'Não informado';
-    const cpfCnpj = cont.cpf_cnpj || 'Não informado';
+        const nomeAutuado = cont.nome || 'Não informado';
+        const cpfCnpj = cont.cpf_cnpj || 'Não informado';
 
-    // Endereço Autuado
-    const endAutuadoLog = cont.logradouro || cont.endereco || 'Não informado';
-    const endAutuadoNumVal = cont.numero || 'Não informado';
-    const endAutuadoBairroVal = cont.bairro || 'Não informado';
-    const endAutuadoCepVal = cont.cep || 'Não informado';
-    const contComplemento = (cont.complemento || cont.comp || '').trim();
+        // Endereço Autuado
+        const endAutuadoLog = cont.logradouro || cont.endereco || 'Não informado';
+        const endAutuadoNumVal = cont.numero || 'Não informado';
+        const endAutuadoBairroVal = cont.bairro || 'Não informado';
+        const endAutuadoCepVal = cont.cep || 'Não informado';
+        const contComplemento = (cont.complemento || cont.comp || '').trim();
 
-    // Imóvel Fiscalizado
-    const imvRua = imv.logradouro || imv.rua || 'Não informado';
-    const imvNum = imv.numero || 'XXXX';
-    const imvBairro = imv.bairro || 'Não informado';
-    const imvComplemento = (imv.complemento || imv.comp || '').trim();
+        // Imóvel Fiscalizado
+        const imvRua = imv.logradouro || imv.rua || 'Não informado';
+        const imvNum = imv.numero || 'XXXX';
+        const imvBairro = imv.bairro || 'Não informado';
+        const imvComplemento = (imv.complemento || imv.comp || '').trim();
 
-    // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Setor, Zona, Quadra, Lote)
-    let setor = 'XX', zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
-    if (imv.inscricao) {
-        const parts = imv.inscricao.replace(/\s/g, '').split('.');
-        if (parts.length >= 4) {
-            zona = parts[1] || 'XXX';
-            quadra = parts[2] || 'XXXX';
-            lote = parts[3] || 'XXXXX';
+        // Decomposição da Inscrição (ex: 01.036.00181.00300.00000.0 -> Setor, Zona, Quadra, Lote)
+        let setor = 'XX', zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
+        if (imv.inscricao) {
+            const parts = imv.inscricao.replace(/\s/g, '').split('.');
+            if (parts.length >= 4) {
+                zona = parts[1] || 'XXX';
+                quadra = parts[2] || 'XXXX';
+                lote = parts[3] || 'XXXXX';
+            }
         }
-    }
 
-    // Data de vistoria
-    const dataVistoriaFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || fisc.data || notificacaoAtual?.created_at || processoAtual?.created_at) || new Date().toLocaleDateString('pt-BR');
+        // Data de vistoria
+        const dataVistoriaFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || fisc.data || notificacaoAtual?.created_at || processoAtual?.created_at) || new Date().toLocaleDateString('pt-BR');
 
-    const dataAtualFmt = new Date().toLocaleDateString('pt-BR');
-    const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
-    const nomeFiscal = fiscAutor.nome || 'Nome Fiscal';
-    const matriculaFiscal = fiscAutor.matricula || 'XXXXXXX';
-    const _anoAtual = new Date().getFullYear();
+        const dataAtualFmt = new Date().toLocaleDateString('pt-BR');
+        const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
+        const nomeFiscal = fiscAutor.nome || 'Nome Fiscal';
+        const matriculaFiscal = fiscAutor.matricula || 'XXXXXXX';
+        const _anoAtual = new Date().getFullYear();
 
-    // Número do Auto de Infração: sequencial atômico próprio da tabela autos_infracao
-    let numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '';
+        // Número do Auto de Infração: sequencial atômico próprio da tabela autos_infracao
+        let numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '';
 
         if (!numAutoInfracao && (notificacaoAtual?.id || processoAtual?.id)) {
             try {
@@ -11263,147 +11263,147 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 } else {
                     queryAuto = queryAuto.eq('processo_id', processoAtual.id);
                 }
-            const { data: autosExistentes } = await queryAuto.order('created_at', { ascending: false });
-            const autoExistente = autosExistentes && autosExistentes.length > 0 ? autosExistentes[0] : null;
+                const { data: autosExistentes } = await queryAuto.order('created_at', { ascending: false });
+                const autoExistente = autosExistentes && autosExistentes.length > 0 ? autosExistentes[0] : null;
 
-            if (autoExistente && autoExistente.numero) {
-                numAutoInfracao = autoExistente.numero;
-            } else {
-                let inserido = false;
-                let tentativas = 0;
-                while (!inserido && tentativas < 5) {
-                    tentativas++;
-                    const { data: numReservado, error: errRes } = await supabaseClient
-                        .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Auto de Infração' });
+                if (autoExistente && autoExistente.numero) {
+                    numAutoInfracao = autoExistente.numero;
+                } else {
+                    let inserido = false;
+                    let tentativas = 0;
+                    while (!inserido && tentativas < 5) {
+                        tentativas++;
+                        const { data: numReservado, error: errRes } = await supabaseClient
+                            .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Auto de Infração' });
 
-                    if (errRes || !numReservado) {
-                        console.warn('Falha ao reservar número de Auto de Infração:', errRes?.message);
-                        numAutoInfracao = `${_anoAtual}/XXX`;
-                        break;
+                        if (errRes || !numReservado) {
+                            console.warn('Falha ao reservar número de Auto de Infração:', errRes?.message);
+                            numAutoInfracao = `${_anoAtual}/XXX`;
+                            break;
+                        }
+
+                        numAutoInfracao = numReservado;
+
+                        const dataEmissao = new Date();
+                        const dataVenc = new Date();
+                        dataVenc.setDate(dataVenc.getDate() + 20);
+
+                        const { error: errInsertAuto } = await supabaseClient
+                            .from('autos_infracao')
+                            .insert({
+                                processo_id: processoAtual.id,
+                                notificacao_id: notificacaoAtual?.id || null,
+                                usuario_id: perfilAtual?.id || null,
+                                numero: numAutoInfracao,
+                                notificacao_anterior_numero: notificacaoAtual?.numero || null,
+                                proveniente_decreto: provenienteDecreto,
+                                prazo_dias: 20,
+                                data_emissao: dataEmissao.toISOString(),
+                                data_vencimento: dataVenc.toISOString(),
+                                status: 'emitido',
+                                etapa_atual_id: 14,
+                                dados: {
+                                    infracao_descricao: document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || '',
+                                    autuado_nome: nomeAutuado,
+                                    autuado_cpf_cnpj: cpfCnpj,
+                                    fiscal_nome: nomeFiscal,
+                                    fiscal_matricula: matriculaFiscal
+                                }
+                            });
+
+                        if (!errInsertAuto) {
+                            inserido = true;
+                        } else if (errInsertAuto.message && errInsertAuto.message.includes('autos_infracao_numero_key')) {
+                            console.warn(`Número ${numAutoInfracao} já existe em autos_infracao, tentando próximo número... (tentativa ${tentativas})`);
+                        } else {
+                            console.warn('Aviso ao salvar auto na tabela autos_infracao:', errInsertAuto.message);
+                            break;
+                        }
                     }
 
-                    numAutoInfracao = numReservado;
-
-                    const dataEmissao = new Date();
-                    const dataVenc = new Date();
-                    dataVenc.setDate(dataVenc.getDate() + 20);
-
-                    const { error: errInsertAuto } = await supabaseClient
-                        .from('autos_infracao')
-                        .insert({
-                            processo_id: processoAtual.id,
-                            notificacao_id: notificacaoAtual?.id || null,
-                            usuario_id: perfilAtual?.id || null,
-                            numero: numAutoInfracao,
-                            notificacao_anterior_numero: notificacaoAtual?.numero || null,
-                            proveniente_decreto: provenienteDecreto,
-                            prazo_dias: 20,
-                            data_emissao: dataEmissao.toISOString(),
-                            data_vencimento: dataVenc.toISOString(),
-                            status: 'emitido',
-                            etapa_atual_id: 14,
-                            dados: {
-                                infracao_descricao: document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || '',
-                                autuado_nome: nomeAutuado,
-                                autuado_cpf_cnpj: cpfCnpj,
-                                fiscal_nome: nomeFiscal,
-                                fiscal_matricula: matriculaFiscal
-                            }
-                        });
-
-                    if (!errInsertAuto) {
-                        inserido = true;
-                    } else if (errInsertAuto.message && errInsertAuto.message.includes('autos_infracao_numero_key')) {
-                        console.warn(`Número ${numAutoInfracao} já existe em autos_infracao, tentando próximo número... (tentativa ${tentativas})`);
-                    } else {
-                        console.warn('Aviso ao salvar auto na tabela autos_infracao:', errInsertAuto.message);
-                        break;
+                    if (notificacaoAtual?.id) {
+                        notificacaoAtual.dados = notificacaoAtual.dados || {};
+                        notificacaoAtual.dados.numero_auto_infracao = numAutoInfracao;
+                        await supabaseClient
+                            .from('notificacoes')
+                            .update({ dados: notificacaoAtual.dados })
+                            .eq('id', notificacaoAtual.id);
+                    }
+                    if (processoAtual?.id) {
+                        processoAtual.dados = processoAtual.dados || {};
+                        processoAtual.dados.numero_auto_infracao = numAutoInfracao;
+                        await supabaseClient
+                            .from('processos')
+                            .update({ dados: processoAtual.dados })
+                            .eq('id', processoAtual.id);
                     }
                 }
-
-                if (notificacaoAtual?.id) {
-                    notificacaoAtual.dados = notificacaoAtual.dados || {};
-                    notificacaoAtual.dados.numero_auto_infracao = numAutoInfracao;
-                    await supabaseClient
-                        .from('notificacoes')
-                        .update({ dados: notificacaoAtual.dados })
-                        .eq('id', notificacaoAtual.id);
-                }
-                if (processoAtual?.id) {
-                    processoAtual.dados = processoAtual.dados || {};
-                    processoAtual.dados.numero_auto_infracao = numAutoInfracao;
-                    await supabaseClient
-                        .from('processos')
-                        .update({ dados: processoAtual.dados })
-                        .eq('id', processoAtual.id);
-                }
+                if (notificacaoAtual) notificacaoAtual.numero_auto_infracao = numAutoInfracao;
+            } catch (e) {
+                console.warn('Erro ao processar Auto de Infração na tabela:', e);
+                numAutoInfracao = `${_anoAtual}/XXX`;
             }
-            if (notificacaoAtual) notificacaoAtual.numero_auto_infracao = numAutoInfracao;
-        } catch (e) {
-            console.warn('Erro ao processar Auto de Infração na tabela:', e);
+        } else if (!numAutoInfracao) {
             numAutoInfracao = `${_anoAtual}/XXX`;
         }
-    } else if (!numAutoInfracao) {
-        numAutoInfracao = `${_anoAtual}/XXX`;
-    }
 
-    const dispProcAuto = window.obterDispositivosDoProcesso ? window.obterDispositivosDoProcesso(processoAtual) : [];
-    const inputInfracaoRaw = document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || (dispProcAuto.length > 0 ? dispProcAuto[0] : '') || 'Falta de limpeza e conservação de imóvel não edificado';
-    const inputInfracao = window.obterDescricaoInfracao ? window.obterDescricaoInfracao(inputInfracaoRaw) : inputInfracaoRaw;
-    const inputNotifNum = document.getElementById('inputNumNotifAutoInfracao')?.value || notificacaoAtual?.numero || processoAtual.numero_processo || 'XXXX';
+        const dispProcAuto = window.obterDispositivosDoProcesso ? window.obterDispositivosDoProcesso(processoAtual) : [];
+        const inputInfracaoRaw = document.getElementById('inputInfracaoAutoInfracao')?.value || notificacaoAtual?.descricao || fisc.infracao || (dispProcAuto.length > 0 ? dispProcAuto[0] : '') || 'Falta de limpeza e conservação de imóvel não edificado';
+        const inputInfracao = window.obterDescricaoInfracao ? window.obterDescricaoInfracao(inputInfracaoRaw) : inputInfracaoRaw;
+        const inputNotifNum = document.getElementById('inputNumNotifAutoInfracao')?.value || notificacaoAtual?.numero || processoAtual.numero_processo || 'XXXX';
 
-    const dadosLegais = window.obterDadosLegaisEValoresAuto(inputInfracao, fisc, processoAtual);
+        const dadosLegais = window.obterDadosLegaisEValoresAuto(inputInfracao, fisc, processoAtual);
 
-    const numProc = processoAtual?.numero_processo || 'XXXXX';
-    const endContribuinteFmt = (endAutuadoLog && endAutuadoLog !== 'Não informado')
-        ? `${endAutuadoLog}, n°${endAutuadoNumVal}${cont.complemento ? ' - ' + cont.complemento : ''}, Bairro: ${endAutuadoBairroVal}, CEP:${endAutuadoCepVal} – Divinópolis/MG`
-        : 'Av. Antônio Olímpio de Morais, n°801, Bairro: Centro, CEP:35500005 – Divinópolis/MG';
-    const inscricaoImvFmt = imv.inscricao || 'XX.XXX.XXXX.XXXXX';
-    const endImovelFmt = `${imvRua}, N° ${imvNum}, Bairro: ${imvBairro}`;
+        const numProc = processoAtual?.numero_processo || 'XXXXX';
+        const endContribuinteFmt = (endAutuadoLog && endAutuadoLog !== 'Não informado')
+            ? `${endAutuadoLog}, n°${endAutuadoNumVal}${cont.complemento ? ' - ' + cont.complemento : ''}, Bairro: ${endAutuadoBairroVal}, CEP:${endAutuadoCepVal} – Divinópolis/MG`
+            : 'Av. Antônio Olímpio de Morais, n°801, Bairro: Centro, CEP:35500005 – Divinópolis/MG';
+        const inscricaoImvFmt = imv.inscricao || 'XX.XXX.XXXX.XXXXX';
+        const endImovelFmt = `${imvRua}, N° ${imvNum}, Bairro: ${imvBairro}`;
 
-    const numDecreto = processoAtual?.campos?.fiscNumeroDecreto || processoAtual?.dados?.numero_decreto || '17.326/2026';
-    let dataDecretoRaw = processoAtual?.dados?.fiscal?.decreto_data || '2026-07-02';
-    let dataDecretoFmt = '02/07/2026';
-    if (dataDecretoRaw) {
-        if (dataDecretoRaw.includes('-')) {
-            const parts = dataDecretoRaw.split('T')[0].split('-');
-            if (parts.length === 3) dataDecretoFmt = `${parts[2]}/${parts[1]}/${parts[0]}`;
-        } else if (dataDecretoRaw.includes('/')) {
-            dataDecretoFmt = dataDecretoRaw;
+        const numDecreto = processoAtual?.campos?.fiscNumeroDecreto || processoAtual?.dados?.numero_decreto || '17.326/2026';
+        let dataDecretoRaw = processoAtual?.dados?.fiscal?.decreto_data || '2026-07-02';
+        let dataDecretoFmt = '02/07/2026';
+        if (dataDecretoRaw) {
+            if (dataDecretoRaw.includes('-')) {
+                const parts = dataDecretoRaw.split('T')[0].split('-');
+                if (parts.length === 3) dataDecretoFmt = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            } else if (dataDecretoRaw.includes('/')) {
+                dataDecretoFmt = dataDecretoRaw;
+            }
         }
-    }
 
-    const prazoDiasDecreto = typeof obterPrazoNotificacao === 'function'
-        ? obterPrazoNotificacao(inputInfracao)
-        : (typeof obterPrazoNotificacaoNovaSolicitacao === 'function' ? obterPrazoNotificacaoNovaSolicitacao(inputInfracao) : 15);
-    let dataFimPrazoDecretoFmt = '';
-    const dDecRaw = dataDecretoRaw || new Date().toISOString().split('T')[0];
-    try {
-        let dDec;
-        if (dDecRaw.includes('-')) {
-            const parts = dDecRaw.split('T')[0].split('-');
-            dDec = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        } else if (dDecRaw.includes('/')) {
-            const parts = dDecRaw.split('/');
-            dDec = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+        const prazoDiasDecreto = typeof obterPrazoNotificacao === 'function'
+            ? obterPrazoNotificacao(inputInfracao)
+            : (typeof obterPrazoNotificacaoNovaSolicitacao === 'function' ? obterPrazoNotificacaoNovaSolicitacao(inputInfracao) : 15);
+        let dataFimPrazoDecretoFmt = '';
+        const dDecRaw = dataDecretoRaw || new Date().toISOString().split('T')[0];
+        try {
+            let dDec;
+            if (dDecRaw.includes('-')) {
+                const parts = dDecRaw.split('T')[0].split('-');
+                dDec = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            } else if (dDecRaw.includes('/')) {
+                const parts = dDecRaw.split('/');
+                dDec = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+            }
+            if (dDec && !isNaN(dDec.getTime())) {
+                dDec.setDate(dDec.getDate() + prazoDiasDecreto);
+                const dd = String(dDec.getDate()).padStart(2, '0');
+                const mm = String(dDec.getMonth() + 1).padStart(2, '0');
+                const yyyy = dDec.getFullYear();
+                dataFimPrazoDecretoFmt = `${dd}/${mm}/${yyyy}`;
+            }
+        } catch (e) {
+            console.warn('Erro ao calcular data final do decreto:', e);
         }
-        if (dDec && !isNaN(dDec.getTime())) {
-            dDec.setDate(dDec.getDate() + prazoDiasDecreto);
-            const dd = String(dDec.getDate()).padStart(2, '0');
-            const mm = String(dDec.getMonth() + 1).padStart(2, '0');
-            const yyyy = dDec.getFullYear();
-            dataFimPrazoDecretoFmt = `${dd}/${mm}/${yyyy}`;
-        }
-    } catch (e) {
-        console.warn('Erro ao calcular data final do decreto:', e);
-    }
 
-    const fundamentoLegalDecreto = window.obterFundamentoLegalDecreto ? window.obterFundamentoLegalDecreto(inputInfracao) : 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
-    const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao(inputInfracao) : '20 DIAS';
+        const fundamentoLegalDecreto = window.obterFundamentoLegalDecreto ? window.obterFundamentoLegalDecreto(inputInfracao) : 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
+        const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao(inputInfracao) : '20 DIAS';
 
-    let corpoHtmlAuto = '';
-    if (provenienteDecreto) {
-        corpoHtmlAuto = `
+        let corpoHtmlAuto = '';
+        if (provenienteDecreto) {
+            corpoHtmlAuto = `
             <div style="font-size: 10pt; line-height: 1.35; color: #000; margin-top: 10px;">
                 <p style="margin: 0 0 6px 0;"><strong>Processo:</strong> ${numProc}</p>
 
@@ -11465,8 +11465,8 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
             </div>
         `;
-    } else {
-        corpoHtmlAuto = `
+        } else {
+            corpoHtmlAuto = `
             <div style="font-size: 10pt; line-height: 1.35; color: #000; margin-top: 10px;">
                 <p style="margin: 0 0 8px 0; text-align: justify;">
                     O imóvel, situado na <strong>${imvRua}, n° ${imvNum}${imvComplemento ? ' - ' + imvComplemento : ''}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
@@ -11485,9 +11485,9 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
             </div>
         `;
-    }
+        }
 
-    const htmlAuto = `
+        const htmlAuto = `
         <div id="documentoPronto" style="margin-top: 10px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
             <div style="padding: 20px 40px 0 40px; background: white; max-width: 820px; margin: 0 auto; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
                 
@@ -11549,13 +11549,13 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         </div>
     `;
 
-    const container = document.getElementById('containerDocumentoOficial');
-    if (container) {
-        container.innerHTML = htmlAuto;
-        if (auto !== true) {
-            container.scrollIntoView({ behavior: 'smooth' });
+        const container = document.getElementById('containerDocumentoOficial');
+        if (container) {
+            container.innerHTML = htmlAuto;
+            if (auto !== true) {
+                container.scrollIntoView({ behavior: 'smooth' });
+            }
         }
-    }
     } finally {
         window._isGeneratingAuto = false;
     }
