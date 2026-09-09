@@ -147,10 +147,11 @@ window.otimizarPdfParaUpload = async function (file) {
 
 /**
  * Faz o upload de um arquivo (File, Blob ou DataURL) diretamente para o Cloudinary.
- * Caso a conta ou preset não esteja autorizada, utiliza um fallback gracioso (Base64 DataURL).
+ * Se o upload falhar para um arquivo novo (File/Blob), NÃO faz mais fallback para
+ * Base64 (isso inflava a coluna `dados` no banco) — avisa o usuário e retorna null.
  * @param {File|Blob|String} fileOrDataUrl - Arquivo ou DataURL a ser enviado.
  * @param {String} folder - Pasta no Cloudinary. Default: 'semac_documentos'
- * @returns {Promise<String>} Retorna a URL HTTPS do arquivo ou DataURL.
+ * @returns {Promise<String|null>} URL HTTPS do arquivo, ou null se o upload falhou.
  */
 window.uploadParaCloudinary = async function (fileOrDataUrl, folder = 'semac_documentos') {
     const cloudName = window.CLOUDINARY_CLOUD_NAME || 'dsctsogdy';
@@ -208,13 +209,19 @@ window.uploadParaCloudinary = async function (fileOrDataUrl, folder = 'semac_doc
         }
     }
 
-    // Fallback Gracioso: Converte File/Blob para DataURL Base64
+    // Falha total no Cloudinary: NÃO fazemos mais fallback para Base64 embutido no banco.
+    // Esse fallback silencioso era o principal responsável por inflar a coluna `dados`
+    // dos processos (fotos de vistoria em texto base64 gravadas direto no Postgres),
+    // o que derruba a performance/consumo de recursos do banco. Em vez disso, avisamos
+    // o usuário e devolvemos null para o chamador não salvar nada quebrado.
     if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.readAsDataURL(fileOrDataUrl);
-        });
+        console.error('[Cloudinary] Falha ao enviar arquivo em todos os endpoints. Upload cancelado.');
+        if (typeof window.alert === 'function' && !window.__cloudinaryAlertaAtivo) {
+            window.__cloudinaryAlertaAtivo = true;
+            alert('Não foi possível enviar o arquivo para o servidor de imagens (Cloudinary).\n\nVerifique sua conexão com a internet e tente selecionar o arquivo novamente.\n\nO arquivo NÃO foi salvo.');
+            setTimeout(() => { window.__cloudinaryAlertaAtivo = false; }, 3000);
+        }
+        return null;
     }
 
     return fileOrDataUrl;

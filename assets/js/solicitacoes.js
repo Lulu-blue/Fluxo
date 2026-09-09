@@ -1467,7 +1467,10 @@ window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId
             });
         }
         try {
-            await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+            await supabaseClient.rpc('atualizar_notificacoes_processo', {
+                p_processo_id: item.id,
+                p_notificacoes: item.dados.notificacoes_menu
+            });
         } catch (e) {
             console.error('Erro ao marcar notificação como lida:', e);
         }
@@ -1489,7 +1492,10 @@ window.marcarTodasNotificacoesLidasPainel = async function () {
             item.dados.notificacoes_menu.forEach(n => n.lida = true);
             if (item.id) {
                 try {
-                    await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+                    await supabaseClient.rpc('atualizar_notificacoes_processo', {
+                        p_processo_id: item.id,
+                        p_notificacoes: item.dados.notificacoes_menu
+                    });
                 } catch (e) {
                     console.error('Erro ao atualizar processo:', e);
                 }
@@ -1506,7 +1512,10 @@ window.limparAntigasNotificacoesPainel = async function () {
             item.dados.notificacoes_menu = item.dados.notificacoes_menu.filter(n => !n.lida);
             if (item.dados.notificacoes_menu.length !== antes && item.id) {
                 try {
-                    await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+                    await supabaseClient.rpc('atualizar_notificacoes_processo', {
+                        p_processo_id: item.id,
+                        p_notificacoes: item.dados.notificacoes_menu
+                    });
                 } catch (e) {
                     console.error('Erro ao atualizar processo:', e);
                 }
@@ -1521,7 +1530,10 @@ window.removerNotificacaoPainel = async function (processoId, idx) {
     if (item && item.dados?.notificacoes_menu) {
         item.dados.notificacoes_menu.splice(idx, 1);
         try {
-            await supabaseClient.from('processos').update({ dados: item.dados }).eq('id', item.id);
+            await supabaseClient.rpc('atualizar_notificacoes_processo', {
+                p_processo_id: item.id,
+                p_notificacoes: item.dados.notificacoes_menu
+            });
         } catch (e) {
             console.error('Erro ao excluir notificação:', e);
         }

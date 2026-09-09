@@ -19,7 +19,9 @@ if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-// ── Helper: enviar arquivo para Cloudinary (ou Base64 DataURL fallback) ──
+// ── Helper: enviar arquivo para Cloudinary ──────────────────────────────
+// Não faz mais fallback para Base64 embutido no banco: se o Cloudinary falhar,
+// retorna null para o chamador tratar (evita inflar a coluna `dados` do processo).
 async function fileToBase64(file) {
     if (!file) return null;
     if (typeof file === 'string' && (file.startsWith('http://') || file.startsWith('https://'))) {
@@ -31,19 +33,13 @@ async function fileToBase64(file) {
             if (urlCloud && (urlCloud.startsWith('http://') || urlCloud.startsWith('https://'))) {
                 return urlCloud;
             }
+            return null;
         } catch (cldErr) {
             console.warn('[Cloudinary Notice] Upload em nova-solicitacao falhou:', cldErr);
+            return null;
         }
     }
-    if (file instanceof Blob || file instanceof File) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = (err) => reject(err);
-            reader.readAsDataURL(file);
-        });
-    }
-    return file;
+    return null;
 }
 
 // ── Inicialização ───────────────────────────────────────────
@@ -2823,8 +2819,14 @@ window.adicionarCampoImagemLegenda = function () {
             try {
                 if (typeof window.uploadParaCloudinary === 'function') {
                     const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
-                    fileInput.setAttribute('data-base64', urlCloud);
-                    fileInput.setAttribute('data-url', urlCloud);
+                    if (!urlCloud) {
+                        fileInput.value = '';
+                        fileInput.removeAttribute('data-base64');
+                        fileInput.removeAttribute('data-url');
+                    } else {
+                        fileInput.setAttribute('data-base64', urlCloud);
+                        fileInput.setAttribute('data-url', urlCloud);
+                    }
                 } else {
                     const reader = new FileReader();
                     reader.onload = function (evt) {
@@ -2837,6 +2839,9 @@ window.adicionarCampoImagemLegenda = function () {
                 }
             } catch (err) {
                 console.warn('Erro ao enviar imagem de vistoria para o Cloudinary:', err);
+                fileInput.value = '';
+                fileInput.removeAttribute('data-base64');
+                fileInput.removeAttribute('data-url');
             }
             window.relatorioCustomizadoHTML = null;
             if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();

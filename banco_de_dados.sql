@@ -219,6 +219,12 @@ CREATE INDEX IF NOT EXISTS idx_processos_status ON processos(status);
 CREATE INDEX IF NOT EXISTS idx_processos_numero ON processos(numero_processo);
 CREATE INDEX IF NOT EXISTS idx_processos_created_at ON processos(created_at DESC);
 
+-- Índice trigram para acelerar buscas com ILIKE '%termo%' na tela de Solicitações
+-- (painel.html), que sem isso fazem varredura completa da tabela a cada filtro.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_processos_numero_trgm ON processos USING gin (numero_processo gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_processos_descricao_trgm ON processos USING gin ((dados ->> 'descricao') gin_trgm_ops);
+
 -- Numeração de processos gerenciada via RPC atômica (ver seção de funções abaixo)
 
 -- ┌─────────────────────────────────────────────────────────────┐
@@ -717,6 +723,21 @@ BEGIN
         ON CONFLICT (categoria, numero_sequencial, ano) DO NOTHING;
     EXCEPTION WHEN OTHERS THEN NULL;
     END;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- RPC: Atualizar notificacoes_menu sem reescrever a coluna `dados` inteira
+-- Usada pelo painel de Solicitações (solicitacoes.js) ao marcar/excluir
+-- notificações — evita reenviar o JSONB completo do processo (que pode
+-- conter anexos/imagens grandes) só para marcar uma notificação como lida.
+-- ============================================================
+CREATE OR REPLACE FUNCTION atualizar_notificacoes_processo(p_processo_id UUID, p_notificacoes JSONB)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE processos
+    SET dados = jsonb_set(COALESCE(dados, '{}'::jsonb), '{notificacoes_menu}', COALESCE(p_notificacoes, '[]'::jsonb))
+    WHERE id = p_processo_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

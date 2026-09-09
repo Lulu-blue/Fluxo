@@ -1781,15 +1781,12 @@ function renderizarFormularioDinamico(etapaNum) {
                     try {
                         urlFinal = await window.uploadParaCloudinary(file, 'semac_anexos');
                     } catch (cldErr) {
-                        console.warn('[Cloudinary Warning] Upload de anexo falhou, caindo para DataURL:', cldErr);
+                        console.warn('[Cloudinary Warning] Upload de anexo falhou:', cldErr);
                     }
                 }
                 if (!urlFinal) {
-                    urlFinal = await new Promise(resData => {
-                        const reader = new FileReader();
-                        reader.onload = (ev) => resData(ev.target.result);
-                        reader.readAsDataURL(file);
-                    });
+                    resolve(null);
+                    return;
                 }
                 resolve({
                     id: Math.random().toString(36).substring(7),
@@ -4941,7 +4938,8 @@ function configurarEventosPainelEtapa1() {
                 let fileUrl = ev.target.result;
                 if (typeof window.uploadParaCloudinary === 'function') {
                     try {
-                        fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                        const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                        if (urlCloud) fileUrl = urlCloud;
                     } catch (cldErr) {
                         console.warn('[Cloudinary Warning] Upload falhou, usando fallback local DataURL:', cldErr);
                     }
@@ -5847,7 +5845,8 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
                     let fileUrl = ev.target.result;
                     if (typeof window.uploadParaCloudinary === 'function') {
                         try {
-                            fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                            const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                            if (urlCloud) fileUrl = urlCloud;
                         } catch (cldErr) {
                             console.warn('[Cloudinary Warning] Upload falhou, usando fallback DataURL:', cldErr);
                         }
@@ -6203,6 +6202,8 @@ function preencherCabecalhoPagina(proc) {
 // ── Gerenciamento de Imagens da Vistoria com Legenda na Edição ────────────
 let contadorImagensEdit = 0;
 
+// Não faz mais fallback para Base64 embutido no banco: se o Cloudinary falhar,
+// retorna null para o chamador tratar (evita inflar a coluna `dados` do processo).
 if (typeof fileToBase64 !== 'function') {
     window.fileToBase64 = async function (fileOrDataUrl) {
         if (!fileOrDataUrl) return null;
@@ -6215,19 +6216,13 @@ if (typeof fileToBase64 !== 'function') {
                 if (urlCloud && (urlCloud.startsWith('http://') || urlCloud.startsWith('https://'))) {
                     return urlCloud;
                 }
+                return null;
             } catch (cldErr) {
                 console.warn('[Cloudinary Notice] Upload em etapa.js falhou:', cldErr);
+                return null;
             }
         }
-        if (fileOrDataUrl instanceof Blob || fileOrDataUrl instanceof File) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-                reader.readAsDataURL(fileOrDataUrl);
-            });
-        }
-        return fileOrDataUrl;
+        return null;
     };
 }
 
@@ -6283,11 +6278,17 @@ window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
             try {
                 if (typeof window.uploadParaCloudinary === 'function') {
                     const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
-                    fileInput.setAttribute('data-base64', urlCloud);
-                    fileInput.setAttribute('data-url', urlCloud);
-                    if (previewImg && previewContainer) {
-                        previewImg.src = urlCloud;
-                        previewContainer.style.display = 'block';
+                    if (!urlCloud) {
+                        fileInput.value = '';
+                        fileInput.removeAttribute('data-base64');
+                        fileInput.removeAttribute('data-url');
+                    } else {
+                        fileInput.setAttribute('data-base64', urlCloud);
+                        fileInput.setAttribute('data-url', urlCloud);
+                        if (previewImg && previewContainer) {
+                            previewImg.src = urlCloud;
+                            previewContainer.style.display = 'block';
+                        }
                     }
                 } else {
                     const reader = new FileReader();
@@ -6302,6 +6303,9 @@ window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
                 }
             } catch (err) {
                 console.warn('Erro ao carregar imagem para o Cloudinary:', err);
+                fileInput.value = '';
+                fileInput.removeAttribute('data-base64');
+                fileInput.removeAttribute('data-url');
             }
         } else {
             fileInput.removeAttribute('data-base64');
@@ -11688,7 +11692,8 @@ window.configurarEventosAIAssinado = function () {
                     let fileUrl = ev.target.result;
                     if (typeof window.uploadParaCloudinary === 'function') {
                         try {
-                            fileUrl = await window.uploadParaCloudinary(file, 'semac_autos');
+                            const urlCloud = await window.uploadParaCloudinary(file, 'semac_autos');
+                            if (urlCloud) fileUrl = urlCloud;
                         } catch (cldErr) {
                             console.warn('[Cloudinary Warning] Upload falhou, usando fallback DataURL:', cldErr);
                         }
