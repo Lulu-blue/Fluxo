@@ -2437,7 +2437,17 @@ function configurarBotoesNavegacaoPadrao() {
     }
 
     if (btnVoltar) {
-        if (!podeGerenciar) {
+        const ehProcessoDecretoAi = (
+            processoAtual?.possui_decreto === true ||
+            processoAtual?.possui_decreto === 'true' ||
+            !!processoAtual?.decreto_id ||
+            processoAtual?.dados?.fiscal?.decreto === 'sim' ||
+            processoAtual?.dados?.infracoes?.decreto === 'sim' ||
+            processoAtual?.dados?.decreto === 'sim' ||
+            (etapaAtual === 14 && !notificacaoAtual)
+        );
+
+        if (!podeGerenciar || (etapaAtual === 14 && ehProcessoDecretoAi)) {
             btnVoltar.style.display = 'none';
         } else {
             btnVoltar.style.display = '';
@@ -3920,6 +3930,25 @@ async function voltarEtapaPadrao() {
     if (!processoAtual) return;
     if (!podeGerenciarEtapaAtual()) {
         alert('Você não tem permissão para voltar esta etapa.');
+        return;
+    }
+
+    const etapaAtualNumCheck = notificacaoAtual
+        ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
+        : parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
+
+    const ehProcessoDecretoAiCheck = (
+        processoAtual?.possui_decreto === true ||
+        processoAtual?.possui_decreto === 'true' ||
+        !!processoAtual?.decreto_id ||
+        processoAtual?.dados?.fiscal?.decreto === 'sim' ||
+        processoAtual?.dados?.infracoes?.decreto === 'sim' ||
+        processoAtual?.dados?.decreto === 'sim' ||
+        (etapaAtualNumCheck === 14 && !notificacaoAtual)
+    );
+
+    if (etapaAtualNumCheck === 14 && ehProcessoDecretoAiCheck) {
+        alert('Este processo foi iniciado diretamente como Auto de Infração e não possui etapa anterior para voltar.');
         return;
     }
 
@@ -7857,7 +7886,7 @@ async function avancarAutoEtapa18(index) {
 
     mostrarCarregamento('Avançando Auto de Infração...');
 
-    let proxEtapaNumero = (opcao === 'defesa') ? 19 : 20;
+    let proxEtapaNumero = (opcao === 'defesa') ? 19 : 31;
     let statusProc = (opcao === 'defesa') ? 'defesa_auto' : 'pagamento_auto';
     let condicao = (opcao === 'defesa') ? 'Defesa do Auto de Infração Apresentada' : 'Solicitado Pagamento do Auto de Infração';
 
@@ -8984,6 +9013,8 @@ async function salvarEdicoesProcesso() {
                             ? await window.uploadParaCloudinary(fonte, 'semac_relatorios')
                             : await window.fileToBase64(fonte);
                         let docId = null;
+                        const nomeImg = (file && file.name) ? file.name : (existingName || `imagem_vistoria_${i + 1}.jpg`);
+                        const tipoImg = (file && file.type) ? file.type : 'image/jpeg';
 
                         if (processoId) {
                             try {
@@ -8991,7 +9022,7 @@ async function salvarEdicoesProcesso() {
                                     processo_id: processoId,
                                     etapa_id: processoAtual?.etapa_atual_id || 1,
                                     tipo: 'imagem',
-                                    nome_arquivo: file.name,
+                                    nome_arquivo: nomeImg,
                                     url: imgFinalUrl,
                                     gerado_automaticamente: false,
                                     usuario_id: perfilAtual?.id || null
@@ -9005,9 +9036,9 @@ async function salvarEdicoesProcesso() {
                         }
 
                         imagensVistoriaSalvar.push({
-                            nome: file.name,
-                            tipo: file.type,
-                            documento_id: docId,
+                            nome: nomeImg,
+                            tipo: tipoImg,
+                            documento_id: docId || existingDocId || null,
                             url: imgFinalUrl,
                             dataUrl: imgFinalUrl,
                             legenda: legenda,
@@ -10279,7 +10310,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, II e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000211') || dispLow.includes('inexistência de cercamento') || dispLow.includes('inexistencia de cercamento') || (dispLow.includes('cercamento') && !dispLow.includes('reconstrução') && !dispLow.includes('reconstrucao') && !dispLow.includes('reparo'))) {
-            titulo = 'Inexistência de cercamento: infração ao artigo 1º da Lei 7.174/2010.';
+            titulo = 'Inexistência de cercamento: artigo 1°, §2 e artigo 2° da Lei 7.174/2010, sob pena do artigo 3°, I, da mesma lei.';
             prazo = '60 DIAS';
             itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
                      <li><strong>Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010:</strong> muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.</li>
