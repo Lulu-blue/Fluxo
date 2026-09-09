@@ -6275,6 +6275,11 @@ window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
     fileInput.addEventListener('change', async function (e) {
         const file = e.target.files[0];
         if (file) {
+            if (typeof window.validarFormatoImagemRelatorio === 'function' && !window.validarFormatoImagemRelatorio(file)) {
+                fileInput.value = '';
+                fileInput.removeAttribute('data-base64');
+                return;
+            }
             try {
                 if (typeof window.uploadParaCloudinary === 'function') {
                     const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
@@ -13099,6 +13104,14 @@ window.adicionarCampoImagemReplica = function () {
     `;
 
     document.getElementById('containerImagensForm').appendChild(div);
+
+    const fileInputReplica = div.querySelector('.replica-imagem-arquivo');
+    fileInputReplica.addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (file && typeof window.validarFormatoImagemRelatorio === 'function' && !window.validarFormatoImagemRelatorio(file)) {
+            fileInputReplica.value = '';
+        }
+    });
 };
 
 window.gerarReplica = async function () {

@@ -6,6 +6,52 @@ window.CLOUDINARY_CLOUD_NAME = window.CLOUDINARY_CLOUD_NAME || 'dsctsogdy';
 window.CLOUDINARY_UPLOAD_PRESET = window.CLOUDINARY_UPLOAD_PRESET || 'semac_unsigned';
 
 /**
+ * Formatos de imagem aceitos para as imagens de vistoria do Relatório Fiscal.
+ * São os formatos que o navegador consegue desenhar em <canvas> (via html2canvas)
+ * e, portanto, aparecem corretamente no PDF gerado do relatório.
+ * Formatos como HEIC/HEIF, TIFF e AVIF ficam de fora pois não têm suporte
+ * confiável de renderização em todos os navegadores.
+ */
+window.EXTENSOES_IMAGEM_RELATORIO = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'svg'];
+window.FORMATOS_IMAGEM_RELATORIO = [
+    'image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/x-ms-bmp', 'image/gif', 'image/svg+xml'
+];
+
+/**
+ * Valida se um arquivo de imagem está em um formato suportado pela geração do
+ * Relatório Fiscal em PDF (JPG, JPEG, PNG, WEBP, BMP, GIF ou SVG).
+ * Exibe um alerta ao usuário quando o formato não é suportado.
+ * @param {File} file - Arquivo selecionado pelo usuário.
+ * @param {Object} [opts]
+ * @param {Boolean} [opts.alertar=true] - Se deve exibir alert() em caso de formato inválido.
+ * @returns {Boolean} true se o formato é válido, false caso contrário.
+ */
+window.validarFormatoImagemRelatorio = function (file, opts) {
+    opts = opts || {};
+    const alertar = opts.alertar !== false;
+    if (!file) return false;
+
+    const nome = file.name || '';
+    const ext = nome.includes('.') ? nome.split('.').pop().toLowerCase() : '';
+    const tipo = (file.type || '').toLowerCase();
+
+    const extensaoValida = window.EXTENSOES_IMAGEM_RELATORIO.includes(ext);
+    const tipoValido = tipo ? window.FORMATOS_IMAGEM_RELATORIO.includes(tipo) : true;
+
+    if (!extensaoValida || !tipoValido) {
+        if (alertar) {
+            alert(
+                'Formato de imagem não suportado: ' + (ext || tipo || 'desconhecido') + '.\n\n' +
+                'Utilize apenas imagens nos formatos JPG, JPEG, PNG, WEBP, BMP, GIF ou SVG, ' +
+                'que são os formatos exibidos corretamente no PDF do Relatório Fiscal.'
+            );
+        }
+        return false;
+    }
+    return true;
+};
+
+/**
  * Redimensiona e comprime imagens pesadas (ex: fotos de celular de 8MB+ ou DataURLs)
  * para ~150KB-300KB antes do upload ou conversão em DataURL.
  */

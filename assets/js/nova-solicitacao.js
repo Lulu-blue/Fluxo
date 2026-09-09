@@ -2814,6 +2814,12 @@ window.adicionarCampoImagemLegenda = function () {
     fileInput.addEventListener('change', async function (e) {
         const file = e.target.files[0];
         if (file) {
+            if (typeof window.validarFormatoImagemRelatorio === 'function' && !window.validarFormatoImagemRelatorio(file)) {
+                fileInput.value = '';
+                fileInput.removeAttribute('data-base64');
+                fileInput.removeAttribute('data-url');
+                return;
+            }
             try {
                 if (typeof window.uploadParaCloudinary === 'function') {
                     const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
