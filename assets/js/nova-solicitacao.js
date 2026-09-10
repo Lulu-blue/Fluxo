@@ -42,6 +42,48 @@ async function fileToBase64(file) {
     return null;
 }
 
+// ── Mapeia o texto da infração selecionada para a "obrigação" resumida usada
+// no Relatório Fiscal (template Decreto). Esta página não carrega etapa.js,
+// então precisa da própria cópia — sem isso, window.obterObrigacaoPelaInfracaoText
+// não existe e o texto sempre cai no fallback fixo "Limpeza".
+if (typeof window.obterObrigacaoPelaInfracaoText !== 'function') {
+    window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
+        if (!infraTexto) return 'Limpeza';
+        const low = String(infraTexto).toLowerCase();
+        const partes = [];
+
+        if (low.includes('quintal')) {
+            partes.push('Limpeza de Quintal');
+        } else if (low.includes('limpeza') || low.includes('conservação') || low.includes('conservacao')) {
+            partes.push('Limpeza');
+        }
+        if (low.includes('cercamento') || low.includes('fechamento')) {
+            partes.push('Cercamento');
+        }
+        if (low.includes('passeio') || low.includes('calçada') || low.includes('calcada')) {
+            partes.push('Construção/Reparo de Passeio');
+        }
+        if (low.includes('muro')) {
+            partes.push('Construção/Reparo de Muro');
+        }
+        if (low.includes('obstáculo') || low.includes('obstaculo')) {
+            partes.push('Desobstrução de Calçada');
+        }
+        if (low.includes('água servida') || low.includes('agua servida')) {
+            partes.push('Cessação de Descarte de Água Servida');
+        }
+        if (low.includes('alvará') || low.includes('alvara')) {
+            partes.push('Regularização de Alvará');
+        }
+        if (low.includes('piso tátil') || low.includes('piso tatil')) {
+            partes.push('Adequação de Piso Tátil');
+        }
+
+        if (partes.length === 0) return infraTexto;
+        return partes.join(' e ');
+    };
+}
+
 // ── Inicialização ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     bindWizardEventos();
