@@ -554,14 +554,20 @@ DECLARE
     v_prox INTEGER := 0;
     v_max_existente INTEGER := 0;
     v_tamanho_pad INTEGER;
+    v_txt TEXT;
 BEGIN
     IF p_categoria IS NULL OR TRIM(p_categoria) = '' THEN
         RAISE EXCEPTION 'Categoria inválida para reserva de número.';
     END IF;
 
-    v_tamanho_pad := CASE 
-        WHEN p_categoria IN ('Processo', 'Relatório Fiscal') THEN 6 
-        ELSE 3 
+    -- Tamanho MÍNIMO do número (só completa com zeros à esquerda).
+    -- Atenção: LPAD do PostgreSQL TRUNCA quando o texto é maior que o tamanho
+    -- pedido (LPAD('1333',3,'0') = '133'), por isso todo uso abaixo passa
+    -- GREATEST(v_tamanho_pad, LENGTH(...)) — assim a sequência cresce livremente
+    -- ao passar de 999 em vez de perder o último dígito.
+    v_tamanho_pad := CASE
+        WHEN p_categoria = 'Processo' THEN 6
+        ELSE 3
     END;
 
     -- 1. Tentar buscar da tabela numeros_descartados
@@ -573,10 +579,11 @@ BEGIN
                 LOWER(categoria) = LOWER(p_categoria) OR 
                 (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
             )
-            ORDER BY LPAD(regexp_replace(numero_sequencial, '\D', '', 'g'), 10, '0')::BIGINT ASC
+            ORDER BY LPAD(regexp_replace(numero_sequencial, '\D', '', 'g'), 18, '0')::BIGINT ASC
             FOR UPDATE SKIP LOCKED
         LOOP
-            v_seq := LPAD(regexp_replace(r_desc.numero_sequencial, '\D', '', 'g'), v_tamanho_pad, '0');
+            v_txt := regexp_replace(r_desc.numero_sequencial, '\D', '', 'g');
+            v_seq := LPAD(v_txt, GREATEST(v_tamanho_pad, LENGTH(v_txt)), '0');
             v_cand := p_ano::TEXT || '/' || v_seq;
 
             -- Remove de descartados e disponiveis se existir
@@ -607,10 +614,11 @@ BEGIN
                 LOWER(categoria) = LOWER(p_categoria) OR 
                 (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
             )
-            ORDER BY LPAD(regexp_replace(numero_sequencial, '\D', '', 'g'), 10, '0')::BIGINT ASC
+            ORDER BY LPAD(regexp_replace(numero_sequencial, '\D', '', 'g'), 18, '0')::BIGINT ASC
             FOR UPDATE SKIP LOCKED
         LOOP
-            v_seq := LPAD(regexp_replace(r_desc.numero_sequencial, '\D', '', 'g'), v_tamanho_pad, '0');
+            v_txt := regexp_replace(r_desc.numero_sequencial, '\D', '', 'g');
+            v_seq := LPAD(v_txt, GREATEST(v_tamanho_pad, LENGTH(v_txt)), '0');
             v_cand := p_ano::TEXT || '/' || v_seq;
 
             DELETE FROM numeros_disponiveis 
@@ -658,10 +666,12 @@ BEGIN
     END IF;
 
     -- Garantir que o candidato final não exista em uso (loop de segurança)
-    v_cand := p_ano::TEXT || '/' || LPAD(v_prox::TEXT, v_tamanho_pad, '0');
+    v_txt := v_prox::TEXT;
+    v_cand := p_ano::TEXT || '/' || LPAD(v_txt, GREATEST(v_tamanho_pad, LENGTH(v_txt)), '0');
     WHILE _numero_existe_em_uso(p_ano, p_categoria, v_cand) LOOP
         v_prox := v_prox + 1;
-        v_cand := p_ano::TEXT || '/' || LPAD(v_prox::TEXT, v_tamanho_pad, '0');
+        v_txt := v_prox::TEXT;
+        v_cand := p_ano::TEXT || '/' || LPAD(v_txt, GREATEST(v_tamanho_pad, LENGTH(v_txt)), '0');
     END LOOP;
 
     -- Atualiza o contador com a posição final confirmada
