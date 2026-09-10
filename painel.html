@@ -225,6 +225,30 @@
                                 <option value="32">32 - Consulta no Jurídico</option>
                             </select>
                         </div>
+                        <div class="filter-group" style="position: relative;">
+                            <label for="btnFiltroInfracao">Tipo de Infração</label>
+                            <button type="button" id="btnFiltroInfracao" class="filtro-dropdown-btn">
+                                <span id="lblFiltroInfracao">Todas</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                            <div class="filtro-dropdown-panel" id="painelFiltroInfracao" style="display:none;">
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000232"> Falta de limpeza e conservação de imóvel não edificado</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000211"> Inexistência de Cercamento</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000226"> Inexistência de passeio</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000228"> Reincidência na inexistência de cercamento e/ou passeio</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000227"> Reincidência na inexistência de passeio</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000229"> Reconstrução de/ou reparo de muro</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000240"> Reconstrução e/ou reparo de passeio</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000233"> Limpeza de Quintal</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000237"> Obstáculos em calçadas</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000239"> Água servida</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000236"> Estabelecimento sem Alvará</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000234"> Reparos por concessionárias</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000230"> Piso Tátil</label>
+                            </div>
+                        </div>
                         <div class="filter-group">
                             <label for="filtroDescricao">Descrição</label>
                             <input type="text" id="filtroDescricao" name="filtro_descricao_search" placeholder="Buscar na descrição..."

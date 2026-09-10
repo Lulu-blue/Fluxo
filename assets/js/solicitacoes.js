@@ -435,11 +435,19 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
 
     try {
         // Montar query base
+        // Observação: já tentamos buscar só sub-campos de `dados` via várias expressões
+        // dados->x separadas para economizar tráfego, mas isso piorou a performance:
+        // cada expressão dados->x força o Postgres a descomprimir (detoast) a coluna
+        // `dados` inteira de novo, então 15 extrações = 15 descompressões por linha.
+        // Para processos com anexos/imagens grandes em `dados`, isso é MAIS lento que
+        // buscar a coluna inteira uma única vez — o que causou timeout no banco.
+        // Buscando `dados` inteiro (uma descompressão por linha) de volta.
         let query = supabaseClient
             .from('processos')
             .select(`
                 id,
                 numero_processo,
+                numero_relatorio,
                 status,
                 etapa_atual_id,
                 dados,
@@ -523,6 +531,33 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             const uniqueNotifIds = [...new Set(notifProcIds)];
             if (uniqueNotifIds.length > 0) {
                 query = query.in('id', uniqueNotifIds);
+            } else {
+                query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+            }
+        }
+        if (filtros.infracoes && filtros.infracoes.length > 0) {
+            // Um processo pode ter várias infrações, cada uma virando uma notificação
+            // própria (processo_infracoes). Trazemos o processo se QUALQUER UMA das
+            // infrações dele bater com alguma das selecionadas no filtro.
+            const infraProcIds = [];
+            try {
+                const { data: catInfra } = await supabaseClient
+                    .from('infracoes_catalogo')
+                    .select('id')
+                    .in('codigo', filtros.infracoes);
+                const catIds = (catInfra || []).map(c => c.id);
+                if (catIds.length > 0) {
+                    const { data: procInfra } = await supabaseClient
+                        .from('processo_infracoes')
+                        .select('processo_id')
+                        .in('infracao_id', catIds);
+                    if (procInfra) procInfra.forEach(p => { if (p.processo_id) infraProcIds.push(p.processo_id); });
+                }
+            } catch (eInfra) { }
+
+            const uniqueInfraIds = [...new Set(infraProcIds)];
+            if (uniqueInfraIds.length > 0) {
+                query = query.in('id', uniqueInfraIds);
             } else {
                 query = query.eq('id', '00000000-0000-0000-0000-000000000000');
             }
@@ -881,7 +916,8 @@ function coletarFiltros() {
         etapa: document.getElementById('filtroEtapa')?.value || '',
         descricao: document.getElementById('filtroDescricao')?.value.trim() || '',
         criador: document.getElementById('filtroCriador')?.value || '',
-        responsavel: elResp ? elResp.value : ''
+        responsavel: elResp ? elResp.value : '',
+        infracoes: Array.from(document.querySelectorAll('.chk-filtro-infracao:checked')).map(c => c.value)
     };
 }
 
@@ -1054,8 +1090,41 @@ function bindEventos() {
         if (document.getElementById('filtroCriador')) document.getElementById('filtroCriador').value = '';
         const elResp = document.getElementById('filtroResponsavel');
         if (elResp) elResp.value = '';
+        document.querySelectorAll('.chk-filtro-infracao:checked').forEach(c => c.checked = false);
+        window.atualizarLabelFiltroInfracao?.();
         carregarSolicitacoes(false);
     });
+
+    // Dropdown do filtro "Tipo de Infração"
+    const btnFiltroInfracao = document.getElementById('btnFiltroInfracao');
+    const painelFiltroInfracao = document.getElementById('painelFiltroInfracao');
+    const lblFiltroInfracao = document.getElementById('lblFiltroInfracao');
+    if (btnFiltroInfracao && painelFiltroInfracao && lblFiltroInfracao) {
+        window.atualizarLabelFiltroInfracao = () => {
+            const marcadas = painelFiltroInfracao.querySelectorAll('.chk-filtro-infracao:checked').length;
+            lblFiltroInfracao.textContent = marcadas === 0 ? 'Todas' : `${marcadas} selecionada${marcadas > 1 ? 's' : ''}`;
+        };
+
+        btnFiltroInfracao.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const abrindo = painelFiltroInfracao.style.display === 'none';
+            painelFiltroInfracao.style.display = abrindo ? 'block' : 'none';
+            btnFiltroInfracao.classList.toggle('active', abrindo);
+        });
+
+        painelFiltroInfracao.addEventListener('click', (e) => e.stopPropagation());
+
+        painelFiltroInfracao.addEventListener('change', (e) => {
+            if (e.target.classList.contains('chk-filtro-infracao')) {
+                window.atualizarLabelFiltroInfracao();
+            }
+        });
+
+        document.addEventListener('click', () => {
+            painelFiltroInfracao.style.display = 'none';
+            btnFiltroInfracao.classList.remove('active');
+        });
+    }
 
     // Exportar CSV
     document.getElementById('btnExportCSV').addEventListener('click', exportarCSV);
@@ -1589,16 +1658,12 @@ window.excluirProcessosSelecionados = async function () {
                 await supabaseClient.rpc('devolver_numero', { p_numero: nRel, p_categoria: 'Relatório Fiscal' });
             }
 
-            // 2. Devolver números de Notificações
-            const { data: notifs } = await supabaseClient.from('notificacoes').select('numero, dados').eq('processo_id', pid);
-            if (notifs && notifs.length > 0) {
-                for (const n of notifs) {
-                    const numNotif = n.numero || n.dados?.numero || n.dados?.numero_notificacao;
-                    if (numNotif) {
-                        await supabaseClient.rpc('devolver_numero', { p_numero: numNotif, p_categoria: 'Notificação' });
-                    }
-                }
-            }
+            // 2. Notificações NÃO têm numeração própria reservada (reservar_numero nunca é
+            // chamado com categoria 'Notificação') — o campo `numero` de cada notificação é
+            // só "{numero_processo}/NN" (ver etapa.js). Por isso não devolvemos nada aqui:
+            // devolver esse valor sob a categoria 'Notificação' reinseria o número do
+            // PROCESSO (já devolvido corretamente acima como 'Processo') sob a categoria
+            // errada, causando duplicidade/confusão nas numerações disponíveis.
 
             // 3. Devolver números de Autos de Infração
             const { data: autos } = await supabaseClient.from('autos_infracao').select('numero').eq('processo_id', pid);

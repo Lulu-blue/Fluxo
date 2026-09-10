@@ -690,7 +690,7 @@ async function finalizarSolicitacao() {
                 numeroRelatorio = nr;
             } else {
                 console.warn('RPC reservar_numero para Relatório Fiscal falhou no envio final, buscando fallback:', errNumRel?.message);
-                numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
+                numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
             }
         }
 
@@ -836,7 +836,7 @@ async function finalizarSolicitacao() {
                     if (nr) {
                         numeroRelatorio = nr;
                     } else {
-                        numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
+                        numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
                     }
                     dados.relatorio_fiscal = dados.relatorio_fiscal || {};
                     dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
@@ -1421,11 +1421,11 @@ async function garantirNumerosReservados() {
                 numerosReservadosEditor.relatorio = nr;
             } else {
                 console.warn('RPC reservar_numero para Relatório Fiscal falhou, executando fallback local:', errRel?.message);
-                numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
+                numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
             }
         } catch (e) {
             console.warn('Erro ao reservar número de relatório, executando fallback local:', e);
-            numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 3, 'processos', 'numero_relatorio');
+            numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
         }
     }
 }

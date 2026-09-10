@@ -4226,7 +4226,6 @@ window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
     } else if (low.includes('limpeza') || low.includes('conservação') || low.includes('conservacao')) {
         partes.push('Limpeza');
     }
-
     if (low.includes('cercamento') || low.includes('fechamento')) {
         partes.push('Cercamento');
     }
@@ -4249,8 +4248,8 @@ window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
         partes.push('Adequação de Piso Tátil');
     }
 
-    if (partes.length > 0) return partes.join(' e ');
-    return infraTexto;
+    if (partes.length === 0) return infraTexto;
+    return partes.join(' e ');
 };
 
 // ── Helper para Converter Números com Vírgula ou Ponto com Segurança ──────

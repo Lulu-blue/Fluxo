@@ -560,7 +560,7 @@ BEGIN
     END IF;
 
     v_tamanho_pad := CASE 
-        WHEN p_categoria = 'Processo' THEN 6 
+        WHEN p_categoria IN ('Processo', 'Relatório Fiscal') THEN 6 
         ELSE 3 
     END;
 
