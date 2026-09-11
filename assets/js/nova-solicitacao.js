@@ -123,6 +123,8 @@ async function fecharModal() {
     if (modal) modal.classList.remove('open');
     document.body.style.overflow = '';
     bicArquivoAnexado = null;
+    bicDocumentoReutilizado = null;
+    if (typeof limparSeletorImoveis === 'function') limparSeletorImoveis();
 
     // Se a pessoa fechar/descartar o modal sem finalizar, libera os números reservados
     if (typeof devolverNumerosReservadosEditor === 'function') {
@@ -429,7 +431,7 @@ function voltarStep() {
 function validarStep(step) {
     switch (step) {
         case 1: {
-            if (!bicArquivoAnexado) {
+            if (!bicArquivoAnexado && !bicDocumentoReutilizado) {
                 alert('O anexo do Espelho Cadastral (BIC) em PDF é obrigatório.');
                 const areaBic = document.getElementById('uploadAreaBic') || document.getElementById('bicFileInfo');
                 if (areaBic) areaBic.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -928,7 +930,28 @@ async function finalizarSolicitacao() {
             console.error('Erro ao registrar relatório na tabela documentos:', errDoc);
         }
 
-        // Registrar o documento BIC na tabela centralizada documentos
+        // Registrar o documento BIC na tabela centralizada documentos.
+        // Se o fiscal selecionou um imóvel que já tinha BIC cadastrado, reaproveita
+        // aquele documento em vez de exigir/registrar um novo arquivo.
+        let bicDocumentoId = null;
+        if (!bicObjetoSalvar && bicDocumentoReutilizado && procCriado) {
+            bicDocumentoId = bicDocumentoReutilizado.id;
+            procCriado.dados = procCriado.dados || {};
+            procCriado.dados.documento_bic = {
+                nome: bicDocumentoReutilizado.nome_arquivo || 'Espelho Cadastral',
+                documento_id: bicDocumentoId
+            };
+            procCriado.dados.anexos = procCriado.dados.anexos || {};
+            procCriado.dados.anexos.bic_espelho_cadastral = procCriado.dados.documento_bic;
+            try {
+                await supabaseClient
+                    .from('processos')
+                    .update({ dados: procCriado.dados })
+                    .eq('id', procCriado.id);
+            } catch (eBicReuso) {
+                console.warn('Erro ao vincular BIC reaproveitado ao processo:', eBicReuso);
+            }
+        }
         if (bicObjetoSalvar && procCriado) {
             try {
                 const { data: docBic } = await supabaseClient.from('documentos').insert([{
@@ -942,6 +965,7 @@ async function finalizarSolicitacao() {
                 }]).select('id').single();
 
                 if (docBic && docBic.id) {
+                    bicDocumentoId = docBic.id;
                     procCriado.dados = procCriado.dados || {};
                     procCriado.dados.documento_bic = {
                         nome: bicObjetoSalvar.nome,
@@ -962,31 +986,31 @@ async function finalizarSolicitacao() {
             }
         }
 
-        // 6. Inserir registro em 'contribuintes' apenas se ainda não existir
+        // 6. Contribuinte: reaproveita o cadastro existente (por CPF/CNPJ ou nome)
+        //    ou cria um novo. O vínculo com o processo é gravado no passo 7.1.
+        let contribuinteId = null;
         if (dados.contribuinte && dados.contribuinte.nome) {
-            let contExistente = null;
             if (dados.contribuinte.cpf_cnpj) {
                 const { data } = await supabaseClient
                     .from('contribuintes')
                     .select('id')
                     .eq('cpf_cnpj', dados.contribuinte.cpf_cnpj)
                     .limit(1);
-                if (data && data.length > 0) contExistente = data[0];
+                if (data && data.length > 0) contribuinteId = data[0].id;
             }
-            if (!contExistente) {
+            if (!contribuinteId) {
                 const { data } = await supabaseClient
                     .from('contribuintes')
                     .select('id')
                     .ilike('nome', dados.contribuinte.nome)
                     .limit(1);
-                if (data && data.length > 0) contExistente = data[0];
+                if (data && data.length > 0) contribuinteId = data[0].id;
             }
 
-            if (!contExistente) {
-                await supabaseClient
+            if (!contribuinteId) {
+                const { data: novoCont, error: errCont } = await supabaseClient
                     .from('contribuintes')
                     .insert([{
-                        processo_id: procCriado.id,
                         nome: dados.contribuinte.nome,
                         cpf_cnpj: dados.contribuinte.cpf_cnpj || null,
                         logradouro: dados.contribuinte.logradouro || null,
@@ -995,36 +1019,44 @@ async function finalizarSolicitacao() {
                         bairro: dados.contribuinte.bairro || null,
                         municipio: dados.contribuinte.municipio || null,
                         cep: dados.contribuinte.cep || null
-                    }]);
+                    }])
+                    .select('id')
+                    .single();
+                if (errCont) console.warn('Erro ao cadastrar contribuinte:', errCont);
+                if (novoCont) contribuinteId = novoCont.id;
             }
         }
 
-        // 7. Inserir registro em 'imoveis' apenas se ainda não existir
+        // 7. Imóvel: reaproveita o cadastro existente (por código reduzido ou inscrição)
+        //    ou cria um novo. Um imóvel tem um único dono, então o contribuinte deste
+        //    processo passa a ser o dono atual (cobre o caso de imóvel vendido).
+        let imovelId = null;
         if (dados.imovel && (dados.imovel.inscricao || dados.imovel.logradouro || dados.imovel.codigo_reduzido)) {
-            let imovelExistente = null;
             if (dados.imovel.codigo_reduzido) {
                 const { data } = await supabaseClient
                     .from('imoveis')
                     .select('id')
                     .eq('codigo_reduzido', dados.imovel.codigo_reduzido)
                     .limit(1);
-                if (data && data.length > 0) imovelExistente = data[0];
+                if (data && data.length > 0) imovelId = data[0].id;
             }
-            if (!imovelExistente && dados.imovel.inscricao) {
+            if (!imovelId && dados.imovel.inscricao) {
                 const { data } = await supabaseClient
                     .from('imoveis')
                     .select('id')
                     .eq('inscricao_imovel', dados.imovel.inscricao)
                     .limit(1);
-                if (data && data.length > 0) imovelExistente = data[0];
+                if (data && data.length > 0) imovelId = data[0].id;
             }
 
-            if (!imovelExistente) {
-                const pFloat = (v) => v ? parseFloat(String(v).replace(',', '.')) || null : null;
-                await supabaseClient
+            const pFloat = (v) => v ? parseFloat(String(v).replace(',', '.')) || null : null;
+
+            if (!imovelId) {
+                const { data: novoImovel, error: errImovel } = await supabaseClient
                     .from('imoveis')
                     .insert([{
-                        processo_id: procCriado.id,
+                        contribuinte_id: contribuinteId,
+                        documento_bic_id: bicDocumentoId,
                         codigo_reduzido: dados.imovel.codigo_reduzido || null,
                         inscricao_imovel: dados.imovel.inscricao || null,
                         logradouro: dados.imovel.logradouro || null,
@@ -1034,8 +1066,33 @@ async function finalizarSolicitacao() {
                         area_total: pFloat(dados.imovel.area_total),
                         testada: pFloat(dados.imovel.testada),
                         profundidade: pFloat(dados.imovel.profundidade)
-                    }]);
+                    }])
+                    .select('id')
+                    .single();
+                if (errImovel) console.warn('Erro ao cadastrar imóvel:', errImovel);
+                if (novoImovel) imovelId = novoImovel.id;
+            } else {
+                // Imóvel já cadastrado: atualiza o dono atual e o BIC mais recente.
+                const camposImovel = {};
+                if (contribuinteId) camposImovel.contribuinte_id = contribuinteId;
+                if (bicDocumentoId) camposImovel.documento_bic_id = bicDocumentoId;
+                if (Object.keys(camposImovel).length > 0) {
+                    const { error: errUpdImovel } = await supabaseClient
+                        .from('imoveis')
+                        .update(camposImovel)
+                        .eq('id', imovelId);
+                    if (errUpdImovel) console.warn('Erro ao atualizar imóvel existente:', errUpdImovel);
+                }
             }
+        }
+
+        // 7.1 Grava no processo os vínculos com contribuinte e imóvel
+        if (contribuinteId || imovelId) {
+            const { error: errVinculo } = await supabaseClient
+                .from('processos')
+                .update({ contribuinte_id: contribuinteId, imovel_id: imovelId })
+                .eq('id', procCriado.id);
+            if (errVinculo) console.warn('Erro ao vincular contribuinte/imóvel ao processo:', errVinculo);
         }
 
         // 8. Inserir infrações em 'processo_infracoes' e criar notificações vinculadas
@@ -2813,8 +2870,12 @@ async function buscarContribuinteNoBanco(silencioso = false) {
             setIfEmpty('contCep', data.cep);
 
             mostrarFeedback('contFeedback', '✓ Contribuinte encontrado no banco! Dados preenchidos.', 'success');
+
+            // Carrega os imóveis já cadastrados para este contribuinte
+            await carregarImoveisDoContribuinte(data.id);
         } else if (!silencioso) {
             mostrarFeedback('contFeedback', 'Contribuinte não encontrado. Preencha os dados abaixo.', 'info');
+            limparSeletorImoveis();
         }
     } catch (err) {
         console.error('Erro ao buscar contribuinte:', err);
@@ -2914,6 +2975,209 @@ window.removerCampoImagemLegenda = function (id) {
 };
 
 // ── Buscar imóvel no banco (por Código Reduzido ou Inscrição) ───
+// ── Imóveis do contribuinte (1 contribuinte pode ter vários imóveis) ─────────
+// Guarda o BIC já cadastrado do imóvel escolhido, para não exigir novo upload.
+let bicDocumentoReutilizado = null;
+let imoveisDoContribuinte = [];
+
+function limparSeletorImoveis() {
+    const box = document.getElementById('seletorImoveisContribuinte');
+    if (box) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+    }
+    const aviso = document.getElementById('bicReutilizadoInfo');
+    if (aviso) {
+        aviso.innerHTML = '';
+        aviso.style.display = 'none';
+    }
+    imoveisDoContribuinte = [];
+}
+
+async function carregarImoveisDoContribuinte(contribuinteId) {
+    limparSeletorImoveis();
+    if (!contribuinteId) return;
+
+    try {
+        const { data } = await supabaseClient
+            .from('imoveis')
+            .select('id, codigo_reduzido, inscricao_imovel, logradouro, numero, complemento, bairro, area_total, testada, profundidade, documento_bic_id')
+            .eq('contribuinte_id', contribuinteId)
+            .order('codigo_reduzido', { ascending: true });
+
+        imoveisDoContribuinte = data || [];
+        if (imoveisDoContribuinte.length === 0) return;
+
+        // Sempre lista os imóveis (mesmo sendo um só) e nunca preenche sozinho:
+        // a escolha é do fiscal, que pode preferir anexar outro BIC.
+        renderizarSeletorImoveis();
+    } catch (err) {
+        console.warn('Erro ao carregar imóveis do contribuinte:', err);
+    }
+}
+
+function renderizarSeletorImoveis(indiceSelecionado = -1) {
+    const box = document.getElementById('seletorImoveisContribuinte');
+    if (!box || imoveisDoContribuinte.length === 0) return;
+
+    const qtd = imoveisDoContribuinte.length;
+    const titulo = qtd === 1
+        ? 'Este contribuinte já tem 1 imóvel cadastrado'
+        : `Este contribuinte já tem ${qtd} imóveis cadastrados`;
+
+    box.innerHTML = `
+        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px 16px; margin-top:12px;">
+            <div style="font-weight:700; color:#0c4a6e; font-size:0.9rem; margin-bottom:4px;">${titulo}</div>
+            <div style="color:#0369a1; font-size:0.8rem; margin-bottom:12px;">
+                Se a fiscalização for em um deles, selecione para preencher os dados e reaproveitar o BIC.
+                Se for outro imóvel, é só ignorar e anexar o BIC normalmente.
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                ${imoveisDoContribuinte.map((imv, idx) => {
+        const selecionado = idx === indiceSelecionado;
+        const endereco = [imv.logradouro, imv.numero].filter(Boolean).join(', ')
+            + (imv.bairro ? ` — ${imv.bairro}` : '');
+        return `
+                    <button type="button" onclick="selecionarImovelDoContribuinte(${idx})"
+                            style="text-align:left; background:${selecionado ? '#ecfdf5' : 'white'}; border:${selecionado ? '2px solid #16a34a' : '1px solid #cbd5e1'}; border-radius:8px; padding:10px 12px; cursor:pointer; font-family:inherit;">
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; font-size:0.84rem; color:#1e293b; font-weight:600;">
+                            ${selecionado ? '<span style="color:#16a34a;">✓ selecionado</span>' : ''}
+                            <span>Código reduzido: <strong>${imv.codigo_reduzido || '—'}</strong></span>
+                            <span>Inscrição: <strong>${imv.inscricao_imovel || '—'}</strong></span>
+                            ${imv.documento_bic_id
+                ? '<span style="color:#16a34a;">BIC disponível</span>'
+                : '<span style="color:#b45309;">sem BIC cadastrado</span>'}
+                        </div>
+                        ${endereco ? `<div style="font-size:0.8rem; color:#64748b; margin-top:3px;">${endereco}</div>` : ''}
+                    </button>`;
+    }).join('')}
+            </div>
+            ${indiceSelecionado >= 0 ? `
+                <button type="button" onclick="limparSelecaoImovel()"
+                        style="margin-top:10px; background:none; border:none; color:#dc2626; cursor:pointer; font-size:0.8rem; text-decoration:underline; padding:0;">
+                    limpar seleção e informar outro imóvel
+                </button>` : ''}
+        </div>
+    `;
+    box.style.display = 'block';
+}
+
+window.limparSelecaoImovel = function () {
+    window.descartarBicReutilizado();
+    renderizarSeletorImoveis(-1);
+};
+
+window.selecionarImovelDoContribuinte = async function (indice) {
+    const imv = imoveisDoContribuinte[indice];
+    if (!imv) return;
+
+    renderizarSeletorImoveis(indice);
+
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && val !== undefined && val !== null) el.value = val;
+    };
+
+    setVal('imvCodigo', imv.codigo_reduzido);
+    setVal('imvInscricao', imv.inscricao_imovel);
+    setVal('imvLogradouro', imv.logradouro);
+    setVal('imvNumero', imv.numero);
+    setVal('imvComplemento', imv.complemento);
+    setVal('imvBairro', imv.bairro);
+    setVal('imvAreaTotal', imv.area_total);
+    setVal('imvTestada', imv.testada);
+    setVal('imvProfundidade', imv.profundidade);
+
+    if (imv.inscricao_imovel && typeof decomporInscricao === 'function') {
+        decomporInscricao(imv.inscricao_imovel);
+    }
+
+    // Reaproveita o BIC já cadastrado deste imóvel (dispensa novo upload)
+    bicDocumentoReutilizado = null;
+    if (imv.documento_bic_id) {
+        try {
+            const { data: docBic } = await supabaseClient
+                .from('documentos')
+                .select('id, nome_arquivo, url')
+                .eq('id', imv.documento_bic_id)
+                .maybeSingle();
+            if (docBic) {
+                bicDocumentoReutilizado = docBic;
+                const infoEl = document.getElementById('bicReutilizadoInfo');
+                if (infoEl) {
+                    infoEl.innerHTML = `
+                        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; margin-top:10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                            <span style="color:#166534; font-weight:600; font-size:0.85rem;">
+                                ✓ BIC já cadastrado para este imóvel: ${docBic.nome_arquivo || 'Espelho Cadastral'}
+                            </span>
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <button type="button" onclick="visualizarBicReutilizado()"
+                                        style="display:inline-flex; align-items:center; gap:6px; background:white; border:1px solid #16a34a; color:#166534; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:0.8rem; font-weight:600; font-family:inherit;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                    Visualizar
+                                </button>
+                                <button type="button" onclick="descartarBicReutilizado()"
+                                        style="background:none; border:none; color:#dc2626; cursor:pointer; font-size:0.8rem; text-decoration:underline; padding:0;">
+                                    anexar outro arquivo
+                                </button>
+                            </div>
+                        </div>`;
+                    infoEl.style.display = 'block';
+                }
+            }
+        } catch (eBic) {
+            console.warn('Erro ao carregar BIC do imóvel:', eBic);
+        }
+    }
+
+    const msg = bicDocumentoReutilizado
+        ? '✓ Imóvel selecionado! Dados e BIC preenchidos.'
+        : '✓ Imóvel selecionado! Este imóvel ainda não tem BIC — anexe o Espelho Cadastral.';
+    mostrarFeedback('imvFeedback', msg, 'success');
+    mostrarFeedback('bicFeedback', msg, 'success');
+};
+
+window.visualizarBicReutilizado = function () {
+    const url = bicDocumentoReutilizado?.url;
+    if (!url) {
+        alert('O arquivo deste BIC não está disponível para visualização.');
+        return;
+    }
+
+    // DataURL (base64) precisa virar blob, senão o navegador bloqueia a abertura
+    if (url.startsWith('data:')) {
+        try {
+            const [meta, base64] = url.split(',');
+            const mime = (meta.match(/data:([^;]+)/) || [])[1] || 'application/pdf';
+            const bin = atob(base64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+            window.open(blobUrl, '_blank');
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+            return;
+        } catch (err) {
+            console.warn('Falha ao abrir BIC em base64, tentando direto:', err);
+        }
+    }
+
+    window.open(url, '_blank');
+};
+
+window.descartarBicReutilizado = function () {
+    bicDocumentoReutilizado = null;
+    const infoEl = document.getElementById('bicReutilizadoInfo');
+    if (infoEl) {
+        infoEl.innerHTML = '';
+        infoEl.style.display = 'none';
+    }
+    // Reabre a área de upload para anexar outro arquivo
+    const dropEl = document.getElementById('uploadAreaBic');
+    if (dropEl) dropEl.style.display = 'flex';
+};
+
 async function buscarImovelNoBanco(silencioso = false) {
     const codVal = document.getElementById('imvCodigo')?.value?.trim();
     const inscVal = document.getElementById('imvInscricao')?.value?.trim();
@@ -3124,7 +3388,14 @@ async function handleArquivoBic(file) {
 
         const dadosExt = extrairDadosEspelhoCadastral(textoCompleto);
 
+        // Arquivo novo anexado manualmente substitui o BIC reaproveitado do cadastro
         bicArquivoAnexado = file;
+        bicDocumentoReutilizado = null;
+        const avisoBicEl = document.getElementById('bicReutilizadoInfo');
+        if (avisoBicEl) {
+            avisoBicEl.innerHTML = '';
+            avisoBicEl.style.display = 'none';
+        }
 
         // Helper para preencher o campo do formulário apenas se estiver vazio
         function preencherSeVazio(id, valor) {

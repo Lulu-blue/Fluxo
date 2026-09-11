@@ -1224,7 +1224,15 @@ function bindEventos() {
         }
     });
 
-    // Navegação Menu Lateral (Solicitações / Configurações)
+    // Navegação Menu Lateral (Solicitações / Avisos / Instruções / Apuração / Configurações)
+    const TITULOS_PAGINA = {
+        solicitacoes: 'Solicitações',
+        avisos: 'Avisos',
+        instrucoes: 'Instruções',
+        apuracao: 'Apuração de Dados',
+        configuracoes: 'Configurações'
+    };
+
     document.querySelectorAll('.sidebar-nav a[data-page]').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
@@ -1236,12 +1244,25 @@ function bindEventos() {
             const secaoConfiguracoes = document.getElementById('secao-configuracoes');
             const secaoApuracao = document.getElementById('secao-apuracao');
             const pageTitle = document.getElementById('pageTitle');
+            const breadcrumb = document.querySelector('.header-breadcrumb');
             const headerActions = document.querySelector('.header-actions');
 
-            if (page === 'configuracoes') {
-                if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'none';
+            // Esconde todas as seções antes de exibir a escolhida
+            Object.keys(TITULOS_PAGINA).forEach(nome => {
+                const secao = document.getElementById('secao-' + nome);
+                if (secao) secao.style.display = 'none';
+            });
+            if (breadcrumb) breadcrumb.textContent = 'Painel / ' + (TITULOS_PAGINA[page] || 'Solicitações');
+
+            if (page === 'avisos' || page === 'instrucoes') {
+                const secao = document.getElementById('secao-' + page);
+                if (secao) secao.style.display = 'block';
+                if (pageTitle) pageTitle.textContent = TITULOS_PAGINA[page];
+                if (headerActions) headerActions.style.display = 'none';
+                if (page === 'instrucoes') restaurarChecklistInstrucoes();
+                if (page === 'avisos') renderizarFeedAvisos();
+            } else if (page === 'configuracoes') {
                 if (secaoConfiguracoes) secaoConfiguracoes.style.display = 'block';
-                if (secaoApuracao) secaoApuracao.style.display = 'none';
                 if (pageTitle) pageTitle.textContent = 'Configurações';
                 if (headerActions) headerActions.style.display = 'none';
 
@@ -1255,8 +1276,6 @@ function bindEventos() {
                     aplicarAvatarUsuario(window.currentUserProfile, n);
                 }
             } else if (page === 'apuracao') {
-                if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'none';
-                if (secaoConfiguracoes) secaoConfiguracoes.style.display = 'none';
                 if (secaoApuracao) secaoApuracao.style.display = 'block';
                 if (pageTitle) pageTitle.textContent = 'Apuração de Dados';
                 if (headerActions) headerActions.style.display = 'none';
@@ -1267,13 +1286,482 @@ function bindEventos() {
                 }
             } else {
                 if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'block';
-                if (secaoConfiguracoes) secaoConfiguracoes.style.display = 'none';
-                if (secaoApuracao) secaoApuracao.style.display = 'none';
                 if (pageTitle) pageTitle.textContent = 'Solicitações';
                 if (headerActions) headerActions.style.display = 'flex';
             }
         });
     });
+
+    configurarChecklistInstrucoes();
+}
+
+// ── Avisos (mural de publicações) ───────────────────────────
+// Para publicar um aviso novo, acrescente um objeto no INÍCIO desta lista.
+// nivel: 'critico' | 'atencao' | 'info'  (cor da etiqueta)
+// layout: 'documento' exibe o corpo como peça oficial; qualquer outro valor usa o texto comum.
+const AVISOS_PUBLICADOS = [
+    {
+        id: 'nova-aba-instrucoes',
+        nivel: 'info',
+        tag: 'Atualização do sistema',
+        titulo: 'Nova aba: Instruções',
+        data: '11/09/2026',
+        autor: 'Desenvolvimento do Fluxograma',
+        resumo: 'O passo a passo completo do processo, com dicas e checklist, agora fica sempre disponível no menu lateral.',
+        corpo: `
+            <p class="pub-lead">Foi adicionada ao menu lateral a aba <strong>Instruções</strong>, com o caminho
+            completo de um processo — do momento em que ele é aberto até o clique em <code>Avançar Etapa</code>.</p>
+
+            <h3 class="pub-sub">O que tem lá</h3>
+            <ul class="pub-lista">
+                <li><strong>Sete passos numerados</strong>, em linguagem direta, na ordem em que as telas aparecem.</li>
+                <li>Uma <strong>dica prática</strong> em cada passo, com o detalhe que costuma passar batido.</li>
+                <li>Um <strong>checklist marcável</strong> para acompanhar a conferência enquanto você trabalha. Ele
+                fica salvo no seu navegador, é individual e ninguém mais vê.</li>
+            </ul>
+
+            <h3 class="pub-sub">Para que serve</h3>
+            <p class="pub-lead">A ideia é simples: tirar da memória o que não precisa estar lá. Em vez de lembrar em
+            que ordem fazer as coisas ou perguntar para quem está do lado, a sequência inteira fica a um clique de
+            distância, aberta na tela enquanto o processo é conduzido.</p>
+
+            <p class="pub-lead">Se alguma tela estiver confusa, travando ou puxando algo errado, me procure. Prefiro
+            muito mais arrumar o sistema do que ver alguém perdendo tempo com ele.</p>
+        `
+    },
+    {
+        id: 'notificacao-preliminar-desatencao',
+        nivel: 'critico',
+        tag: 'Aviso importante',
+        titulo: 'Notificação Preliminar de Desatenção',
+        data: '11/09/2026',
+        autor: 'Fiscalização de Posturas',
+        resumo: 'Documento interno sobre a conferência dos processos: o que temos encontrado, o que isso causa e o que muda com um clique. Leitura recomendada antes de avançar qualquer etapa.',
+        layout: 'documento',
+        corpo: `
+        <div class="doc-notificacao">
+            <div class="doc-folha">
+
+                <header class="doc-timbre">
+                    <div class="doc-orgao">
+                        Divisão de Fiscalização de Posturas &middot; Fluxo de Processos<br>
+                        Comunicado interno <strong>CI-001/2026</strong> — via única, sem AR
+                    </div>
+                    <h1>Notificação <span class="doc-rubro">preliminar</span> de desatenção</h1>
+                    <p class="doc-subtitulo">Desta vez o autuado é a gente mesmo. Vale ler com o mesmo cuidado que a
+                        gente cobra do contribuinte.</p>
+                    <div class="doc-carimbo">Conferido?<span class="doc-caixas">( ) sim &nbsp; ( ) não</span></div>
+                </header>
+
+                <dl class="doc-campos">
+                    <div class="doc-campo">
+                        <dt>Autuado(a)</dt>
+                        <dd>Todos nós, quando a pressa fala mais alto</dd>
+                    </div>
+                    <div class="doc-campo">
+                        <dt>CPF/CNPJ</dt>
+                        <dd><em>não conferido — como de costume</em></dd>
+                    </div>
+                    <div class="doc-campo doc-largo">
+                        <dt>Dispositivos internos transgredidos</dt>
+                        <dd>Art. 1º ao 5º do Manual do Bom Senso — que, curiosamente, nunca foi revogado</dd>
+                    </div>
+                    <div class="doc-campo">
+                        <dt>Prazo para regularização</dt>
+                        <dd>Imediato. Venceu ontem, na verdade.</dd>
+                    </div>
+                    <div class="doc-campo">
+                        <dt>Reincidência</dt>
+                        <dd>Sim — com uma constância admirável</dd>
+                    </div>
+                </dl>
+
+                <section class="doc-secao">
+                    <span class="doc-eyebrow">I — Preâmbulo</span>
+                    <h2>Não é difícil. É pressa.</h2>
+                    <p class="doc-lead">Vamos combinar uma coisa antes de começar: o sistema mostra o nome do
+                        contribuinte na tela, deixa abrir o PDF antes de anexar e coloca um botão
+                        <code>Visualizar</code> colado no arquivo que você acabou de subir. Está tudo à mão, em
+                        português, sem senha e sem fila.</p>
+                    <p class="doc-lead">O que acontece depois de um documento errado seguir no fluxo é menos simpático:
+                        alguém abre processo por processo, um por um, pra descobrir onde foi parar o auto de infração de
+                        um contribuinte que não tinha nada a ver com a história. Não é um trabalho difícil. É só um
+                        trabalho que não precisava existir.</p>
+                    <p class="doc-lead">Então fica o pedido, com todo o carinho: <b>não custa olhar.</b></p>
+                </section>
+
+                <section class="doc-secao">
+                    <span class="doc-eyebrow">Rol de constatações</span>
+                    <h2>Do mais bobo ao imperdoável</h2>
+
+                    <div class="doc-rol">
+
+                        <div class="doc-art">
+                            <div class="doc-art-meta"><span>Art. 1º</span><span class="doc-grau leve">Leve</span><span>Frequência: constante</span></div>
+                            <h3>Não conferir o nome do contribuinte antes de começar</h3>
+                            <p>O nome e o <code>CPF/CNPJ</code> aparecem na tela, na primeira linha, em negrito. Não é
+                                letra miúda de contrato, é o cabeçalho. Abrir o processo errado e perceber três etapas
+                                depois não chega a ser azar — é a única linha que precisava de dois segundos de
+                                leitura.</p>
+                            <p class="doc-agravante"><b>Agravante</b>Depois de gerar documento no processo errado, o
+                                engano já está em PDF, numerado e com data.</p>
+                        </div>
+
+                        <div class="doc-art">
+                            <div class="doc-art-meta"><span>Art. 2º</span><span class="doc-grau leve">Leve</span><span>Reincidência: alta</span></div>
+                            <h3>Gerar o processo sem ler o relatório</h3>
+                            <p>O relatório aparece inteiro na tela antes de virar processo: endereço, motivo da
+                                notificação, dispositivo transgredido, tudo montado. Clicar em gerar sem passar o olho é
+                                assinar embaixo de um texto que ninguém leu — o que costuma explicar as perguntas sobre
+                                por que o endereço saiu errado.</p>
+                            <p class="doc-agravante"><b>Agravante</b>Documento gerado consome numeração sequencial.
+                                Errou, queimou um número.</p>
+                        </div>
+
+                        <div class="doc-art">
+                            <div class="doc-art-meta"><span>Art. 3º</span><span class="doc-grau media">Média</span><span>Modalidade: distração seletiva</span></div>
+                            <h3>Esquecer que existe um botão de editar</h3>
+                            <p>Existe uma aba chamada <code>Editar Dados do Processo</code>. Fica no topo, ao lado da
+                                aba do documento oficial, com esse nome exato, escrito por extenso em português. Ninguém
+                                escondeu e ninguém precisa de senha. Ela está ali, disponível, sem fila — e mesmo assim
+                                raramente é clicada, porque é mais rápido avançar tudo em série e depois dizer que não
+                                notou.</p>
+                            <p class="doc-agravante"><b>Agravante</b>O sistema é novo, e sistema novo pede
+                                <b>mais</b> cuidado, não menos — ainda mais quando o que está em jogo é documentação com
+                                o CPF de outras pessoas. Eu sentei com cada um pra ensinar e continuo disponível pra
+                                quem quiser perguntar. Perguntar, aliás, costuma funcionar bem melhor do que reclamar
+                                depois.</p>
+                        </div>
+
+                        <div class="doc-art">
+                            <div class="doc-art-meta"><span>Art. 4º</span><span class="doc-grau media">Média</span><span>Consequência: assinatura em erro</span></div>
+                            <h3>Baixar e assinar sem abrir o que baixou</h3>
+                            <p>Entre clicar em <code>Baixar Relatório (.pdf)</code> e estampar a assinatura existe um
+                                passo pequeno: <b>abrir o arquivo</b>. Duplo clique, dez segundos. Pular esse passo
+                                significa garantir com o nome funcional o conteúdo de um documento que ninguém viu.</p>
+                            <p class="doc-agravante"><b>Agravante</b>Documento assinado errado não se conserta editando.
+                                Refaz-se inteiro.</p>
+                        </div>
+
+                        <div class="doc-art doc-capital">
+                            <div class="doc-art-meta"><span>Art. 5º</span><span class="doc-grau grave">Gravíssima</span><span>Sem atenuantes</span></div>
+                            <h3>Anexar documento de outro processo e avançar etapa sem olhar</h3>
+                            <p>Esta é a campeã: um auto de infração de <b>outro contribuinte</b> anexado no processo
+                                errado, seguido de um <code>Avançar Etapa</code> sem que ninguém tenha clicado em
+                                <code>Visualizar</code> uma única vez.</p>
+                            <p>E o <code>Visualizar</code> fica ao lado do anexo. No mesmo cartão. Colado no
+                                <code>Substituir / Remover</code>. Abre o PDF em outra aba. É um clique. <b>Um.</b></p>
+                            <p>O resultado é o dado de um cidadão dentro do processo de outro, um documento que não
+                                sustenta o que deveria sustentar, um processo que pode ser questionado — e a tarefa,
+                                para alguém, de varrer processo por processo até achar cada documento trocado.</p>
+                            <p>E isso não fica entre nós: <b>esses processos seguem para a Fazenda</b> — com o nome de
+                                vocês e com a <b>assinatura</b> de vocês no documento. Quem assina é quem responde pelo
+                                que assinou, e nesse ponto não tem sistema, nem estágio, nem tela que assuma o lugar de
+                                ninguém.</p>
+                            <p class="doc-agravante"><b>Agravante máximo</b>Depois que a etapa avança, o documento já
+                                circulou. O que era um detalhe de dois segundos vira problema de todo mundo.</p>
+                        </div>
+
+                    </div>
+                </section>
+
+                <section class="doc-secao">
+                    <span class="doc-eyebrow">II — Sobre avançar tudo de uma vez</span>
+                    <h2>Ninguém vai ficar sem pontuação</h2>
+                    <p class="doc-lead">A pressa costuma ter um motivo, e não é muito difícil adivinhar qual é. Então
+                        vamos tirar esse peso da mesa agora.</p>
+                    <p class="doc-lead"><b>Está tudo salvo.</b> Cada etapa avançada, cada documento gerado e cada anexo
+                        enviado fica registrado no banco, com autor e data. Nada se perde porque alguém foi devagar. O
+                        que se perde é quando o documento sai errado — e esse, sim, não volta.</p>
+
+                    <p class="doc-destaque">A pontuação fecha no fim do mês. Não é hoje, não é agora.</p>
+
+                    <p class="doc-lead">A integração com o outro sistema ainda tem defeito, eu sei — e estou
+                        corrigindo. É uma estagiária construindo isso, então vai no ritmo que dá. Mas defeito de
+                        integração eu conserto até o fechamento. Auto de infração assinado no processo errado, que já
+                        saiu daqui com o nome de vocês, esse eu não consigo consertar.</p>
+                    <p class="doc-lead">Ou seja: não há motivo nenhum pra avançar etapa no automático. <b>O mês inteiro
+                            está disponível. Dá pra gastar trinta segundos.</b></p>
+                </section>
+
+                <section class="doc-secao">
+                    <span class="doc-eyebrow">III — Medidas para regularização</span>
+                    <h2>O processo, do começo ao fim</h2>
+                    <p class="doc-lead">Sete passos. Nenhum deles é difícil, e todos são obrigatórios. O passo a passo
+                        detalhado, com dicas, está na aba <b>Instruções</b>.</p>
+
+                    <ol class="doc-passos">
+                        <li>
+                            <h3>Confira de quem é o processo antes de tocar em qualquer coisa</h3>
+                            <p>Leia o <code>Protocolo</code>, o <b>Nome do Contribuinte</b> e o <code>CPF/CNPJ</code>.
+                                Confirme que é esse mesmo. Só então continue.</p>
+                            <p class="doc-obs"><b>Não vale</b><span>Abrir o primeiro da lista e presumir que é o
+                                    certo.</span></p>
+                        </li>
+                        <li>
+                            <h3>Preencha e revise os dados antes de gerar</h3>
+                            <p>Endereço, motivo da notificação e dispositivos transgredidos. O sistema puxa esses campos
+                                automaticamente para a Notificação, para a Réplica e para o Auto — errado aqui é errado
+                                em tudo que vier depois.</p>
+                            <p class="doc-obs"><b>Lembre</b><span>Os dados vêm de um PDF. A extração acerta quase
+                                    sempre, não sempre.</span></p>
+                        </li>
+                        <li class="doc-chave">
+                            <h3>Precisa corrigir algo? A aba se chama "Editar Dados do Processo"</h3>
+                            <p>Topo da tela, ao lado da aba do documento oficial. Corrija <b>antes</b> de gerar, não
+                                depois de descobrir o erro já assinado.</p>
+                            <p class="doc-obs"><b>Não vale</b><span>Pedir para alguém ajustar no banco o que se resolve
+                                    em dois cliques na própria tela.</span></p>
+                        </li>
+                        <li>
+                            <h3>Leia o documento na tela antes de gerar</h3>
+                            <p>O relatório aparece montado, com cabeçalho, numeração e texto final. Leia. Se estiver
+                                errado, volte ao passo 3. Só depois gere.</p>
+                            <p class="doc-obs"><b>Lembre</b><span>Cada documento gerado consome um número da sequência.
+                                    Errar aqui custa um número a mais.</span></p>
+                        </li>
+                        <li>
+                            <h3>Baixe o PDF e abra o arquivo</h3>
+                            <p>Clique em <code>Baixar Relatório (.pdf)</code>, abra o PDF e confira nome, endereço e
+                                número da notificação <b>dentro</b> do arquivo. Só então imprima e assine.</p>
+                            <p class="doc-obs"><b>Não vale</b><span>Assinar uma pilha de papel sem olhar folha por
+                                    folha.</span></p>
+                        </li>
+                        <li class="doc-chave">
+                            <h3>Anexe o assinado — e clique em "Visualizar"</h3>
+                            <p>Suba o PDF no campo de anexo da etapa. Depois de subir, clique em
+                                <code>Visualizar</code>, ao lado do anexo, e confirme com os próprios olhos que o nome
+                                do contribuinte e o número da notificação no PDF são <b>os deste processo</b>.</p>
+                            <p class="doc-obs"><b>Errou o arquivo?</b><span>O <code>Substituir / Remover</code> está
+                                    logo ali, do lado. Não custa nada e ninguém fica sabendo.</span></p>
+                        </li>
+                        <li class="doc-chave">
+                            <h3>Só agora clique em "Avançar Etapa"</h3>
+                            <p>Avançar é o último ato, não o primeiro. Depois dele o documento entra no fluxo e vai para
+                                a próxima mesa com o seu nome nele.</p>
+                            <p class="doc-obs"><b>Antes de clicar</b><span>Percorra o checklist abaixo. Leva menos tempo
+                                    do que desfazer.</span></p>
+                        </li>
+                    </ol>
+                </section>
+
+                <section class="doc-secao">
+                    <span class="doc-eyebrow">IV — Termo de compromisso</span>
+                    <h2>Checklist antes de avançar etapa</h2>
+                    <p class="doc-lead">Use a cada processo. Se sobrar qualquer item em branco, ainda não terminou. É o
+                        mesmo checklist da aba Instruções — marcar aqui marca lá.</p>
+
+                    <div class="doc-checklist">
+                        <div class="doc-checklist-topo">
+                            <h3>Checagem obrigatória</h3>
+                            <button type="button" class="doc-limpar" id="btnLimparChecklistDoc">Limpar para o próximo
+                                processo</button>
+                        </div>
+
+                        <label class="doc-item" for="chkDoc1"><input type="checkbox" id="chkDoc1" data-chk="1"><span>Li
+                                o <b>nome do contribuinte</b> e o CPF/CNPJ na tela e confirmei que é este
+                                processo.</span></label>
+                        <label class="doc-item" for="chkDoc2"><input type="checkbox" id="chkDoc2"
+                                data-chk="2"><span>Revisei endereço, motivo e dispositivos transgredidos <b>antes</b> de
+                                gerar.</span></label>
+                        <label class="doc-item" for="chkDoc3"><input type="checkbox" id="chkDoc3"
+                                data-chk="3"><span>Usei a aba <b>Editar Dados do Processo</b> para corrigir o que estava
+                                errado.</span></label>
+                        <label class="doc-item" for="chkDoc4"><input type="checkbox" id="chkDoc4" data-chk="4"><span>Li
+                                o documento inteiro na tela antes de clicar em gerar.</span></label>
+                        <label class="doc-item" for="chkDoc5"><input type="checkbox" id="chkDoc5"
+                                data-chk="5"><span>Abri o PDF baixado e conferi o conteúdo antes de assinar.</span></label>
+                        <label class="doc-item" for="chkDoc6"><input type="checkbox" id="chkDoc6"
+                                data-chk="6"><span>Cliquei em <b>Visualizar</b> depois de anexar e vi o documento com
+                                meus próprios olhos.</span></label>
+                        <label class="doc-item" for="chkDoc7"><input type="checkbox" id="chkDoc7"
+                                data-chk="7"><span>Confirmei que o documento anexado é <b>deste contribuinte</b>, e não
+                                de outro processo.</span></label>
+
+                        <p class="doc-placar" data-placar>0 de 7 conferidos — não avance ainda.</p>
+                    </div>
+                </section>
+
+                <section class="doc-desabafo">
+                    <span class="doc-eyebrow">V — Nota de quem construiu isto &middot; desabafo, fora do documento
+                        oficial</span>
+                    <h2>É um PDF. Eu não faço milagre.</h2>
+
+                    <div class="doc-desabafo-corpo">
+                        <p>Vou sair do tom de ofício por um instante, porque esta parte não é institucional: é minha.</p>
+                        <p>Este sistema foi feito por <b>uma pessoa</b>, do lado de vocês, pra tirar trabalho manual da
+                            mão de vocês. Eu sentei com cada um pra ensinar, e continuo disponível pra quem chegar e
+                            perguntar. Cansa um pouco ouvir que o sistema é ruim vindo de quem ainda não abriu o que
+                            anexou.</p>
+                        <p>E tem uma parte que eu preciso que fique clara: os dados do contribuinte são extraídos de um
+                            <b>PDF</b>. Um PDF. Nenhuma extração garante 100% em todos os casos — nem a minha, nem
+                            nenhuma. <b>É exatamente por isso que a conferência existe, e é por isso que ela é de
+                                vocês.</b> Eu entrego o campo já preenchido e editável; olhar se puxou certo leva o
+                            tempo de ler uma linha.</p>
+                        <p>Achar chato corrigir o nome de uma rua, num campo que já veio preenchido, num formulário que
+                            já montou o documento inteiro — não é exatamente excesso de trabalho.</p>
+                        <p class="doc-cansada">E sim: eu estou cansada. Muito.</p>
+                        <p>Ainda assim eu vou continuar arrumando os defeitos, porque eu quero que isso funcione bem pra
+                            vocês. Só peço a contrapartida mais barata que existe: <b>clicar em Visualizar antes de
+                                avançar.</b></p>
+                        <p class="doc-escolha">A alternativa, afinal, é voltar a fazer o documento inteiro do zero, na
+                            mão, como era antes. A gente escolhe.</p>
+                    </div>
+                </section>
+
+                <footer class="doc-rodape">
+                    <p class="doc-nota-final">Nada aqui exige treinamento novo, permissão especial ou sistema
+                        diferente. Exige <strong>abrir o que foi anexado antes de mandar pra frente</strong>. O botão
+                        está lá. Sempre esteve.</p>
+                    <div class="doc-assinatura">Divisão de Fiscalização de Posturas<br>Ciente em ____/____/______</div>
+                </footer>
+
+            </div>
+        </div>
+        `
+    }
+];
+
+function renderizarFeedAvisos() {
+    const feed = document.getElementById('avisosFeed');
+    if (!feed) return;
+
+    // Volta sempre para a lista ao entrar na aba
+    fecharAviso();
+
+    feed.innerHTML = AVISOS_PUBLICADOS.map(aviso => `
+        <article class="aviso-pub ${aviso.nivel}" data-aviso="${aviso.id}" role="button" tabindex="0">
+            <div class="aviso-topo">
+                <span class="aviso-tag">${aviso.tag}</span>
+                <span class="aviso-data">${aviso.data}</span>
+            </div>
+            <h3>${aviso.titulo}</h3>
+            <p>${aviso.resumo}</p>
+            <span class="aviso-link">Ler publicação &rarr;</span>
+        </article>
+    `).join('');
+
+    feed.querySelectorAll('[data-aviso]').forEach(card => {
+        card.addEventListener('click', () => abrirAviso(card.getAttribute('data-aviso')));
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                abrirAviso(card.getAttribute('data-aviso'));
+            }
+        });
+    });
+}
+
+function abrirAviso(id) {
+    const aviso = AVISOS_PUBLICADOS.find(a => a.id === id);
+    const lista = document.getElementById('avisosLista');
+    const leitura = document.getElementById('avisosLeitura');
+    if (!aviso || !lista || !leitura) return;
+
+    const ehDocumento = aviso.layout === 'documento';
+    leitura.className = 'aviso-leitura ' + aviso.nivel + (ehDocumento ? ' documento' : '');
+
+    const cabecalho = ehDocumento ? '' : `
+        <div class="aviso-leitura-topo">
+            <span class="aviso-tag">${aviso.tag}</span>
+            <span class="aviso-data">Publicado em ${aviso.data} &middot; ${aviso.autor}</span>
+        </div>
+        <h2>${aviso.titulo}</h2>
+    `;
+
+    leitura.innerHTML = `
+        <button type="button" class="btn-inline aviso-voltar" id="btnVoltarAvisos">&larr; Voltar aos avisos</button>
+        ${cabecalho}
+        <div class="aviso-leitura-corpo">${aviso.corpo}</div>
+    `;
+
+    lista.style.display = 'none';
+    leitura.style.display = 'block';
+    document.getElementById('btnVoltarAvisos').addEventListener('click', fecharAviso);
+
+    // O documento traz uma cópia do checklist; religa os eventos e restaura o estado.
+    if (ehDocumento) configurarChecklistInstrucoes();
+
+    const wrapper = document.querySelector('.main-wrapper');
+    if (wrapper) wrapper.scrollTop = 0;
+}
+
+function fecharAviso() {
+    const lista = document.getElementById('avisosLista');
+    const leitura = document.getElementById('avisosLeitura');
+    if (lista) lista.style.display = 'block';
+    if (leitura) {
+        leitura.style.display = 'none';
+        leitura.innerHTML = '';
+    }
+}
+
+// ── Checklist de conferência (aba Instruções e documento de Avisos) ──
+// As duas telas mostram o mesmo checklist; o estado é identificado por data-chk,
+// então marcar em uma reflete na outra. Persistência local, por navegador.
+const CHAVE_CHECKLIST_INSTRUCOES = 'fluxograma:checklist-instrucoes';
+const TOTAL_ITENS_CHECKLIST = 7;
+
+function lerChecklistInstrucoes() {
+    try {
+        return JSON.parse(localStorage.getItem(CHAVE_CHECKLIST_INSTRUCOES)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function gravarChecklistInstrucoes(estado) {
+    try {
+        localStorage.setItem(CHAVE_CHECKLIST_INSTRUCOES, JSON.stringify(estado));
+    } catch (e) {
+        /* navegador sem storage disponível — segue sem persistir */
+    }
+}
+
+function atualizarPlacarChecklist() {
+    const estado = lerChecklistInstrucoes();
+    const feitos = Object.values(estado).filter(Boolean).length;
+    const completo = feitos === TOTAL_ITENS_CHECKLIST;
+    const texto = completo
+        ? `${TOTAL_ITENS_CHECKLIST} de ${TOTAL_ITENS_CHECKLIST} conferidos — pode avançar a etapa.`
+        : `${feitos} de ${TOTAL_ITENS_CHECKLIST} conferidos.`;
+
+    document.querySelectorAll('#placarChecklist, [data-placar]').forEach(placar => {
+        placar.textContent = texto;
+        placar.classList.toggle('ok', completo);
+    });
+}
+
+function restaurarChecklistInstrucoes() {
+    const salvo = lerChecklistInstrucoes();
+    document.querySelectorAll('input[type="checkbox"][data-chk]').forEach(input => {
+        input.checked = !!salvo[input.dataset.chk];
+    });
+    atualizarPlacarChecklist();
+}
+
+function configurarChecklistInstrucoes() {
+    document.querySelectorAll('input[type="checkbox"][data-chk]').forEach(input => {
+        if (input.dataset.ligado === '1') return;
+        input.dataset.ligado = '1';
+        input.addEventListener('change', () => {
+            const estado = lerChecklistInstrucoes();
+            estado[input.dataset.chk] = input.checked;
+            gravarChecklistInstrucoes(estado);
+            restaurarChecklistInstrucoes();
+        });
+    });
+
+    document.querySelectorAll('#btnLimparChecklist, #btnLimparChecklistDoc').forEach(btn => {
+        if (btn.dataset.ligado === '1') return;
+        btn.dataset.ligado = '1';
+        btn.addEventListener('click', () => {
+            gravarChecklistInstrucoes({});
+            restaurarChecklistInstrucoes();
+        });
+    });
+
+    restaurarChecklistInstrucoes();
 }
 
 // ── Salvar Dados de Perfil / Configurações ──────────────────

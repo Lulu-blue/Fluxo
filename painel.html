@@ -10,6 +10,10 @@
     <link rel="stylesheet" href="assets/css/painel.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Fontes do documento oficial exibido na aba Avisos -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Public+Sans:ital,wght@0,400;0,600;0,800;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap"
+        rel="stylesheet">
 </head>
 
 <body>
@@ -67,6 +71,23 @@
                         <!-- Notificações -->
                     </div>
                 </div>
+                <a href="#" data-page="avisos">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    Avisos
+                </a>
+                <a href="#" data-page="instrucoes">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                    </svg>
+                    Instruções
+                </a>
                 <a href="#" id="tab-apuracao" data-page="apuracao" style="display: none;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -622,6 +643,135 @@
                     </div>
                 </div>
             </main>
+
+            <!-- ============================================================ -->
+            <!-- SEÇÃO: Avisos — mural de publicações                        -->
+            <!-- ============================================================ -->
+            <main class="painel-content" id="secao-avisos" style="display: none;">
+                <div class="quadro-wrapper">
+
+                    <!-- Lista de publicações -->
+                    <div id="avisosLista">
+                        <div class="quadro-intro">
+                            <h2>Avisos</h2>
+                            <p>Publicações da Fiscalização de Posturas. Clique em uma publicação para ler o conteúdo
+                                completo.</p>
+                        </div>
+                        <div class="avisos-feed" id="avisosFeed"></div>
+                    </div>
+
+                    <!-- Leitura da publicação escolhida -->
+                    <article id="avisosLeitura" style="display: none;"></article>
+
+                </div>
+            </main>
+
+            <!-- ============================================================ -->
+            <!-- SEÇÃO: Instruções                                            -->
+            <!-- ============================================================ -->
+            <main class="painel-content" id="secao-instrucoes" style="display: none;">
+                <div class="quadro-wrapper">
+
+                    <div class="instr-boas-vindas">
+                        <h2>Como fazer um processo, do começo ao fim</h2>
+                        <p>Oi! Se você chegou até aqui, você se deu ao trabalho de ler — e isso já faz diferença de
+                            verdade. Então vou ser rápida e direta com você.</p>
+                        <p>São sete passos. Nenhum deles é complicado, e no fim tem um checklist para marcar enquanto
+                            você trabalha, caso ajude a não esquecer nada.</p>
+                    </div>
+
+                    <ol class="instr-passos">
+                        <li>
+                            <h3>Veja de quem é o processo</h3>
+                            <p>Ao abrir, dê uma olhada no <code>Protocolo</code>, no
+                                <strong>Nome do Contribuinte</strong> e no <code>CPF/CNPJ</code>, ali no topo. Só
+                                confirme que é o processo certo e siga em frente.</p>
+                            <p class="instr-dica"><b>Dica</b><span>São dois segundos aqui que evitam refazer tudo lá na
+                                    frente.</span></p>
+                        </li>
+                        <li>
+                            <h3>Confira os dados antes de gerar o documento</h3>
+                            <p>Endereço, motivo da notificação e dispositivos transgredidos. Esses campos alimentam a
+                                Notificação, a Réplica e o Auto automaticamente — então o que estiver certo aqui vai
+                                estar certo em tudo depois.</p>
+                            <p class="instr-dica"><b>Dica</b><span>Os dados vêm de um PDF. O sistema acerta quase
+                                    sempre, mas a última palavra é sua.</span></p>
+                        </li>
+                        <li>
+                            <h3>Achou algo errado? Você mesmo pode corrigir</h3>
+                            <p>No topo da tela tem a aba <strong>Editar Dados do Processo</strong>, do lado da aba do
+                                documento oficial. É só clicar, ajustar e salvar. Não precisa pedir para ninguém.</p>
+                            <p class="instr-dica"><b>Dica</b><span>Corrigir antes de gerar é rápido. Depois de assinado,
+                                    o documento precisa ser refeito.</span></p>
+                        </li>
+                        <li>
+                            <h3>Leia o documento na tela</h3>
+                            <p>Ele aparece montadinho, com cabeçalho, numeração e texto final. Passe o olho. Se algo
+                                estiver errado, volte ao passo 3 — e aí sim, pode gerar.</p>
+                            <p class="instr-dica"><b>Dica</b><span>Cada documento gerado usa um número da sequência.
+                                    Ler antes economiza um número.</span></p>
+                        </li>
+                        <li>
+                            <h3>Baixe o PDF e abra o arquivo</h3>
+                            <p>Clique em <code>Baixar Relatório (.pdf)</code> e abra o arquivo. Confira o nome, o
+                                endereço e o número da notificação dentro dele. Aí pode imprimir e assinar com
+                                tranquilidade.</p>
+                            <p class="instr-dica"><b>Dica</b><span>Depois de assinado, o documento sai do seu
+                                    controle — vale a conferida.</span></p>
+                        </li>
+                        <li class="chave">
+                            <h3>Anexe o assinado e clique em "Visualizar"</h3>
+                            <p>Suba o PDF no campo de anexo da etapa. Logo ao lado do arquivo aparece o botão
+                                <code>Visualizar</code>: clique nele e confirme que o documento é mesmo o deste
+                                contribuinte.</p>
+                            <p class="instr-dica"><b>Dica</b><span>Se o arquivo estiver errado, o
+                                    <code>Substituir / Remover</code> está bem do lado. Acontece com todo mundo, é só
+                                    trocar.</span></p>
+                        </li>
+                        <li class="chave">
+                            <h3>Agora sim: "Avançar Etapa"</h3>
+                            <p>Esse é o último passo. Depois dele o processo segue para a próxima mesa com o seu nome
+                                nele — então deixe para clicar quando estiver tudo conferido.</p>
+                            <p class="instr-dica"><b>Dica</b><span>Não tenha pressa: tudo o que você faz fica salvo, e
+                                    a apuração só fecha no fim do mês.</span></p>
+                        </li>
+                    </ol>
+
+                    <section class="instr-checklist">
+                        <div class="instr-checklist-topo">
+                            <h3>Checklist, se ajudar</h3>
+                            <button type="button" class="btn-inline" id="btnLimparChecklist">Limpar para o próximo
+                                processo</button>
+                        </div>
+                        <p class="instr-checklist-nota">Marque conforme for fazendo. É só para você não perder o fio —
+                            fica salvo neste navegador e ninguém mais vê.</p>
+
+                        <label class="instr-item" for="chkInstr1"><input type="checkbox" id="chkInstr1" data-chk="1"><span>Conferi o
+                                nome do contribuinte e o CPF/CNPJ na tela.</span></label>
+                        <label class="instr-item" for="chkInstr2"><input type="checkbox" id="chkInstr2" data-chk="2"><span>Revisei
+                                endereço, motivo e dispositivos antes de gerar.</span></label>
+                        <label class="instr-item" for="chkInstr3"><input type="checkbox" id="chkInstr3" data-chk="3"><span>Corrigi o
+                                que precisava na aba Editar Dados do Processo.</span></label>
+                        <label class="instr-item" for="chkInstr4"><input type="checkbox" id="chkInstr4" data-chk="4"><span>Li o
+                                documento na tela antes de gerar.</span></label>
+                        <label class="instr-item" for="chkInstr5"><input type="checkbox" id="chkInstr5" data-chk="5"><span>Abri o PDF
+                                baixado e conferi antes de assinar.</span></label>
+                        <label class="instr-item" for="chkInstr6"><input type="checkbox" id="chkInstr6" data-chk="6"><span>Cliquei em
+                                Visualizar depois de anexar.</span></label>
+                        <label class="instr-item" for="chkInstr7"><input type="checkbox" id="chkInstr7" data-chk="7"><span>Confirmei
+                                que o documento é deste contribuinte.</span></label>
+
+                        <p class="instr-placar" id="placarChecklist">0 de 7 conferidos.</p>
+                    </section>
+
+                    <div class="instr-obrigada">
+                        <p>Obrigada por ter lido até aqui. De verdade.</p>
+                        <p>Se alguma tela estiver confusa, travando ou puxando algo errado, me procure — prefiro muito
+                            mais arrumar o sistema do que ver você perdendo tempo com ele.</p>
+                    </div>
+
+                </div>
+            </main>
         </div>
     </div>
 
@@ -710,6 +860,8 @@
                             <button type="button" class="btn-remove-file" id="btnRemoveBic" title="Remover">✕</button>
                         </div>
                         <div id="bicFeedback" class="field-feedback"></div>
+                        <!-- BIC reaproveitado de imóvel já cadastrado (preenchido via JS) -->
+                        <div id="bicReutilizadoInfo" style="display:none;"></div>
                     </div>
                     <div class="step-section">
                         <h3>Dados do Contribuinte</h3>
@@ -724,6 +876,8 @@
                                 <label for="contCpfCnpj">CPF/CNPJ do Contribuinte</label>
                                 <input type="text" id="contCpfCnpj" placeholder="000.000.000-00" maxlength="18">
                                 <div id="contFeedback" class="field-feedback"></div>
+                                <!-- Imóveis já cadastrados para o contribuinte (preenchido via JS) -->
+                                <div id="seletorImoveisContribuinte" style="display:none; grid-column: 1 / -1;"></div>
                             </div>
                         </div>
                         <div class="form-row">
@@ -765,6 +919,7 @@
                         <h3>Dados do Imóvel</h3>
                         <p class="step-desc">Informações do imóvel fiscalizado. A inscrição será decomposta
                             automaticamente em Setor, Zona, Quadra e Lote.</p>
+
                         <div class="form-row">
                             <div class="form-group fg-small">
                                 <label for="imvCodigo">Código Reduzido <span class="optional">(opcional)</span></label>

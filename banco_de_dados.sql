@@ -46,9 +46,11 @@ CREATE INDEX IF NOT EXISTS idx_profiles_cpf ON profiles(cpf);
 -- │  TABELA: contribuintes                                      │
 -- │  Dados do contribuinte (do modelo NP - INFORMAÇÕES DO CONT) │
 -- └─────────────────────────────────────────────────────────────┘
+-- Um contribuinte pode ter vários processos e vários imóveis. O vínculo fica
+-- em processos.contribuinte_id e imoveis.contribuinte_id (ver seção de ALTERs).
 CREATE TABLE IF NOT EXISTS contribuintes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    processo_id UUID,                          -- vinculado depois de criar o processo
+    processo_id UUID,                          -- LEGADO: vínculo antigo 1:1, será removido
     nome VARCHAR(200) NOT NULL,
     cpf_cnpj VARCHAR(18),
     logradouro VARCHAR(300),
@@ -64,9 +66,11 @@ CREATE TABLE IF NOT EXISTS contribuintes (
 -- │  TABELA: imoveis                                            │
 -- │  Dados do imóvel (do modelo NP - INFORMAÇÕES DO IMÓVEL)     │
 -- └─────────────────────────────────────────────────────────────┘
+-- Um imóvel pertence a um único contribuinte (o dono atual) e pode estar em
+-- vários processos. O vínculo com o processo fica em processos.imovel_id.
 CREATE TABLE IF NOT EXISTS imoveis (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    processo_id UUID,
+    processo_id UUID,                         -- LEGADO: vínculo antigo 1:1, será removido
     codigo_reduzido VARCHAR(20),              -- Código reduzido do imóvel
     inscricao_imovel VARCHAR(30),             -- 01.036.00181.00300.00000.0
     zona VARCHAR(5),                           -- Parte 1 da inscrição
@@ -224,6 +228,25 @@ CREATE INDEX IF NOT EXISTS idx_processos_created_at ON processos(created_at DESC
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS idx_processos_numero_trgm ON processos USING gin (numero_processo gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_processos_descricao_trgm ON processos USING gin ((dados ->> 'descricao') gin_trgm_ops);
+
+-- ── Relacionamentos com contribuinte e imóvel ────────────────────────────────
+-- O processo aponta para os cadastros (e não o contrário), permitindo que um
+-- mesmo contribuinte/imóvel participe de vários processos.
+ALTER TABLE processos ADD COLUMN IF NOT EXISTS contribuinte_id  UUID REFERENCES contribuintes(id) ON DELETE SET NULL;
+ALTER TABLE processos ADD COLUMN IF NOT EXISTS imovel_id        UUID REFERENCES imoveis(id)       ON DELETE SET NULL;
+-- Dono atual do imóvel (atualizado quando o imóvel muda de proprietário) e BIC
+ALTER TABLE imoveis   ADD COLUMN IF NOT EXISTS contribuinte_id  UUID REFERENCES contribuintes(id) ON DELETE SET NULL;
+ALTER TABLE imoveis   ADD COLUMN IF NOT EXISTS documento_bic_id UUID REFERENCES documentos(id)    ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_processos_contribuinte ON processos(contribuinte_id);
+CREATE INDEX IF NOT EXISTS idx_processos_imovel       ON processos(imovel_id);
+CREATE INDEX IF NOT EXISTS idx_imoveis_contribuinte   ON imoveis(contribuinte_id);
+CREATE INDEX IF NOT EXISTS idx_imoveis_doc_bic        ON imoveis(documento_bic_id);
+
+-- Identificadores únicos: garantem o reaproveitamento do cadastro em vez de duplicar
+CREATE UNIQUE INDEX IF NOT EXISTS uq_contribuintes_cpf ON contribuintes(cpf_cnpj)   WHERE cpf_cnpj IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_imoveis_codigo    ON imoveis(codigo_reduzido)  WHERE codigo_reduzido IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_imoveis_inscricao ON imoveis(inscricao_imovel) WHERE inscricao_imovel IS NOT NULL;
 
 -- Numeração de processos gerenciada via RPC atômica (ver seção de funções abaixo)
 

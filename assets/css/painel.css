@@ -1611,3 +1611,1083 @@ body {
 .editor-documento-a4 strong {
     font-weight: bold;
 }
+/* ── AVISOS E INSTRUÇÕES ──────────────────────────────────── */
+.quadro-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.quadro-intro h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-bottom: 6px;
+}
+
+.quadro-intro p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    max-width: 68ch;
+}
+
+/* ── Mural de publicações ─────────────────────────────────── */
+.avisos-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.aviso-pub {
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-left: 5px solid var(--accent-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.aviso-pub:hover,
+.aviso-pub:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    outline: none;
+}
+
+.aviso-pub h3 {
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1.35;
+}
+
+.aviso-pub p {
+    color: var(--text-secondary);
+    font-size: 0.93rem;
+    line-height: 1.6;
+    max-width: 70ch;
+}
+
+.aviso-link {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent-hover);
+    margin-top: 2px;
+}
+
+.aviso-topo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.aviso-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    color: var(--info-color);
+    background-color: var(--info-bg);
+    border-color: var(--info-border);
+}
+
+.aviso-data {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    opacity: 0.8;
+}
+
+.critico .aviso-tag {
+    color: var(--danger-color);
+    background-color: var(--danger-bg);
+    border-color: var(--danger-border);
+}
+
+.atencao .aviso-tag {
+    color: var(--warning-color);
+    background-color: var(--warning-bg);
+    border-color: var(--warning-border);
+}
+
+.aviso-pub.critico {
+    border-left-color: var(--danger-border);
+}
+
+.aviso-pub.atencao {
+    border-left-color: var(--warning-border);
+}
+
+.aviso-pub.info {
+    border-left-color: var(--info-border);
+}
+
+/* ── Leitura de uma publicação ────────────────────────────── */
+.aviso-leitura {
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 26px 32px 34px;
+}
+
+.aviso-voltar {
+    margin-bottom: 18px;
+}
+
+.aviso-leitura-topo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.aviso-leitura h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1.25;
+    margin: 16px 0 4px;
+    max-width: 30ch;
+}
+
+.aviso-leitura-corpo {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pub-lead {
+    color: var(--text-secondary);
+    font-size: 0.97rem;
+    line-height: 1.7;
+    max-width: 68ch;
+}
+
+.pub-sub {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-color);
+    padding-top: 14px;
+    margin-top: 6px;
+    border-top: 2px solid var(--border-color);
+}
+
+.pub-lista {
+    margin: 0;
+    padding-left: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pub-lista li {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    max-width: 66ch;
+}
+
+
+.aviso-leitura code,
+.instr-passos code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 0.85em;
+    background-color: var(--accent-light);
+    color: var(--info-color);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    padding: 1px 6px;
+    white-space: nowrap;
+}
+
+/* ── Instruções ───────────────────────────────────────────── */
+.instr-boas-vindas {
+    background-color: var(--accent-light);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.instr-boas-vindas h2 {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1.25;
+}
+
+.instr-boas-vindas p {
+    color: var(--text-secondary);
+    font-size: 0.98rem;
+    line-height: 1.7;
+    max-width: 66ch;
+}
+
+.instr-passos {
+    list-style: none;
+    counter-reset: instr;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.instr-passos li {
+    counter-increment: instr;
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    gap: 0 16px;
+    padding: 22px 26px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.instr-passos li:last-child {
+    border-bottom: none;
+}
+
+.instr-passos li::before {
+    content: counter(instr);
+    grid-row: 1 / span 3;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-color: var(--accent-light);
+    color: var(--accent-hover);
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.instr-passos li.chave::before {
+    background-color: var(--success-bg);
+    color: var(--success-color);
+}
+
+.instr-passos h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1.4;
+    margin-bottom: 5px;
+}
+
+.instr-passos p {
+    color: var(--text-secondary);
+    font-size: 0.96rem;
+    line-height: 1.7;
+    max-width: 62ch;
+}
+
+.instr-dica {
+    margin-top: 12px;
+    background-color: var(--success-bg);
+    border: 1px solid var(--success-border);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    max-width: 62ch;
+}
+
+.instr-dica b {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--success-color);
+    margin-bottom: 2px;
+}
+
+.instr-dica span {
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* ── Checklist das instruções ─────────────────────────────── */
+.instr-checklist {
+    background-color: var(--bg-white);
+    border: 2px solid var(--accent-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 20px 26px 24px;
+}
+
+.instr-checklist-topo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.instr-checklist-topo h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.instr-checklist-nota {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    padding-bottom: 12px;
+    margin-top: 6px;
+    border-bottom: 1px solid var(--border-color);
+    max-width: 64ch;
+}
+
+.instr-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border-light);
+    cursor: pointer;
+}
+
+.instr-item:last-of-type {
+    border-bottom: none;
+}
+
+.instr-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    margin-top: 3px;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+}
+
+.instr-item span {
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+.instr-item input:checked+span {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+.instr-placar {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.instr-placar.ok {
+    color: var(--success-color);
+}
+
+.instr-obrigada {
+    background-color: var(--bg-white);
+    border: 1px dashed var(--accent-color);
+    border-radius: var(--radius-lg);
+    padding: 22px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.instr-obrigada p {
+    color: var(--text-secondary);
+    font-size: 0.96rem;
+    line-height: 1.7;
+    max-width: 64ch;
+}
+
+.instr-obrigada p:first-child {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+@media (max-width: 720px) {
+    .instr-passos li {
+        grid-template-columns: 34px 1fr;
+        padding: 18px;
+        gap: 0 12px;
+    }
+
+    .instr-passos li::before {
+        width: 30px;
+        height: 30px;
+        font-size: 0.9rem;
+    }
+
+    .aviso-pub,
+    .instr-checklist,
+    .instr-boas-vindas,
+    .instr-obrigada {
+        padding: 18px;
+    }
+
+    .aviso-leitura {
+        padding: 20px 18px 26px;
+    }
+
+    .pub-item.destaque {
+        padding: 16px;
+    }
+}
+
+/* ============================================================
+   DOCUMENTO OFICIAL — peça exibida na leitura de um aviso
+   Paleta própria, escura e fixa: a publicação é deliberadamente
+   diferente do restante do painel. Tudo escopado em .doc-notificacao.
+   ============================================================ */
+.aviso-leitura.documento {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.doc-notificacao {
+    --dp-paper: #101316;
+    --dp-form: #191d21;
+    --dp-ink: #e7ebe6;
+    --dp-ink-soft: #98a29b;
+    --dp-rule: #39413f;
+    --dp-rule-soft: #272d31;
+    --dp-carimbo: #f26a63;
+    --dp-carimbo-ghost: rgba(242, 106, 99, 0.16);
+    --dp-seal: #77c2d3;
+    --dp-seal-soft: rgba(119, 194, 211, 0.12);
+
+    background-color: var(--dp-paper);
+    border-radius: var(--radius-lg);
+    padding: 26px 16px 40px;
+    color: var(--dp-ink);
+    font-family: 'Public Sans', 'Inter', sans-serif;
+    line-height: 1.62;
+}
+
+.doc-folha {
+    max-width: 720px;
+    margin: 0 auto;
+    background-color: var(--dp-form);
+    border: 1px solid var(--dp-rule);
+    padding: 0 clamp(18px, 4.5vw, 46px) clamp(26px, 5vw, 40px);
+    overflow: hidden;
+}
+
+.doc-notificacao p {
+    margin: 0;
+}
+
+/* ── Timbre ───────────────────────────────────────────────── */
+.doc-timbre {
+    border-bottom: 2px solid var(--dp-ink);
+    padding: clamp(22px, 4vw, 32px) 0 14px;
+    position: relative;
+}
+
+.doc-orgao {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dp-ink-soft);
+    line-height: 1.8;
+}
+
+.doc-orgao strong {
+    color: var(--dp-ink);
+    font-weight: 600;
+}
+
+.doc-notificacao h1 {
+    font-family: 'Archivo Black', Impact, sans-serif;
+    font-size: clamp(1.6rem, 5.4vw, 2.6rem);
+    line-height: 0.99;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    margin: 14px 0 10px;
+    max-width: 14ch;
+    color: var(--dp-ink);
+}
+
+.doc-rubro {
+    color: var(--dp-carimbo);
+}
+
+.doc-subtitulo {
+    font-size: 1rem;
+    color: var(--dp-ink-soft);
+    max-width: 47ch;
+    font-style: italic;
+}
+
+.doc-carimbo {
+    display: inline-block;
+    margin-top: 20px;
+    border: 3px double var(--dp-carimbo);
+    color: var(--dp-carimbo);
+    background-color: var(--dp-carimbo-ghost);
+    font-family: 'Archivo Black', Impact, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: clamp(0.86rem, 2.4vw, 1.05rem);
+    padding: 9px 16px 8px;
+    transform: rotate(-3.2deg);
+    line-height: 1.15;
+    text-align: center;
+}
+
+.doc-caixas {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+@media (min-width: 800px) {
+    .doc-carimbo {
+        position: absolute;
+        right: 0;
+        bottom: 22px;
+        margin-top: 0;
+        transform: rotate(-7deg);
+    }
+
+    .doc-notificacao h1 {
+        max-width: 11ch;
+    }
+}
+
+/* ── Campos do formulário ─────────────────────────────────── */
+.doc-campos {
+    display: grid;
+    grid-template-columns: 1fr;
+    border-bottom: 1px solid var(--dp-rule);
+    margin: 0;
+}
+
+.doc-campo {
+    padding: 13px 18px 13px 0;
+    border-bottom: 1px solid var(--dp-rule-soft);
+}
+
+.doc-campo dt {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.655rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--dp-ink-soft);
+    margin-bottom: 3px;
+}
+
+.doc-campo dd {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--dp-ink);
+}
+
+.doc-campo dd em {
+    font-weight: 400;
+    color: var(--dp-ink-soft);
+}
+
+@media (min-width: 620px) {
+    .doc-campos {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .doc-campo:nth-child(odd) {
+        border-right: 1px solid var(--dp-rule-soft);
+        padding-right: 20px;
+    }
+
+    .doc-campo:nth-child(even) {
+        padding-left: 20px;
+    }
+
+    .doc-campo.doc-largo {
+        grid-column: 1 / -1;
+        border-right: none;
+        padding-left: 0;
+    }
+}
+
+/* ── Seções ───────────────────────────────────────────────── */
+.doc-secao {
+    padding-top: clamp(28px, 5vw, 42px);
+}
+
+.doc-eyebrow {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dp-ink-soft);
+    margin-bottom: 6px;
+}
+
+.doc-notificacao h2 {
+    font-family: 'Archivo Black', Impact, sans-serif;
+    font-size: clamp(1.2rem, 3.4vw, 1.65rem);
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 1.08;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--dp-ink);
+    margin-bottom: 18px;
+    color: var(--dp-ink);
+}
+
+.doc-lead {
+    font-size: 1rem;
+    max-width: 62ch;
+    color: var(--dp-ink);
+}
+
+.doc-lead+.doc-lead {
+    margin-top: 14px;
+}
+
+.doc-notificacao code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85em;
+    background-color: var(--dp-seal-soft);
+    color: var(--dp-seal);
+    border: 1px solid var(--dp-rule);
+    border-radius: 0;
+    padding: 1px 6px;
+    white-space: nowrap;
+}
+
+/* ── Artigos ──────────────────────────────────────────────── */
+.doc-rol {
+    margin-top: 20px;
+}
+
+.doc-art {
+    border-top: 1px solid var(--dp-rule);
+    padding: 20px 0;
+}
+
+.doc-art:last-child {
+    border-bottom: 1px solid var(--dp-rule);
+}
+
+.doc-art-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--dp-ink-soft);
+    margin-bottom: 6px;
+}
+
+.doc-grau {
+    font-weight: 600;
+    padding: 2px 7px;
+    border: 1px solid currentColor;
+    color: var(--dp-ink-soft);
+}
+
+.doc-grau.leve {
+    color: var(--dp-seal);
+    background-color: var(--dp-seal-soft);
+}
+
+.doc-grau.media {
+    color: var(--dp-carimbo);
+    background-color: var(--dp-carimbo-ghost);
+}
+
+.doc-grau.grave {
+    color: var(--dp-form);
+    background-color: var(--dp-carimbo);
+    border-color: var(--dp-carimbo);
+}
+
+.doc-art h3 {
+    font-size: 1.14rem;
+    font-weight: 800;
+    line-height: 1.3;
+    max-width: 40ch;
+    color: var(--dp-ink);
+    margin-bottom: 6px;
+}
+
+.doc-art p {
+    max-width: 62ch;
+    color: var(--dp-ink);
+    font-size: 0.97rem;
+}
+
+.doc-art p+p {
+    margin-top: 11px;
+}
+
+.doc-agravante {
+    margin-top: 12px !important;
+    font-size: 0.92rem !important;
+    color: var(--dp-ink-soft) !important;
+    border-left: 2px solid var(--dp-rule);
+    padding-left: 13px;
+}
+
+.doc-agravante b {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.64rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dp-carimbo);
+    margin-bottom: 1px;
+}
+
+/* O único bloco invertido do documento */
+.doc-art.doc-capital {
+    background-color: var(--dp-carimbo);
+    border: none;
+    margin-top: 14px;
+    padding: clamp(20px, 4vw, 28px);
+}
+
+.doc-art.doc-capital h3 {
+    font-family: 'Archivo Black', Impact, sans-serif;
+    text-transform: uppercase;
+    font-size: clamp(1.15rem, 3.2vw, 1.5rem);
+    line-height: 1.06;
+    max-width: 22ch;
+    color: #fff5f4;
+}
+
+.doc-art.doc-capital p {
+    color: #fff5f4;
+}
+
+.doc-art.doc-capital .doc-art-meta {
+    color: rgba(255, 245, 244, 0.72);
+}
+
+.doc-art.doc-capital .doc-grau {
+    color: var(--dp-carimbo);
+    background-color: #fff5f4;
+    border-color: #fff5f4;
+}
+
+.doc-art.doc-capital .doc-agravante {
+    color: rgba(255, 245, 244, 0.9) !important;
+    border-left-color: rgba(255, 245, 244, 0.4);
+}
+
+.doc-art.doc-capital .doc-agravante b {
+    color: #fff5f4;
+}
+
+.doc-art.doc-capital code {
+    background-color: rgba(255, 245, 244, 0.16);
+    color: #fff5f4;
+    border-color: rgba(255, 245, 244, 0.3);
+}
+
+/* ── Destaque ─────────────────────────────────────────────── */
+.doc-destaque {
+    margin: 22px 0;
+    border-top: 2px solid var(--dp-seal);
+    border-bottom: 2px solid var(--dp-seal);
+    padding: 18px 0;
+    font-family: 'Archivo Black', Impact, sans-serif;
+    font-size: clamp(1rem, 3vw, 1.4rem);
+    line-height: 1.2;
+    color: var(--dp-seal);
+    text-transform: uppercase;
+    max-width: 24ch;
+}
+
+/* ── Passos ───────────────────────────────────────────────── */
+.doc-passos {
+    list-style: none;
+    counter-reset: docpasso;
+    margin: 22px 0 0;
+    padding: 0;
+}
+
+.doc-passos li {
+    counter-increment: docpasso;
+    display: grid;
+    grid-template-columns: 2.6rem 1fr;
+    gap: 0 16px;
+    padding: 18px 0;
+    border-top: 1px solid var(--dp-rule-soft);
+}
+
+.doc-passos li:last-child {
+    border-bottom: 1px solid var(--dp-rule-soft);
+}
+
+.doc-passos li::before {
+    content: counter(docpasso, decimal-leading-zero);
+    grid-row: 1 / span 3;
+    font-family: 'Archivo Black', Impact, sans-serif;
+    font-size: 1.45rem;
+    line-height: 1.15;
+    color: var(--dp-rule);
+    font-variant-numeric: tabular-nums;
+}
+
+.doc-passos li.doc-chave::before {
+    color: var(--dp-carimbo);
+}
+
+.doc-passos h3 {
+    font-size: 1.03rem;
+    font-weight: 800;
+    line-height: 1.35;
+    margin-bottom: 4px;
+    color: var(--dp-ink);
+}
+
+.doc-passos p {
+    max-width: 58ch;
+    font-size: 0.96rem;
+    color: var(--dp-ink);
+}
+
+.doc-obs {
+    margin-top: 11px;
+    border-left: 2px solid var(--dp-rule);
+    padding-left: 13px;
+    max-width: 58ch;
+}
+
+.doc-obs b {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.63rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dp-carimbo);
+    margin-bottom: 1px;
+}
+
+.doc-obs span {
+    font-size: 0.91rem;
+    color: var(--dp-ink-soft);
+    line-height: 1.5;
+}
+
+/* ── Checklist dentro do documento ────────────────────────── */
+.doc-checklist {
+    margin-top: 22px;
+    border: 2px solid var(--dp-ink);
+    padding: clamp(16px, 3.5vw, 24px);
+}
+
+.doc-checklist-topo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--dp-rule);
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+}
+
+.doc-checklist-topo h3 {
+    font-family: 'Archivo Black', Impact, sans-serif;
+    text-transform: uppercase;
+    font-size: 0.98rem;
+    color: var(--dp-ink);
+}
+
+.doc-limpar {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: none;
+    border: 1px solid var(--dp-rule);
+    color: var(--dp-ink-soft);
+    padding: 5px 11px;
+    cursor: pointer;
+}
+
+.doc-limpar:hover {
+    border-color: var(--dp-carimbo);
+    color: var(--dp-carimbo);
+}
+
+.doc-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--dp-rule-soft);
+    cursor: pointer;
+}
+
+.doc-item:last-of-type {
+    border-bottom: none;
+}
+
+.doc-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    margin-top: 3px;
+    accent-color: var(--dp-seal);
+    cursor: pointer;
+}
+
+.doc-item span {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--dp-ink);
+}
+
+.doc-item input:checked+span {
+    color: var(--dp-ink-soft);
+    text-decoration: line-through;
+}
+
+.doc-placar {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--dp-rule);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--dp-ink-soft);
+    font-variant-numeric: tabular-nums;
+}
+
+.doc-placar.ok {
+    color: var(--dp-seal);
+    font-weight: 600;
+}
+
+/* ── Desabafo ─────────────────────────────────────────────── */
+.doc-desabafo {
+    margin: clamp(32px, 6vw, 48px) calc(clamp(18px, 4.5vw, 46px) * -1) 0;
+    padding: clamp(24px, 5vw, 36px) clamp(18px, 4.5vw, 46px);
+    background-color: var(--dp-seal-soft);
+    border-top: 2px solid var(--dp-seal);
+    border-bottom: 2px solid var(--dp-seal);
+}
+
+.doc-desabafo .doc-eyebrow {
+    color: var(--dp-seal);
+}
+
+.doc-desabafo h2 {
+    color: var(--dp-seal);
+    border-bottom-color: var(--dp-seal);
+    font-size: clamp(1.25rem, 3.6vw, 1.8rem);
+}
+
+.doc-desabafo-corpo {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.doc-desabafo-corpo p {
+    font-style: italic;
+    font-size: 1.04rem;
+    line-height: 1.66;
+    max-width: 56ch;
+    color: var(--dp-ink);
+}
+
+.doc-desabafo-corpo p b {
+    font-style: normal;
+    font-weight: 800;
+}
+
+.doc-cansada {
+    font-family: 'Archivo Black', Impact, sans-serif;
+    font-style: normal !important;
+    text-transform: uppercase;
+    font-size: clamp(1rem, 2.9vw, 1.35rem) !important;
+    line-height: 1.2;
+    color: var(--dp-seal) !important;
+    max-width: 20ch !important;
+}
+
+.doc-escolha {
+    margin-top: 6px;
+    border-top: 1px solid var(--dp-seal);
+    padding-top: 15px;
+    font-style: normal !important;
+    font-weight: 700;
+}
+
+/* ── Rodapé ───────────────────────────────────────────────── */
+.doc-rodape {
+    margin-top: clamp(28px, 5vw, 40px);
+    border-top: 2px solid var(--dp-ink);
+    padding-top: 18px;
+    display: grid;
+    gap: 22px;
+}
+
+@media (min-width: 620px) {
+    .doc-rodape {
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
+    }
+}
+
+.doc-nota-final {
+    font-size: 0.92rem;
+    color: var(--dp-ink-soft);
+    max-width: 48ch;
+}
+
+.doc-nota-final strong {
+    color: var(--dp-ink);
+}
+
+.doc-assinatura {
+    border-top: 1px solid var(--dp-ink);
+    padding-top: 7px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dp-ink-soft);
+    align-self: end;
+}

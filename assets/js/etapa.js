@@ -9302,7 +9302,12 @@ async function salvarEdicoesProcesso() {
             console.warn('Aviso ao expurgar anexos gerados do banco:', eDel);
         }
 
-        // 5. Atualiza registro na tabela 'contribuintes' do banco de dados
+        // 5. Atualiza registro na tabela 'contribuintes' do banco de dados.
+        // Contribuinte e imóvel são cadastros reutilizáveis: o processo aponta para
+        // eles (processos.contribuinte_id / imovel_id), e não o contrário.
+        let contribuinteIdAtual = null;
+        let vinculoContribuinteOriginal = null;
+        let vinculoImovelOriginal = null;
         try {
             const payloadContribuinte = {
                 nome: novosDados.contribuinte.nome,
@@ -9315,36 +9320,46 @@ async function salvarEdicoesProcesso() {
                 cep: novosDados.contribuinte.cep || null
             };
 
-            const { data: contsProc } = await supabaseClient
-                .from('contribuintes')
-                .select('id')
-                .eq('processo_id', processoId);
+            // Vínculo atual do processo (processos.contribuinte_id / imovel_id)
+            const { data: vinculosProc } = await supabaseClient
+                .from('processos')
+                .select('contribuinte_id, imovel_id')
+                .eq('id', processoId)
+                .maybeSingle();
+            vinculoContribuinteOriginal = vinculosProc?.contribuinte_id || null;
+            vinculoImovelOriginal = vinculosProc?.imovel_id || null;
+            contribuinteIdAtual = vinculoContribuinteOriginal;
 
-            if (contsProc && contsProc.length > 0) {
+            // Se o CPF/CNPJ informado já pertence a outro cadastro, o processo passa a
+            // apontar para ele — evita duplicar contribuinte e respeita o índice único.
+            if (novosDados.contribuinte.cpf_cnpj) {
+                const { data: cData } = await supabaseClient
+                    .from('contribuintes')
+                    .select('id')
+                    .eq('cpf_cnpj', novosDados.contribuinte.cpf_cnpj)
+                    .limit(1);
+                if (cData && cData.length > 0) contribuinteIdAtual = cData[0].id;
+            }
+
+            if (contribuinteIdAtual) {
                 await supabaseClient
                     .from('contribuintes')
                     .update(payloadContribuinte)
-                    .eq('processo_id', processoId);
+                    .eq('id', contribuinteIdAtual);
             } else {
-                let contIdToUpdate = null;
-                if (novosDados.contribuinte.cpf_cnpj) {
-                    const { data: cData } = await supabaseClient
-                        .from('contribuintes')
-                        .select('id')
-                        .eq('cpf_cnpj', novosDados.contribuinte.cpf_cnpj)
-                        .limit(1);
-                    if (cData && cData.length > 0) contIdToUpdate = cData[0].id;
-                }
-                if (contIdToUpdate) {
-                    await supabaseClient
-                        .from('contribuintes')
-                        .update(payloadContribuinte)
-                        .eq('id', contIdToUpdate);
-                } else {
-                    await supabaseClient
-                        .from('contribuintes')
-                        .insert([{ ...payloadContribuinte, processo_id: processoId }]);
-                }
+                const { data: novoCont } = await supabaseClient
+                    .from('contribuintes')
+                    .insert([payloadContribuinte])
+                    .select('id')
+                    .single();
+                if (novoCont) contribuinteIdAtual = novoCont.id;
+            }
+
+            if (contribuinteIdAtual && contribuinteIdAtual !== vinculoContribuinteOriginal) {
+                await supabaseClient
+                    .from('processos')
+                    .update({ contribuinte_id: contribuinteIdAtual })
+                    .eq('id', processoId);
             }
         } catch (errCont) {
             console.warn('Aviso ao atualizar tabela contribuintes:', errCont);
@@ -9363,45 +9378,50 @@ async function salvarEdicoesProcesso() {
                 area_total: pFloat(novosDados.imovel.area_total)
             };
 
-            const { data: imvsProc } = await supabaseClient
-                .from('imoveis')
-                .select('id')
-                .eq('processo_id', processoId);
+            // Um imóvel tem um único dono: o contribuinte deste processo passa a ser
+            // o dono atual (cobre o caso de imóvel vendido).
+            if (contribuinteIdAtual) payloadImovel.contribuinte_id = contribuinteIdAtual;
 
-            if (imvsProc && imvsProc.length > 0) {
+            let imovelIdAtual = vinculoImovelOriginal;
+
+            // Código reduzido e inscrição são únicos: se já houver cadastro com esses
+            // identificadores, é ele que vale para este processo.
+            if (novosDados.imovel.codigo_reduzido) {
+                const { data: iData } = await supabaseClient
+                    .from('imoveis')
+                    .select('id')
+                    .eq('codigo_reduzido', novosDados.imovel.codigo_reduzido)
+                    .limit(1);
+                if (iData && iData.length > 0) imovelIdAtual = iData[0].id;
+            }
+            if (!imovelIdAtual && novosDados.imovel.inscricao) {
+                const { data: iData } = await supabaseClient
+                    .from('imoveis')
+                    .select('id')
+                    .eq('inscricao_imovel', novosDados.imovel.inscricao)
+                    .limit(1);
+                if (iData && iData.length > 0) imovelIdAtual = iData[0].id;
+            }
+
+            if (imovelIdAtual) {
                 await supabaseClient
                     .from('imoveis')
                     .update(payloadImovel)
-                    .eq('processo_id', processoId);
+                    .eq('id', imovelIdAtual);
             } else {
-                let imvIdToUpdate = null;
-                if (novosDados.imovel.codigo_reduzido) {
-                    const { data: iData } = await supabaseClient
-                        .from('imoveis')
-                        .select('id')
-                        .eq('codigo_reduzido', novosDados.imovel.codigo_reduzido)
-                        .limit(1);
-                    if (iData && iData.length > 0) imvIdToUpdate = iData[0].id;
-                }
-                if (!imvIdToUpdate && novosDados.imovel.inscricao) {
-                    const { data: iData } = await supabaseClient
-                        .from('imoveis')
-                        .select('id')
-                        .eq('inscricao_imovel', novosDados.imovel.inscricao)
-                        .limit(1);
-                    if (iData && iData.length > 0) imvIdToUpdate = iData[0].id;
-                }
+                const { data: novoImovel } = await supabaseClient
+                    .from('imoveis')
+                    .insert([payloadImovel])
+                    .select('id')
+                    .single();
+                if (novoImovel) imovelIdAtual = novoImovel.id;
+            }
 
-                if (imvIdToUpdate) {
-                    await supabaseClient
-                        .from('imoveis')
-                        .update(payloadImovel)
-                        .eq('id', imvIdToUpdate);
-                } else {
-                    await supabaseClient
-                        .from('imoveis')
-                        .insert([{ ...payloadImovel, processo_id: processoId }]);
-                }
+            if (imovelIdAtual && imovelIdAtual !== vinculoImovelOriginal) {
+                await supabaseClient
+                    .from('processos')
+                    .update({ imovel_id: imovelIdAtual })
+                    .eq('id', processoId);
             }
         } catch (errImv) {
             console.warn('Aviso ao atualizar tabela imoveis:', errImv);
@@ -11514,7 +11534,11 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
-                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, por escrito, protocolada via protocolo municipal. Instruções: link (<a href="https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://servicos.prefeituradivinopolis.com.br/govdigital/Microsservicos/instrucao/201</a>)
+                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, protocolada via protocolo municipal. 
+                </p>
+
+                <p style="margin: 0 0 10px 0; text-align: justify;">
+                    </strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
                 </p>
             </div>
         `;
