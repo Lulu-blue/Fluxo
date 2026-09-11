@@ -640,6 +640,12 @@ body {
 .col-etapa { min-width: 160px; }
 .col-acoes { min-width: 100px; text-align: center; }
 
+/* Link do protocolo: âncora real para permitir "abrir em nova guia" no botão direito */
+.link-processo {
+    text-decoration: none;
+    color: inherit;
+}
+
 /* Badges */
 .protocolo-badge {
     display: inline-block;
@@ -701,8 +707,9 @@ body {
     50% { opacity: 0.6; }
 }
 
-/* Botão Abrir Processo */
+/* Botão Abrir Processo (é uma âncora, para permitir abrir em nova guia) */
 .btn-abrir-processo {
+    text-decoration: none;
     padding: 7px 14px;
     background-color: transparent;
     color: var(--accent-color);

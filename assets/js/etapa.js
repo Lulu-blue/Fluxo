@@ -616,12 +616,7 @@ async function inicializarPaginaEtapa() {
 
     renderizarStepperPadrao(processoAtual);
     configurarBotoesNavegacaoPadrao();
-
-    const btnImprimir = document.getElementById('btnImprimirEtapa');
-    if (btnImprimir) btnImprimir.addEventListener('click', imprimirDocumentoOficial);
-
-    const btnBaixarRelatorioPdfEtapa = document.getElementById('btnBaixarRelatorioPdfEtapa');
-    if (btnBaixarRelatorioPdfEtapa) btnBaixarRelatorioPdfEtapa.addEventListener('click', baixarRelatorioFiscalPdfEtapa);
+    configurarBotoesDocumentoTopbar();
 
     restaurarEstadoSidebarEtapa();
     carregarUsuarioSidebarEtapa();
@@ -1969,6 +1964,10 @@ async function renderizarProcessoCancelado(proc) {
     await renderizarPainelEtapa1(proc);
     renderizarDocumentoOficial(proc);
 
+    // Mantém imprimir/baixar funcionando: o processo está cancelado, mas os
+    // documentos continuam disponíveis para consulta.
+    configurarBotoesDocumentoTopbar();
+
     // Adiciona aviso visual de cancelado no topo do documento
     const containerDoc = document.getElementById('containerDocumentoOficial');
     if (containerDoc) {
@@ -2392,12 +2391,10 @@ function obterProximaEtapa(etapaAtual) {
     return regras[etapaAtual] || etapaAtual + 1;
 }
 
-// ── Configura os botões padrão de Avançar/Voltar/Cancelar ─────────────────
-function configurarBotoesNavegacaoPadrao() {
-    const btnAvancar = document.getElementById('btnAvancarEtapa');
-    const btnVoltar = document.getElementById('btnVoltarEtapa');
-    const btnCancelar = document.getElementById('btnCancelarProcesso');
-
+// ── Botões de imprimir/baixar documento da topbar ─────────────────────────
+// Fica separado da navegação porque também precisa funcionar em processos
+// cancelados, que são renderizados por um caminho próprio (só leitura).
+function configurarBotoesDocumentoTopbar() {
     const btnImprimir = document.getElementById('btnImprimirEtapa');
     if (btnImprimir) {
         const svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2 2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>`;
@@ -2406,7 +2403,24 @@ function configurarBotoesNavegacaoPadrao() {
         } else {
             btnImprimir.innerHTML = `${svgIcon} Imprimir / PDF (Notificação)`;
         }
+        if (!btnImprimir.dataset.listenerAtivo) {
+            btnImprimir.addEventListener('click', imprimirDocumentoOficial);
+            btnImprimir.dataset.listenerAtivo = '1';
+        }
     }
+
+    const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
+    if (btnBaixar && !btnBaixar.dataset.listenerAtivo) {
+        btnBaixar.addEventListener('click', baixarRelatorioFiscalPdfEtapa);
+        btnBaixar.dataset.listenerAtivo = '1';
+    }
+}
+
+// ── Configura os botões padrão de Avançar/Voltar/Cancelar ─────────────────
+function configurarBotoesNavegacaoPadrao() {
+    const btnAvancar = document.getElementById('btnAvancarEtapa');
+    const btnVoltar = document.getElementById('btnVoltarEtapa');
+    const btnCancelar = document.getElementById('btnCancelarProcesso');
 
     if (notificacaoAtual && notificacaoAtual.status === 'encerrada') {
         if (btnAvancar) btnAvancar.style.display = 'none';

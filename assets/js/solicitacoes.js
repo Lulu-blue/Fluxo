@@ -763,10 +763,14 @@ function renderizarTabela(dados, cargoFiltro) {
 
         const devCheckHtml = isDev ? `<td class="col-check" style="text-align: center;"><input type="checkbox" class="chk-process" data-id="${item.id}" onclick="event.stopPropagation(); window.atualizarContagemSelecionados && window.atualizarContagemSelecionados();" /></td>` : '';
 
+        const linkProcesso = montarLinkEtapa(item);
+
         tr.innerHTML = `
             ${devCheckHtml}
             <td class="col-protocolo">
-                <span class="protocolo-badge">${item.numero_processo || '—'}</span>
+                <a href="${linkProcesso}" class="link-processo" title="Abrir processo (clique com o botão direito para abrir em nova guia)">
+                    <span class="protocolo-badge">${item.numero_processo || '—'}</span>
+                </a>
             </td>
             <td class="col-cpf">${formatarCpfCnpj(cpfCnpj)}</td>
             <td class="col-nome">${nomeSolicitante}</td>
@@ -781,19 +785,34 @@ function renderizarTabela(dados, cargoFiltro) {
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
             </td>
             <td class="col-acoes">
-                <button type="button" class="btn-abrir-processo" onclick="window.abrirProcessoAuto('${item.id || item.processo_id || item.numero_processo}')" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo">
+                <a href="${linkProcesso}" class="btn-abrir-processo" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo (botão direito para abrir em nova guia)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Abrir
-                </button>
+                </a>
             </td>
         `;
 
         tr.style.borderLeft = `4px solid ${STATUS_COLORS[statusClass] || '#94a3b8'}`;
         tr.style.cursor = 'pointer';
+
+        // Ignora cliques em elementos que já têm comportamento próprio (links inclusive,
+        // para o navegador cuidar de Ctrl+clique / abrir em nova guia nativamente).
+        const cliqueEmElementoProprio = (e) => e.target.closest('button, input, a');
+
         tr.addEventListener('click', (e) => {
-            if (!e.target.closest('button') && !e.target.closest('input')) {
-                window.abrirProcessoAuto(item.id || item.processo_id || item.numero_processo);
+            if (cliqueEmElementoProprio(e)) return;
+            if (e.ctrlKey || e.metaKey) {
+                window.open(linkProcesso, '_blank');
+                return;
             }
+            window.abrirProcessoAuto(item.id || item.processo_id || item.numero_processo);
+        });
+
+        // Clique do meio (botão do scroll) abre em nova guia
+        tr.addEventListener('auxclick', (e) => {
+            if (e.button !== 1 || cliqueEmElementoProprio(e)) return;
+            e.preventDefault();
+            window.open(linkProcesso, '_blank');
         });
 
         tabelaBody.appendChild(tr);
