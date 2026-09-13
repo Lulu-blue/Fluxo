@@ -1293,15 +1293,6 @@ function bindEventos() {
     });
 
     configurarChecklistInstrucoes();
-
-    // Faixa temporária no topo: leva para a aba Avisos
-    const faixaAviso = document.getElementById('faixaAvisoImportante');
-    if (faixaAviso) {
-        faixaAviso.addEventListener('click', () => {
-            const linkAvisos = document.querySelector('.sidebar-nav a[data-page="avisos"]');
-            if (linkAvisos) linkAvisos.click();
-        });
-    }
 }
 
 // ── Avisos (mural de publicações) ───────────────────────────
