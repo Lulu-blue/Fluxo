@@ -6487,7 +6487,7 @@ function gerarBlocoInfracao(proc, disp, index) {
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 18 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000237') || dispLow.includes('obstáculos em calçadas')) {
         titulo = 'Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
-        prazo = '10 DIAS';
+        prazo = '10 DIAS ÚTEIS';
         itens = `<li>Retirar os obstáculos do passeio.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000239') || dispLow.includes('água servida')) {
@@ -6798,8 +6798,8 @@ function renderizarDocumentoOficial(proc) {
                 <!-- 7. OBSERVAÇÕES E INSTRUÇÕES -->
                 <div class="doc-obs-section">
                     <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
-                    <p>O autuado tem o prazo de <strong>10 DIAS</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone).</p>
-                    <p><strong>Instruções:</strong> link (<span style="color:#F78C26;">colocar aqui o link com as instruções</span>).</p>
+                    <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
+                    <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
                 </div>
 
                 <!-- 8. ASSINATURA FISCAL -->
@@ -10413,6 +10413,12 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             prazo = '10 DIAS';
             itens = `<li>Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 142 da Lei nº 6.907/ 2008 e outras legislações. MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+        } else if (disp.includes('120000237') || dispLow.includes('obstáculos em calçadas')) {
+            titulo = 'Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
+            prazo = '10 DIAS ÚTEIS';
+            itens = `<li>Retirar os obstáculos do passeio.</li>`;
+            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+
         } else {
             titulo = `Infração constatada: ${disp}`;
             prazo = '10 DIAS';
@@ -10511,8 +10517,8 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         <!-- 7. OBSERVAÇÕES E INSTRUÇÕES -->
         <div style="margin: 32px 0; font-size: 11pt; line-height: 1.5;">
             <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
-            <p>O autuado tem o prazo de <strong>10 DIAS</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone).</p>
-            <p><strong>Instruções:</strong> link (<span style="color:#F78C26;">colocar aqui o link com as instruções</span>).</p>
+            <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
+            <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
         </div>
 
         <!-- 8. ASSINATURA FISCAL -->
@@ -11558,8 +11564,13 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
-                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa via App Divinópolis, disponível para download no Google Play Store (Androids) e na App Store (iPhone). Instruções: <a href="https://www.divinopolis.mg.gov.br/portal/servicos/1053/posturas/" target="_blank" style="color:#000; font-weight:bold; text-decoration:underline;">https://www.divinopolis.mg.gov.br</a>.
+                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, , protocolada via protocolo municipal.
                 </p>
+                
+                <p>
+                    <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
+                </p>
+                
             </div>
         `;
         }
