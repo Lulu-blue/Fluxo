@@ -17,11 +17,49 @@
     let modoListaConversas = false;
     let fiscalResponsavel = null; // { id, nome } do fiscal do processo aberto
 
+    const INTERVALO_CHAT_ABERTO_MS = 3000;
+    const INTERVALO_LISTA_CONVERSAS_MS = 8000;
+    const INTERVALO_BADGE_MS = 5000;
+
+    let assinaturaMensagens = null;       // evita redesenhar quando nada mudou
+    let ultimaAtualizacaoLista = 0;
+    let badgeInterval = null;
+    let destinoAlteradoManualmente = false;
+    let ultimaMsgRecebidaAplicada = null;
+
+    function normalizarTexto(txt) {
+        return (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
     // Qualquer cargo acima do Fiscal de Postura (Gerente, Administrativo,
     // Interface Jurídica, Jurídico, Secretário, Fazenda, Dev).
     function ehSuperior(cargo) {
-        const c = (cargo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const c = normalizarTexto(cargo);
         return c !== '' && !c.includes('fiscal');
+    }
+
+    function escaparHtml(txt) {
+        return String(txt ?? '').replace(/[&<>"']/g, ch => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+        ));
+    }
+
+    function ehMensagemMinha(msg, perfil) {
+        return (msg.sender_id && msg.sender_id === perfil.id) || (msg.sender_nome && msg.sender_nome === perfil.nome);
+    }
+
+    // Mensagem recebida que ainda não foi vista por mim (ignora as direcionadas a outra pessoa)
+    function ehNaoLidaParaMim(msg, perfil) {
+        if (ehMensagemMinha(msg, perfil)) return false;
+        if (msg.destinatario_id && msg.destinatario_id !== perfil.id) return false;
+        return !(msg.visualizada_por || []).some(v => v.id && v.id === perfil.id);
+    }
+
+    function atualizarBadgeVisual(qtd) {
+        const badge = document.getElementById('chatJuridicoBadge');
+        if (!badge) return;
+        badge.textContent = qtd > 99 ? '99+' : String(qtd);
+        badge.style.display = qtd > 0 ? 'block' : 'none';
     }
 
     // ── Helper: Obter perfil do usuário logado (Assíncrono com Fallbacks) ──────
@@ -468,8 +506,10 @@
     }
 
     // ── Carregar Lista de Conversas (Histórico Geral) ────────────────────
-    async function carregarListaConversas() {
+    async function carregarListaConversas(silencioso = false) {
         modoListaConversas = true;
+        assinaturaMensagens = null;
+        ultimaAtualizacaoLista = Date.now();
         const container = document.getElementById('chatJuridicoMensagens');
         const footer = document.getElementById('chatJuridicoFooter');
         const btnAlternar = document.getElementById('btnAlternarListaChat');
@@ -479,11 +519,14 @@
         if (btnAlternar) btnAlternar.style.display = 'none';
         if (headerSub) headerSub.textContent = 'Histórico de Conversas';
 
-        container.innerHTML = `
-            <div style="text-align:center; color:#64748b; font-size:0.85rem; margin-top:40px;">
-                Buscando histórico de conversas...
-            </div>
-        `;
+        // Na atualização automática não mostra o "Buscando...", para a lista não piscar
+        if (!silencioso) {
+            container.innerHTML = `
+                <div style="text-align:center; color:#64748b; font-size:0.85rem; margin-top:40px;">
+                    Buscando histórico de conversas...
+                </div>
+            `;
+        }
 
         try {
             let conversas = [];

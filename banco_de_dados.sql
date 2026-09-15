@@ -1006,6 +1006,47 @@ CREATE TABLE IF NOT EXISTS chats_interface_juridica (
 
 CREATE INDEX IF NOT EXISTS idx_chats_processo ON chats_interface_juridica(processo_id);
 
+-- Usado pela sincronização periódica do sino de notificações (busca só o que mudou)
+CREATE INDEX IF NOT EXISTS idx_processos_updated_at ON processos(updated_at DESC);
+
+-- ============================================================
+-- RPC: Confirmação de leitura das mensagens do chat
+-- Registra em cada mensagem recebida (não enviada pelo usuário e não direcionada
+-- a outra pessoa) quem a visualizou e quando. Tudo acontece dentro de um único
+-- UPDATE, então não sobrescreve uma mensagem enviada ao mesmo tempo por outra pessoa.
+-- ============================================================
+CREATE OR REPLACE FUNCTION marcar_mensagens_chat_visualizadas(
+    p_processo_id UUID,
+    p_usuario_id UUID,
+    p_nome TEXT,
+    p_cargo TEXT
+)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE chats_interface_juridica
+    SET mensagens = (
+        SELECT COALESCE(jsonb_agg(
+            CASE
+                WHEN COALESCE(m->>'sender_id', '') <> p_usuario_id::TEXT
+                 AND COALESCE(m->>'sender_nome', '') <> COALESCE(p_nome, '')
+                 AND (NULLIF(m->>'destinatario_id', '') IS NULL OR m->>'destinatario_id' = p_usuario_id::TEXT)
+                 AND NOT COALESCE(m->'visualizada_por', '[]'::jsonb) @> jsonb_build_array(jsonb_build_object('id', p_usuario_id))
+                THEN jsonb_set(
+                    m,
+                    '{visualizada_por}',
+                    COALESCE(m->'visualizada_por', '[]'::jsonb)
+                        || jsonb_build_array(jsonb_build_object('id', p_usuario_id, 'nome', p_nome, 'cargo', p_cargo, 'em', NOW()))
+                )
+                ELSE m
+            END
+            ORDER BY t.ord
+        ), '[]'::jsonb)
+        FROM jsonb_array_elements(mensagens) WITH ORDINALITY AS t(m, ord)
+    )
+    WHERE processo_id = p_processo_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Permissões de Acesso (RLS desabilitado para simulação / acesso direto)
 ALTER TABLE chats_interface_juridica DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE chats_interface_juridica TO anon, authenticated, service_role;
