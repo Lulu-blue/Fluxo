@@ -691,6 +691,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         renderizarTabela(dadosTabela, filtros.responsavel);
         atualizarContadorECarregarMais();
         setTimeout(() => { if (window.atualizarInterfaceNotificacoesPainel) window.atualizarInterfaceNotificacoesPainel(); }, 150);
+        iniciarSincronizacaoNotificacoesPainel();
 
     } catch (err) {
         console.error(`Erro ao carregar solicitações (tentativa ${tentativa}):`, err);
@@ -1975,6 +1976,58 @@ function notificacaoEhParaMim(n) {
     const meuCargo = usrLogado?.cargo ? normalizarCargo(usrLogado.cargo) : null;
     if (n.destinatario_cargo && meuCargo) return normalizarCargo(n.destinatario_cargo) === meuCargo;
     return true;
+}
+
+// ── Sincronização automática do sino ─────────────────────────────────────
+// A cada 5s busca só os processos alterados desde o updated_at mais recente já
+// carregado (o trigger atualiza updated_at a cada mudança). Na maior parte das
+// vezes a consulta volta vazia, então o custo é mínimo.
+const INTERVALO_NOTIFICACOES_PAINEL_MS = 5000;
+let pollingNotificacoesPainel = null;
+let sincronizandoNotificacoes = false;
+
+async function sincronizarNotificacoesPainel() {
+    if (document.hidden || sincronizandoNotificacoes || !dadosTabela || dadosTabela.length === 0) return;
+
+    const maisRecente = dadosTabela.reduce((max, i) => (i.updated_at && i.updated_at > max ? i.updated_at : max), '');
+    if (!maisRecente) return;
+
+    sincronizandoNotificacoes = true;
+    try {
+        const { data, error } = await supabaseClient
+            .from('processos')
+            .select('id, updated_at, notificacoes_menu:dados->notificacoes_menu')
+            .gt('updated_at', maisRecente)
+            .limit(100);
+        if (error || !data || data.length === 0) return;
+
+        let mudou = false;
+        data.forEach(p => {
+            const item = dadosTabela.find(i => i.id === p.id);
+            if (!item) return;
+            item.updated_at = p.updated_at;
+            item.dados = item.dados || {};
+            const novas = p.notificacoes_menu || [];
+            if (JSON.stringify(novas) !== JSON.stringify(item.dados.notificacoes_menu || [])) {
+                item.dados.notificacoes_menu = novas;
+                mudou = true;
+            }
+        });
+
+        if (mudou && window.atualizarInterfaceNotificacoesPainel) window.atualizarInterfaceNotificacoesPainel();
+    } catch (err) {
+        console.warn('Erro ao sincronizar notificações do painel:', err);
+    } finally {
+        sincronizandoNotificacoes = false;
+    }
+}
+
+function iniciarSincronizacaoNotificacoesPainel() {
+    if (pollingNotificacoesPainel) return;
+    pollingNotificacoesPainel = setInterval(sincronizarNotificacoesPainel, INTERVALO_NOTIFICACOES_PAINEL_MS);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) sincronizarNotificacoesPainel();
+    });
 }
 
 // Lista exibida no sino. Guarda as mesmas referências de item.dados.notificacoes_menu,

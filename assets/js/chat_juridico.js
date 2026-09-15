@@ -625,6 +625,41 @@
     }
 
     // ── Carregar histórico de mensagens de um processo ────────────────────
+    // Para quem não é superior (fiscal): o "Para:" acompanha quem mandou a última
+    // mensagem — Gerência, Administrativo etc. → Gerência; Interface/Jurídico → Jurídico.
+    // Não sobrescreve se o usuário já trocou manualmente.
+    function aplicarDestinoPadraoPelaUltimaMensagem(mensagens, perfil) {
+        if (ehSuperior(perfil.cargo) || destinoAlteradoManualmente) return;
+        const select = document.getElementById('chatDestinatarioSelect');
+        if (!select) return;
+
+        const ultimaRecebida = [...mensagens].reverse()
+            .find(m => !ehMensagemMinha(m, perfil) && ehSuperior(m.sender_cargo));
+        if (!ultimaRecebida || ultimaRecebida.id === ultimaMsgRecebidaAplicada) return;
+        ultimaMsgRecebidaAplicada = ultimaRecebida.id;
+
+        const cargo = normalizarTexto(ultimaRecebida.sender_cargo);
+        select.value = (cargo.includes('interface') || cargo.includes('juridic')) ? 'juridico' : 'gerente';
+    }
+
+    // Com o chat fechado, mantém o contador de mensagens não lidas do processo atualizado
+    async function atualizarBadgeChat() {
+        if (!currentProcessoId || document.hidden) return;
+        if (chatDrawer && chatDrawer.classList.contains('active')) return;
+        try {
+            const perfil = await getPerfilAtualAsync();
+            const { data } = await supabaseClient
+                .from('chats_interface_juridica')
+                .select('mensagens')
+                .eq('processo_id', currentProcessoId)
+                .maybeSingle();
+            const naoLidas = (data?.mensagens || []).filter(m => ehNaoLidaParaMim(m, perfil)).length;
+            atualizarBadgeVisual(naoLidas);
+        } catch (err) {
+            console.warn('Erro ao atualizar contador do chat:', err);
+        }
+    }
+
     async function carregarMensagensChat() {
         if (!currentProcessoId) {
             carregarListaConversas();
@@ -673,6 +708,28 @@
             currentChatData = chatData;
             const mensagens = chatData?.mensagens || [];
 
+            // Marca como visualizadas as recebidas (chat aberto e aba visível)
+            if (perfil.id && !document.hidden && mensagens.some(m => ehNaoLidaParaMim(m, perfil))) {
+                try {
+                    await supabaseClient.rpc('marcar_mensagens_chat_visualizadas', {
+                        p_processo_id: currentProcessoId,
+                        p_usuario_id: perfil.id,
+                        p_nome: perfil.nome || null,
+                        p_cargo: perfil.cargo || null
+                    });
+                } catch (eVis) {
+                    console.warn('Não foi possível registrar a visualização das mensagens:', eVis);
+                }
+            }
+            atualizarBadgeVisual(0);
+
+            aplicarDestinoPadraoPelaUltimaMensagem(mensagens, perfil);
+
+            // Sem mudança (nem mensagem nova, nem nova confirmação de leitura): não redesenha
+            const assinatura = JSON.stringify(mensagens.map(m => [m.id, (m.visualizada_por || []).length]));
+            if (assinatura === assinaturaMensagens) return;
+            assinaturaMensagens = assinatura;
+
             if (mensagens.length === 0) {
                 container.innerHTML = `
                     <div style="text-align:center; color:#64748b; font-size:0.85rem; margin-top:40px; padding:0 20px;">
@@ -683,8 +740,24 @@
                 return;
             }
 
+            // Só rola para o fim se o usuário já estava no fim (não atrapalha quem está lendo acima)
+            const estavaNoFim = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+
             const html = mensagens.map(msg => {
-                const eMinha = (msg.sender_id && msg.sender_id === perfil.id) || (msg.sender_nome === perfil.nome);
+                const eMinha = ehMensagemMinha(msg, perfil);
+
+                let recibo = '';
+                if (eMinha) {
+                    const vistos = (msg.visualizada_por || []).filter(v => v.id !== perfil.id);
+                    if (vistos.length > 0) {
+                        const nomes = vistos.map(v => v.nome || 'destinatário').join(', ');
+                        const ultimo = vistos[vistos.length - 1];
+                        const quando = ultimo.em ? new Date(ultimo.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+                        recibo = `<span title="Visualizada por ${escaparHtml(nomes)}${quando ? ' em ' + quando : ''}" style="color:#16a34a; font-weight:600; margin-left:6px;">✓✓ Visualizada por ${escaparHtml(nomes)}</span>`;
+                    } else {
+                        recibo = `<span style="color:#94a3b8; margin-left:6px;">✓ Enviada</span>`;
+                    }
+                }
                 const dataFmt = msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
                 const autorNome = msg.sender_nome && msg.sender_nome !== 'Usuário' ? msg.sender_nome : (eMinha ? (perfil.nome || 'Fiscal') : 'Atendimento');
                 const tagDestino = msg.destinatario === 'fiscal'
@@ -711,13 +784,14 @@
                             <div>${msg.texto || ''}</div>
                             ${anexoHtml}
                         </div>
-                        <div class="chat-msg-time">${dataFmt}</div>
+                        <div class="chat-msg-time">${dataFmt}${recibo}</div>
                     </div>
                 `;
             }).join('');
 
+            const primeiraRenderizacao = !container.querySelector('.chat-msg');
             container.innerHTML = html;
-            container.scrollTop = container.scrollHeight;
+            if (primeiraRenderizacao || estavaNoFim) container.scrollTop = container.scrollHeight;
 
         } catch (err) {
             console.error('Erro ao carregar chat:', err);
@@ -890,7 +964,9 @@
                 .update({ dados: dadosAtualizados })
                 .eq('id', currentProcessoId);
 
-            // Recarregar chat
+            // Recarregar chat já mostrando a mensagem enviada
+            const containerMsgs = document.getElementById('chatJuridicoMensagens');
+            if (containerMsgs) containerMsgs.scrollTop = containerMsgs.scrollHeight;
             await carregarMensagensChat();
 
         } catch (err) {
@@ -946,22 +1022,25 @@
         await getPerfilAtualAsync();
         await prepararDestinoFiscalResponsavel();
 
+        assinaturaMensagens = null; // força redesenhar ao abrir
         if (currentProcessoId) {
             carregarMensagensChat();
         } else {
             carregarListaConversas();
         }
 
-        // Inicia sincronização suave a cada 8 segundos (apenas se a página estiver visível)
+        // Sincronização enquanto aberto: mensagens a cada 3s; lista de conversas a cada 8s
         if (!syncInterval) {
             syncInterval = setInterval(() => {
                 if (document.hidden) return;
                 if (modoListaConversas) {
-                    carregarListaConversas();
+                    if (Date.now() - ultimaAtualizacaoLista >= INTERVALO_LISTA_CONVERSAS_MS) {
+                        carregarListaConversas(true);
+                    }
                 } else if (currentProcessoId) {
                     carregarMensagensChat();
                 }
-            }, 8000);
+            }, INTERVALO_CHAT_ABERTO_MS);
         }
     }
 
@@ -982,6 +1061,21 @@
 
         currentProcessoId = getParamURL('processo');
         currentNotificacaoId = getParamURL('notificacao');
+
+        // Se o usuário escolher o destino na mão, o "Para:" automático não mexe mais
+        const selectDestino = document.getElementById('chatDestinatarioSelect');
+        if (selectDestino) {
+            selectDestino.addEventListener('change', () => { destinoAlteradoManualmente = true; });
+        }
+
+        // Dentro de um processo: contador de não lidas no botão do chat, mesmo com ele fechado
+        if (currentProcessoId && !badgeInterval) {
+            atualizarBadgeChat();
+            badgeInterval = setInterval(atualizarBadgeChat, INTERVALO_BADGE_MS);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) atualizarBadgeChat();
+            });
+        }
 
         // Se a URL contiver chat=1, abre automaticamente o chat
         if (getParamURL('chat') === '1') {
