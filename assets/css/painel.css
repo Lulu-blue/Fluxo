@@ -620,6 +620,20 @@ body {
     background-color: var(--accent-light);
 }
 
+/* Fundo da linha conforme o cargo responsável pela etapa atual do processo.
+   Declarado depois do :hover genérico para prevalecer, com hover próprio um tom acima. */
+.data-table tbody tr.linha-etapa-gerente        { background-color: #ddd9f0; } /* roxinho */
+.data-table tbody tr.linha-etapa-gerente:hover  { background-color: #d1c6fd; }
+
+.data-table tbody tr.linha-etapa-juridico       { background-color: #f7daea; } /* rosinha */
+.data-table tbody tr.linha-etapa-juridico:hover { background-color: #ffc7e7; }
+
+.data-table tbody tr.linha-etapa-administrativo       { background-color: #c1d2eb; } /* azul */
+.data-table tbody tr.linha-etapa-administrativo:hover { background-color: #acc6e9; }
+
+.data-table tbody tr.linha-etapa-secretario       { background-color: #c3f3e9; } /* verde água */
+.data-table tbody tr.linha-etapa-secretario:hover { background-color: #abffed; }
+
 .data-table tbody tr:last-child {
     border-bottom: none;
 }

@@ -15,6 +15,14 @@
     let syncInterval = null;
     let perfilCache = null;
     let modoListaConversas = false;
+    let fiscalResponsavel = null; // { id, nome } do fiscal do processo aberto
+
+    // Qualquer cargo acima do Fiscal de Postura (Gerente, Administrativo,
+    // Interface Jurídica, Jurídico, Secretário, Fazenda, Dev).
+    function ehSuperior(cargo) {
+        const c = (cargo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return c !== '' && !c.includes('fiscal');
+    }
 
     // ── Helper: Obter perfil do usuário logado (Assíncrono com Fallbacks) ──────
     async function getPerfilAtualAsync() {
@@ -636,7 +644,9 @@
                 const eMinha = (msg.sender_id && msg.sender_id === perfil.id) || (msg.sender_nome === perfil.nome);
                 const dataFmt = msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
                 const autorNome = msg.sender_nome && msg.sender_nome !== 'Usuário' ? msg.sender_nome : (eMinha ? (perfil.nome || 'Fiscal') : 'Atendimento');
-                const tagDestino = msg.destinatario === 'gerente' ? 'Gerência' : 'Jurídico';
+                const tagDestino = msg.destinatario === 'fiscal'
+                    ? `Fiscal ${msg.destinatario_nome || 'responsável'}`
+                    : msg.destinatario === 'gerente' ? 'Gerência' : 'Jurídico';
 
                 let anexoHtml = '';
                 if (msg.anexos && msg.anexos.length > 0) {
@@ -709,14 +719,19 @@
         const nomeRemetente = perfil.nome && perfil.nome !== 'Usuário' ? perfil.nome : 'Luiza';
         const isGerente = (perfil.cargo && perfil.cargo.toLowerCase().includes('interface')) || (perfil.cargo && perfil.cargo.toLowerCase().includes('gerente'));
         const destinatarioVal = document.getElementById('chatDestinatarioSelect')?.value || 'juridico';
-        const nomeDestinatarioRotulo = (destinatarioVal === 'gerente') ? 'Gerência de Posturas' : 'Interface Jurídica';
+        const paraFiscal = destinatarioVal === 'fiscal' && !!fiscalResponsavel;
+        const nomeDestinatarioRotulo = paraFiscal
+            ? `Fiscal responsável (${fiscalResponsavel.nome})`
+            : (destinatarioVal === 'gerente') ? 'Gerência de Posturas' : 'Interface Jurídica';
 
         const novaMensagem = {
             id: crypto.randomUUID(),
             sender_id: perfil.id || null,
             sender_nome: nomeRemetente,
             sender_cargo: perfil.cargo || 'Fiscal de Postura',
-            destinatario: destinatarioVal,
+            destinatario: paraFiscal ? 'fiscal' : destinatarioVal,
+            destinatario_id: paraFiscal ? fiscalResponsavel.id : null,
+            destinatario_nome: paraFiscal ? fiscalResponsavel.nome : null,
             texto: texto,
             anexos: anexos,
             created_at: new Date().toISOString()
@@ -793,9 +808,14 @@
             dadosAtualizados.notificacoes_menu = dadosAtualizados.notificacoes_menu || [];
 
             let destinatarioCargo = 'Fiscal de Postura';
+            let destinatarioId = null;
             let tituloNotif = 'Nova mensagem no Chat';
 
-            if (isGerente) {
+            if (paraFiscal) {
+                // Notificação direcionada: só o fiscal responsável pelo processo recebe
+                destinatarioId = fiscalResponsavel.id;
+                tituloNotif = `Mensagem de ${perfil.cargo || 'superior'}`;
+            } else if (isGerente) {
                 destinatarioCargo = 'Fiscal de Postura';
                 tituloNotif = (destinatarioVal === 'gerente') ? 'Resposta da Gerência' : 'Resposta da Interface Jurídica';
             } else {
@@ -817,6 +837,7 @@
                 numero_processo: numProcesso,
                 notificacao_id: currentNotificacaoId || null,
                 destinatario_cargo: destinatarioCargo,
+                destinatario_id: destinatarioId,
                 lida: false,
                 created_at: new Date().toISOString()
             });
@@ -835,12 +856,52 @@
         }
     }
 
+    // ── Destino "Fiscal responsável" (só para superiores, dentro de um processo) ──
+    async function prepararDestinoFiscalResponsavel() {
+        const select = document.getElementById('chatDestinatarioSelect');
+        if (!select || !currentProcessoId) return;
+
+        const perfil = await getPerfilAtualAsync();
+        if (!ehSuperior(perfil.cargo)) return;
+
+        try {
+            const { data: proc } = await supabaseClient
+                .from('processos')
+                .select('fiscal_id')
+                .eq('id', currentProcessoId)
+                .maybeSingle();
+            if (!proc?.fiscal_id || proc.fiscal_id === perfil.id) return;
+
+            const { data: fiscal } = await supabaseClient
+                .from('profiles')
+                .select('id, nome')
+                .eq('id', proc.fiscal_id)
+                .maybeSingle();
+            if (!fiscal) return;
+
+            fiscalResponsavel = fiscal;
+
+            let opt = select.querySelector('option[value="fiscal"]');
+            if (!opt) {
+                opt = document.createElement('option');
+                opt.value = 'fiscal';
+                opt.style.color = '#0f172a';
+                select.insertBefore(opt, select.firstChild);
+                select.value = 'fiscal';
+            }
+            opt.textContent = `Fiscal responsável — ${fiscal.nome}`;
+        } catch (err) {
+            console.warn('Não foi possível carregar o fiscal responsável do processo:', err);
+        }
+    }
+
     // ── Abrir/Fechar Chat Drawer ──────────────────────────────────────────
     async function abrirChat() {
         if (!chatDrawer) injectChatElements();
         chatOverlay.classList.add('active');
         chatDrawer.classList.add('active');
         await getPerfilAtualAsync();
+        await prepararDestinoFiscalResponsavel();
 
         if (currentProcessoId) {
             carregarMensagensChat();

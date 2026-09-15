@@ -50,6 +50,14 @@ const STATUS_COLORS = {
     cancelado: '#F8A4A4'
 };
 
+// Fundo da linha conforme o cargo responsável pela etapa atual (ver painel.css)
+const CLASSE_LINHA_POR_RESPONSAVEL = {
+    'Gerente': 'linha-etapa-gerente',
+    'Jurídico': 'linha-etapa-juridico',
+    'Administrativo': 'linha-etapa-administrativo',
+    'Secretário': 'linha-etapa-secretario'
+};
+
 // ── Helpers para processos com notificações independentes ─────
 function obterNotificacoesProcesso(item) {
     if (item?.notificacoes && Array.isArray(item.notificacoes)) return item.notificacoes;
@@ -793,6 +801,11 @@ function renderizarTabela(dados, cargoFiltro) {
         `;
 
         tr.style.borderLeft = `4px solid ${STATUS_COLORS[statusClass] || '#94a3b8'}`;
+
+        if (etapaNumero !== '—') {
+            const classeResponsavel = CLASSE_LINHA_POR_RESPONSAVEL[obterCargoResponsavelPelaEtapa(etapaNumero)];
+            if (classeResponsavel) tr.classList.add(classeResponsavel);
+        }
         tr.style.cursor = 'pointer';
 
         // Ignora cliques em elementos que já têm comportamento próprio (links inclusive,
@@ -1954,35 +1967,52 @@ window.toggleDropdownNotificacoesPainel = function () {
     }
 };
 
+// Notificação direcionada (destinatario_id) só vale para aquela pessoa;
+// as demais seguem o filtro por cargo.
+function notificacaoEhParaMim(n) {
+    const usrLogado = window.currentUserProfile || window.perfilAtual || null;
+    if (n.destinatario_id) return !!usrLogado?.id && n.destinatario_id === usrLogado.id;
+    const meuCargo = usrLogado?.cargo ? normalizarCargo(usrLogado.cargo) : null;
+    if (n.destinatario_cargo && meuCargo) return normalizarCargo(n.destinatario_cargo) === meuCargo;
+    return true;
+}
+
+// Lista exibida no sino. Guarda as mesmas referências de item.dados.notificacoes_menu,
+// para que as ações localizem a notificação certa mesmo com a lista filtrada e ordenada.
+let notificacoesPainelVisiveis = [];
+
+function localizarNotificacaoPainel(idx) {
+    const n = notificacoesPainelVisiveis[idx];
+    if (!n) return null;
+    for (const item of (dadosTabela || [])) {
+        const pos = (item?.dados?.notificacoes_menu || []).indexOf(n);
+        if (pos >= 0) return { item, pos, n };
+    }
+    return null;
+}
+
 window.atualizarInterfaceNotificacoesPainel = function () {
     const listDiv = document.getElementById('listaNotificacoesMenuPainel');
     const badgeEl = document.getElementById('badgeContadorNotificacoesPainel');
     if (!listDiv) return;
 
     let todanotifs = [];
-    const usrLogado = window.currentUserProfile || window.perfilAtual || null;
-    const meuCargo = usrLogado?.cargo ? normalizarCargo(usrLogado.cargo) : null;
 
     (dadosTabela || []).forEach(item => {
         const procNotifs = item?.dados?.notificacoes_menu || [];
         procNotifs.forEach(n => {
-            if (n.destinatario_cargo && meuCargo) {
-                if (normalizarCargo(n.destinatario_cargo) !== meuCargo) return;
-            }
-            todanotifs.push(n);
+            if (notificacaoEhParaMim(n)) todanotifs.push(n);
         });
         (item?.notificacoes || []).forEach(notif => {
             const subNotifs = notif?.dados?.notificacoes_menu || [];
             subNotifs.forEach(n => {
-                if (n.destinatario_cargo && meuCargo) {
-                    if (normalizarCargo(n.destinatario_cargo) !== meuCargo) return;
-                }
-                todanotifs.push(n);
+                if (notificacaoEhParaMim(n)) todanotifs.push(n);
             });
         });
     });
 
     todanotifs.sort((a, b) => new Date(b.created_at || b.data || 0) - new Date(a.created_at || a.data || 0));
+    notificacoesPainelVisiveis = todanotifs;
 
     if (badgeEl) {
         const naoLidas = todanotifs.filter(n => !n.lida).length;
@@ -2029,23 +2059,33 @@ window.atualizarInterfaceNotificacoesPainel = function () {
 };
 
 window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId, idx) {
-    const item = (dadosTabela || []).find(i => i.id === processoId);
     let eChatJuridico = false;
+    let itemAlterado = null;
 
-    if (item && item.dados?.notificacoes_menu) {
-        if (idx !== undefined && item.dados.notificacoes_menu[idx]) {
-            if (item.dados.notificacoes_menu[idx].tipo === 'chat_juridico') eChatJuridico = true;
-            item.dados.notificacoes_menu[idx].lida = true;
-        } else {
-            item.dados.notificacoes_menu.forEach(n => {
-                if (n.tipo === 'chat_juridico') eChatJuridico = true;
-                n.lida = true;
-            });
+    if (idx !== undefined) {
+        // Veio do sino: marca só a notificação clicada
+        const alvo = localizarNotificacaoPainel(idx);
+        if (alvo) {
+            eChatJuridico = alvo.n.tipo === 'chat_juridico';
+            alvo.n.lida = true;
+            itemAlterado = alvo.item;
         }
+    } else {
+        // Veio da tabela: marca como lidas as notificações deste processo que são do usuário
+        const item = (dadosTabela || []).find(i => i.id === processoId);
+        (item?.dados?.notificacoes_menu || []).forEach(n => {
+            if (!notificacaoEhParaMim(n)) return;
+            if (n.tipo === 'chat_juridico') eChatJuridico = true;
+            n.lida = true;
+            itemAlterado = item;
+        });
+    }
+
+    if (itemAlterado) {
         try {
             await supabaseClient.rpc('atualizar_notificacoes_processo', {
-                p_processo_id: item.id,
-                p_notificacoes: item.dados.notificacoes_menu
+                p_processo_id: itemAlterado.id,
+                p_notificacoes: itemAlterado.dados.notificacoes_menu
             });
         } catch (e) {
             console.error('Erro ao marcar notificação como lida:', e);
@@ -2065,8 +2105,14 @@ window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId
 window.marcarTodasNotificacoesLidasPainel = async function () {
     (dadosTabela || []).forEach(async (item) => {
         if (item?.dados?.notificacoes_menu) {
-            item.dados.notificacoes_menu.forEach(n => n.lida = true);
-            if (item.id) {
+            let alterou = false;
+            item.dados.notificacoes_menu.forEach(n => {
+                if (!n.lida && notificacaoEhParaMim(n)) {
+                    n.lida = true;
+                    alterou = true;
+                }
+            });
+            if (alterou && item.id) {
                 try {
                     await supabaseClient.rpc('atualizar_notificacoes_processo', {
                         p_processo_id: item.id,
@@ -2085,7 +2131,8 @@ window.limparAntigasNotificacoesPainel = async function () {
     (dadosTabela || []).forEach(async (item) => {
         if (item?.dados?.notificacoes_menu) {
             const antes = item.dados.notificacoes_menu.length;
-            item.dados.notificacoes_menu = item.dados.notificacoes_menu.filter(n => !n.lida);
+            // Remove só as lidas que são do usuário; as de outras pessoas/cargos ficam
+            item.dados.notificacoes_menu = item.dados.notificacoes_menu.filter(n => !(n.lida && notificacaoEhParaMim(n)));
             if (item.dados.notificacoes_menu.length !== antes && item.id) {
                 try {
                     await supabaseClient.rpc('atualizar_notificacoes_processo', {
@@ -2102,13 +2149,13 @@ window.limparAntigasNotificacoesPainel = async function () {
 };
 
 window.removerNotificacaoPainel = async function (processoId, idx) {
-    const item = (dadosTabela || []).find(i => i.id === processoId);
-    if (item && item.dados?.notificacoes_menu) {
-        item.dados.notificacoes_menu.splice(idx, 1);
+    const alvo = localizarNotificacaoPainel(idx);
+    if (alvo) {
+        alvo.item.dados.notificacoes_menu.splice(alvo.pos, 1);
         try {
             await supabaseClient.rpc('atualizar_notificacoes_processo', {
-                p_processo_id: item.id,
-                p_notificacoes: item.dados.notificacoes_menu
+                p_processo_id: alvo.item.id,
+                p_notificacoes: alvo.item.dados.notificacoes_menu
             });
         } catch (e) {
             console.error('Erro ao excluir notificação:', e);
