@@ -182,6 +182,45 @@ function obterCargoResponsavelPelaEtapa(etapaNum) {
     return 'Fiscal';
 }
 
+// ── Destaque de multa anexada (Etapa 15) ─────────────────────
+// A linha fica num roxo mais escuro quando o Documento da Multa já foi anexado.
+// A verificação é opcional e vem desligada: quem quiser liga no filtro
+// "Destaque de Multa", que só aparece para quem cuida da multa —
+// Gerente de Posturas, Administrativo de Posturas e Dev.
+// A comparação é pelo cargo exato (ignorando acento e caixa) para não pegar outras
+// gerências, como a de Meio Ambiente.
+const CARGOS_COM_DESTAQUE_MULTA = ['gerente de posturas', 'administrativo de posturas'];
+
+function cargoPodeUsarDestaqueMulta() {
+    const cargoBruto = window.currentUserProfile?.cargo || '';
+    if (normalizarCargo(cargoBruto) === 'Dev') return true;
+    const cargo = cargoBruto
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return CARGOS_COM_DESTAQUE_MULTA.includes(cargo);
+}
+
+function usuarioVeDestaqueMulta() {
+    const chk = document.getElementById('chkDestacarMultaAnexada');
+    return !!(chk && chk.checked) && cargoPodeUsarDestaqueMulta();
+}
+
+// Mostra o filtro do destaque só para os cargos que cuidam da multa
+function configurarFiltroDestaqueMulta() {
+    const grupo = document.getElementById('grupoDestaqueMulta');
+    if (grupo) grupo.style.display = cargoPodeUsarDestaqueMulta() ? 'flex' : 'none';
+}
+
+// A multa da Etapa 15 fica em dados.etapa15 do processo e/ou da notificação
+function processoTemMultaAnexada(item) {
+    const temMulta = (dados) => !!(dados?.etapa15?.multa_url || dados?.etapa15?.multa_id || dados?.multa_id);
+    if (temMulta(item?.dados)) return true;
+    return obterNotificacoesProcesso(item).some(n => temMulta(n?.dados));
+}
+
 function itemPertenceAoCargo(item, cargoAlvo) {
     if (!cargoAlvo) return true;
     const cargoNorm = normalizarCargo(cargoAlvo);
@@ -236,10 +275,21 @@ const loadingState = document.getElementById('loadingState');
 const resultsCount = document.getElementById('resultsCount');
 
 // ── Inicialização ───────────────────────────────────────────
+// O painel de filtros gruda logo abaixo do header, que também é sticky.
+// Como a altura do header muda com o zoom e com a largura da tela, ela é medida
+// aqui e publicada em --painel-header-h, usada pelo CSS do .filters-panel.
+function publicarAlturaHeaderPainel() {
+    const header = document.querySelector('.painel-header');
+    if (!header) return;
+    document.documentElement.style.setProperty('--painel-header-h', `${header.offsetHeight}px`);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     limparAutofillInvasivoFiltros();
     bindEventos();
     carregarOpcoesFiscaisFiltro();
+    publicarAlturaHeaderPainel();
+    window.addEventListener('resize', publicarAlturaHeaderPainel);
 
     // Primeiro valida a sessão de forma segura
     const sessaoValida = await verificarSessao();
@@ -408,6 +458,9 @@ function preencherDadosInterfaceUsuario(usuario) {
     if (typeof verificarEExibirTabApuracao === 'function') {
         verificarEExibirTabApuracao(usuario);
     }
+
+    // Filtro do destaque de multa: visível só para os cargos que cuidam dela
+    configurarFiltroDestaqueMulta();
 }
 
 // ── Carregar solicitações com filtros ────────────────────────
@@ -746,6 +799,8 @@ function renderizarTabela(dados, cargoFiltro) {
         cargoAlvoNorm = normalizarCargo(cargoNome);
     }
 
+    const mostrarDestaqueMulta = usuarioVeDestaqueMulta();
+
     dados.forEach(item => {
         const tr = document.createElement('tr');
 
@@ -807,6 +862,13 @@ function renderizarTabela(dados, cargoFiltro) {
             const classeResponsavel = CLASSE_LINHA_POR_RESPONSAVEL[obterCargoResponsavelPelaEtapa(etapaNumero)];
             if (classeResponsavel) tr.classList.add(classeResponsavel);
         }
+
+        // Multa já anexada na Etapa 15: roxo mais escuro (só para os cargos que cuidam dela)
+        if (mostrarDestaqueMulta && processoTemMultaAnexada(item)) {
+            tr.classList.add('linha-multa-anexada');
+            tr.title = 'Documento da Multa já anexado (Etapa 15)';
+        }
+
         tr.style.cursor = 'pointer';
 
         // Ignora cliques em elementos que já têm comportamento próprio (links inclusive,
@@ -1102,6 +1164,16 @@ function bindEventos() {
         });
     }
 
+    // Destaque de multa anexada: só repinta a tabela já carregada, sem ir ao banco
+    const chkDestaqueMulta = document.getElementById('chkDestacarMultaAnexada');
+    if (chkDestaqueMulta) {
+        chkDestaqueMulta.addEventListener('change', () => {
+            if (dadosTabela && dadosTabela.length > 0) {
+                renderizarTabela(dadosTabela, coletarFiltros().responsavel);
+            }
+        });
+    }
+
     // Pesquisar
     document.getElementById('btnAplicarFiltros').addEventListener('click', () => {
         carregarSolicitacoes(false);
@@ -1124,6 +1196,8 @@ function bindEventos() {
         const elResp = document.getElementById('filtroResponsavel');
         if (elResp) elResp.value = '';
         document.querySelectorAll('.chk-filtro-infracao:checked').forEach(c => c.checked = false);
+        const chkMulta = document.getElementById('chkDestacarMultaAnexada');
+        if (chkMulta) chkMulta.checked = false;
         window.atualizarLabelFiltroInfracao?.();
         carregarSolicitacoes(false);
     });

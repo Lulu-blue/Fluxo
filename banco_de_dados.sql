@@ -526,6 +526,20 @@ CREATE POLICY "sequenciais_contadores_acesso_total" ON sequenciais_contadores FO
 -- Coluna para armazenar o número da certidão na notificação (se aplicável)
 ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS numero_certidao TEXT;
 
+-- ============================================================
+-- OFÍCIO GFP (Etapa 15): destinatário do ofício
+-- O Secretário Municipal de Fazenda é guardado como a linha 100 da tabela
+-- etapas — fora da faixa 1..32 do fluxograma, então nenhuma consulta de etapa
+-- (todas filtram por numero ou id específico) enxerga este registro.
+-- O nome é editável na tela do Ofício e volta para cá.
+-- ============================================================
+-- 'Secretário Municipal de Fazenda' tem 31 caracteres e não cabe no VARCHAR(30) original
+ALTER TABLE etapas ALTER COLUMN tipo TYPE VARCHAR(50);
+
+INSERT INTO etapas (id, numero, nome, descricao, tipo)
+VALUES (100, 100, 'Gabriel José Vivas Pereira', NULL, 'Secretário Municipal de Fazenda')
+ON CONFLICT (id) DO NOTHING;
+
 -- Drop de TODAS as assinaturas sobrecarregadas de reservar_numero e devolver_numero no banco de dados
 DO $$ 
 DECLARE 

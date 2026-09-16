@@ -373,6 +373,9 @@ body {
 }
 
 /* ── PAINEL DE FILTROS ────────────────────────────────────── */
+/* Fica fixo logo abaixo do header (que também é sticky), para acompanhar a
+   rolagem da tabela junto com o botão "Filtros". A altura real do header é
+   medida em JS e publicada em --painel-header-h (ver solicitacoes.js). */
 .filters-panel {
     background-color: var(--bg-white);
     border: 1px solid var(--border-color);
@@ -380,6 +383,9 @@ body {
     padding: 0;
     max-height: 0;
     overflow: hidden;
+    position: sticky;
+    top: var(--painel-header-h, 68px);
+    z-index: 4;
     transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
                 padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
                 margin 0.4s cubic-bezier(0.4, 0, 0.2, 1),
@@ -390,10 +396,39 @@ body {
 }
 
 .filters-panel.open {
-    max-height: 400px;
+    /* Nunca passa da altura da tela: em telas baixas o próprio painel rola */
+    max-height: min(400px, calc(100vh - var(--painel-header-h, 68px) - 48px));
+    overflow-y: auto;
     padding: 24px;
     opacity: 1;
     margin-bottom: 20px;
+}
+
+/* Checkbox dentro de um filtro (ex.: destaque de multa anexada) */
+.filtro-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--bg-white);
+    font-size: 0.82rem;
+    color: var(--text-color);
+    cursor: pointer;
+    line-height: 1.3;
+}
+
+.filtro-checkbox:hover {
+    border-color: var(--accent-color);
+}
+
+.filtro-checkbox input {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: #8b5cf6;
 }
 
 .filters-grid {
@@ -633,6 +668,13 @@ body {
 
 .data-table tbody tr.linha-etapa-secretario       { background-color: #c3f3e9; } /* verde água */
 .data-table tbody tr.linha-etapa-secretario:hover { background-color: #abffed; }
+
+/* Documento da Multa (Etapa 15) já anexado: roxo mais escuro que o do Gerente.
+   Fica por último para prevalecer sobre as cores de responsável acima.
+   Só é aplicada para Gerente de Posturas, Administrativo de Posturas e Dev
+   (ver usuarioVeDestaqueMulta em solicitacoes.js). */
+.data-table tbody tr.linha-multa-anexada       { background-color: #b3a5e0; } /* roxo escuro */
+.data-table tbody tr.linha-multa-anexada:hover { background-color: #9f8ed8; }
 
 .data-table tbody tr:last-child {
     border-bottom: none;

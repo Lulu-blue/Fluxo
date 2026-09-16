@@ -297,6 +297,14 @@
                                 <option value="Fazenda">Setor de Fazenda</option>
                             </select>
                         </div>
+                        <!-- Só aparece para Gerente de Posturas, Administrativo de Posturas e Dev -->
+                        <div class="filter-group" id="grupoDestaqueMulta" style="display:none;">
+                            <label for="chkDestacarMultaAnexada">Destaque de Multa</label>
+                            <label class="filtro-checkbox" for="chkDestacarMultaAnexada">
+                                <input type="checkbox" id="chkDestacarMultaAnexada">
+                                <span>Marcar em roxo os processos com multa anexada</span>
+                            </label>
+                        </div>
                     </div>
                     <div class="filters-actions">
                         <button class="btn-filter-apply" id="btnAplicarFiltros">

@@ -1441,6 +1441,30 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                 </div>
 
+                <!-- Card do Ofício SEMAC - GFP -->
+                <div id="cardOficioGfpEtapa15" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                        <h3 style="margin:0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
+                            <span>📨 Ofício SEMAC - GFP</span>
+                        </h3>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            ${ehGerente ? `
+                                <button type="button" onclick="window.baixarOficioGfpPdf()" style="padding:10px 18px; background:#2563eb; color:white; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    Baixar Ofício em PDF
+                                </button>
+                            ` : '<span style="background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem; padding:4px 12px; border-radius:20px;">🔒 Download restrito ao Gerente</span>'}
+                        </div>
+                    </div>
+                    <p style="margin:0 0 14px 0; color:#64748b; font-size:0.85rem;">
+                        Solicita ao Secretário Municipal de Fazenda a emissão da guia para pagamento da penalidade.
+                        ${ehGerente ? 'O nome do destinatário é editável: clique sobre ele para alterar (a mudança vale para todos os ofícios futuros).' : ''}
+                    </p>
+                    <div id="containerOficioGfp" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; overflow:auto;">
+                        <div style="padding:20px; color:#64748b; font-size:0.9rem;">Gerando Ofício...</div>
+                    </div>
+                </div>
+
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px;">
                     <span>ℹ️</span>
                     <span>Ao anexar a Multa e clicar em <strong>"Avançar Etapa"</strong>, o processo administrativo será finalizado.</span>
@@ -1615,6 +1639,7 @@ function renderizarFormularioDinamico(etapaNum) {
     if (etapaNum === 15) {
         setTimeout(() => {
             if (typeof window.carregarAnexosMultaEtapa15 === 'function') window.carregarAnexosMultaEtapa15();
+            if (typeof window.gerarOficioGfp === 'function') window.gerarOficioGfp();
         }, 100);
     }
 
@@ -6543,6 +6568,14 @@ function renderizarDocumentoOficial(proc) {
         ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || proc?.etapa_atual || proc?.etapa_atual_id || 1, 10)
         : parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 1, 10);
 
+    // Etapa 15 não exibe documento abaixo do formulário: o Auto de Infração já está
+    // dentro do PDF unificado, e a etapa tem o seu próprio documento (Ofício GFP).
+    // Os botões de imprimir/baixar da barra superior regeneram o AI por conta própria.
+    if (etapaAtual === 15) {
+        container.innerHTML = '';
+        return;
+    }
+
     const ehAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? ehStatusAutoInfracao(notificacaoAtual) : (etapaAtual >= 14 || ehStatusAutoInfracao(proc));
 
     if (ehAuto) {
@@ -9434,7 +9467,12 @@ async function salvarEdicoesProcesso() {
         const numEtapa = parseInt(processoAtual.etapa_atual_id || processoAtual.etapa_atual || 1, 10);
         const ehAuto = (typeof ehStatusAutoInfracao === 'function' && ehStatusAutoInfracao(processoAtual)) || numEtapa >= 14;
 
-        if (ehAuto) {
+        if (numEtapa === 15) {
+            // Etapa 15 não exibe documento abaixo do formulário (ver renderizarDocumentoOficial)
+            if (typeof renderizarDocumentoOficial === 'function') {
+                renderizarDocumentoOficial(processoAtual);
+            }
+        } else if (ehAuto) {
             if (typeof window.gerarAutoDeInfracao === 'function') {
                 window.gerarAutoDeInfracao(true);
             }
@@ -13592,3 +13630,394 @@ document.addEventListener('click', function (e) {
         dropdown.style.display = 'none';
     }
 });
+
+// ============================================================
+// ETAPA 15 — OFÍCIO SEMAC - GFP
+// Solicita ao Secretário Municipal de Fazenda a emissão da guia de pagamento.
+// Tem numeração sequencial própria (categoria "Ofício GFP" na RPC reservar_numero)
+// e usa o mesmo cabeçalho dos demais documentos oficiais (Relatório, AI, Réplica).
+// ============================================================
+
+const CATEGORIA_OFICIO_GFP = 'Ofício GFP';
+// Linha 100 da tabela etapas guarda o destinatário fixo do ofício (ver banco_de_dados.sql)
+const NUMERO_ETAPA_SECRETARIO_FAZENDA = 100;
+const CARGO_SECRETARIO_FAZENDA = 'Secretário Municipal de Fazenda';
+const CARGO_ASSINATURA_OFICIO_GFP = 'Gerente de Fiscalização de Posturas';
+// Cargo procurado em profiles para assinar o ofício (comparação sem acento e em minúsculas)
+const CARGO_GERENTE_POSTURAS_NORMALIZADO = 'gerente de posturas';
+
+let secretarioFazendaCache = null;
+let gerentePosturasCache = null;
+
+// Só o Gerente/Administrativo edita o nome do destinatário e baixa o ofício
+function podeGerenciarOficioGfp() {
+    const cargoLogado = normalizarCargo(perfilAtual?.cargo);
+    return cargoLogado === 'Gerente'
+        || cargoLogado === 'Gerente de Interface Jurídica'
+        || cargoLogado === 'Administrativo de Posturas'
+        || cargoLogado === 'Dev';
+}
+
+// ── Destinatário: Secretário Municipal de Fazenda (etapas.numero = 100) ──
+window.obterSecretarioFazenda = async function () {
+    if (secretarioFazendaCache) return secretarioFazendaCache;
+    try {
+        const { data } = await supabaseClient
+            .from('etapas')
+            .select('id, nome, tipo')
+            .eq('numero', NUMERO_ETAPA_SECRETARIO_FAZENDA)
+            .maybeSingle();
+        if (data && data.nome) {
+            secretarioFazendaCache = { nome: data.nome, cargo: data.tipo || CARGO_SECRETARIO_FAZENDA };
+            return secretarioFazendaCache;
+        }
+    } catch (e) {
+        console.warn('[OFÍCIO GFP] Erro ao buscar o Secretário de Fazenda:', e);
+    }
+    return { nome: '', cargo: CARGO_SECRETARIO_FAZENDA };
+};
+
+// Grava o nome editado de volta na tabela, para valer nos próximos ofícios
+window.salvarNomeSecretarioFazenda = async function (nome) {
+    const nomeLimpo = (nome || '').replace(/\s+/g, ' ').trim();
+    if (!nomeLimpo) return false;
+    if (secretarioFazendaCache && secretarioFazendaCache.nome === nomeLimpo) return true;
+
+    try {
+        const { error } = await supabaseClient
+            .from('etapas')
+            .update({ nome: nomeLimpo })
+            .eq('numero', NUMERO_ETAPA_SECRETARIO_FAZENDA);
+        if (error) throw error;
+        secretarioFazendaCache = { nome: nomeLimpo, cargo: CARGO_SECRETARIO_FAZENDA };
+        return true;
+    } catch (e) {
+        console.error('[OFÍCIO GFP] Erro ao salvar o nome do Secretário de Fazenda:', e);
+        alert('Não foi possível salvar o nome do Secretário Municipal de Fazenda. Tente novamente.');
+        return false;
+    }
+};
+
+// ── Assinatura: sempre o Gerente de Fiscalização de Posturas ──
+// Independe de quem abriu o processo — busca em profiles o cargo EXATAMENTE
+// "Gerente de Posturas" (ignorando acento, caixa e espaços repetidos), para não
+// confundir com outras gerências, como a de Meio Ambiente.
+window.obterGerentePosturas = async function () {
+    if (gerentePosturasCache) return gerentePosturasCache;
+
+    const normalizar = (txt) => (txt || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    try {
+        const { data } = await supabaseClient
+            .from('profiles')
+            .select('nome, cargo')
+            .ilike('cargo', '%postura%');
+        const gerente = (data || []).find(p => normalizar(p.cargo) === CARGO_GERENTE_POSTURAS_NORMALIZADO);
+        if (gerente && gerente.nome) {
+            gerentePosturasCache = { nome: gerente.nome };
+            return gerentePosturasCache;
+        }
+        console.warn('[OFÍCIO GFP] Nenhum perfil com o cargo "Gerente de Posturas" foi encontrado.');
+    } catch (e) {
+        console.warn('[OFÍCIO GFP] Erro ao buscar o Gerente de Posturas:', e);
+    }
+    return { nome: '' };
+};
+
+// ── Numeração sequencial própria do ofício ──
+// Reaproveita o número já gravado em documentos; só reserva um novo na 1ª geração.
+async function obterNumeroOficioGfp() {
+    const guardado = notificacaoAtual?.dados?.numero_oficio_gfp || processoAtual?.dados?.numero_oficio_gfp;
+    if (guardado) return guardado;
+    if (!processoAtual?.id) return null;
+
+    const anoAtual = new Date().getFullYear();
+    let numero = null;
+
+    try {
+        let queryDoc = supabaseClient
+            .from('documentos')
+            .select('id, numero_sequencial')
+            .eq('tipo', CATEGORIA_OFICIO_GFP)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        queryDoc = notificacaoAtual?.id
+            ? queryDoc.eq('notificacao_id', notificacaoAtual.id)
+            : queryDoc.eq('processo_id', processoAtual.id);
+
+        const { data: existentes } = await queryDoc;
+        const docExistente = (existentes || [])[0];
+
+        if (docExistente && docExistente.numero_sequencial) {
+            numero = docExistente.numero_sequencial;
+        } else {
+            const { data: numReservado, error: errRes } = await supabaseClient
+                .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: CATEGORIA_OFICIO_GFP });
+
+            if (errRes || !numReservado) {
+                console.warn('[OFÍCIO GFP] RPC reservar_numero falhou, usando fallback local:', errRes?.message);
+                const { data } = await supabaseClient
+                    .from('documentos')
+                    .select('numero_sequencial')
+                    .eq('tipo', CATEGORIA_OFICIO_GFP)
+                    .like('numero_sequencial', `${anoAtual}/%`);
+
+                let max = 0;
+                (data || []).forEach(item => {
+                    const val = parseInt(String(item.numero_sequencial || '').split('/')[1], 10);
+                    if (!isNaN(val) && val > max) max = val;
+                });
+                numero = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
+            } else {
+                numero = numReservado;
+            }
+
+            const usuarioId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+            await supabaseClient.from('documentos').insert([{
+                processo_id: processoAtual.id,
+                notificacao_id: notificacaoAtual?.id || null,
+                etapa_id: processoAtual.etapa_atual_id || processoAtual.etapa_atual,
+                tipo: CATEGORIA_OFICIO_GFP,
+                nome_arquivo: `Oficio_GFP_${numero.replace(/[\/\\]/g, '-')}.pdf`,
+                gerado_automaticamente: true,
+                numero_sequencial: numero,
+                usuario_id: usuarioId || undefined
+            }]);
+        }
+
+        // Guarda no JSON para não reconsultar a cada abertura da etapa
+        if (notificacaoAtual?.id) {
+            notificacaoAtual.dados = { ...(notificacaoAtual.dados || {}), numero_oficio_gfp: numero };
+            await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
+        } else {
+            processoAtual.dados = { ...(processoAtual.dados || {}), numero_oficio_gfp: numero };
+            await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+        }
+    } catch (e) {
+        console.error('[OFÍCIO GFP] Erro ao gerar a numeração do ofício:', e);
+    }
+
+    return numero;
+}
+
+// ── Geração do documento na tela ──
+window.gerarOficioGfp = async function () {
+    const container = document.getElementById('containerOficioGfp');
+    if (!container || !processoAtual) return;
+
+    const anoAtual = new Date().getFullYear();
+    const numOficio = (await obterNumeroOficioGfp()) || `XXX/${anoAtual}`;
+    const secretario = await window.obterSecretarioFazenda();
+    const gerente = await window.obterGerentePosturas();
+    const podeEditar = podeGerenciarOficioGfp();
+
+    const contObj = processoAtual?.contribuinte || processoAtual?.dados?.contribuinte || {};
+    const nomeAutuado = contObj.nome || processoAtual?.campos?.contNome || '—';
+
+    const numAutoInfracao = processoAtual?.dados?.numero_auto_infracao
+        || processoAtual?.dados?.etapa14?.numero_auto_infracao
+        || notificacaoAtual?.numero_auto_infracao
+        || notificacaoAtual?.dados?.numero_auto_infracao
+        || '—';
+
+    const pa = processoAtual?.dados?.relatorio_fiscal?.pa
+        || processoAtual?.dados?.relatorio_fiscal?.numero_processo_administrativo
+        || processoAtual?.numero_processo
+        || '—';
+
+    const dataExtenso = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const estiloNomeEditavel = podeEditar
+        ? 'outline:none; border-bottom:1px dashed #2563eb; padding:0 2px; cursor:text; min-width:180px; display:inline-block;'
+        : '';
+
+    container.innerHTML = `
+        <div id="documentoOficioGfp" style="font-family: Calibri, 'Carlito', Arial, sans-serif;">
+            <div style="padding: 50px 55px 30px 55px; background: white; max-width: 820px; margin: 0 auto; color: #000;">
+
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-collapse: collapse;">
+                    <tr>
+                        <td width="100" rowspan="2" align="center" valign="top" style="padding-right: 12px; width: 100px;">
+                            <img src="assets/img/brasao_semac.jpeg" width="85" style="width: 85px; height: auto; display: block; margin: 0 auto;">
+                        </td>
+                        <td bgcolor="#F78C26" style="background-color: #F78C26; height: 14px; font-size: 1px; line-height: 14px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                        <td valign="top" style="padding-top: 10px; font-size: 9.5pt; color: #000; line-height: 1.4;">
+                            <strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>
+                            DIRETORIA DE MEIO AMBIENTE<br>
+                            GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br>
+                            <span style="font-size: 9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
+                            <span style="font-size: 9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span>
+                        </td>
+                    </tr>
+                </table>
+
+                <hr style="border:none; border-top:1px solid #000; margin: 0 0 22px 0;">
+
+                <div style="text-align: right; font-size: 12pt; margin-bottom: 6px;">
+                    <strong>OFÍCIO SEMAC - <u>GFP</u> Nº ${numOficio}</strong>
+                </div>
+                <div style="text-align: right; font-size: 10.5pt; margin-bottom: 30px;">
+                    Divinópolis, ${dataExtenso}.
+                </div>
+
+                <div style="font-size: 11pt; line-height: 1.5; margin-bottom: 26px;">
+                    Ao Senhor<br>
+                    <span id="nomeSecretarioFazendaOficio"
+                          ${podeEditar ? 'contenteditable="true" spellcheck="false" data-placeholder="Nome do Secretário Municipal de Fazenda"' : ''}
+                          style="${estiloNomeEditavel}">${escaparHtmlOficioGfp(secretario.nome)}</span><br>
+                    ${escaparHtmlOficioGfp(secretario.cargo || CARGO_SECRETARIO_FAZENDA)}
+                </div>
+
+                <div style="font-size: 11pt; margin-bottom: 24px;">
+                    <strong>Assunto: Emissão de guia para pagamento</strong>
+                </div>
+
+                <div style="font-size: 11pt; line-height: 1.6; text-align: justify;">
+                    <p style="margin: 0 0 16px 0;">Prezado Senhor,</p>
+
+                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
+                        Encaminho a Vossa Senhoria o <strong>Auto de Infração nº ${escaparHtmlOficioGfp(numAutoInfracao)}</strong>,
+                        lavrado em face do contribuinte <strong>${escaparHtmlOficioGfp(nomeAutuado)}</strong>,
+                        cujo <strong>PA ${escaparHtmlOficioGfp(pa)}</strong> tramitou corretamente, devidamente fundamentado
+                        no respectivo Auto de Infração.
+                    </p>
+
+                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
+                        Informo que o referido Auto de Infração será regularmente entregue ao autuado junto com a guia de
+                        pagamento, oportunidade em que será assegurado o exercício do contraditório e da ampla defesa,
+                        observando-se o prazo recursal previsto na legislação aplicável.
+                    </p>
+
+                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
+                        Diante dos fatos, requisito portanto, que seja emitido a guia para o pagamento da penalidade na
+                        integralidade,<strong><u> eventual pedido de inscrição em dívida ativa será encaminhado após término
+                        do prazo recursal.</u></strong>
+                    </p>
+
+                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
+                        Coloco-me à disposição para quaisquer esclarecimentos adicionais.
+                    </p>
+
+                    <p style="margin: 0 0 16px 0; text-indent: 40px;">Atenciosamente,</p>
+                </div>
+
+                <div style="text-align: center; margin-top: 70px; padding-bottom: 28px; font-size: 11pt; line-height: 1.5;">
+                    <div><em>(assinado digitalmente)</em></div>
+                    <div><strong>${escaparHtmlOficioGfp(gerente.nome)}</strong></div>
+                    <div><strong>${CARGO_ASSINATURA_OFICIO_GFP}</strong></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (podeEditar) configurarEdicaoNomeSecretarioOficio();
+};
+
+function escaparHtmlOficioGfp(txt) {
+    const div = document.createElement('div');
+    div.textContent = txt == null ? '' : String(txt);
+    return div.innerHTML;
+}
+
+// Salva o nome do destinatário ao sair do campo (blur) ou ao teclar Enter
+function configurarEdicaoNomeSecretarioOficio() {
+    const campo = document.getElementById('nomeSecretarioFazendaOficio');
+    if (!campo) return;
+
+    campo.addEventListener('blur', async () => {
+        const novoNome = campo.textContent.replace(/\s+/g, ' ').trim();
+        const nomeAtual = (secretarioFazendaCache?.nome || '').trim();
+        if (!novoNome) {
+            campo.textContent = nomeAtual;
+            return;
+        }
+        if (novoNome === nomeAtual) return;
+        const ok = await window.salvarNomeSecretarioFazenda(novoNome);
+        if (!ok) campo.textContent = nomeAtual;
+    });
+
+    campo.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            campo.blur();
+        }
+    });
+}
+
+// ── Download do ofício em PDF (via impressão, igual Réplica/Certidão) ──
+window.baixarOficioGfpPdf = async function () {
+    if (!podeGerenciarOficioGfp()) {
+        alert('⚠️ Apenas o Gerente de Fiscalização ou Administrativo de Posturas pode baixar o Ofício GFP.');
+        return;
+    }
+
+    // Garante que o nome editado já foi salvo antes de exportar
+    const campoNome = document.getElementById('nomeSecretarioFazendaOficio');
+    if (campoNome) {
+        const novoNome = campoNome.textContent.replace(/\s+/g, ' ').trim();
+        if (novoNome && novoNome !== (secretarioFazendaCache?.nome || '').trim()) {
+            await window.salvarNomeSecretarioFazenda(novoNome);
+        }
+    }
+
+    const docEl = document.getElementById('documentoOficioGfp');
+    if (!docEl) {
+        alert('O Ofício GFP ainda não foi gerado. Aguarde o carregamento da etapa e tente novamente.');
+        return;
+    }
+
+    const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || '';
+    let html = prepararConteudoDocumento(docEl.outerHTML, brasaoBase64);
+
+    // Tira o visual de campo editável da versão impressa
+    const divTemp = document.createElement('div');
+    divTemp.innerHTML = html;
+    const campoTemp = divTemp.querySelector('#nomeSecretarioFazendaOficio');
+    if (campoTemp) {
+        campoTemp.removeAttribute('contenteditable');
+        campoTemp.style.borderBottom = 'none';
+        campoTemp.style.cursor = 'default';
+    }
+    html = divTemp.innerHTML;
+
+    const numOficio = notificacaoAtual?.dados?.numero_oficio_gfp || processoAtual?.dados?.numero_oficio_gfp || 'XXX';
+    const numLimpo = String(numOficio).replace(/[\/\\]/g, '-');
+
+    const tituloOriginal = document.title;
+    document.title = `Oficio GFP ${numLimpo}`;
+
+    const estilos = `
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
+        img { max-width: 100%; height: auto; }
+        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
+    `;
+
+    const printIframe = document.createElement('iframe');
+    printIframe.style.position = 'absolute';
+    printIframe.style.width = '0';
+    printIframe.style.height = '0';
+    printIframe.style.border = 'none';
+    document.body.appendChild(printIframe);
+
+    const printDoc = printIframe.contentWindow.document;
+    printDoc.open();
+    printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Oficio GFP ${numLimpo}</title><style>${estilos}</style></head><body>${html}</body></html>`);
+    printDoc.close();
+
+    setTimeout(() => {
+        printIframe.contentWindow.focus();
+        printIframe.contentWindow.print();
+        setTimeout(() => {
+            if (document.body.contains(printIframe)) document.body.removeChild(printIframe);
+            document.title = tituloOriginal;
+        }, 1000);
+    }, 500);
+};
