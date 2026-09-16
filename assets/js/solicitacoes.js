@@ -475,6 +475,8 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         currentOffset = 0;
         dadosTabela = [];
         hasMoreRecords = true;
+        // A lista foi refeita: o marco do sino é recalculado na próxima verificação
+        marcoSincronizacaoNotificacoes = null;
         mostrarLoading(true);
     } else {
         isFetchingMore = true;
@@ -1389,6 +1391,151 @@ function bindEventos() {
 // layout: 'documento' exibe o corpo como peça oficial; qualquer outro valor usa o texto comum.
 const AVISOS_PUBLICADOS = [
     {
+        id: 'cores-da-tabela-e-chat',
+        nivel: 'info',
+        tag: 'Atualização do sistema',
+        titulo: 'O que cada cor da tabela quer dizer',
+        data: '16/09/2026',
+        autor: 'Desenvolvimento do Fluxograma',
+        resumo: 'A tabela de solicitações usa cor para contar três coisas ao mesmo tempo: de quem é a vez, como está o processo e quanto tempo falta. Mais um resumo de como usar o chat.',
+        corpo: `
+            <p class="pub-lead">A tabela de Solicitações não é só uma lista. Antes de ler qualquer texto, ela já
+            responde três perguntas pela cor: <strong>de quem é a vez</strong>, <strong>como está o processo</strong> e
+            <strong>quanto tempo falta</strong>. Vale conhecer o código — depois disso a leitura fica bem mais rápida.</p>
+
+            <h3 class="pub-sub">1. O fundo da linha: de quem é a vez</h3>
+            <p class="pub-lead">A cor de fundo mostra o cargo responsável pela etapa em que o processo está parado
+            agora. Se a linha está colorida, a bola não está com o fiscal.</p>
+            <ul class="pub-cores">
+                <li>
+                    <span class="pub-cor" style="background:#ddd9f0;"></span>
+                    <div>
+                        <strong>Roxo claro — Gerência de Posturas</strong>
+                        <span class="pub-cor-desc">Etapas 11, 12, 15, 17, 22, 25, 29 e 30.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pub-cor" style="background:#c1d2eb;"></span>
+                    <div>
+                        <strong>Azul — Administrativo de Posturas</strong>
+                        <span class="pub-cor-desc">Etapas 16 e 17, a fase do retorno do AR e do edital.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pub-cor" style="background:#f7daea;"></span>
+                    <div>
+                        <strong>Rosa — Jurídico</strong>
+                        <span class="pub-cor-desc">Etapa 23, quando o processo está aguardando parecer.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pub-cor" style="background:#c3f3e9;"></span>
+                    <div>
+                        <strong>Verde água — Secretário</strong>
+                        <span class="pub-cor-desc">Etapa 24, o despacho.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pub-cor" style="background:#ffffff;"></span>
+                    <div>
+                        <strong>Sem cor (branco) — Fiscal de Posturas</strong>
+                        <span class="pub-cor-desc">Todas as outras etapas. Linha branca quer dizer que a próxima
+                        ação é do fiscal.</span>
+                    </div>
+                </li>
+            </ul>
+
+            <h3 class="pub-sub">2. A listra na ponta esquerda: a situação do processo</h3>
+            <p class="pub-lead">Cada linha tem uma listra vertical colorida bem na borda esquerda. Ela não fala de
+            cargo nenhum: fala do estado do processo.</p>
+            <ul class="pub-cores">
+                <li>
+                    <span class="pub-cor pub-cor-listra" style="border-left-color:#80A1D4;"></span>
+                    <div>
+                        <strong>Azul — Em Aberto</strong>
+                        <span class="pub-cor-desc">O processo está em andamento, em alguma etapa do fluxo.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pub-cor pub-cor-listra" style="border-left-color:#75C9C8;"></span>
+                    <div>
+                        <strong>Verde água — Finalizado</strong>
+                        <span class="pub-cor-desc">Encerrado. Continua aberto para consulta, mas não anda mais.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pub-cor pub-cor-listra" style="border-left-color:#F8A4A4;"></span>
+                    <div>
+                        <strong>Rosa — Cancelado</strong>
+                        <span class="pub-cor-desc">Interrompido. A coluna de etapa aparece com um traço.</span>
+                    </div>
+                </li>
+            </ul>
+
+            <h3 class="pub-sub">3. A bolinha de dias: quanto tempo falta</h3>
+            <p class="pub-lead">Na coluna <strong>Dias para Vencimento</strong> a cor muda sozinha conforme o prazo
+            se aproxima. É o aviso mais fácil de bater o olho e o mais fácil de ignorar.</p>
+            <ul class="pub-cores">
+                <li>
+                    <span class="dias-badge">22 dias</span>
+                    <div>
+                        <strong>Verde — mais de 15 dias</strong>
+                        <span class="pub-cor-desc">Prazo confortável.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="dias-badge alerta">12 dias</span>
+                    <div>
+                        <strong>Amarelo — 15 dias ou menos</strong>
+                        <span class="pub-cor-desc">Hora de colocar na fila da semana.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="dias-badge urgente">3 dias</span>
+                    <div>
+                        <strong>Vermelho piscando — 5 dias ou menos</strong>
+                        <span class="pub-cor-desc">Pisca de propósito. Também fica vermelho quando o prazo já
+                        venceu.</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="dias-badge">&mdash;</span>
+                    <div>
+                        <strong>Um traço</strong>
+                        <span class="pub-cor-desc">O processo ainda não tem data final cadastrada.</span>
+                    </div>
+                </li>
+            </ul>
+
+            <p class="pub-lead">As três coisas aparecem juntas, e isso é de propósito: uma linha roxa, com listra azul
+            e bolinha vermelha é um processo em aberto, parado com a Gerência, prestes a vencer. Dá pra ver isso sem
+            abrir nada.</p>
+
+            <h3 class="pub-sub">E o chat, como funciona</h3>
+            <p class="pub-lead">Aquele botão redondo no canto inferior direito da tela é o chat. Ele acompanha você
+            no painel e dentro do processo — não é preciso procurar em lugar nenhum.</p>
+            <ul class="pub-lista">
+                <li><strong>Dentro de um processo</strong>, ele abre a conversa daquele processo. Tudo o que for
+                escrito fica grudado ali, então quem abrir depois entende o contexto sem precisar perguntar.</li>
+                <li><strong>No painel</strong>, ele abre o histórico de conversas, para encontrar uma discussão
+                antiga sem ter que caçar o processo primeiro.</li>
+                <li>No topo da janela tem o campo <strong>"Para:"</strong>, que escolhe entre
+                <strong>Interface Jurídica</strong> e <strong>Gerência de Posturas</strong>. Se alguém te escreveu, o
+                sistema já deixa selecionado o destino de quem falou por último — mas se você escolher na mão, ele
+                respeita a sua escolha e não mexe mais.</li>
+                <li>A <strong>bolinha vermelha</strong> no botão conta as mensagens que você ainda não leu. Ela
+                atualiza sozinha mesmo com o chat fechado, então não precisa ficar abrindo para conferir.</li>
+                <li>Dá para <strong>anexar arquivo</strong> na conversa, útil quando a dúvida é sobre um documento
+                específico.</li>
+                <li>Quem enviou consegue ver <strong>quem já leu</strong> a mensagem. A ideia não é cobrar ninguém: é
+                evitar a dúvida de "será que chegou?" e a mensagem repetida por garantia.</li>
+            </ul>
+
+            <p class="pub-lead">Se alguma cor parecer errada, ou o chat não atualizar como deveria, me avise. É mais
+            rápido arrumar do que conviver.</p>
+        `
+    },
+    {
         id: 'nova-aba-instrucoes',
         nivel: 'info',
         tag: 'Atualização do sistema',
@@ -2053,30 +2200,83 @@ function notificacaoEhParaMim(n) {
 }
 
 // ── Sincronização automática do sino ─────────────────────────────────────
-// A cada 5s busca só os processos alterados desde o updated_at mais recente já
-// carregado (o trigger atualiza updated_at a cada mudança). Na maior parte das
-// vezes a consulta volta vazia, então o custo é mínimo.
-const INTERVALO_NOTIFICACOES_PAINEL_MS = 5000;
+// Busca os processos alterados desde a última verificação e atualiza o sino.
+//
+// A consulta é feita em DUAS ETAPAS de propósito:
+//   1ª) descobre QUAIS processos mudaram lendo só `id` e `updated_at`, colunas
+//       pequenas, sem encostar em `dados`;
+//   2ª) só então lê o menu de notificações das poucas linhas que interessam.
+//
+// Pedir `dados->notificacoes_menu` direto obriga o Postgres a descomprimir a
+// coluna `dados` INTEIRA (que guarda anexos em base64, com processos de até
+// 14 MB) de cada linha que casar com o filtro — é a mesma armadilha já
+// documentada em carregarSolicitacoes. Em produção esta era disparadamente a
+// consulta mais cara do banco: 508 chamadas somando 121s, com picos de 7s.
+const INTERVALO_NOTIFICACOES_PAINEL_MS = 30000;
+// Sem interação nenhuma por este tempo, o polling para até a pessoa voltar.
+// `document.hidden` não cobre o caso mais comum: a aba fica em primeiro plano
+// e a pessoa sai para almoçar — o navegador não suspende esses timers.
+const INATIVIDADE_MAXIMA_PAINEL_MS = 5 * 60 * 1000;
+
 let pollingNotificacoesPainel = null;
 let sincronizandoNotificacoes = false;
+let ultimaInteracaoUsuario = Date.now();
+// Até onde já verificamos. Precisa ser guardado à parte de dadosTabela: se o
+// marco saísse sempre das linhas em tela, um processo alterado que não está na
+// página atual manteria o filtro parado no passado e a mesma leva voltaria em
+// toda sincronização, para sempre.
+let marcoSincronizacaoNotificacoes = null;
+
+function registrarInteracaoUsuario() {
+    const estavaOcioso = Date.now() - ultimaInteracaoUsuario > INATIVIDADE_MAXIMA_PAINEL_MS;
+    ultimaInteracaoUsuario = Date.now();
+    if (estavaOcioso) sincronizarNotificacoesPainel();
+}
 
 async function sincronizarNotificacoesPainel() {
     if (document.hidden || sincronizandoNotificacoes || !dadosTabela || dadosTabela.length === 0) return;
+    if (Date.now() - ultimaInteracaoUsuario > INATIVIDADE_MAXIMA_PAINEL_MS) return;
 
-    const maisRecente = dadosTabela.reduce((max, i) => (i.updated_at && i.updated_at > max ? i.updated_at : max), '');
-    if (!maisRecente) return;
+    if (!marcoSincronizacaoNotificacoes) {
+        marcoSincronizacaoNotificacoes = dadosTabela.reduce((max, i) => (i.updated_at && i.updated_at > max ? i.updated_at : max), '');
+    }
+    if (!marcoSincronizacaoNotificacoes) return;
 
     sincronizandoNotificacoes = true;
     try {
-        const { data, error } = await supabaseClient
+        // 1ª etapa: colunas pequenas. No caso comum volta vazia e acaba aqui.
+        // Ordem crescente: se houver mais alterações do que o limite, o marco
+        // avança até a última desta leva e a próxima verificação pega o resto,
+        // em vez de pular o que ficou para trás.
+        const { data: alterados, error } = await supabaseClient
+            .from('processos')
+            .select('id, updated_at')
+            .gt('updated_at', marcoSincronizacaoNotificacoes)
+            .order('updated_at', { ascending: true })
+            .limit(100);
+
+        if (error || !alterados || alterados.length === 0) return;
+
+        // O marco avança mesmo para processos fora da tela, senão eles voltariam
+        // em toda verificação sem nunca sair do filtro.
+        marcoSincronizacaoNotificacoes = alterados.reduce(
+            (max, p) => (p.updated_at && p.updated_at > max ? p.updated_at : max),
+            marcoSincronizacaoNotificacoes
+        );
+
+        const idsVisiveis = alterados
+            .filter(p => dadosTabela.some(i => i.id === p.id))
+            .map(p => p.id);
+        if (idsVisiveis.length === 0) return;
+
+        // 2ª etapa: agora sim lê `dados`, e só das linhas que estão na tela
+        const { data: menus } = await supabaseClient
             .from('processos')
             .select('id, updated_at, notificacoes_menu:dados->notificacoes_menu')
-            .gt('updated_at', maisRecente)
-            .limit(100);
-        if (error || !data || data.length === 0) return;
+            .in('id', idsVisiveis);
 
         let mudou = false;
-        data.forEach(p => {
+        (menus || []).forEach(p => {
             const item = dadosTabela.find(i => i.id === p.id);
             if (!item) return;
             item.updated_at = p.updated_at;
@@ -2099,8 +2299,14 @@ async function sincronizarNotificacoesPainel() {
 function iniciarSincronizacaoNotificacoesPainel() {
     if (pollingNotificacoesPainel) return;
     pollingNotificacoesPainel = setInterval(sincronizarNotificacoesPainel, INTERVALO_NOTIFICACOES_PAINEL_MS);
+
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) sincronizarNotificacoesPainel();
+        if (!document.hidden) registrarInteracaoUsuario();
+    });
+
+    // Qualquer sinal de que tem alguém ali mantém a sincronização viva
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(evento => {
+        document.addEventListener(evento, registrarInteracaoUsuario, { passive: true });
     });
 }
 

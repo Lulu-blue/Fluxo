@@ -1860,6 +1860,63 @@ body {
     max-width: 66ch;
 }
 
+/* Legenda de cores dentro de uma publicação (amostra + explicação) */
+.pub-cores {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 66ch;
+}
+
+.pub-cores li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+
+.pub-cor {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+/* Amostra da listra de status: fundo branco com a borda colorida, como na tabela */
+.pub-cor-listra {
+    background-color: var(--bg-white);
+    border-left-width: 6px;
+    border-left-style: solid;
+}
+
+.pub-cores strong {
+    display: block;
+    font-size: 0.92rem;
+    color: var(--text-color);
+    margin-bottom: 2px;
+}
+
+.pub-cor-desc {
+    display: block;
+    font-size: 0.87rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* As bolinhas de prazo entram como amostra na legenda, sem esticar */
+.pub-cores .dias-badge {
+    flex-shrink: 0;
+    min-width: 76px;
+    text-align: center;
+}
+
 
 .aviso-leitura code,
 .instr-passos code {
