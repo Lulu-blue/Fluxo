@@ -13845,15 +13845,25 @@ async function reservarNumeroOficioGfp() {
 
             if (errRes || !numReservado) {
                 console.warn('[OFÍCIO GFP] RPC reservar_numero falhou, usando fallback local:', errRes?.message);
-                const { data } = await supabaseClient
-                    .from('documentos')
-                    .select('numero_sequencial')
-                    .eq('tipo', CATEGORIA_OFICIO_GFP)
-                    .like('numero_sequencial', `${anoAtual}/%`);
+                // A sequência é dividida com os ofícios avulsos do painel (tabela oficios_gfp)
+                const [{ data }, { data: avulsos }] = await Promise.all([
+                    supabaseClient
+                        .from('documentos')
+                        .select('numero_sequencial')
+                        .eq('tipo', CATEGORIA_OFICIO_GFP)
+                        .like('numero_sequencial', `${anoAtual}/%`),
+                    supabaseClient
+                        .from('oficios_gfp')
+                        .select('numero')
+                        .eq('ano', anoAtual)
+                ]);
 
                 let max = 0;
-                (data || []).forEach(item => {
-                    const val = parseInt(String(item.numero_sequencial || '').split('/')[1], 10);
+                [
+                    ...(data || []).map(item => item.numero_sequencial),
+                    ...(avulsos || []).map(item => item.numero)
+                ].forEach(numeroUsado => {
+                    const val = parseInt(String(numeroUsado || '').split('/')[1], 10);
                     if (!isNaN(val) && val > max) max = val;
                 });
                 numero = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;

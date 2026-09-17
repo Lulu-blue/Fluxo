@@ -1667,6 +1667,174 @@ body {
 .editor-documento-a4 strong {
     font-weight: bold;
 }
+
+/* ── Ofício SEMAC - GFP avulso ────────────────────────────── */
+.oficio-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 28px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-offwhite);
+}
+
+.oficio-toolbar button {
+    min-width: 32px;
+    padding: 5px 9px;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.oficio-toolbar button:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.oficio-toolbar-sep {
+    width: 1px;
+    height: 20px;
+    margin: 0 4px;
+    background: var(--border-color);
+}
+
+.oficio-aviso-bloqueado {
+    padding: 10px 28px;
+    background: #fff7ed;
+    border-bottom: 1px solid #fed7aa;
+    color: #9a3412;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.oficio-avulso-status {
+    padding: 40px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.oficio-avulso-folha {
+    background: white;
+    width: 210mm;
+    max-width: 100%;
+    min-height: 297mm;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.oficio-avulso-folha [contenteditable="true"] {
+    outline: none;
+}
+
+.oficio-avulso-numero {
+    background: #fef3c7;
+    border-radius: 3px;
+    padding: 0 3px;
+    cursor: not-allowed;
+}
+
+/* Imagens dentro do ofício: clique seleciona, a alça no canto redimensiona */
+#modalOficioAvulso .modal-editor-body {
+    position: relative;
+}
+
+.oficio-avulso-folha img {
+    cursor: pointer;
+}
+
+.oficio-imagem-selecionada {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.oficio-imagem-alca {
+    position: absolute;
+    z-index: 5;
+    width: 16px;
+    height: 16px;
+    background: #2563eb;
+    border: 2px solid #fff;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    cursor: nwse-resize;
+    touch-action: none;
+}
+
+.oficio-imagem-alca span {
+    position: absolute;
+    top: 20px;
+    right: 0;
+    padding: 2px 6px;
+    background: #1e293b;
+    color: #fff;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+}
+
+.oficio-imagem-enviando {
+    display: inline-block;
+    padding: 4px 10px;
+    margin: 4px 0;
+    background: #eff6ff;
+    border: 1px dashed #2563eb;
+    border-radius: 6px;
+    color: #1d4ed8;
+    font-size: 10pt;
+    font-style: italic;
+}
+
+/* Aba Ofícios */
+.oficio-origem,
+.oficio-situacao {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.oficio-origem-avulso   { background: #fff4e5; color: #b45309; }
+.oficio-origem-etapa15  { background: #e0f2fe; color: #0369a1; }
+.oficio-situacao-baixado  { background: #dcfce7; color: #166534; }
+.oficio-situacao-rascunho { background: #f1f5f9; color: #475569; }
+
+.oficio-acao {
+    padding: 6px 12px;
+    background: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-color);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.oficio-acao:hover {
+    border-color: var(--accent-color);
+}
+
+.oficio-acao + .oficio-acao {
+    margin-left: 6px;
+}
+
+.oficio-acao-perigo {
+    color: var(--danger-color);
+}
+
+.oficio-acao-perigo:hover {
+    border-color: var(--danger-color);
+    background: rgba(239, 68, 68, 0.04);
+}
 /* ── AVISOS E INSTRUÇÕES ──────────────────────────────────── */
 .quadro-wrapper {
     max-width: 860px;

@@ -208,6 +208,41 @@ function usuarioVeDestaqueMulta() {
     return !!(chk && chk.checked) && cargoPodeUsarDestaqueMulta();
 }
 
+// ── Botões do cabeçalho: Novo Processo × Gerar Ofício ───────
+// Só o Fiscal abre processo (é ele quem assina o Relatório e o Auto de Infração).
+// O Gerente de Posturas ganha, no mesmo lugar, o Ofício SEMAC - GFP avulso.
+// O Dev vê os dois botões, lado a lado, para poder testar os dois fluxos.
+// Gerente de Posturas é comparado pelo cargo exato, como no destaque de multa,
+// para não liberar outras gerências.
+function usuarioPodeCriarProcesso() {
+    const cargo = normalizarCargo(window.currentUserProfile?.cargo);
+    return cargo === 'Fiscal de Postura' || cargo === 'Dev';
+}
+
+function usuarioPodeGerarOficioAvulso() {
+    const cargoBruto = window.currentUserProfile?.cargo || '';
+    if (normalizarCargo(cargoBruto) === 'Dev') return true;
+    const cargo = cargoBruto
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return cargo === 'gerente de posturas';
+}
+
+function configurarBotoesAcaoPorCargo() {
+    const btnNovo = document.getElementById('btnNovaSolicitacao');
+    const btnOficio = document.getElementById('btnGerarOficio');
+    const tabOficios = document.getElementById('tab-oficios');
+    if (btnNovo) btnNovo.style.display = usuarioPodeCriarProcesso() ? '' : 'none';
+    if (btnOficio) btnOficio.style.display = usuarioPodeGerarOficioAvulso() ? '' : 'none';
+    if (tabOficios) tabOficios.style.display = usuarioPodeGerarOficioAvulso() ? 'flex' : 'none';
+}
+
+window.usuarioPodeCriarProcesso = usuarioPodeCriarProcesso;
+window.usuarioPodeGerarOficioAvulso = usuarioPodeGerarOficioAvulso;
+
 // Mostra o filtro do destaque só para os cargos que cuidam da multa
 function configurarFiltroDestaqueMulta() {
     const grupo = document.getElementById('grupoDestaqueMulta');
@@ -461,6 +496,8 @@ function preencherDadosInterfaceUsuario(usuario) {
 
     // Filtro do destaque de multa: visível só para os cargos que cuidam dela
     configurarFiltroDestaqueMulta();
+
+    configurarBotoesAcaoPorCargo();
 }
 
 // ── Carregar solicitações com filtros ────────────────────────
@@ -1314,9 +1351,10 @@ function bindEventos() {
         }
     });
 
-    // Navegação Menu Lateral (Solicitações / Avisos / Instruções / Apuração / Configurações)
+    // Navegação Menu Lateral (Solicitações / Ofícios / Avisos / Instruções / Apuração / Configurações)
     const TITULOS_PAGINA = {
         solicitacoes: 'Solicitações',
+        oficios: 'Ofícios',
         avisos: 'Avisos',
         instrucoes: 'Instruções',
         apuracao: 'Apuração de Dados',
@@ -1351,6 +1389,13 @@ function bindEventos() {
                 if (headerActions) headerActions.style.display = 'none';
                 if (page === 'instrucoes') restaurarChecklistInstrucoes();
                 if (page === 'avisos') renderizarFeedAvisos();
+            } else if (page === 'oficios') {
+                const secaoOficios = document.getElementById('secao-oficios');
+                if (secaoOficios) secaoOficios.style.display = 'block';
+                if (pageTitle) pageTitle.textContent = TITULOS_PAGINA[page];
+                // A aba tem o próprio botão "Gerar Ofício" junto da lista
+                if (headerActions) headerActions.style.display = 'none';
+                if (typeof window.carregarListaOficios === 'function') window.carregarListaOficios();
             } else if (page === 'configuracoes') {
                 if (secaoConfiguracoes) secaoConfiguracoes.style.display = 'block';
                 if (pageTitle) pageTitle.textContent = 'Configurações';

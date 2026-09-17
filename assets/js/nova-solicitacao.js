@@ -104,6 +104,12 @@ window.addEventListener('beforeunload', () => {
 
 // ── Abrir / Fechar Modal ────────────────────────────────────
 async function abrirModal() {
+    // O botão já fica oculto para os outros cargos; isto cobre chamadas diretas
+    if (typeof window.usuarioPodeCriarProcesso === 'function' && !window.usuarioPodeCriarProcesso()) {
+        alert('⚠️ Apenas o Fiscal de Postura pode abrir um novo processo.');
+        return;
+    }
+
     const modal = document.getElementById('modalNovaSolicitacao');
     if (modal) modal.classList.add('open');
     document.body.style.overflow = 'hidden';

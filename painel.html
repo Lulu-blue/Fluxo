@@ -71,6 +71,15 @@
                         <!-- Notificações -->
                     </div>
                 </div>
+                <!-- Só aparece para Gerente de Posturas e Dev (ver configurarBotoesAcaoPorCargo) -->
+                <a href="#" id="tab-oficios" data-page="oficios" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                    </svg>
+                    Ofícios
+                </a>
                 <a href="#" data-page="avisos">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round">
@@ -149,13 +158,24 @@
                         </svg>
                         Exportar CSV
                     </button>
-                    <button class="btn-primary" id="btnNovaSolicitacao">
+                    <!-- Os dois ficam ocultos até o perfil carregar (ver configurarBotoesAcaoPorCargo) -->
+                    <button class="btn-primary" id="btnNovaSolicitacao" style="display: none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19" />
                             <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
                         Novo Processo
+                    </button>
+                    <button class="btn-primary" id="btnGerarOficio" style="display: none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="12" y1="18" x2="12" y2="12" />
+                            <line x1="9" y1="15" x2="15" y2="15" />
+                        </svg>
+                        Gerar Ofício
                     </button>
                 </div>
             </header>
@@ -395,6 +415,95 @@
                         ✨ Todos os registros foram carregados! Total: <span id="totalSumCount" style="color: #0f172a; font-weight: 800;">0</span> solicitações.
                     </div>
                 </div>
+            </main>
+
+            <!-- Seção de Ofícios SEMAC - GFP (avulsos do painel + Etapa 15) -->
+            <main class="painel-content" id="secao-oficios" style="display: none;">
+                <section class="filters-panel open">
+                    <div class="filters-grid">
+                        <div class="filter-group" style="grid-column: 1 / -1;">
+                            <label for="filtroOficioBusca">Buscar</label>
+                            <input type="search" id="filtroOficioBusca" placeholder="Número, assunto ou qualquer palavra do texto..."
+                                autocomplete="off" spellcheck="false">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filtroOficioDataInicio">Data Início</label>
+                            <input type="date" id="filtroOficioDataInicio">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filtroOficioDataFim">Data Final</label>
+                            <input type="date" id="filtroOficioDataFim">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filtroOficioOrigem">Origem</label>
+                            <select id="filtroOficioOrigem">
+                                <option value="">Todas</option>
+                                <option value="avulso">Gerados no painel</option>
+                                <option value="etapa15">Etapa 15 (processos)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filters-actions">
+                        <button class="btn-filter-apply" id="btnPesquisarOficios">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            Pesquisar
+                        </button>
+                        <button class="btn-filter-clear" id="btnLimparFiltrosOficios">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                            Limpar Filtros
+                        </button>
+                    </div>
+                </section>
+
+                <div class="results-bar">
+                    <span class="results-count" id="oficiosCount">Carregando...</span>
+                    <button class="btn-primary" id="btnGerarOficioAba">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="12" y1="18" x2="12" y2="12" />
+                            <line x1="9" y1="15" x2="15" y2="15" />
+                        </svg>
+                        Gerar Ofício
+                    </button>
+                </div>
+
+                <section class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nº</th>
+                                <th>Data</th>
+                                <th>Origem</th>
+                                <th>Assunto / Processo</th>
+                                <th>Gerado por</th>
+                                <th>Situação</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaOficiosBody"></tbody>
+                    </table>
+
+                    <div class="empty-state" id="oficiosVazio" style="display: none;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                            <polyline points="22,6 12,13 2,6" />
+                        </svg>
+                        <h3>Nenhum ofício encontrado</h3>
+                        <p>Gere um novo ofício ou ajuste os filtros de busca.</p>
+                    </div>
+
+                    <div class="loading-state" id="oficiosCarregando" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>Carregando ofícios...</p>
+                    </div>
+                </section>
             </main>
 
             <!-- Seção de Apuração de Dados Executiva -->
@@ -1329,6 +1438,82 @@
     </div>
     <!-- FIM MODAL EDITOR RELATÓRIO -->
 
+    <!-- ============================================================ -->
+    <!-- MODAL: Ofício SEMAC - GFP avulso (Gerente de Posturas / Dev) -->
+    <!-- ============================================================ -->
+    <div class="modal-overlay" id="modalOficioAvulso" style="z-index: 2000;">
+        <div class="modal-container modal-editor-container">
+            <div class="modal-header">
+                <div class="modal-title-area">
+                    <h2>Ofício SEMAC - GFP <span id="oficioAvulsoNumeroTitulo"></span></h2>
+                    <span class="modal-subtitle" id="oficioAvulsoSubtitulo">Edite direto no documento. Arraste ou cole imagens no texto; clique na imagem e puxe o canto azul para mudar o tamanho.</span>
+                </div>
+                <button class="modal-close" id="btnFecharOficioAvulso" title="Fechar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="oficio-toolbar" id="oficioAvulsoToolbar">
+                <button type="button" data-comando="bold" title="Negrito"><strong>N</strong></button>
+                <button type="button" data-comando="italic" title="Itálico"><em>I</em></button>
+                <button type="button" data-comando="underline" title="Sublinhado"><u>S</u></button>
+                <span class="oficio-toolbar-sep"></span>
+                <button type="button" data-comando="justifyLeft" title="Alinhar à esquerda">Esquerda</button>
+                <button type="button" data-comando="justifyCenter" title="Centralizar">Centro</button>
+                <button type="button" data-comando="justifyRight" title="Alinhar à direita">Direita</button>
+                <button type="button" data-comando="justifyFull" title="Justificar">Justificar</button>
+                <span class="oficio-toolbar-sep"></span>
+                <button type="button" data-comando="insertUnorderedList" title="Lista com marcadores">• Lista</button>
+                <button type="button" data-comando="insertOrderedList" title="Lista numerada">1. Lista</button>
+                <span class="oficio-toolbar-sep"></span>
+                <button type="button" id="btnInserirImagemOficio" title="Inserir imagem (também dá para arrastar ou colar)">🖼 Imagem</button>
+                <input type="file" id="inputImagemOficio" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" multiple hidden>
+                <span class="oficio-toolbar-sep"></span>
+                <button type="button" data-comando="undo" title="Desfazer">↶</button>
+                <button type="button" data-comando="redo" title="Refazer">↷</button>
+            </div>
+
+            <div id="oficioAvulsoAviso" class="oficio-aviso-bloqueado" style="display: none;"></div>
+
+            <div class="modal-body modal-editor-body">
+                <div id="containerOficioAvulso">
+                    <div class="oficio-avulso-status">Reservando o número do ofício...</div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btnDescartarOficioAvulso">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                    </svg>
+                    Descartar
+                </button>
+                <div style="flex:1;"></div>
+                <button class="btn-primary" id="btnSalvarOficioAvulso" style="margin-right: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                    Salvar
+                </button>
+                <button class="btn-primary btn-success" id="btnBaixarOficioAvulso">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                    Baixar Ofício (.pdf)
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- FIM MODAL OFÍCIO AVULSO -->
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -1338,6 +1523,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/solicitacoes.js"></script>
     <script src="assets/js/nova-solicitacao.js"></script>
+    <script src="assets/js/oficio-avulso.js"></script>
     <script src="assets/js/chat_juridico.js"></script>
 </body>
 

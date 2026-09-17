@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Compatibilidade da IA - SEMAC</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            padding: 32px 16px;
+        }
+
+        .container { max-width: 760px; margin: 0 auto; }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            margin-bottom: 20px;
+        }
+
+        h1 { font-size: 1.4rem; margin: 0 0 6px; }
+        h2 { font-size: 1.05rem; margin: 0 0 14px; }
+        p { margin: 0 0 10px; color: #475569; line-height: 1.5; font-size: 0.95rem; }
+
+        .btn {
+            border: none;
+            border-radius: 10px;
+            padding: 12px 20px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-sec { background: #e2e8f0; color: #1e293b; }
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+        .item {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .item:last-child { border-bottom: none; }
+
+        .dot {
+            flex: 0 0 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+            background: #cbd5e1;
+            margin-top: 1px;
+        }
+
+        .ok { background: #16a34a; }
+        .aviso { background: #d97706; }
+        .erro { background: #dc2626; }
+
+        .item-titulo { font-weight: 600; font-size: 0.95rem; }
+        .item-detalhe { color: #64748b; font-size: 0.85rem; margin-top: 2px; word-break: break-word; }
+
+        .veredito {
+            border-radius: 12px;
+            padding: 16px 18px;
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+        .veredito.ok { background: #dcfce7; color: #14532d; }
+        .veredito.aviso { background: #fef3c7; color: #78350f; }
+        .veredito.erro { background: #fee2e2; color: #7f1d1d; }
+
+        .progresso { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin: 12px 0 6px; }
+        .progresso > div { height: 100%; width: 0; background: #2563eb; transition: width 0.3s; }
+
+        pre {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Teste de compatibilidade da IA</h1>
+            <p>Esta página verifica se este computador consegue rodar a assistente de IA do Parecer Jurídico
+                <strong>direto no navegador</strong>, sem instalar nada e sem enviar dados para fora.</p>
+            <p>Use o <strong>Google Chrome</strong> ou o <strong>Microsoft Edge</strong>. O teste rápido leva poucos segundos.</p>
+            <div class="btn-row">
+                <button class="btn" id="btnRapido" onclick="testeRapido()">Iniciar teste rápido</button>
+            </div>
+        </div>
+
+        <div class="card" id="cardResultado" hidden>
+            <h2>Resultado</h2>
+            <div id="lista"></div>
+            <div class="veredito" id="veredito" hidden style="margin-top:14px;"></div>
+            <div class="btn-row">
+                <button class="btn btn-sec" onclick="copiarResultado()">Copiar resultado</button>
+            </div>
+        </div>
+
+        <div class="card" id="cardCompleto" hidden>
+            <h2>Teste real (opcional)</h2>
+            <p>Baixa um modelo de IA pequeno (cerca de <strong>300 a 400 MB</strong>, uma única vez) e faz ele analisar
+                uma defesa fictícia. Mostra a velocidade real neste computador. Pode levar alguns minutos, dependendo da
+                internet.</p>
+            <div class="btn-row">
+                <button class="btn" id="btnCompleto" onclick="testeCompleto()">Fazer teste real</button>
+                <button class="btn btn-sec" id="btnApagar" onclick="apagarModelo()" hidden>Apagar modelo de teste</button>
+            </div>
+            <div id="areaProgresso" hidden>
+                <div class="progresso"><div id="barra"></div></div>
+                <div class="item-detalhe" id="textoProgresso"></div>
+            </div>
+            <div id="listaCompleto" style="margin-top:10px;"></div>
+            <pre id="respostaModelo" hidden></pre>
+        </div>
+    </div>
+
+    <script>
+        const resultados = [];   // { grupo, titulo, status, detalhe }
+        const info = {};         // dados usados no veredito
+        let webllm = null;
+        let modeloTeste = null;
+
+        const URLS_REDE = [
+            { nome: 'Hugging Face (arquivos do modelo)', url: 'https://huggingface.co/mlc-ai/Qwen2.5-0.5B-Instruct-q4f16_1-MLC/resolve/main/mlc-chat-config.json', chave: 'hf' },
+            { nome: 'GitHub (bibliotecas do modelo)', url: 'https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/README.md', chave: 'github' },
+            { nome: 'jsDelivr (biblioteca WebLLM)', url: 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2/package.json', chave: 'jsdelivr' }
+        ];
+
+        const SIMBOLO = { ok: '✓', aviso: '!', erro: '✕' };
+
+        function adicionar(listaId, grupo, titulo, status, detalhe) {
+            resultados.push({ grupo, titulo, status, detalhe });
+            const el = document.createElement('div');
+            el.className = 'item';
+            el.innerHTML = `<div class="dot ${status}">${SIMBOLO[status]}</div>
+                <div><div class="item-titulo"></div><div class="item-detalhe"></div></div>`;
+            el.querySelector('.item-titulo').textContent = titulo;
+            el.querySelector('.item-detalhe').textContent = detalhe;
+            document.getElementById(listaId).appendChild(el);
+        }
+
+        function gb(bytes) {
+            return (bytes / 1024 ** 3).toFixed(1).replace('.', ',') + ' GB';
+        }
+
+        function descreverNavegador() {
+            const marcas = navigator.userAgentData?.brands
+                ?.filter(b => !/not.?a.?brand/i.test(b.brand))
+                .map(b => `${b.brand} ${b.version}`);
+            if (marcas && marcas.length) return marcas.join(', ');
+            return navigator.userAgent;
+        }
+
+        // ---------------------------------------------------------------- teste rápido
+
+        async function testeRapido() {
+            const btn = document.getElementById('btnRapido');
+            btn.disabled = true;
+            btn.textContent = 'Testando...';
+            resultados.length = 0;
+            document.getElementById('lista').innerHTML = '';
+            document.getElementById('veredito').hidden = true;
+            document.getElementById('cardResultado').hidden = false;
+
+            testarAmbiente();
+            await testarWebGPU();
+            await testarArmazenamento();
+            await testarRede();
+            if (info.gpuOk) await benchmarkGPU();
+
+            mostrarVeredito();
+            document.getElementById('cardCompleto').hidden = !info.gpuOk;
+            btn.disabled = false;
+            btn.textContent = 'Testar novamente';
+        }
+
+        function testarAmbiente() {
+            const nav = descreverNavegador();
+            const chromium = /Chrom|Edge|Edg/i.test(nav);
+            adicionar('lista', 'Ambiente', 'Navegador', chromium ? 'ok' : 'aviso',
+                nav + (chromium ? '' : ' — recomendado usar Chrome ou Edge'));
+
+            adicionar('lista', 'Ambiente', 'Conexão segura (HTTPS)', window.isSecureContext ? 'ok' : 'erro',
+                window.isSecureContext ? 'Sim' : 'Não — a IA no navegador exige que a página seja aberta por https://');
+
+            info.nucleos = navigator.hardwareConcurrency || 0;
+            adicionar('lista', 'Ambiente', 'Processador', info.nucleos >= 4 ? 'ok' : 'aviso',
+                info.nucleos ? `${info.nucleos} núcleos lógicos` : 'Não informado pelo navegador');
+
+            info.memoria = navigator.deviceMemory || 0;
+            let statusMem = 'aviso';
+            let detalheMem = 'Não informado pelo navegador';
+            if (info.memoria) {
+                // O Chrome arredonda e limita esse valor em 8 GB.
+                statusMem = info.memoria >= 8 ? 'ok' : (info.memoria >= 4 ? 'aviso' : 'erro');
+                detalheMem = info.memoria >= 8 ? '8 GB ou mais' : `Aproximadamente ${info.memoria} GB`;
+            }
+            adicionar('lista', 'Ambiente', 'Memória RAM', statusMem, detalheMem);
+        }
+
+        async function testarWebGPU() {
+            info.gpuOk = false;
+            if (!navigator.gpu) {
+                adicionar('lista', 'WebGPU', 'WebGPU (aceleração da IA)', 'erro',
+                    'Não disponível neste navegador. Atualize o Chrome/Edge ou verifique se a aceleração de hardware está ativada.');
+                return;
+            }
+
+            let adapter = null;
+            try {
+                adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+            } catch (e) {
+                adapter = null;
+            }
+            if (!adapter) {
+                adicionar('lista', 'WebGPU', 'WebGPU (aceleração da IA)', 'erro',
+                    'O navegador tem WebGPU, mas não encontrou uma placa de vídeo compatível (pode estar bloqueada pelo driver).');
+                return;
+            }
+
+            let dadosGpu = adapter.info;
+            if (!dadosGpu && adapter.requestAdapterInfo) {
+                try { dadosGpu = await adapter.requestAdapterInfo(); } catch (e) { dadosGpu = null; }
+            }
+            const nomeGpu = [dadosGpu?.vendor, dadosGpu?.architecture, dadosGpu?.description]
+                .filter(Boolean).join(' / ') || 'Modelo não informado';
+
+            if (adapter.isFallbackAdapter || dadosGpu?.isFallbackAdapter) {
+                adicionar('lista', 'WebGPU', 'WebGPU (aceleração da IA)', 'erro',
+                    `Só há emulação por software (${nomeGpu}). Ficaria lento demais.`);
+                return;
+            }
+
+            info.gpuOk = true;
+            info.adapter = adapter;
+            info.gpuNome = nomeGpu;
+            info.f16 = adapter.features.has('shader-f16');
+            info.maxBuffer = adapter.limits.maxStorageBufferBindingSize;
+
+            adicionar('lista', 'WebGPU', 'WebGPU (aceleração da IA)', 'ok', `Disponível — ${nomeGpu}`);
+            adicionar('lista', 'WebGPU', 'Suporte a shader-f16', info.f16 ? 'ok' : 'aviso',
+                info.f16 ? 'Sim (modelos mais leves e rápidos)' : 'Não — usa a versão f32 dos modelos, que ocupa mais memória');
+            adicionar('lista', 'WebGPU', 'Memória utilizável pela GPU (por bloco)', info.maxBuffer >= 1024 ** 3 ? 'ok' : 'aviso',
+                gb(info.maxBuffer));
+        }
+
+        async function testarArmazenamento() {
+            info.quota = 0;
+            try {
+                const est = await navigator.storage.estimate();
+                info.quota = (est.quota || 0) - (est.usage || 0);
+            } catch (e) { /* navegador sem suporte */ }
+
+            if (!info.quota) {
+                adicionar('lista', 'Armazenamento', 'Espaço para guardar o modelo', 'aviso', 'Não foi possível verificar');
+                return;
+            }
+            const status = info.quota >= 4 * 1024 ** 3 ? 'ok' : (info.quota >= 2 * 1024 ** 3 ? 'aviso' : 'erro');
+            adicionar('lista', 'Armazenamento', 'Espaço para guardar o modelo', status,
+                `${gb(info.quota)} disponíveis para o navegador (modelos ocupam de 0,4 a 2 GB)`);
+        }
+
+        async function testarRede() {
+            info.rede = {};
+            await Promise.all(URLS_REDE.map(async alvo => {
+                const inicio = performance.now();
+                try {
+                    const resp = await fetch(alvo.url, { cache: 'no-store' });
+                    const ms = Math.round(performance.now() - inicio);
+                    info.rede[alvo.chave] = resp.ok;
+                    adicionar('lista', 'Rede', alvo.nome, resp.ok ? 'ok' : 'aviso',
+                        resp.ok ? `Acessível (${ms} ms)` : `Respondeu com erro HTTP ${resp.status}`);
+                } catch (e) {
+                    info.rede[alvo.chave] = false;
+                    adicionar('lista', 'Rede', alvo.nome, 'erro', 'Bloqueado ou sem conexão (possível bloqueio da rede da prefeitura)');
+                }
+            }));
+        }
+
+        // Multiplicação de matrizes 512x512 na GPU: uma medida simples de desempenho.
+        async function benchmarkGPU() {
+            const N = 512;
+            try {
+                const device = await info.adapter.requestDevice();
+                const shader = device.createShaderModule({
+                    code: `
+                        @group(0) @binding(0) var<storage, read> a: array<f32>;
+                        @group(0) @binding(1) var<storage, read> b: array<f32>;
+                        @group(0) @binding(2) var<storage, read_write> c: array<f32>;
+                        @group(0) @binding(3) var<uniform> n: u32;
+                        @compute @workgroup_size(8, 8)
+                        fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+                            if (id.x >= n || id.y >= n) { return; }
+                            var s = 0.0;
+                            for (var k = 0u; k < n; k++) { s += a[id.y * n + k] * b[k * n + id.x]; }
+                            c[id.y * n + id.x] = s;
+                        }`
+                });
+
+                const tamanho = N * N * 4;
+                const criarBuffer = (usage, dados) => {
+                    const buf = device.createBuffer({ size: dados ? dados.byteLength : tamanho, usage });
+                    if (dados) device.queue.writeBuffer(buf, 0, dados);
+                    return buf;
+                };
+                const aleatorio = () => Float32Array.from({ length: N * N }, () => Math.random());
+                const bufA = criarBuffer(GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, aleatorio());
+                const bufB = criarBuffer(GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, aleatorio());
+                const bufC = criarBuffer(GPUBufferUsage.STORAGE);
+                const bufN = criarBuffer(GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, new Uint32Array([N]));
+
+                const pipeline = device.createComputePipeline({ layout: 'auto', compute: { module: shader, entryPoint: 'main' } });
+                const bindGroup = device.createBindGroup({
+                    layout: pipeline.getBindGroupLayout(0),
+                    entries: [bufA, bufB, bufC, bufN].map((buffer, binding) => ({ binding, resource: { buffer } }))
+                });
+
+                const rodar = async () => {
+                    const encoder = device.createCommandEncoder();
+                    const pass = encoder.beginComputePass();
+                    pass.setPipeline(pipeline);
+                    pass.setBindGroup(0, bindGroup);
+                    pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8));
+                    pass.end();
+                    device.queue.submit([encoder.finish()]);
+                    await device.queue.onSubmittedWorkDone();
+                };
+
+                await rodar(); // aquecimento
+                const repeticoes = 5;
+                const inicio = performance.now();
+                for (let i = 0; i < repeticoes; i++) await rodar();
+                const segundos = (performance.now() - inicio) / 1000;
+                info.gflops = (repeticoes * N ** 3) / segundos / 1e9;
+                device.destroy();
+
+                const status = info.gflops >= 3 ? 'ok' : (info.gflops >= 0.8 ? 'aviso' : 'erro');
+                const rotulo = status === 'ok' ? 'Bom' : (status === 'aviso' ? 'Médio' : 'Fraco');
+                adicionar('lista', 'Desempenho', 'Desempenho da GPU (estimativa)', status,
+                    `${rotulo} — ${info.gflops.toFixed(2).replace('.', ',')} GFLOPS. Para o número real, faça o teste real abaixo.`);
+            } catch (e) {
+                adicionar('lista', 'Desempenho', 'Desempenho da GPU (estimativa)', 'aviso', 'Não foi possível medir: ' + e.message);
+            }
+        }
+
+        function mostrarVeredito() {
+            const el = document.getElementById('veredito');
+            el.hidden = false;
+            const redeOk = info.rede?.hf && info.rede?.github && info.rede?.jsdelivr;
+            const obsRede = redeOk ? '' :
+                ' <br>Atenção: a rede bloqueou algum endereço. Os arquivos do modelo precisarão ser hospedados em outro local (ex.: Supabase).';
+
+            let classe;
+            let texto;
+            if (!info.gpuOk || !window.isSecureContext) {
+                classe = 'erro';
+                texto = '<strong>A IA no navegador não é viável neste computador.</strong> A Etapa 19 funcionará normalmente com os modelos de parecer, apenas sem a análise automática.';
+            } else if (info.gflops < 0.8 || (info.memoria && info.memoria < 4)) {
+                classe = 'aviso';
+                texto = '<strong>Viável, mas limitado.</strong> Recomenda-se um modelo pequeno (Qwen2.5 1.5B). Faça o teste real para confirmar a velocidade.';
+            } else if (info.memoria >= 8 && info.gflops >= 3) {
+                classe = 'ok';
+                texto = '<strong>Computador compatível.</strong> Deve rodar o modelo Qwen2.5 3B (o mesmo porte do NormaExtractor). Faça o teste real para confirmar.';
+            } else {
+                classe = 'aviso';
+                texto = '<strong>Provavelmente viável.</strong> Comece com o modelo Qwen2.5 1.5B e faça o teste real para ver se o 3B é possível.';
+            }
+            el.className = 'veredito ' + classe;
+            el.innerHTML = texto + obsRede;
+            info.veredito = el.textContent;
+        }
+
+        // ---------------------------------------------------------------- teste real
+
+        async function carregarWebLLM() {
+            if (!webllm) webllm = await import('https://esm.run/@mlc-ai/web-llm@0.2');
+            const ids = webllm.prebuiltAppConfig.model_list.map(m => m.model_id);
+            const preferido = info.f16 ? 'q4f16' : 'q4f32';
+            modeloTeste = ids.find(id => id.startsWith('Qwen2.5-0.5B-Instruct') && id.includes(preferido))
+                || ids.find(id => id.startsWith('Qwen2.5-0.5B-Instruct'));
+            if (!modeloTeste) throw new Error('Modelo de teste não encontrado na lista do WebLLM.');
+        }
+
+        async function testeCompleto() {
+            const btn = document.getElementById('btnCompleto');
+            const barra = document.getElementById('barra');
+            const textoProg = document.getElementById('textoProgresso');
+            btn.disabled = true;
+            document.getElementById('areaProgresso').hidden = false;
+            document.getElementById('listaCompleto').innerHTML = '';
+            const saida = document.getElementById('respostaModelo');
+            saida.hidden = true;
+
+            try {
+                textoProg.textContent = 'Carregando a biblioteca WebLLM...';
+                await carregarWebLLM();
+
+                const inicioCarga = performance.now();
+                const engine = await webllm.CreateMLCEngine(modeloTeste, {
+                    initProgressCallback: p => {
+                        barra.style.width = Math.round((p.progress || 0) * 100) + '%';
+                        textoProg.textContent = p.text;
+                    }
+                });
+                const segCarga = (performance.now() - inicioCarga) / 1000;
+                adicionar('listaCompleto', 'Teste real', 'Download e carregamento do modelo', 'ok',
+                    `${modeloTeste} em ${segCarga.toFixed(0)} s`);
+                document.getElementById('btnApagar').hidden = false;
+
+                textoProg.textContent = 'Analisando uma defesa fictícia...';
+                const defesa = 'Venho apresentar defesa contra o auto de infração por falta de limpeza do lote. ' +
+                    'O terreno foi limpo no dia seguinte ao recebimento da notificação, conforme fotos anexas. ' +
+                    'Além disso, estive internado no período e não tive condições de cumprir o prazo. Peço o cancelamento da multa.';
+                const inicioResp = performance.now();
+                const resp = await engine.chat.completions.create({
+                    temperature: 0,
+                    max_tokens: 200,
+                    messages: [
+                        { role: 'system', content: 'Você analisa defesas de autos de infração municipais. Responda apenas com JSON válido.' },
+                        { role: 'user', content: `Defesa:\n"""${defesa}"""\n\nResponda no formato {"resumo": "...", "alega_regularizacao": true/false, "alega_motivo_saude": true/false, "pedido": "..."}` }
+                    ]
+                });
+                const segResp = (performance.now() - inicioResp) / 1000;
+
+                const extra = resp.usage?.extra || {};
+                const tokensPorSeg = extra.decode_tokens_per_s || (resp.usage?.completion_tokens || 0) / segResp;
+                info.tokensPorSeg = tokensPorSeg;
+
+                const status = tokensPorSeg >= 15 ? 'ok' : (tokensPorSeg >= 5 ? 'aviso' : 'erro');
+                adicionar('listaCompleto', 'Teste real', 'Velocidade de geração (modelo 0,5B)', status,
+                    `${tokensPorSeg.toFixed(1).replace('.', ',')} tokens/s — resposta em ${segResp.toFixed(1).replace('.', ',')} s. ` +
+                    'Modelos maiores (1,5B / 3B) são aproximadamente 3 a 6 vezes mais lentos.');
+
+                saida.textContent = resp.choices[0].message.content;
+                saida.hidden = false;
+                textoProg.textContent = 'Teste concluído.';
+                await engine.unload();
+            } catch (e) {
+                adicionar('listaCompleto', 'Teste real', 'Teste real', 'erro', e.message || String(e));
+                textoProg.textContent = 'O teste falhou.';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function apagarModelo() {
+            try {
+                await carregarWebLLM();
+                await webllm.deleteModelAllInfoInCache(modeloTeste);
+                document.getElementById('btnApagar').hidden = true;
+                alert('Modelo de teste apagado do navegador.');
+            } catch (e) {
+                alert('Não foi possível apagar: ' + e.message);
+            }
+        }
+
+        // ---------------------------------------------------------------- copiar
+
+        async function copiarResultado() {
+            const linhas = ['TESTE DE COMPATIBILIDADE DA IA - SEMAC', new Date().toLocaleString('pt-BR'), ''];
+            resultados.forEach(r => linhas.push(`[${r.status.toUpperCase()}] ${r.titulo}: ${r.detalhe}`));
+            if (info.veredito) linhas.push('', 'VEREDITO: ' + info.veredito);
+            const texto = linhas.join('\n');
+            try {
+                await navigator.clipboard.writeText(texto);
+                alert('Resultado copiado. Cole na conversa (WhatsApp, e-mail etc.).');
+            } catch (e) {
+                prompt('Copie o texto abaixo:', texto);
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -527,6 +527,50 @@ INSERT INTO etapas (id, numero, nome, descricao, tipo)
 VALUES (100, 100, 'Gabriel José Vivas Pereira', NULL, 'Secretário Municipal de Fazenda')
 ON CONFLICT (id) DO NOTHING;
 
+-- ============================================================
+-- OFÍCIO GFP AVULSO (botão "Gerar Ofício" do painel)
+-- Não pertence a processo, então fica fora de `documentos`. Usa a mesma
+-- sequência 'Ofício GFP' da Etapa 15 — ver _numero_existe_em_uso.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS oficios_gfp (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    numero TEXT NOT NULL UNIQUE,
+    ano INTEGER NOT NULL,
+    assunto TEXT,
+    conteudo_html TEXT,                        -- Imagens ficam no Cloudinary; aqui só o link
+    texto_busca TEXT,                          -- Texto puro, minúsculo e sem acento (busca da aba Ofícios)
+    usuario_id UUID REFERENCES profiles(id),
+    baixado_em TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_oficios_gfp_ano ON oficios_gfp(ano);
+CREATE INDEX IF NOT EXISTS idx_oficios_gfp_created_at ON oficios_gfp(created_at);
+ALTER TABLE oficios_gfp ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "oficios_gfp_acesso_autenticado" ON oficios_gfp;
+CREATE POLICY "oficios_gfp_acesso_autenticado"
+    ON oficios_gfp FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Trava final: recusa um avulso com número que já saiu na Etapa 15
+CREATE OR REPLACE FUNCTION impedir_numero_oficio_gfp_repetido()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM documentos
+        WHERE tipo = 'Ofício GFP' AND numero_sequencial = NEW.numero
+    ) THEN
+        RAISE EXCEPTION 'O número de Ofício GFP % já foi usado na Etapa 15.', NEW.numero
+            USING ERRCODE = 'unique_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_oficio_gfp_numero_unico ON oficios_gfp;
+CREATE TRIGGER trg_oficio_gfp_numero_unico
+    BEFORE INSERT OR UPDATE OF numero ON oficios_gfp
+    FOR EACH ROW EXECUTE FUNCTION impedir_numero_oficio_gfp_repetido();
+
 -- Drop de TODAS as assinaturas sobrecarregadas de reservar_numero e devolver_numero no banco de dados
 DO $$ 
 DECLARE 
@@ -561,6 +605,13 @@ BEGIN
         ) INTO v_existe;
     ELSIF p_categoria = 'Réplica' THEN
         SELECT EXISTS(SELECT 1 FROM documentos WHERE tipo = 'Réplica' AND numero_sequencial = p_cand) INTO v_existe;
+    ELSIF p_categoria = 'Ofício GFP' THEN
+        -- Etapa 15 (documentos) e ofícios avulsos do painel (oficios_gfp) dividem a sequência
+        SELECT EXISTS(
+            SELECT 1 FROM documentos WHERE tipo = 'Ofício GFP' AND numero_sequencial = p_cand
+            UNION ALL
+            SELECT 1 FROM oficios_gfp WHERE numero = p_cand
+        ) INTO v_existe;
     ELSE
         SELECT EXISTS(SELECT 1 FROM documentos WHERE tipo = p_categoria AND numero_sequencial = p_cand) INTO v_existe;
     END IF;
@@ -756,6 +807,10 @@ CREATE TRIGGER trg_updated_at_checklist
 
 CREATE TRIGGER trg_updated_at_notificacoes
     BEFORE UPDATE ON notificacoes
+    FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
+
+CREATE TRIGGER trg_updated_at_oficios_gfp
+    BEFORE UPDATE ON oficios_gfp
     FOR EACH ROW EXECUTE FUNCTION atualizar_updated_at();
 
 -- ============================================================
