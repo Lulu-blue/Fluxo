@@ -8357,6 +8357,9 @@ async function processarArquivosAR(files) {
     processoAtual._arAnexosLocais = processoAtual._arAnexosLocais || [];
 
     for (const file of Array.from(files)) {
+        // O dataUrl fica só em memória, para o botão "Visualizar" funcionar antes
+        // de salvar. O que vai para o banco é o link do Cloudinary, gerado a partir
+        // do `file` original em persistirAnexosAR.
         const dataUrl = await new Promise(resolve => {
             const r = new FileReader();
             r.onload = e => resolve(e.target.result);
@@ -8366,11 +8369,31 @@ async function processarArquivosAR(files) {
         processoAtual._arAnexosLocais.push({
             nome: file.name,
             tipo: file.type || 'application/pdf',
+            file: file,
             dataUrl: dataUrl
         });
     }
 
     renderizarListaAnexosAR();
+}
+
+// Sobe um anexo para o Cloudinary e devolve o link, ou null se não deu certo.
+// Prefira passar o File original: o uploadParaCloudinary, quando recebe um
+// dataURL e falha, devolve o próprio base64 em vez de null — e isso voltaria a
+// gravar base64 no banco. Por isso um dataURL é convertido em Blob antes.
+// A garantia final é a checagem do retorno: só um link http(s) é aceito.
+async function enviarAnexoParaCloudinary(fileOuDataUrl, pasta) {
+    if (typeof window.uploadParaCloudinary !== 'function') return null;
+
+    let origem = fileOuDataUrl;
+    if (typeof origem === 'string' && origem.startsWith('data:')) {
+        const resp = await fetch(origem);
+        origem = await resp.blob();
+    }
+    if (!(origem instanceof Blob)) return null;
+
+    const url = await window.uploadParaCloudinary(origem, pasta);
+    return (typeof url === 'string' && /^https?:\/\//i.test(url)) ? url : null;
 }
 
 async function persistirAnexosAR(exigirObrigatorio = false) {
@@ -8387,45 +8410,68 @@ async function persistirAnexosAR(exigirObrigatorio = false) {
     const etapa16Id = 16;
     const refsAnexos = [];
 
-    for (const item of processoAtual._arAnexosLocais) {
-        if (item.documento_id) {
-            refsAnexos.push({
-                documento_id: item.documento_id,
-                nome: item.nome
-            });
-        } else if (item.dataUrl) {
-            try {
-                const { data: docRes, error: errDoc } = await supabaseClient
-                    .from('documentos')
-                    .insert([{
-                        processo_id: processoAtual.id,
-                        etapa_id: etapa16Id,
-                        tipo: 'Anexo AR',
-                        nome_arquivo: item.nome,
-                        url: item.dataUrl,
-                        gerado_automaticamente: false,
-                        usuario_id: perfilId
-                    }])
-                    .select('id, nome_arquivo, url')
-                    .single();
+    const pendentes = processoAtual._arAnexosLocais.filter(i => !i.documento_id && (i.file || i.dataUrl));
+    if (pendentes.length > 0) {
+        mostrarCarregamento(pendentes.length > 1
+            ? `Enviando ${pendentes.length} anexos do AR...`
+            : 'Enviando anexo do AR...');
+    }
 
-                if (errDoc) throw errDoc;
-
-                if (docRes && docRes.id) {
-                    item.documento_id = docRes.id;
-                    item.url = docRes.url;
-                    delete item.dataUrl;
-                    refsAnexos.push({
-                        documento_id: docRes.id,
-                        nome: docRes.nome_arquivo
-                    });
+    try {
+        for (const item of processoAtual._arAnexosLocais) {
+            if (item.documento_id) {
+                refsAnexos.push({
+                    documento_id: item.documento_id,
+                    nome: item.nome
+                });
+            } else if (item.file || item.dataUrl) {
+                // O arquivo vai para o Cloudinary; no banco fica só o link.
+                // Se o envio falhar, o item continua pendente (com o arquivo) e
+                // pode ser salvo de novo — os que já subiram têm documento_id e
+                // não são reenviados.
+                const urlCloud = await enviarAnexoParaCloudinary(item.file || item.dataUrl, 'anexos_ar');
+                if (!urlCloud) {
+                    // O uploadParaCloudinary já avisou o usuário sobre a falha
+                    renderizarListaAnexosAR();
+                    return false;
                 }
-            } catch (errIns) {
-                console.error('Erro ao salvar anexo AR na tabela documentos:', errIns);
-                alert('Erro ao salvar anexo do AR no banco de dados: ' + (errIns.message || errIns));
-                return false;
+
+                try {
+                    const { data: docRes, error: errDoc } = await supabaseClient
+                        .from('documentos')
+                        .insert([{
+                            processo_id: processoAtual.id,
+                            etapa_id: etapa16Id,
+                            tipo: 'Anexo AR',
+                            nome_arquivo: item.nome,
+                            url: urlCloud,
+                            gerado_automaticamente: false,
+                            usuario_id: perfilId
+                        }])
+                        .select('id, nome_arquivo, url')
+                        .single();
+
+                    if (errDoc) throw errDoc;
+
+                    if (docRes && docRes.id) {
+                        item.documento_id = docRes.id;
+                        item.url = docRes.url;
+                        delete item.dataUrl;
+                        delete item.file;
+                        refsAnexos.push({
+                            documento_id: docRes.id,
+                            nome: docRes.nome_arquivo
+                        });
+                    }
+                } catch (errIns) {
+                    console.error('Erro ao salvar anexo AR na tabela documentos:', errIns);
+                    alert('Erro ao salvar anexo do AR no banco de dados: ' + (errIns.message || errIns));
+                    return false;
+                }
             }
         }
+    } finally {
+        if (pendentes.length > 0) ocultarCarregamento();
     }
 
     processoAtual.campos = processoAtual.campos || {};
@@ -12817,15 +12863,19 @@ window.salvarMultaEtapa15 = async function () {
     }
 
     const file = input.files[0];
-    mostrarCarregamento('Anexando documento da Multa...');
+    mostrarCarregamento('Enviando documento da Multa...');
 
     try {
-        const dataUrl = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
+        // O arquivo vai para o Cloudinary e o link é o que se grava — nos quatro
+        // lugares abaixo (documentos, processo, notificação e auto de infração).
+        // Antes o base64 inteiro era copiado para os quatro.
+        const urlMulta = await enviarAnexoParaCloudinary(file, 'multas');
+        if (!urlMulta) {
+            // O uploadParaCloudinary já avisou o usuário sobre a falha
+            ocultarCarregamento();
+            return false;
+        }
+        mostrarCarregamento('Anexando documento da Multa...');
 
         // 1. Identificar o ID do Auto de Infração (se houver)
         let docIdAI = notificacaoAtual?.dados?.auto_infracao_id || processoAtual?.dados?.auto_infracao_id || null;
@@ -12848,7 +12898,7 @@ window.salvarMultaEtapa15 = async function () {
             etapa_id: 15,
             tipo: 'Multa',
             nome_arquivo: file.name,
-            url: dataUrl,
+            url: urlMulta,
             usuario_id: perfilAtual?.id || null
         };
 
@@ -12882,7 +12932,7 @@ window.salvarMultaEtapa15 = async function () {
         const infoMultaEtapa15 = {
             multa_id: multaDocId,
             auto_infracao_id: docIdAI,
-            multa_url: dataUrl,
+            multa_url: urlMulta,
             multa_nome: file.name,
             data_anexo: new Date().toISOString()
         };
@@ -12923,7 +12973,7 @@ window.salvarMultaEtapa15 = async function () {
                         const aiDadosNovos = {
                             ...(aiRec.dados || {}),
                             multa_id: multaDocId,
-                            multa_url: dataUrl,
+                            multa_url: urlMulta,
                             multa_nome: file.name
                         };
                         await supabaseClient
@@ -13730,31 +13780,65 @@ window.obterGerentePosturas = async function () {
 };
 
 // ── Numeração sequencial própria do ofício ──
-// Reaproveita o número já gravado em documentos; só reserva um novo na 1ª geração.
+// Reaproveita o número já emitido para o processo; só reserva um novo de fato
+// na primeira geração. A etapa 15 é redesenhada várias vezes (troca de
+// notificação, salvamento, retorno de aba), e cada redesenho chama esta função:
+// sem o controle abaixo, duas chamadas simultâneas consultavam, nenhuma achava
+// nada e as duas reservavam um número — o ofício mudava de número a cada
+// abertura e a sequência era queimada à toa.
+let reservaOficioGfpEmCurso = null;
+
 async function obterNumeroOficioGfp() {
     const guardado = notificacaoAtual?.dados?.numero_oficio_gfp || processoAtual?.dados?.numero_oficio_gfp;
     if (guardado) return guardado;
     if (!processoAtual?.id) return null;
 
+    // Chamadas simultâneas para o mesmo processo compartilham a mesma reserva
+    const chave = `${processoAtual.id}|${notificacaoAtual?.id || ''}`;
+    if (reservaOficioGfpEmCurso && reservaOficioGfpEmCurso.chave === chave) {
+        return reservaOficioGfpEmCurso.promessa;
+    }
+
+    reservaOficioGfpEmCurso = { chave, promessa: reservarNumeroOficioGfp() };
+    try {
+        return await reservaOficioGfpEmCurso.promessa;
+    } finally {
+        reservaOficioGfpEmCurso = null;
+    }
+}
+
+async function reservarNumeroOficioGfp() {
     const anoAtual = new Date().getFullYear();
     let numero = null;
 
     try {
-        let queryDoc = supabaseClient
+        // Busca por processo_id (sempre preenchido). Se houver notificação aberta,
+        // prefere a linha dela, mas aceita uma linha antiga sem notificação
+        // vinculada — senão um ofício já emitido seria reservado de novo só
+        // porque o contexto da notificação mudou.
+        const { data: existentes } = await supabaseClient
             .from('documentos')
-            .select('id, numero_sequencial')
+            .select('id, numero_sequencial, notificacao_id')
             .eq('tipo', CATEGORIA_OFICIO_GFP)
-            .order('created_at', { ascending: false })
-            .limit(1);
-        queryDoc = notificacaoAtual?.id
-            ? queryDoc.eq('notificacao_id', notificacaoAtual.id)
-            : queryDoc.eq('processo_id', processoAtual.id);
+            .eq('processo_id', processoAtual.id)
+            .not('numero_sequencial', 'is', null)
+            .order('created_at', { ascending: true });
 
-        const { data: existentes } = await queryDoc;
-        const docExistente = (existentes || [])[0];
+        const lista = existentes || [];
+        const docExistente = notificacaoAtual?.id
+            ? (lista.find(d => d.notificacao_id === notificacaoAtual.id) || lista.find(d => !d.notificacao_id))
+            : lista[0];
 
         if (docExistente && docExistente.numero_sequencial) {
             numero = docExistente.numero_sequencial;
+
+            // Adota a linha antiga para a notificação atual, para não duplicar depois
+            if (notificacaoAtual?.id && !docExistente.notificacao_id) {
+                await supabaseClient
+                    .from('documentos')
+                    .update({ notificacao_id: notificacaoAtual.id })
+                    .eq('id', docExistente.id);
+            }
         } else {
             const { data: numReservado, error: errRes } = await supabaseClient
                 .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: CATEGORIA_OFICIO_GFP });

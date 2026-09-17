@@ -497,19 +497,6 @@ DROP POLICY IF EXISTS "numeros_descartados_acesso_total" ON numeros_descartados;
 CREATE POLICY "numeros_descartados_acesso_total"
     ON numeros_descartados FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Tabela de números disponíveis (usada diretamente pelo projeto SEMAC)
-CREATE TABLE IF NOT EXISTS numeros_disponiveis (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    categoria TEXT NOT NULL,
-    numero_sequencial TEXT NOT NULL,
-    ano INTEGER NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(categoria, numero_sequencial, ano)
-);
-ALTER TABLE numeros_disponiveis ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "numeros_disponiveis_acesso_total" ON numeros_disponiveis;
-CREATE POLICY "numeros_disponiveis_acesso_total"
-    ON numeros_disponiveis FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE TABLE IF NOT EXISTS sequenciais_contadores (
     id SERIAL PRIMARY KEY,
     categoria TEXT NOT NULL,
@@ -623,16 +610,8 @@ BEGIN
             v_seq := LPAD(v_txt, GREATEST(v_tamanho_pad, LENGTH(v_txt)), '0');
             v_cand := p_ano::TEXT || '/' || v_seq;
 
-            -- Remove de descartados e disponiveis se existir
+            -- Tira da fila de descartados
             DELETE FROM numeros_descartados WHERE id = r_desc.id;
-            BEGIN
-                DELETE FROM numeros_disponiveis 
-                WHERE ano = p_ano AND (
-                    LOWER(categoria) = LOWER(p_categoria) OR 
-                    (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
-                ) AND numero_sequencial = r_desc.numero_sequencial;
-            EXCEPTION WHEN OTHERS THEN NULL;
-            END;
 
             -- Se o número NÃO estiver em uso em nenhuma tabela principal, pode reutilizar!
             IF NOT _numero_existe_em_uso(p_ano, p_categoria, v_cand) THEN
@@ -642,36 +621,7 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN NULL;
     END;
 
-    -- 2. Tentar em numeros_disponiveis (usado pelo SEMAC)
-    BEGIN
-        FOR r_desc IN 
-            SELECT numero_sequencial 
-            FROM numeros_disponiveis
-            WHERE ano = p_ano AND (
-                LOWER(categoria) = LOWER(p_categoria) OR 
-                (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
-            )
-            ORDER BY LPAD(regexp_replace(numero_sequencial, '\D', '', 'g'), 18, '0')::BIGINT ASC
-            FOR UPDATE SKIP LOCKED
-        LOOP
-            v_txt := regexp_replace(r_desc.numero_sequencial, '\D', '', 'g');
-            v_seq := LPAD(v_txt, GREATEST(v_tamanho_pad, LENGTH(v_txt)), '0');
-            v_cand := p_ano::TEXT || '/' || v_seq;
-
-            DELETE FROM numeros_disponiveis 
-            WHERE ano = p_ano AND (
-                LOWER(categoria) = LOWER(p_categoria) OR 
-                (p_categoria IN ('Certidão Sem Defesa', 'Certidão') AND LOWER(categoria) IN ('certidão sem defesa', 'certidão'))
-            ) AND numero_sequencial = r_desc.numero_sequencial;
-
-            IF NOT _numero_existe_em_uso(p_ano, p_categoria, v_cand) THEN
-                RETURN v_cand;
-            END IF;
-        END LOOP;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-
-    -- 3. Buscar MAX atual existente na tabela de destino para garantir que a sequência nunca volte para trás
+    -- 2. Buscar MAX atual existente na tabela de destino para garantir que a sequência nunca volte para trás
     IF p_categoria = 'Processo' THEN
         SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_processo, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) INTO v_max_existente FROM processos WHERE numero_processo LIKE p_ano::TEXT || '/%';
     ELSIF p_categoria = 'Relatório Fiscal' THEN
@@ -686,7 +636,7 @@ BEGIN
         SELECT COALESCE(MAX(NULLIF(regexp_replace(split_part(numero_sequencial, '/', 2), '\D', '', 'g'), '')::INTEGER), 0) INTO v_max_existente FROM documentos WHERE tipo = p_categoria AND numero_sequencial LIKE p_ano::TEXT || '/%';
     END IF;
 
-    -- 4. Incrementar contador em sequenciais_contadores
+    -- 3. Incrementar contador em sequenciais_contadores
     SELECT ultimo_numero INTO v_prox
     FROM sequenciais_contadores
     WHERE ano = p_ano AND categoria = p_categoria
@@ -759,13 +709,6 @@ BEGIN
 
     BEGIN
         INSERT INTO numeros_descartados (categoria, numero_sequencial, ano)
-        VALUES (p_categoria, v_seq, v_ano)
-        ON CONFLICT (categoria, numero_sequencial, ano) DO NOTHING;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END;
-
-    BEGIN
-        INSERT INTO numeros_disponiveis (categoria, numero_sequencial, ano)
         VALUES (p_categoria, v_seq, v_ano)
         ON CONFLICT (categoria, numero_sequencial, ano) DO NOTHING;
     EXCEPTION WHEN OTHERS THEN NULL;
