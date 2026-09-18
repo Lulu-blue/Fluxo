@@ -195,7 +195,8 @@ async function buscarNomeGerentePosturas() {
 // data-oficio-editavel marca as áreas que voltam a ser editáveis ao reabrir;
 // o número fica fora delas, para não ser apagado nem alterado.
 function montarModeloOficioAvulso(numero, nomeGerente) {
-    const dataExtenso = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    // A data do ofício leva só mês e ano ("setembro de 2026"), sem o dia
+    const dataExtenso = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
     const assinatura = nomeGerente
         ? escaparHtmlOficioAvulso(nomeGerente)
         : '<span style="color: #F78C26;">(Nome do Gerente)</span>';
@@ -651,7 +652,10 @@ function montarAlteracoesOficioAvulso({ marcarBaixado }) {
         conteudo_html: montarHtmlOficioAvulso({ paraSalvar: true }),
         texto_busca: normalizarTextoOficio(`${oficioAvulsoAtual.numero} ${folha?.innerText || ''}`)
     };
-    if (marcarBaixado) alteracoes.baixado_em = new Date().toISOString();
+    if (marcarBaixado) {
+        alteracoes.baixado_em = new Date().toISOString();
+        alteracoes.situacao = 'baixado';
+    }
     return alteracoes;
 }
 
@@ -860,11 +864,25 @@ function configurarAbaOficios() {
     });
     document.getElementById('filtroOficioOrigem').addEventListener('change', carregarListaOficios);
 
+    document.getElementById('btnFecharOficioEtapa15').addEventListener('click', fecharOficioEtapa15);
+    document.getElementById('btnBaixarOficioEtapa15').addEventListener('click', baixarOficioEtapa15Pdf);
+    document.getElementById('btnAbrirProcessoDoOficio').addEventListener('click', () => {
+        if (oficioEtapa15Atual?.processoId && typeof window.abrirProcessoAuto === 'function') {
+            window.abrirProcessoAuto(oficioEtapa15Atual.processoId);
+        }
+    });
+
+    document.getElementById('tabelaOficiosBody').addEventListener('change', (e) => {
+        const select = e.target.closest('select[data-acao="situacao"]');
+        if (select) salvarSituacaoOficio(select);
+    });
+
     document.getElementById('tabelaOficiosBody').addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-acao]');
         if (!btn) return;
         if (btn.dataset.acao === 'abrir-oficio') abrirOficioAvulsoExistente(btn.dataset.id);
         if (btn.dataset.acao === 'excluir-oficio') excluirOficioDaLista(btn.dataset);
+        if (btn.dataset.acao === 'ver-oficio') abrirOficioEtapa15(btn.dataset.id);
         if (btn.dataset.acao === 'abrir-processo' && typeof window.abrirProcessoAuto === 'function') {
             window.abrirProcessoAuto(btn.dataset.id);
         }
@@ -949,7 +967,7 @@ window.carregarListaOficios = carregarListaOficios;
 async function buscarOficiosAvulsos(palavras, desde, ate) {
     let query = supabaseClient
         .from('oficios_gfp')
-        .select('id, numero, assunto, created_at, baixado_em, profiles(nome)')
+        .select('id, numero, assunto, created_at, baixado_em, situacao, profiles(nome)')
         .order('created_at', { ascending: false })
         .limit(LIMITE_LISTA_OFICIOS);
     if (desde) query = query.gte('created_at', desde);
@@ -966,14 +984,15 @@ async function buscarOficiosAvulsos(palavras, desde, ate) {
         data: o.created_at,
         descricao: o.assunto || '(sem assunto)',
         autor: o.profiles?.nome || '—',
-        baixado: !!o.baixado_em
+        baixado: !!o.baixado_em,
+        situacao: o.situacao || 'sem_movimentacao'
     }));
 }
 
 async function buscarOficiosEtapa15(palavras, desde, ate) {
     let query = supabaseClient
         .from('documentos')
-        .select('id, numero_sequencial, created_at, processo_id, processos(numero_processo), profiles(nome)')
+        .select('id, numero_sequencial, created_at, processo_id, situacao, processos(numero_processo), profiles(nome)')
         .eq('tipo', CATEGORIA_OFICIO_AVULSO)
         .not('numero_sequencial', 'is', null)
         .order('created_at', { ascending: false })
@@ -992,11 +1011,13 @@ async function buscarOficiosEtapa15(palavras, desde, ate) {
         .map(d => ({
             origem: 'etapa15',
             id: d.processo_id,
+            documento_id: d.id,
             numero: d.numero_sequencial,
             data: d.created_at,
             descricao: `Processo ${d.processos?.numero_processo || '—'}`,
             autor: d.profiles?.nome || '—',
-            baixado: null
+            baixado: true,
+            situacao: d.situacao || 'sem_movimentacao'
         }));
 }
 
@@ -1057,12 +1078,11 @@ function montarLinhaOficio(o) {
         ? '<span class="oficio-origem oficio-origem-avulso">Painel</span>'
         : '<span class="oficio-origem oficio-origem-etapa15">Etapa 15</span>';
 
-    let situacao = '—';
-    if (o.origem === 'avulso') {
-        situacao = o.baixado
-            ? '<span class="oficio-situacao oficio-situacao-baixado">Baixado</span>'
-            : '<span class="oficio-situacao oficio-situacao-rascunho">Rascunho</span>';
-    }
+    // Rascunho ainda não é ofício de verdade: não tem situação para escolher.
+    // Ofício da Etapa 15 e avulso já baixado em PDF podem ser marcados.
+    const situacao = (o.origem === 'avulso' && !o.baixado)
+        ? '<span class="oficio-situacao oficio-situacao-rascunho">Rascunho</span>'
+        : montarSeletorSituacaoOficio(o);
 
     // Excluir só existe para os ofícios do painel; os da Etapa 15 pertencem ao processo
     const id = escaparHtmlOficioAvulso(o.id);
@@ -1070,9 +1090,12 @@ function montarLinhaOficio(o) {
         ? `<button type="button" class="oficio-acao" data-acao="abrir-oficio" data-id="${id}">${o.baixado ? 'Ver' : 'Editar'}</button>
            <button type="button" class="oficio-acao oficio-acao-perigo" data-acao="excluir-oficio" data-id="${id}"
                    data-numero="${escaparHtmlOficioAvulso(o.numero)}" data-baixado="${o.baixado ? '1' : ''}">Excluir</button>`
-        : `<button type="button" class="oficio-acao" data-acao="abrir-processo" data-id="${id}">Ver processo</button>`;
+        : `<button type="button" class="oficio-acao" data-acao="ver-oficio" data-id="${id}">Ver ofício</button>
+           <button type="button" class="oficio-acao" data-acao="abrir-processo" data-id="${id}">Ver processo</button>`;
 
-    return `<tr>
+    const classeLinha = (o.origem === 'avulso' && !o.baixado) ? 'rascunho' : o.situacao;
+
+    return `<tr class="linha-situacao-${classeLinha}">
         <td><strong>${escaparHtmlOficioAvulso(o.numero)}</strong></td>
         <td>${data}</td>
         <td>${origem}</td>
@@ -1083,8 +1106,209 @@ function montarLinhaOficio(o) {
     </tr>`;
 }
 
+const SITUACOES_OFICIO = [
+    ['sem_movimentacao', 'Sem movimentação'],
+    ['baixado', 'Baixado'],
+    ['assinado', 'Assinado']
+];
+
+function montarSeletorSituacaoOficio(o) {
+    const opcoes = SITUACOES_OFICIO
+        .map(([valor, rotulo]) => `<option value="${valor}"${o.situacao === valor ? ' selected' : ''}>${rotulo}</option>`)
+        .join('');
+    const alvo = o.origem === 'avulso' ? o.id : o.documento_id;
+    return `<select class="oficio-situacao-select situacao-${o.situacao}" data-acao="situacao" data-origem="${o.origem}"
+                    data-id="${escaparHtmlOficioAvulso(alvo)}" data-atual="${o.situacao}">${opcoes}</select>`;
+}
+
+// A cor acompanha a situação escolhida (cinza, azul ou verde)
+function pintarSeletorSituacaoOficio(select) {
+    SITUACOES_OFICIO.forEach(([valor]) => select.classList.remove(`situacao-${valor}`));
+    select.classList.add(`situacao-${select.value}`);
+
+    const linha = select.closest('tr');
+    if (linha) {
+        SITUACOES_OFICIO.forEach(([valor]) => linha.classList.remove(`linha-situacao-${valor}`));
+        linha.classList.add(`linha-situacao-${select.value}`);
+    }
+}
+
+// Etapa 15 guarda em documentos.situacao; ofício do painel, em oficios_gfp.situacao
+async function salvarSituacaoOficio(select) {
+    const { origem, id, atual } = select.dataset;
+    const valor = select.value;
+    if (valor === atual) return;
+
+    select.disabled = true;
+    try {
+        const tabela = origem === 'avulso' ? 'oficios_gfp' : 'documentos';
+        const { error } = await supabaseClient.from(tabela).update({ situacao: valor }).eq('id', id);
+        if (error) throw error;
+        select.dataset.atual = valor;
+        pintarSeletorSituacaoOficio(select);
+    } catch (e) {
+        console.error('[OFÍCIOS] Erro ao salvar a situação:', e);
+        alert('Não foi possível salvar a situação do ofício. Tente novamente.');
+        select.value = atual;
+        pintarSeletorSituacaoOficio(select);
+    } finally {
+        select.disabled = false;
+    }
+}
+
 function escaparHtmlOficioAvulso(txt) {
     const div = document.createElement('div');
     div.textContent = txt == null ? '' : String(txt);
     return div.innerHTML.replace(/"/g, '&quot;');
+}
+
+
+// ============================================================
+// ATALHO "VER OFÍCIO" — abre só o documento da Etapa 15, sem carregar o processo
+// O ofício da Etapa 15 não fica guardado pronto no banco: ele é montado a partir
+// dos dados do processo, pelo mesmo modelo que a Etapa 15 usa (oficio-modelo.js).
+// Por isso aqui busca-se apenas o punhado de campos que o documento mostra —
+// nunca a coluna `dados` inteira, que é pesada.
+// ============================================================
+
+let oficioEtapa15Atual = null;   // { processoId, numero }
+
+async function abrirOficioEtapa15(processoId) {
+    const container = document.getElementById('containerOficioEtapa15');
+    container.innerHTML = '<div class="oficio-avulso-status">Carregando o ofício...</div>';
+    document.getElementById('oficioEtapa15NumeroTitulo').textContent = '';
+    document.getElementById('modalOficioEtapa15').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    oficioEtapa15Atual = { processoId, numero: '' };
+
+    try {
+        const [processo, documento, auto, secretario, gerenteNome] = await Promise.all([
+            buscarDadosProcessoDoOficio(processoId),
+            buscarDocumentoOficioEtapa15(processoId),
+            buscarAutoInfracaoDoProcesso(processoId),
+            buscarSecretarioFazenda(),
+            buscarNomeGerentePosturas()
+        ]);
+
+        const numero = documento?.numero_sequencial || '—';
+        oficioEtapa15Atual = { processoId, numero };
+        document.getElementById('oficioEtapa15NumeroTitulo').textContent = `Nº ${numero}`;
+        document.getElementById('oficioEtapa15Subtitulo').textContent =
+            `Processo ${processo?.numero_processo || '—'} — documento da Etapa 15, somente leitura.`;
+
+        container.innerHTML = window.montarHtmlOficioGfp({
+            numero,
+            // Mesma data que a Etapa 15 mostra: o mês em que o ofício está sendo visto
+            dataTexto: window.dataTextoOficio(),
+            secretarioNome: secretario.nome,
+            secretarioCargo: secretario.cargo,
+            gerenteNome,
+            autuado: processo?.contribuinte?.nome || processo?.campos?.contNome || '—',
+            numeroAutoInfracao: auto || processo?.numero_auto_infracao || '—',
+            pa: processo?.relatorio_fiscal?.pa
+                || processo?.relatorio_fiscal?.numero_processo_administrativo
+                || processo?.numero_processo
+                || '—',
+            nomeEditavel: false
+        });
+        container.querySelector('#documentoOficioGfp')?.classList.add('oficio-avulso-folha');
+    } catch (e) {
+        console.error('[OFÍCIO ETAPA 15] Erro ao abrir:', e);
+        container.innerHTML = `<div class="oficio-avulso-status" style="color:#b91c1c;">
+            Não foi possível montar o ofício. Abra o processo para vê-lo na Etapa 15.<br>
+            <small>${escaparHtmlOficioAvulso(e?.message || '')}</small></div>`;
+    }
+}
+
+// Pega do JSON só os pedaços que o ofício usa, em vez da coluna `dados` inteira
+async function buscarDadosProcessoDoOficio(processoId) {
+    const { data, error } = await supabaseClient
+        .from('processos')
+        .select('numero_processo, contribuinte:dados->contribuinte, campos:dados->campos, relatorio_fiscal:dados->relatorio_fiscal, numero_auto_infracao:dados->>numero_auto_infracao')
+        .eq('id', processoId)
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+async function buscarDocumentoOficioEtapa15(processoId) {
+    const { data } = await supabaseClient
+        .from('documentos')
+        .select('numero_sequencial')
+        .eq('tipo', CATEGORIA_OFICIO_AVULSO)
+        .eq('processo_id', processoId)
+        .order('created_at', { ascending: true })
+        .limit(1);
+    return (data || [])[0];
+}
+
+async function buscarAutoInfracaoDoProcesso(processoId) {
+    const { data } = await supabaseClient
+        .from('autos_infracao')
+        .select('numero')
+        .eq('processo_id', processoId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    return (data || [])[0]?.numero;
+}
+
+// Destinatário fixo: linha 100 da tabela etapas (mesma regra da Etapa 15)
+async function buscarSecretarioFazenda() {
+    try {
+        const { data } = await supabaseClient
+            .from('etapas')
+            .select('nome, tipo')
+            .eq('numero', 100)
+            .maybeSingle();
+        if (data?.nome) return { nome: data.nome, cargo: data.tipo || window.CARGO_SECRETARIO_FAZENDA_OFICIO };
+    } catch (e) {
+        console.warn('[OFÍCIO ETAPA 15] Erro ao buscar o Secretário de Fazenda:', e);
+    }
+    return { nome: '', cargo: window.CARGO_SECRETARIO_FAZENDA_OFICIO };
+}
+
+function fecharOficioEtapa15() {
+    document.getElementById('modalOficioEtapa15').classList.remove('open');
+    document.body.style.overflow = '';
+    oficioEtapa15Atual = null;
+}
+
+async function baixarOficioEtapa15Pdf() {
+    const docEl = document.getElementById('containerOficioEtapa15').querySelector('#documentoOficioGfp');
+    if (!docEl) return;
+
+    const numLimpo = String(oficioEtapa15Atual?.numero || 'XXX').replace(/[\/\\]/g, '-');
+    const estilos = `
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
+        img { max-width: 100%; height: auto; }
+        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
+    `;
+
+    const printIframe = document.createElement('iframe');
+    printIframe.style.position = 'absolute';
+    printIframe.style.width = '0';
+    printIframe.style.height = '0';
+    printIframe.style.border = 'none';
+    document.body.appendChild(printIframe);
+
+    const printDoc = printIframe.contentWindow.document;
+    printDoc.open();
+    printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Oficio GFP ${numLimpo}</title><style>${estilos}</style></head><body>${docEl.outerHTML}</body></html>`);
+    printDoc.close();
+
+    const imagens = Array.from(printDoc.images).filter(img => !img.complete);
+    await Promise.race([
+        Promise.all(imagens.map(img => new Promise(r => { img.onload = img.onerror = r; }))),
+        new Promise(r => setTimeout(r, 10000))
+    ]);
+
+    const tituloOriginal = document.title;
+    document.title = `Oficio GFP ${numLimpo}`;
+    printIframe.contentWindow.focus();
+    printIframe.contentWindow.print();
+    setTimeout(() => {
+        if (document.body.contains(printIframe)) document.body.removeChild(printIframe);
+        document.title = tituloOriginal;
+    }, 1000);
 }

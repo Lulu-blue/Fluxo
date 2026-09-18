@@ -1804,7 +1804,7 @@ body {
 .oficio-origem-avulso   { background: #fff4e5; color: #b45309; }
 .oficio-origem-etapa15  { background: #e0f2fe; color: #0369a1; }
 .oficio-situacao-baixado  { background: #dcfce7; color: #166534; }
-.oficio-situacao-rascunho { background: #f1f5f9; color: #475569; }
+.oficio-situacao-rascunho { background: #fff7ed; color: #9a3412; }
 
 .oficio-acao {
     padding: 6px 12px;
@@ -1821,6 +1821,67 @@ body {
 
 .oficio-acao:hover {
     border-color: var(--accent-color);
+}
+
+/* A linha inteira ganha a cor da situação, para bater o olho e achar rápido.
+   O :hover vem depois de cada regra para não ser sobreposto pelo hover geral. */
+.data-table tbody tr.linha-situacao-sem_movimentacao        { background-color: #f8fafc; }
+.data-table tbody tr.linha-situacao-sem_movimentacao:hover  { background-color: #eef2f7; }
+
+.data-table tbody tr.linha-situacao-baixado                 { background-color: #c3d4df; }
+.data-table tbody tr.linha-situacao-baixado:hover           { background-color: #96b1c2; }
+
+.data-table tbody tr.linha-situacao-assinado                { background-color: #bae4c9; }
+.data-table tbody tr.linha-situacao-assinado:hover          { background-color: #93c4a4; }
+
+.data-table tbody tr.linha-situacao-rascunho                { background-color: #f3d7b6; }
+.data-table tbody tr.linha-situacao-rascunho:hover          { background-color: #eccfa8; }
+
+/* Dentro da linha colorida o seletor fica branco, para não virar mancha sobre mancha */
+.data-table tbody tr[class*="linha-situacao-"] .oficio-situacao-select,
+.data-table tbody tr[class*="linha-situacao-"] .oficio-situacao,
+.data-table tbody tr[class*="linha-situacao-"] .oficio-acao {
+    background: #ffffff;
+}
+
+.oficio-situacao-select {
+    padding: 5px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-white);
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.oficio-situacao-select:hover {
+    filter: brightness(0.97);
+}
+
+/* Uma cor para cada situação */
+.oficio-situacao-select.situacao-sem_movimentacao {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.oficio-situacao-select.situacao-baixado {
+    background: #e0f2fe;
+    border-color: #7dd3fc;
+    color: #0369a1;
+}
+
+.oficio-situacao-select.situacao-assinado {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.oficio-situacao-select:disabled {
+    opacity: 0.6;
+    cursor: wait;
 }
 
 .oficio-acao + .oficio-acao {

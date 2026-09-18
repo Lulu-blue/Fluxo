@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS documentos (
     tamanho_bytes BIGINT,
     gerado_automaticamente BOOLEAN DEFAULT FALSE,
     numero_sequencial TEXT,                    -- Ex: "2026/001" (para réplicas, certidões, etc)
+    situacao TEXT,                             -- Ofício GFP: 'baixado' | 'assinado' | 'sem_movimentacao'
     usuario_id UUID NOT NULL REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -539,6 +540,7 @@ CREATE TABLE IF NOT EXISTS oficios_gfp (
     assunto TEXT,
     conteudo_html TEXT,                        -- Imagens ficam no Cloudinary; aqui só o link
     texto_busca TEXT,                          -- Texto puro, minúsculo e sem acento (busca da aba Ofícios)
+    situacao TEXT,                             -- 'baixado' | 'assinado' | 'sem_movimentacao' (só depois de virar PDF)
     usuario_id UUID REFERENCES profiles(id),
     baixado_em TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),

@@ -684,83 +684,8 @@ function renderizarFormularioDinamico(etapaNum) {
         conteudo = `
             <!-- Painel da Etapa 1: Controle de Multas & Anexo da Notificação Assinada -->
             <div id="painelAcoesEtapa1" class="etapa1-control-panel">
-                <!-- Bloco 1: Valores das Multas -->
-                <div class="etapa1-card" id="cardValoresMultas">
-                    <div class="etapa1-card-header">
-                        <div class="header-icon">💰</div>
-                        <div>
-                            <h3 class="etapa1-card-title">1º Passo: Conferir ou Atualizar Valores das Multas</h3>
-                            <p class="etapa1-card-subtitle">Confirme ou edite os valores das multas para atualizar
-                                em tempo real o documento PDF abaixo.</p>
-                        </div>
-                    </div>
-
-                    <!-- Bloco UPFMD e Parâmetros de Cálculo -->
-                    <div class="upfmd-header-box"
-                        style="margin: 16px 0 20px 0; padding: 18px 22px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
-                        <div>
-                            <label
-                                style="font-weight: 700; color: #5b21b6; font-size: 0.96rem; display: block; margin-bottom: 4px;">Parâmetros
-                                de Cálculo (UPFMD & Imóvel de Esquina)</label>
-                            <span style="font-size: 0.84rem; color: #6d28d9;">Regra oficial: Imóveis de esquina
-                                somam Testada + Profundidade no cálculo das infrações por metro linear.</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                            <div
-                                style="display: flex; align-items: center; gap: 8px; background: white; padding: 8px 14px; border-radius: 10px; border: 1px solid #c4b5fd;">
-                                <span style="font-weight: 600; font-size: 0.88rem; color: #5b21b6;">Esquina?</span>
-                                <select id="selectEsquinaCalc"
-                                    style="font-weight: 700; color: #5b21b6; border: none; outline: none; background: transparent; cursor: pointer;">
-                                    <option value="nao">Não</option>
-                                    <option value="sim">Sim</option>
-                                </select>
-                            </div>
-                            <div
-                                style="display: flex; align-items: center; gap: 8px; background: white; padding: 8px 14px; border-radius: 10px; border: 1px solid #c4b5fd;">
-                                <span style="font-weight: 700; color: #5b21b6;">UPFMD: R$</span>
-                                <input type="number" step="0.01" id="inputValUpfmd"
-                                    style="width: 100px; font-weight: 700; font-size: 1.05rem; color: #5b21b6; border: none; outline: none; background: transparent;"
-                                    value="${(window.valorUpfmdAtual || 103.00).toFixed(2)}" title="Valor da UPFMD">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bloco Reincidência -->
-                    <div id="blocoReincidenciaAnterior"
-                        style="margin: 0 0 20px 0; padding: 18px 22px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 14px; display: none;">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                            <span style="font-size: 1.3rem;">⚠️</span>
-                            <div>
-                                <h4 style="font-size: 0.98rem; font-weight: 700; color: #9f1239; margin: 0;">Dados
-                                    da Reincidência (Auto de Infração Anterior)</h4>
-                                <p style="font-size: 0.84rem; color: #be123c; margin: 2px 0 0 0;">Preencha o número
-                                    e a data do Auto de Infração anterior para constar na Observação do Fiscal do
-                                    documento.</p>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
-                            <div style="flex: 1; min-width: 220px;">
-                                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #881337; margin-bottom: 4px;">N° Auto de Infração expedido anteriormente</label>
-                                <input type="text" id="inputAutoInfracaoAntNum" placeholder="Ex: 1234/2025" style="width: 100%; padding: 10px 14px; border: 1px solid #fda4af; border-radius: 8px; font-weight: 600; color: #881337; background: white;">
-                            </div>
-                            <div style="flex: 1; min-width: 220px;">
-                                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #881337; margin-bottom: 4px;">Data do Auto de Infração expedido anteriormente</label>
-                                <input type="text" id="inputAutoInfracaoAntData" placeholder="Ex: 10/05/2025" style="width: 100%; padding: 10px 14px; border: 1px solid #fda4af; border-radius: 8px; font-weight: 600; color: #881337; background: white;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="listaInputsMultas" class="multas-inputs-grid"></div>
-
-                    <div class="etapa1-card-footer">
-                        <button id="btnAtualizarMultasDoc" class="btn-primary" style="padding: 10px 20px; font-weight:600;">
-                            Salvar Valores e Atualizar Documento PDF
-                        </button>
-                        <span id="multasSalvasFeedback" style="color:#16a34a; font-weight:600; font-size:0.9rem; display:none;">
-                            ✓ Documento atualizado com sucesso!
-                        </span>
-                    </div>
-                </div>
+                <!-- Bloco 1: Valores das Multas (card compartilhado com a Etapa 14) -->
+                ${window.obterHtmlCardCalculoMulta({ suffix: '' })}
 
                 <!-- Bloco 2: Anexo da Notificação e Relatório Fiscal Assinados -->
                 <div class="etapa1-card" id="cardAnexoNP" style="margin-top: 18px;">
@@ -1328,6 +1253,15 @@ function renderizarFormularioDinamico(etapaNum) {
                     <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">Esta informação será exibida na Capa do Processo ("Autuado não apresentou defesa" ou "Autuado apresentou defesa").</p>
                 </div>
 
+                <!-- Cálculo da Multa do Auto de Infração (mesmo card da Etapa 1) -->
+                ${window.obterHtmlCardCalculoMulta({
+                    suffix: 'Ai',
+                    titulo: 'Conferir ou Atualizar o Valor da Multa do Auto de Infração',
+                    subtitulo: 'Confirme a UPFMD, se o imóvel é de esquina e qual medida é a base de cálculo. O valor é aplicado ao Auto de Infração abaixo.',
+                    textoBotao: 'Salvar Valores e Atualizar Auto de Infração',
+                    estilo: 'margin-bottom: 20px;'
+                })}
+
                 ${decretoSim && typeof window.obterHtmlBlocoRelatorioFiscalAssinado === 'function' ? window.obterHtmlBlocoRelatorioFiscalAssinado() : ''}
                 ${obterHtmlBlocoAutoInfracaoAssinado()}
 
@@ -1447,8 +1381,18 @@ function renderizarFormularioDinamico(etapaNum) {
                         <h3 style="margin:0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
                             <span>📨 Ofício SEMAC - GFP</span>
                         </h3>
-                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                             ${ehGerente ? `
+                                <label style="display:flex; align-items:center; gap:6px; font-size:0.82rem; color:#475569; font-weight:600;">
+                                    Situação:
+                                    <select id="selectSituacaoOficioGfp" onchange="window.salvarSituacaoOficioGfp(this.value)" disabled
+                                            style="padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.82rem; font-weight:600; color:#0f172a; background:#fff; cursor:pointer;">
+                                        <option value="sem_movimentacao">Sem movimentação</option>
+                                        <option value="baixado">Baixado</option>
+                                        <option value="assinado">Assinado</option>
+                                    </select>
+                                </label>
+                                <span id="avisoSituacaoOficioGfp" style="font-size:0.8rem; color:#15803d; font-weight:700; display:none;">✓ salvo</span>
                                 <button type="button" onclick="window.baixarOficioGfpPdf()" style="padding:10px 18px; background:#2563eb; color:white; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                     Baixar Ofício em PDF
@@ -1622,6 +1566,7 @@ function renderizarFormularioDinamico(etapaNum) {
 
     if (etapaNum === 14) {
         setTimeout(() => {
+            if (typeof window.configurarCardCalculoMultaAutoInfracao === 'function') window.configurarCardCalculoMultaAutoInfracao();
             if (typeof window.gerarAutoDeInfracao === 'function') window.gerarAutoDeInfracao(true);
             if (typeof window.configurarEventosAIAssinado === 'function') window.configurarEventosAIAssinado();
             if (typeof window.carregarEExibirAnexoAIAssinado === 'function') window.carregarEExibirAnexoAIAssinado();
@@ -4328,23 +4273,45 @@ function obterDadosImovelParaCalculo(proc) {
         imv.possui_esquina === 'sim' ||
         p.campos?.esquina === 'sim'
     );
-    return { areaNum, testadaNum, profundidadeNum, temEsquina };
+
+    // Medida linear usada como base da multa. O padrão é a testada; em casos mais
+    // raros o fiscal usa a profundidade do lote no lugar dela.
+    const baseCalculo = (
+        p.campos?.base_calculo_multa === 'profundidade' ||
+        imv.base_calculo_multa === 'profundidade' ||
+        p.dados?.base_calculo_multa === 'profundidade'
+    ) ? 'profundidade' : 'testada';
+
+    return { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo };
 }
 window.obterDadosImovelParaCalculo = obterDadosImovelParaCalculo;
 
 // ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
-function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd) {
+function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd, baseCalculo) {
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
     const upfmdVal = parseNumberSafe(upfmd, window.valorUpfmdAtual || valorUpfmdAtual);
     const area = parseNumberSafe(areaNum);
     const testada = parseNumberSafe(testadaNum);
     const profundidade = parseNumberSafe(profundidadeNum, 0);
 
-    let profCalc = 0;
-    if (temEsquina) {
-        profCalc = (profundidade && profundidade > 0) ? profundidade : (testada > 0 ? (area / testada) : 0);
+    // Base de cálculo: normalmente a testada, mas o fiscal pode optar pela
+    // profundidade do lote. Em imóvel de esquina as duas medidas são somadas.
+    const usaProfundidade = (baseCalculo === 'profundidade');
+    let principal = usaProfundidade ? profundidade : testada;
+    let complementar = usaProfundidade ? testada : profundidade;
+
+    // Se a medida escolhida não foi informada, deriva a partir da área e da outra medida.
+    if (!(principal > 0)) {
+        principal = (complementar > 0) ? (area / complementar) : 0;
     }
-    const testadaTotal = testada + profCalc;
+
+    let testadaTotal = principal;
+    if (temEsquina) {
+        if (!(complementar > 0)) {
+            complementar = (principal > 0) ? (area / principal) : 0;
+        }
+        testadaTotal = principal + complementar;
+    }
 
     if (cod === '120000232' || dispLow.includes('120000232') || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
         return (area * (upfmdVal * 0.15));
@@ -4367,6 +4334,401 @@ function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidade
     }
 }
 window.calcularValorNumDefaultMulta = calcularValorNumDefaultMulta;
+
+// ── Card Compartilhado de Cálculo de Multas (Etapa 1 e Etapa 14) ────────────
+// O mesmo painel de valores é usado pela Notificação Preliminar (Etapa 1) e pelo
+// Auto de Infração (Etapa 14). Os dois gravam nos mesmos campos do processo
+// (upfmd_utilizado, imovel_esquina, base_calculo_multa e multas_customizadas),
+// então o valor conferido em uma etapa continua valendo na outra.
+
+// Nome completo/legível de uma infração, usado como rótulo de cada input de multa.
+function obterNomeCompletoInfracao(disp) {
+    if (!disp) return 'Infração Geral';
+    const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
+    const dispLow = disp.toLowerCase();
+
+    if (cod === '120000232' || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
+        return 'Falta de limpeza e conservação de imóvel não edificado (120000232)';
+    } else if (cod === '120000228' || dispLow.includes('reincidência na inexistência de cercamento')) {
+        return 'Reincidência na inexistência de cercamento (120000228)';
+    } else if (cod === '120000227' || dispLow.includes('reincidência na inexistência de passeio')) {
+        return 'Reincidência na inexistência de passeio (120000227)';
+    } else if (cod === '120000211' || dispLow.includes('cercamento')) {
+        return 'Inexistência de cercamento (120000211)';
+    } else if (cod === '120000226' || dispLow.includes('inexistência de passeio')) {
+        return 'Inexistência de passeio (120000226)';
+    } else if (cod === '120000229' || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
+        return 'Reconstrução de/ou reparo de muro (120000229)';
+    } else if (cod === '120000240' || dispLow.includes('reconstrução e/ou reparo de passeio')) {
+        return 'Reconstrução e/ou reparo de passeio (120000240)';
+    } else if (dispLow.includes('muro em má conservação') || dispLow.includes('danificado')) {
+        return 'Muro em má conservação ou danificado';
+    } else if (cod === '120000233' || dispLow.includes('limpeza de quintal')) {
+        return 'Limpeza de quintal (120000233)';
+    } else if (cod === '120000237' || dispLow.includes('obstáculos em calçadas')) {
+        return 'Obstáculos em calçadas impedindo livre trânsito (120000237)';
+    } else if (cod === '120000239' || dispLow.includes('água servida')) {
+        return 'Água servida (120000239)';
+    } else if (cod === '120000236' || dispLow.includes('estabelecimento sem alvará')) {
+        return 'Estabelecimento sem alvará (120000236)';
+    } else if (cod === '120000234' || dispLow.includes('reparos por concessionárias')) {
+        return 'Reparos por concessionárias (120000234)';
+    } else if (cod === '120000230' || dispLow.includes('piso tátil')) {
+        return 'Inexistência de sinalização adequada - piso tátil (120000230)';
+    } else {
+        return disp.split('|')[0].trim();
+    }
+}
+window.obterNomeCompletoInfracao = obterNomeCompletoInfracao;
+
+// Índice da notificação em foco dentro do processo — é a chave usada em
+// multas_customizadas pelo Auto de Infração (obterDadosLegaisEValoresAuto).
+function obterIndiceMultaNotificacao(proc, notif) {
+    const n = notif || (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null);
+    if (!n || !proc || !Array.isArray(proc.notificacoes)) return 0;
+    const idx = proc.notificacoes.findIndex(item => String(item.id) === String(n.id));
+    return idx >= 0 ? idx : 0;
+}
+window.obterIndiceMultaNotificacao = obterIndiceMultaNotificacao;
+
+// HTML do card. `suffix` diferencia os ids quando o card aparece em outra etapa.
+function obterHtmlCardCalculoMulta(opts) {
+    const o = opts || {};
+    const sfx = o.suffix || '';
+    const titulo = o.titulo || '1º Passo: Conferir ou Atualizar Valores das Multas';
+    const subtitulo = o.subtitulo || 'Confirme ou edite os valores das multas para atualizar em tempo real o documento PDF abaixo.';
+    const textoBotao = o.textoBotao || 'Salvar Valores e Atualizar Documento PDF';
+    const estilo = o.estilo || '';
+
+    return `
+        <div class="etapa1-card" id="cardValoresMultas${sfx}" style="${estilo}">
+            <div class="etapa1-card-header">
+                <div class="header-icon">💰</div>
+                <div>
+                    <h3 class="etapa1-card-title">${titulo}</h3>
+                    <p class="etapa1-card-subtitle">${subtitulo}</p>
+                </div>
+            </div>
+
+            <!-- Bloco UPFMD e Parâmetros de Cálculo -->
+            <div class="upfmd-header-box"
+                style="margin: 16px 0 20px 0; padding: 18px 22px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+                <div style="flex: 1; min-width: 260px;">
+                    <label
+                        style="font-weight: 700; color: #5b21b6; font-size: 0.96rem; display: block; margin-bottom: 4px;">Parâmetros
+                        de Cálculo (UPFMD, Imóvel de Esquina e Base de Cálculo)</label>
+                    <span style="font-size: 0.84rem; color: #6d28d9; display: block;">Regra oficial: Imóveis de esquina
+                        somam as duas medidas (testada + profundidade) no cálculo das infrações por metro linear.</span>
+                    <span style="font-size: 0.84rem; color: #6d28d9; display: block; margin-top: 2px;">A base de cálculo
+                        é a testada na maioria dos casos; use a profundidade apenas quando a autuação for por ela.</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div
+                        style="display: flex; align-items: center; gap: 8px; background: white; padding: 8px 14px; border-radius: 10px; border: 1px solid #c4b5fd;">
+                        <span style="font-weight: 600; font-size: 0.88rem; color: #5b21b6;">Esquina?</span>
+                        <select id="selectEsquinaCalc${sfx}"
+                            style="font-weight: 700; color: #5b21b6; border: none; outline: none; background: transparent; cursor: pointer;">
+                            <option value="nao">Não</option>
+                            <option value="sim">Sim</option>
+                        </select>
+                    </div>
+                    <div
+                        style="display: flex; align-items: center; gap: 8px; background: white; padding: 8px 14px; border-radius: 10px; border: 1px solid #c4b5fd;">
+                        <span style="font-weight: 600; font-size: 0.88rem; color: #5b21b6;">Base de cálculo:</span>
+                        <select id="selectBaseCalculoMulta${sfx}"
+                            style="font-weight: 700; color: #5b21b6; border: none; outline: none; background: transparent; cursor: pointer;"
+                            title="Medida linear usada no cálculo da multa por metro linear">
+                            <option value="testada">Testada (padrão)</option>
+                            <option value="profundidade">Profundidade</option>
+                        </select>
+                    </div>
+                    <div
+                        style="display: flex; align-items: center; gap: 8px; background: white; padding: 8px 14px; border-radius: 10px; border: 1px solid #c4b5fd;">
+                        <span style="font-weight: 700; color: #5b21b6;">UPFMD: R$</span>
+                        <input type="number" step="0.01" id="inputValUpfmd${sfx}"
+                            style="width: 100px; font-weight: 700; font-size: 1.05rem; color: #5b21b6; border: none; outline: none; background: transparent;"
+                            value="${(window.valorUpfmdAtual || 103.00).toFixed(2)}" title="Valor da UPFMD">
+                    </div>
+                </div>
+                <div id="resumoBaseCalculo${sfx}" style="flex-basis: 100%; font-size: 0.84rem; color: #5b21b6; font-weight: 600;"></div>
+            </div>
+
+            <!-- Bloco Reincidência -->
+            <div id="blocoReincidenciaAnterior${sfx}"
+                style="margin: 0 0 20px 0; padding: 18px 22px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 14px; display: none;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                    <span style="font-size: 1.3rem;">⚠️</span>
+                    <div>
+                        <h4 style="font-size: 0.98rem; font-weight: 700; color: #9f1239; margin: 0;">Dados
+                            da Reincidência (Auto de Infração Anterior)</h4>
+                        <p style="font-size: 0.84rem; color: #be123c; margin: 2px 0 0 0;">Preencha o número
+                            e a data do Auto de Infração anterior para constar na Observação do Fiscal do
+                            documento.</p>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 220px;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #881337; margin-bottom: 4px;">N° Auto de Infração expedido anteriormente</label>
+                        <input type="text" id="inputAutoInfracaoAntNum${sfx}" placeholder="Ex: 1234/2025" style="width: 100%; padding: 10px 14px; border: 1px solid #fda4af; border-radius: 8px; font-weight: 600; color: #881337; background: white;">
+                    </div>
+                    <div style="flex: 1; min-width: 220px;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 700; color: #881337; margin-bottom: 4px;">Data do Auto de Infração expedido anteriormente</label>
+                        <input type="text" id="inputAutoInfracaoAntData${sfx}" placeholder="Ex: 10/05/2025" style="width: 100%; padding: 10px 14px; border: 1px solid #fda4af; border-radius: 8px; font-weight: 600; color: #881337; background: white;">
+                    </div>
+                </div>
+            </div>
+
+            <div id="listaInputsMultas${sfx}" class="multas-inputs-grid"></div>
+
+            <div class="etapa1-card-footer">
+                <button id="btnAtualizarMultasDoc${sfx}" class="btn-primary" style="padding: 10px 20px; font-weight:600;">
+                    ${textoBotao}
+                </button>
+                <span id="multasSalvasFeedback${sfx}" style="color:#16a34a; font-weight:600; font-size:0.9rem; display:none;">
+                    ✓ Documento atualizado com sucesso!
+                </span>
+            </div>
+        </div>
+    `;
+}
+window.obterHtmlCardCalculoMulta = obterHtmlCardCalculoMulta;
+
+// Preenche e liga os eventos do card. `itens` define quais infrações aparecem:
+// a Etapa 1 mostra todas as do processo, a Etapa 14 só a do Auto em foco.
+function configurarCardCalculoMulta(opts) {
+    const o = opts || {};
+    const sfx = o.suffix || '';
+    const proc = o.proc || processoAtual;
+    if (!proc) return;
+
+    const card = document.getElementById(`cardValoresMultas${sfx}`);
+    const listaInputs = document.getElementById(`listaInputsMultas${sfx}`);
+    if (!listaInputs) return;
+
+    const atualizarDocumento = typeof o.onAtualizarDocumento === 'function'
+        ? o.onAtualizarDocumento
+        : (() => { if (typeof renderizarDocumentoOficial === 'function') renderizarDocumentoOficial(processoAtual); });
+
+    const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = obterDadosImovelParaCalculo(proc);
+    const upfmdAtualProc = window.valorUpfmdAtual || valorUpfmdAtual || parseNumberSafe(proc.campos?.upfmd_utilizado, 103.00);
+    const dispositivos = obterDispositivosDoProcesso(proc);
+
+    // Quais infrações entram no card (índice = chave em multas_customizadas)
+    let itens = Array.isArray(o.itens) ? o.itens : null;
+    if (!itens) {
+        itens = dispositivos.map((disp, index) => ({ index, disp }));
+    }
+
+    const inputUpfmdEl = document.getElementById(`inputValUpfmd${sfx}`);
+    const selectEsquinaEl = document.getElementById(`selectEsquinaCalc${sfx}`);
+    const selectBaseEl = document.getElementById(`selectBaseCalculoMulta${sfx}`);
+    const resumoBaseEl = document.getElementById(`resumoBaseCalculo${sfx}`);
+
+    if (selectEsquinaEl) selectEsquinaEl.value = temEsquina ? 'sim' : 'nao';
+    if (selectBaseEl) selectBaseEl.value = baseCalculo === 'profundidade' ? 'profundidade' : 'testada';
+    if (inputUpfmdEl) inputUpfmdEl.value = Number(upfmdAtualProc).toFixed(2);
+
+    // Mostra ao fiscal qual medida está entrando na conta
+    const atualizarResumoBase = () => {
+        if (!resumoBaseEl) return;
+        const ehEsquina = (selectEsquinaEl?.value === 'sim');
+        const base = selectBaseEl?.value === 'profundidade' ? 'profundidade' : 'testada';
+        const fmt = (v) => (v > 0 ? `${Number(v).toFixed(2).replace('.', ',')} m` : 'não informada');
+        const medidaBase = base === 'profundidade' ? profundidadeNum : testadaNum;
+        const medidaOutra = base === 'profundidade' ? testadaNum : profundidadeNum;
+        const nomeBase = base === 'profundidade' ? 'Profundidade' : 'Testada';
+        const nomeOutra = base === 'profundidade' ? 'testada' : 'profundidade';
+        resumoBaseEl.textContent = ehEsquina
+            ? `Imóvel de esquina: metro linear = ${nomeBase.toLowerCase()} (${fmt(medidaBase)}) + ${nomeOutra} (${fmt(medidaOutra)}). Medida não informada é estimada pela área do lote (${areaNum} m²).`
+            : `Metro linear calculado pela ${nomeBase.toLowerCase()} (${fmt(medidaBase)}).`;
+    };
+
+    const recalcularValoresTela = () => {
+        const novoUpfmd = parseNumberSafe(inputUpfmdEl?.value, 0) || upfmdAtualProc || 103.00;
+        const ehEsquina = (selectEsquinaEl?.value === 'sim');
+        const base = selectBaseEl?.value === 'profundidade' ? 'profundidade' : 'testada';
+        listaInputs.querySelectorAll('.input-multa-val').forEach(inputEl => {
+            const disp = inputEl.dataset.disp || '';
+            if (disp) {
+                const recVal = calcularValorNumDefaultMulta(disp.toLowerCase(), areaNum, testadaNum, profundidadeNum, ehEsquina, novoUpfmd, base);
+                inputEl.value = recVal.toFixed(2);
+            }
+        });
+        atualizarResumoBase();
+    };
+
+    // Liga cada listener uma única vez — o painel pode ser re-renderizado sem recriar o card.
+    const ligarUmaVez = (el, evento, fn) => {
+        if (!el || el.dataset.ligado) return;
+        el.dataset.ligado = '1';
+        el.addEventListener(evento, fn);
+    };
+
+    ligarUmaVez(inputUpfmdEl, 'input', recalcularValoresTela);
+    ligarUmaVez(selectEsquinaEl, 'change', recalcularValoresTela);
+    ligarUmaVez(selectBaseEl, 'change', recalcularValoresTela);
+
+    // Bloco de reincidência: só para infrações 120000227 / 120000228
+    const blocoReincidencia = document.getElementById(`blocoReincidenciaAnterior${sfx}`);
+    const inputAiNum = document.getElementById(`inputAutoInfracaoAntNum${sfx}`);
+    const inputAiData = document.getElementById(`inputAutoInfracaoAntData${sfx}`);
+    const temReincidencia = itens.some(it => {
+        const low = (it.disp || '').toLowerCase();
+        return low.includes('120000228') || low.includes('120000227') || low.includes('reincid');
+    });
+
+    if (blocoReincidencia) blocoReincidencia.style.display = temReincidencia ? 'block' : 'none';
+    if (inputAiNum) {
+        inputAiNum.value = proc.campos?.auto_infracao_anterior_numero || '';
+        ligarUmaVez(inputAiNum, 'input', () => {
+            processoAtual.campos = processoAtual.campos || {};
+            processoAtual.campos.auto_infracao_anterior_numero = inputAiNum.value;
+            atualizarDocumento();
+        });
+    }
+    if (inputAiData) {
+        inputAiData.value = proc.campos?.auto_infracao_anterior_data || '';
+        ligarUmaVez(inputAiData, 'input', () => {
+            processoAtual.campos = processoAtual.campos || {};
+            processoAtual.campos.auto_infracao_anterior_data = inputAiData.value;
+            atualizarDocumento();
+        });
+    }
+
+    // Inputs de valor, um por infração
+    listaInputs.innerHTML = '';
+    itens.forEach(({ index, disp, rotulo }) => {
+        const numNotif = `${proc.numero_processo || '1000'}-${index + 1}`;
+        const dispLow = (disp || '').toLowerCase();
+        const defVal = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmdAtualProc, baseCalculo);
+        const customVal = proc.campos?.multas_customizadas?.[index];
+        const valFinal = (customVal !== undefined && customVal !== null && customVal !== '')
+            ? parseNumberSafe(customVal, defVal)
+            : defVal;
+        const nomeFormatado = rotulo || obterNomeCompletoInfracao(disp);
+
+        const div = document.createElement('div');
+        div.className = 'multa-input-card';
+        div.innerHTML = `
+            <label class="multa-label" title="${nomeFormatado}">
+                <span style="color:#7c3aed; font-weight:700;">N° ${numNotif}</span> — ${nomeFormatado}
+            </label>
+            <div class="input-money-wrapper">
+                <span class="currency-prefix">R$</span>
+                <input type="number" step="0.01" class="form-input input-multa-val" data-index="${index}" value="${valFinal.toFixed(2)}">
+            </div>
+        `;
+        div.querySelector('.input-multa-val').dataset.disp = disp || '';
+        listaInputs.appendChild(div);
+    });
+
+    atualizarResumoBase();
+
+    // Salvar: grava os parâmetros e os valores no processo e regera o documento
+    const btnSalvar = document.getElementById(`btnAtualizarMultasDoc${sfx}`);
+    ligarUmaVez(btnSalvar, 'click', async () => {
+        if (!processoAtual) return;
+        processoAtual.campos = processoAtual.campos || {};
+        processoAtual.campos.multas_customizadas = processoAtual.campos.multas_customizadas || {};
+
+        const novoUpfmd = parseNumberSafe(document.getElementById(`inputValUpfmd${sfx}`)?.value, 0) || valorUpfmdAtual || 103.00;
+        processoAtual.campos.upfmd_utilizado = novoUpfmd;
+        processoAtual.campos.imovel_esquina = document.getElementById(`selectEsquinaCalc${sfx}`)?.value || 'nao';
+        processoAtual.campos.base_calculo_multa = document.getElementById(`selectBaseCalculoMulta${sfx}`)?.value === 'profundidade'
+            ? 'profundidade'
+            : 'testada';
+
+        const aiNum = document.getElementById(`inputAutoInfracaoAntNum${sfx}`);
+        const aiData = document.getElementById(`inputAutoInfracaoAntData${sfx}`);
+        if (aiNum) processoAtual.campos.auto_infracao_anterior_numero = aiNum.value.trim();
+        if (aiData) processoAtual.campos.auto_infracao_anterior_data = aiData.value.trim();
+
+        // A UPFMD só vira uma nova linha de histórico quando o valor realmente mudou;
+        // salvar os valores da multa não deve duplicar o registro da UPFMD.
+        await window.registrarNovaUpfmdSeMudou(novoUpfmd);
+
+        listaInputs.querySelectorAll('.input-multa-val').forEach(inp => {
+            processoAtual.campos.multas_customizadas[inp.dataset.index] = parseNumberSafe(inp.value, 0);
+        });
+
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.campos = processoAtual.campos;
+
+        const { error } = await supabaseClient
+            .from('processos')
+            .update({ dados: processoAtual.dados })
+            .eq('id', processoAtual.id);
+
+        if (error) {
+            console.error('Erro ao salvar multas:', error);
+            alert('Erro ao salvar valores: ' + error.message);
+            return;
+        }
+
+        atualizarDocumento();
+        const fb = document.getElementById(`multasSalvasFeedback${sfx}`);
+        if (fb) {
+            fb.style.display = 'inline';
+            setTimeout(() => { fb.style.display = 'none'; }, 4000);
+        }
+    });
+
+    if (card) card.dataset.configurado = '1';
+}
+window.configurarCardCalculoMulta = configurarCardCalculoMulta;
+
+// Card de multas da Etapa 14. O Auto de Infração trata de uma infração por vez
+// (a da notificação em foco), então o card mostra só esse valor — e usa o mesmo
+// índice de multas_customizadas que obterDadosLegaisEValoresAuto lê.
+window.configurarCardCalculoMultaAutoInfracao = function () {
+    const proc = processoAtual;
+    if (!proc || !document.getElementById('listaInputsMultasAi')) return;
+
+    const dispositivos = obterDispositivosDoProcesso(proc);
+    const idx = obterIndiceMultaNotificacao(proc, notificacaoAtual);
+
+    const dispBruto = document.getElementById('inputInfracaoAutoInfracao')?.value
+        || dispositivos[idx]
+        || notificacaoAtual?.descricao
+        || dispositivos[0]
+        || '';
+
+    configurarCardCalculoMulta({
+        suffix: 'Ai',
+        proc,
+        itens: [{ index: idx, disp: dispBruto }],
+        onAtualizarDocumento: () => {
+            if (typeof window.gerarAutoDeInfracao === 'function') window.gerarAutoDeInfracao(true);
+        }
+    });
+};
+
+// Grava a UPFMD em configuracoes_upfmd apenas quando o valor mudou de fato.
+// Antes, todo "Salvar" inseria uma linha nova mesmo sem alteração nenhuma.
+window.registrarNovaUpfmdSeMudou = async function (novoUpfmd) {
+    const valor = parseNumberSafe(novoUpfmd, 0);
+    if (!valor) return false;
+
+    const atual = parseNumberSafe(window.valorUpfmdAtual || valorUpfmdAtual, 0);
+    if (atual && Math.abs(atual - valor) < 0.005) return false; // sem mudança: não grava
+
+    try {
+        const { error: errUp } = await supabaseClient.from('configuracoes_upfmd').insert([{
+            valor: valor,
+            ano: new Date().getFullYear()
+        }]);
+        if (errUp) {
+            console.warn('Erro do Supabase ao salvar em configuracoes_upfmd:', errUp.message);
+            return false;
+        }
+        valorUpfmdAtual = valor;
+        window.valorUpfmdAtual = valor;
+        return true;
+    } catch (errUp) {
+        console.warn('Não foi possível gravar histórico em configuracoes_upfmd:', errUp);
+        return false;
+    }
+};
 
 async function renderizarStepperPadrao(proc) {
     if (!proc) return;
@@ -4449,134 +4811,12 @@ async function renderizarPainelEtapa1(proc) {
     // 1. Atualizar Stepper Visual no Topo
     await renderizarStepperPadrao(proc);
 
-    // 2. Preencher Inputs de Valores das Multas
-    const listaInputs = document.getElementById('listaInputsMultas');
-    console.log('[DEBUG PAINEL] elemento #listaInputsMultas encontrado?', !!listaInputs);
-    const painelEl = document.getElementById('painelAcoesEtapa1');
-    console.log('[DEBUG PAINEL] elemento #painelAcoesEtapa1 encontrado?', !!painelEl, '| display:', painelEl?.style.display || getComputedStyle(painelEl || document.body).display);
-    if (listaInputs) {
-        listaInputs.innerHTML = '';
-        const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc);
-        const upfmdAtualProc = window.valorUpfmdAtual || valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado);
-        const dispositivos = obterDispositivosDoProcesso(proc);
-        console.log('[DEBUG PAINEL] dispositivos encontrados:', dispositivos);
-        console.log('[DEBUG PAINEL] areaNum:', areaNum, '| testadaNum:', testadaNum, '| upfmd:', upfmdAtualProc);
-
-        function obterNomeCompletoInfracao(disp) {
-            if (!disp) return 'Infração Geral';
-            const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
-            const dispLow = disp.toLowerCase();
-
-            if (cod === '120000232' || dispLow.includes('limpeza e conservação') || dispLow.includes('não edificado')) {
-                return 'Falta de limpeza e conservação de imóvel não edificado (120000232)';
-            } else if (cod === '120000228' || dispLow.includes('reincidência na inexistência de cercamento')) {
-                return 'Reincidência na inexistência de cercamento (120000228)';
-            } else if (cod === '120000227' || dispLow.includes('reincidência na inexistência de passeio')) {
-                return 'Reincidência na inexistência de passeio (120000227)';
-            } else if (cod === '120000211' || dispLow.includes('cercamento')) {
-                return 'Inexistência de cercamento (120000211)';
-            } else if (cod === '120000226' || dispLow.includes('inexistência de passeio')) {
-                return 'Inexistência de passeio (120000226)';
-            } else if (cod === '120000229' || dispLow.includes('reconstrução de/ou reparo de muro') || dispLow.includes('reparo de muro')) {
-                return 'Reconstrução de/ou reparo de muro (120000229)';
-            } else if (cod === '120000240' || dispLow.includes('reconstrução e/ou reparo de passeio')) {
-                return 'Reconstrução e/ou reparo de passeio (120000240)';
-            } else if (dispLow.includes('muro em má conservação') || dispLow.includes('danificado')) {
-                return 'Muro em má conservação ou danificado';
-            } else if (cod === '120000233' || dispLow.includes('limpeza de quintal')) {
-                return 'Limpeza de quintal (120000233)';
-            } else if (cod === '120000237' || dispLow.includes('obstáculos em calçadas')) {
-                return 'Obstáculos em calçadas impedindo livre trânsito (120000237)';
-            } else if (cod === '120000239' || dispLow.includes('água servida')) {
-                return 'Água servida (120000239)';
-            } else if (cod === '120000236' || dispLow.includes('estabelecimento sem alvará')) {
-                return 'Estabelecimento sem alvará (120000236)';
-            } else if (cod === '120000234' || dispLow.includes('reparos por concessionárias')) {
-                return 'Reparos por concessionárias (120000234)';
-            } else if (cod === '120000230' || dispLow.includes('piso tátil')) {
-                return 'Inexistência de sinalização adequada - piso tátil (120000230)';
-            } else {
-                return disp.split('|')[0].trim();
-            }
-        }
-
-        const inputUpfmdEl = document.getElementById('inputValUpfmd');
-        const selectEsquinaEl = document.getElementById('selectEsquinaCalc');
-
-        if (selectEsquinaEl) {
-            selectEsquinaEl.value = temEsquina ? 'sim' : 'nao';
-        }
-        if (inputUpfmdEl) {
-            inputUpfmdEl.value = upfmdAtualProc.toFixed(2);
-        }
-
-        const recalcularValoresTela = () => {
-            const novoUpfmd = parseFloat(inputUpfmdEl?.value) || 103.00;
-            const ehEsquina = (selectEsquinaEl?.value === 'sim');
-            document.querySelectorAll('.input-multa-val').forEach((inputEl, idx) => {
-                const disp = dispositivos[idx];
-                if (disp) {
-                    const recVal = calcularValorNumDefaultMulta(disp.toLowerCase(), areaNum, testadaNum, profundidadeNum, ehEsquina, novoUpfmd);
-                    inputEl.value = recVal.toFixed(2);
-                }
-            });
-        };
-
-        if (inputUpfmdEl) inputUpfmdEl.addEventListener('input', recalcularValoresTela);
-        if (selectEsquinaEl) selectEsquinaEl.addEventListener('change', recalcularValoresTela);
-
-        const blocoReincidencia = document.getElementById('blocoReincidenciaAnterior');
-        const inputAiNum = document.getElementById('inputAutoInfracaoAntNum');
-        const inputAiData = document.getElementById('inputAutoInfracaoAntData');
-        const temReincidencia = dispositivos.some(d => {
-            const low = (d || '').toLowerCase();
-            return low.includes('120000228') || low.includes('120000227') || low.includes('reincid');
-        });
-
-        if (blocoReincidencia) {
-            blocoReincidencia.style.display = temReincidencia ? 'block' : 'none';
-        }
-        if (inputAiNum) {
-            inputAiNum.value = proc.campos?.auto_infracao_anterior_numero || '';
-            inputAiNum.addEventListener('input', () => {
-                processoAtual.campos = processoAtual.campos || {};
-                processoAtual.campos.auto_infracao_anterior_numero = inputAiNum.value;
-                renderizarDocumentoOficial(processoAtual);
-            });
-        }
-        if (inputAiData) {
-            inputAiData.value = proc.campos?.auto_infracao_anterior_data || '';
-            inputAiData.addEventListener('input', () => {
-                processoAtual.campos = processoAtual.campos || {};
-                processoAtual.campos.auto_infracao_anterior_data = inputAiData.value;
-                renderizarDocumentoOficial(processoAtual);
-            });
-        }
-
-        dispositivos.forEach((disp, index) => {
-            const numNotif = `${proc.numero_processo || '1000'}-${index + 1}`;
-            const dispLow = disp.toLowerCase();
-            const defVal = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmdAtualProc);
-            const customVal = proc.campos?.multas_customizadas?.[index];
-            const valFinal = (customVal !== undefined && customVal !== null && customVal !== '')
-                ? parseFloat(customVal)
-                : defVal;
-            const nomeFormatado = obterNomeCompletoInfracao(disp);
-
-            const div = document.createElement('div');
-            div.className = 'multa-input-card';
-            div.innerHTML = `
-                <label class="multa-label" title="${nomeFormatado}">
-                    <span style="color:#7c3aed; font-weight:700;">NP N° ${numNotif}</span> — ${nomeFormatado}
-                </label>
-                <div class="input-money-wrapper">
-                    <span class="currency-prefix">R$</span>
-                    <input type="number" step="0.01" class="form-input input-multa-val" data-index="${index}" value="${valFinal.toFixed(2)}">
-                </div>
-            `;
-            listaInputs.appendChild(div);
-        });
-    }
+    // 2. Preencher Inputs de Valores das Multas (card compartilhado com a Etapa 14)
+    window.configurarCardCalculoMulta({
+        suffix: '',
+        proc,
+        onAtualizarDocumento: () => renderizarDocumentoOficial(processoAtual)
+    });
 
     // 3. Status e Exibição dos Anexos Assinados (NP e RF)
     const anexoNP = proc.campos?.anexo_np_assinada;
@@ -4668,63 +4908,8 @@ async function extrairTextoDoArquivo(file) {
 }
 
 function configurarEventosPainelEtapa1() {
-    const btnAtualizarMultas = document.getElementById('btnAtualizarMultasDoc');
-    if (btnAtualizarMultas) {
-        btnAtualizarMultas.addEventListener('click', async () => {
-            if (!processoAtual) return;
-            processoAtual.campos = processoAtual.campos || {};
-            processoAtual.campos.multas_customizadas = {};
-
-            const novoUpfmd = parseFloat(document.getElementById('inputValUpfmd')?.value) || valorUpfmdAtual || 103.00;
-            processoAtual.campos.upfmd_utilizado = novoUpfmd;
-            processoAtual.campos.imovel_esquina = document.getElementById('selectEsquinaCalc')?.value || 'nao';
-            const inputAiNum = document.getElementById('inputAutoInfracaoAntNum');
-            const inputAiData = document.getElementById('inputAutoInfracaoAntData');
-            if (inputAiNum) processoAtual.campos.auto_infracao_anterior_numero = inputAiNum.value.trim();
-            if (inputAiData) processoAtual.campos.auto_infracao_anterior_data = inputAiData.value.trim();
-
-            if (novoUpfmd) {
-                try {
-                    const { error: errUp } = await supabaseClient.from('configuracoes_upfmd').insert([{
-                        valor: novoUpfmd,
-                        ano: new Date().getFullYear()
-                    }]);
-                    if (errUp) {
-                        console.warn('Erro do Supabase ao salvar em configuracoes_upfmd:', errUp.message);
-                    } else {
-                        valorUpfmdAtual = novoUpfmd;
-                    }
-                } catch (errUp) {
-                    console.warn('Não foi possível gravar histórico em configuracoes_upfmd:', errUp);
-                }
-            }
-
-            document.querySelectorAll('.input-multa-val').forEach(inp => {
-                processoAtual.campos.multas_customizadas[inp.dataset.index] = parseFloat(inp.value) || 0;
-            });
-
-            processoAtual.dados = processoAtual.dados || {};
-            processoAtual.dados.campos = processoAtual.campos;
-
-            const { error } = await supabaseClient
-                .from('processos')
-                .update({ dados: processoAtual.dados })
-                .eq('id', processoAtual.id);
-
-            if (error) {
-                console.error('Erro ao salvar multas:', error);
-                alert('Erro ao salvar valores: ' + error.message);
-                return;
-            }
-
-            renderizarDocumentoOficial(processoAtual);
-            const fb = document.getElementById('multasSalvasFeedback');
-            if (fb) {
-                fb.style.display = 'inline';
-                setTimeout(() => { fb.style.display = 'none'; }, 4000);
-            }
-        });
-    }
+    // O botão "Salvar Valores" do card de multas é ligado por configurarCardCalculoMulta,
+    // que é compartilhado com a Etapa 14.
 
     const areaDropNP = document.getElementById('areaDropNP');
     const inputArquivoNP = document.getElementById('inputArquivoNP');
@@ -6388,6 +6573,7 @@ async function preencherFormularioEdicao(proc) {
     setVal('editImvNumero', imv.numero);
     setVal('editImvBairro', imv.bairro);
     setVal('editImvTestada', imv.testada || '');
+    setVal('editImvProfundidade', imv.profundidade || '');
     setVal('editImvArea', imv.area_total || '');
 
     setVal('editFiscDataVistoria', fisc.data_vistoria);
@@ -6436,9 +6622,9 @@ async function preencherFormularioEdicao(proc) {
 function gerarBlocoInfracao(proc, disp, index) {
     const numNotif = `${proc.numero_processo || '1000'}-${index + 1}`;
     const dispLow = (disp || '').toLowerCase();
-    const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc);
+    const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = obterDadosImovelParaCalculo(proc);
     const upfmd = window.valorUpfmdAtual || valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado);
-    const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd);
+    const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd, baseCalculo);
     const customMulta = proc.campos?.multas_customizadas?.[index];
     const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
         ? parseFloat(customMulta)
@@ -6633,9 +6819,9 @@ function renderizarDocumentoOficial(proc) {
         // Código legado mantido abaixo apenas como referência (substituído por gerarBlocoInfracao)
         const numNotif = `${proc.numero_processo || '1000'}-${index + 1}`;
         const dispLow = disp.toLowerCase();
-        const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc);
+        const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = obterDadosImovelParaCalculo(proc);
         const upfmd = valorUpfmdAtual || parseFloat(proc.campos?.upfmd_utilizado);
-        const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd);
+        const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd, baseCalculo);
         const customMulta = proc.campos?.multas_customizadas?.[index];
         const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
             ? parseFloat(customMulta)
@@ -9214,6 +9400,7 @@ async function salvarEdicoesProcesso() {
                 numero: getVal('editImvNumero'),
                 bairro: getVal('editImvBairro'),
                 testada: getVal('editImvTestada'),
+                profundidade: getVal('editImvProfundidade'),
                 area_total: getVal('editImvArea')
             },
             fiscal: {
@@ -10398,13 +10585,13 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
 
     const dispositivos = obterDispositivosDoProcesso(proc || {});
     let blocosInfracoesHtml = '';
-    const { areaNum, testadaNum, profundidadeNum, temEsquina } = obterDadosImovelParaCalculo(proc || {});
+    const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = obterDadosImovelParaCalculo(proc || {});
     const upfmd = window.valorUpfmdAtual || valorUpfmdAtual || parseFloat(proc?.campos?.upfmd_utilizado);
 
     dispositivos.forEach((disp, index) => {
         const numNotif = `${proc?.numero_processo || '1000'}-${index + 1}`;
         const dispLow = (disp || '').toLowerCase();
-        const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd);
+        const defaultMulta = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd, baseCalculo);
         const customMulta = proc?.campos?.multas_customizadas?.[index];
         const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
             ? parseFloat(customMulta)
@@ -11213,9 +11400,9 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
 
     const upfmdVal = window.valorUpfmdAtual || valorUpfmdAtual || parseNumberSafe(p?.campos?.upfmd_utilizado, 0);
 
-    const { areaNum, testadaNum, profundidadeNum, temEsquina } = window.obterDadosImovelParaCalculo
+    const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = window.obterDadosImovelParaCalculo
         ? window.obterDadosImovelParaCalculo(p)
-        : { areaNum: parseNumberSafe(fisc?.area_lote_m2, 288), testadaNum: parseNumberSafe(fisc?.testada_metros, 12), profundidadeNum: 0, temEsquina: false };
+        : { areaNum: parseNumberSafe(fisc?.area_lote_m2, 288), testadaNum: parseNumberSafe(fisc?.testada_metros, 12), profundidadeNum: 0, temEsquina: false, baseCalculo: 'testada' };
 
     const numAI = p?.campos?.auto_infracao_anterior_numero || notificacaoAtual?.dados?.etapa14?.numero_auto_infracao || 'XXXX';
     const dataAI = p?.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
@@ -11228,7 +11415,7 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
 
     // Pega o valor numérico padrão usando a função da Notificação Preliminar
     const defMulta = window.calcularValorNumDefaultMulta
-        ? window.calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmdVal)
+        ? window.calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmdVal, baseCalculo)
         : 10 * upfmdVal;
 
     const customMulta = p?.campos?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multa_customizada;
@@ -13899,6 +14086,87 @@ async function reservarNumeroOficioGfp() {
     return numero;
 }
 
+// ── Situação do ofício: baixado / assinado / sem movimentação ──
+// Fica em documentos.situacao. A mesma situação aparece (e pode ser trocada)
+// na aba Ofícios do painel.
+let documentoOficioGfpAtual = null;   // { id, situacao }
+
+async function carregarSituacaoOficioGfp() {
+    const select = document.getElementById('selectSituacaoOficioGfp');
+    if (!select || !processoAtual?.id) return;
+
+    try {
+        const { data } = await supabaseClient
+            .from('documentos')
+            .select('id, situacao, notificacao_id')
+            .eq('tipo', CATEGORIA_OFICIO_GFP)
+            .eq('processo_id', processoAtual.id)
+            .order('created_at', { ascending: true });
+
+        const lista = data || [];
+        const doc = notificacaoAtual?.id
+            ? (lista.find(d => d.notificacao_id === notificacaoAtual.id) || lista.find(d => !d.notificacao_id))
+            : lista[0];
+        if (!doc) return;
+
+        documentoOficioGfpAtual = doc;
+        select.value = doc.situacao || 'sem_movimentacao';
+        select.disabled = false;
+    } catch (e) {
+        console.warn('[OFÍCIO GFP] Não foi possível carregar a situação:', e);
+    }
+}
+
+window.salvarSituacaoOficioGfp = async function (valor) {
+    const select = document.getElementById('selectSituacaoOficioGfp');
+    if (!select || !documentoOficioGfpAtual) return;
+
+    if (!podeGerenciarOficioGfp()) {
+        alert('⚠️ Apenas o Gerente de Fiscalização ou Administrativo de Posturas pode mudar a situação do ofício.');
+        select.value = documentoOficioGfpAtual.situacao || 'sem_movimentacao';
+        return;
+    }
+
+    select.disabled = true;
+    try {
+        const { error } = await supabaseClient
+            .from('documentos')
+            .update({ situacao: valor })
+            .eq('id', documentoOficioGfpAtual.id);
+        if (error) throw error;
+
+        documentoOficioGfpAtual.situacao = valor;
+        const aviso = document.getElementById('avisoSituacaoOficioGfp');
+        if (aviso) {
+            aviso.style.display = 'inline';
+            setTimeout(() => { aviso.style.display = 'none'; }, 2000);
+        }
+    } catch (e) {
+        console.error('[OFÍCIO GFP] Erro ao salvar a situação:', e);
+        alert('Não foi possível salvar a situação do ofício. Tente novamente.');
+        select.value = documentoOficioGfpAtual.situacao || 'sem_movimentacao';
+    } finally {
+        select.disabled = false;
+    }
+};
+
+// Baixar o PDF já marca como "baixado", mas nunca desfaz um "assinado"
+async function marcarOficioGfpComoBaixado() {
+    if (!documentoOficioGfpAtual || documentoOficioGfpAtual.situacao === 'assinado') return;
+    const select = document.getElementById('selectSituacaoOficioGfp');
+    try {
+        const { error } = await supabaseClient
+            .from('documentos')
+            .update({ situacao: 'baixado' })
+            .eq('id', documentoOficioGfpAtual.id);
+        if (error) throw error;
+        documentoOficioGfpAtual.situacao = 'baixado';
+        if (select) select.value = 'baixado';
+    } catch (e) {
+        console.warn('[OFÍCIO GFP] Não foi possível marcar como baixado:', e);
+    }
+}
+
 // ── Geração do documento na tela ──
 window.gerarOficioGfp = async function () {
     const container = document.getElementById('containerOficioGfp');
@@ -13924,94 +14192,22 @@ window.gerarOficioGfp = async function () {
         || processoAtual?.numero_processo
         || '—';
 
-    const dataExtenso = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-
-    const estiloNomeEditavel = podeEditar
-        ? 'outline:none; border-bottom:1px dashed #2563eb; padding:0 2px; cursor:text; min-width:180px; display:inline-block;'
-        : '';
-
-    container.innerHTML = `
-        <div id="documentoOficioGfp" style="font-family: Calibri, 'Carlito', Arial, sans-serif;">
-            <div style="padding: 50px 55px 30px 55px; background: white; max-width: 820px; margin: 0 auto; color: #000;">
-
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-collapse: collapse;">
-                    <tr>
-                        <td width="100" rowspan="2" align="center" valign="top" style="padding-right: 12px; width: 100px;">
-                            <img src="assets/img/brasao_semac.jpeg" width="85" style="width: 85px; height: auto; display: block; margin: 0 auto;">
-                        </td>
-                        <td bgcolor="#F78C26" style="background-color: #F78C26; height: 14px; font-size: 1px; line-height: 14px;">&nbsp;</td>
-                    </tr>
-                    <tr>
-                        <td valign="top" style="padding-top: 10px; font-size: 9.5pt; color: #000; line-height: 1.4;">
-                            <strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>
-                            DIRETORIA DE MEIO AMBIENTE<br>
-                            GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br>
-                            <span style="font-size: 9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br>
-                            <span style="font-size: 9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span>
-                        </td>
-                    </tr>
-                </table>
-
-                <hr style="border:none; border-top:1px solid #000; margin: 0 0 22px 0;">
-
-                <div style="text-align: right; font-size: 12pt; margin-bottom: 6px;">
-                    <strong>OFÍCIO SEMAC - <u>GFP</u> Nº ${numOficio}</strong>
-                </div>
-                <div style="text-align: right; font-size: 10.5pt; margin-bottom: 30px;">
-                    Divinópolis, ${dataExtenso}.
-                </div>
-
-                <div style="font-size: 11pt; line-height: 1.5; margin-bottom: 26px;">
-                    Ao Senhor<br>
-                    <span id="nomeSecretarioFazendaOficio"
-                          ${podeEditar ? 'contenteditable="true" spellcheck="false" data-placeholder="Nome do Secretário Municipal de Fazenda"' : ''}
-                          style="${estiloNomeEditavel}">${escaparHtmlOficioGfp(secretario.nome)}</span><br>
-                    ${escaparHtmlOficioGfp(secretario.cargo || CARGO_SECRETARIO_FAZENDA)}
-                </div>
-
-                <div style="font-size: 11pt; margin-bottom: 24px;">
-                    <strong>Assunto: Emissão de guia para pagamento</strong>
-                </div>
-
-                <div style="font-size: 11pt; line-height: 1.6; text-align: justify;">
-                    <p style="margin: 0 0 16px 0;">Prezado Senhor,</p>
-
-                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
-                        Encaminho a Vossa Senhoria o <strong>Auto de Infração nº ${escaparHtmlOficioGfp(numAutoInfracao)}</strong>,
-                        lavrado em face do contribuinte <strong>${escaparHtmlOficioGfp(nomeAutuado)}</strong>,
-                        cujo <strong>PA ${escaparHtmlOficioGfp(pa)}</strong> tramitou corretamente, devidamente fundamentado
-                        no respectivo Auto de Infração.
-                    </p>
-
-                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
-                        Informo que o referido Auto de Infração será regularmente entregue ao autuado junto com a guia de
-                        pagamento, oportunidade em que será assegurado o exercício do contraditório e da ampla defesa,
-                        observando-se o prazo recursal previsto na legislação aplicável.
-                    </p>
-
-                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
-                        Diante dos fatos, requisito portanto, que seja emitido a guia para o pagamento da penalidade na
-                        integralidade,<strong><u> eventual pedido de inscrição em dívida ativa será encaminhado após término
-                        do prazo recursal.</u></strong>
-                    </p>
-
-                    <p style="margin: 0 0 16px 0; text-indent: 40px;">
-                        Coloco-me à disposição para quaisquer esclarecimentos adicionais.
-                    </p>
-
-                    <p style="margin: 0 0 16px 0; text-indent: 40px;">Atenciosamente,</p>
-                </div>
-
-                <div style="text-align: center; margin-top: 70px; padding-bottom: 28px; font-size: 11pt; line-height: 1.5;">
-                    <div><em>(assinado digitalmente)</em></div>
-                    <div><strong>${escaparHtmlOficioGfp(gerente.nome)}</strong></div>
-                    <div><strong>${CARGO_ASSINATURA_OFICIO_GFP}</strong></div>
-                </div>
-            </div>
-        </div>
-    `;
+    // O modelo do ofício mora em assets/js/oficio-modelo.js, compartilhado com o
+    // atalho "Ver ofício" da aba Ofícios do painel
+    container.innerHTML = window.montarHtmlOficioGfp({
+        numero: numOficio,
+        dataTexto: window.dataTextoOficio(),
+        secretarioNome: secretario.nome,
+        secretarioCargo: secretario.cargo || CARGO_SECRETARIO_FAZENDA,
+        gerenteNome: gerente.nome,
+        autuado: nomeAutuado,
+        numeroAutoInfracao: numAutoInfracao,
+        pa: pa,
+        nomeEditavel: podeEditar
+    });
 
     if (podeEditar) configurarEdicaoNomeSecretarioOficio();
+    carregarSituacaoOficioGfp();
 };
 
 function escaparHtmlOficioGfp(txt) {
@@ -14109,6 +14305,7 @@ window.baixarOficioGfpPdf = async function () {
     setTimeout(() => {
         printIframe.contentWindow.focus();
         printIframe.contentWindow.print();
+        marcarOficioGfpComoBaixado();
         setTimeout(() => {
             if (document.body.contains(printIframe)) document.body.removeChild(printIframe);
             document.title = tituloOriginal;

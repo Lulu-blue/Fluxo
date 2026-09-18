@@ -1514,6 +1514,52 @@
     </div>
     <!-- FIM MODAL OFÍCIO AVULSO -->
 
+    <!-- ============================================================ -->
+    <!-- MODAL: atalho "Ver ofício" da Etapa 15 (somente leitura)     -->
+    <!-- ============================================================ -->
+    <div class="modal-overlay" id="modalOficioEtapa15" style="z-index: 2000;">
+        <div class="modal-container modal-editor-container">
+            <div class="modal-header">
+                <div class="modal-title-area">
+                    <h2>Ofício SEMAC - GFP <span id="oficioEtapa15NumeroTitulo"></span></h2>
+                    <span class="modal-subtitle" id="oficioEtapa15Subtitulo">Documento da Etapa 15, somente leitura.</span>
+                </div>
+                <button class="modal-close" id="btnFecharOficioEtapa15" title="Fechar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body modal-editor-body">
+                <div id="containerOficioEtapa15">
+                    <div class="oficio-avulso-status">Carregando o ofício...</div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btnAbrirProcessoDoOficio">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    Abrir o processo
+                </button>
+                <div style="flex:1;"></div>
+                <button class="btn-primary btn-success" id="btnBaixarOficioEtapa15">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                    Baixar Ofício (.pdf)
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- FIM MODAL OFÍCIO DA ETAPA 15 -->
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -1523,6 +1569,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/solicitacoes.js"></script>
     <script src="assets/js/nova-solicitacao.js"></script>
+    <script src="assets/js/oficio-modelo.js"></script>
     <script src="assets/js/oficio-avulso.js"></script>
     <script src="assets/js/chat_juridico.js"></script>
 </body>
