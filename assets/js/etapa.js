@@ -82,12 +82,38 @@ window.formatarDataVistoriaRobusta = function (val) {
     return (!isNaN(d.getTime())) ? d.toLocaleDateString('pt-BR') : null;
 };
 
+// ── Etapas compartilhadas pelos dois fluxos (NP e Auto de Infração) ────────
+// As Etapas 16 (Retorno do AR), 17 (Edital) e 30 (Gerente Localiza o AR) são
+// alcançadas tanto pelo fluxo da Notificação Preliminar (vindo da Etapa 1)
+// quanto pelo fluxo do Auto de Infração (vindo da Etapa 14). Nelas o número da
+// etapa não diz qual é o documento do processo — só a origem no histórico diz.
+const ETAPAS_AR_COMPARTILHADAS = [16, 17, 30];
+window.ETAPAS_AR_COMPARTILHADAS = ETAPAS_AR_COMPARTILHADAS;
+
+// Leitura síncrona da origem do fluxo. O valor é carregado do histórico uma vez
+// por processo (carregarOrigemFluxoProcesso) e fica em cache no objeto.
+window.processoVeioDaEtapa14 = function (proc) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    return p?._veioDaEtapa14 === true;
+};
+
+// Substitui o antigo teste "etapa >= 14": nas etapas compartilhadas o número não
+// basta, porque os dois fluxos passam por elas.
+window.etapaIndicaAutoInfracao = function (etapa, proc) {
+    const n = parseInt(etapa, 10) || 0;
+    if (ETAPAS_AR_COMPARTILHADAS.includes(n)) return window.processoVeioDaEtapa14(proc);
+    return n >= 14;
+};
+
 // ── Helper para verificar se Notificação possui status de Auto de Infração ──
-window.ehStatusAutoInfracao = function (notif) {
+window.ehStatusAutoInfracao = function (notif, proc) {
     if (!notif) return false;
     const st = (notif.status || '').toLowerCase();
     const etapa = parseInt(notif.etapas?.numero || notif.etapa_atual || notif.etapa_atual_id || 0, 10);
-    return st === 'auto_infracao' || st === 'auto de infração' || st === 'auto de infracao' || (notif.dados && notif.dados.status_fluxo === 'auto_infracao') || etapa >= 14;
+    const statusAuto = st === 'auto_infracao' || st === 'auto de infração' || st === 'auto de infracao'
+        || (notif.dados && notif.dados.status_fluxo === 'auto_infracao');
+    if (statusAuto) return true;
+    return window.etapaIndicaAutoInfracao(etapa, proc);
 };
 
 // ── Overlay de Carregamento Global ────────────────────────────────────────
@@ -451,7 +477,7 @@ const ETAPAS_MAP = {
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
-    'Administrativo de Posturas': [15, 16],
+    'Administrativo de Posturas': [15, 16, 17],
     'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
     'Secretário': [24],
     'Jurídico': [23],
@@ -546,6 +572,11 @@ function aplicarNotificacaoSelecionada(proc, indice) {
 
 async function inicializarPaginaEtapa() {
     console.log('[DEBUG] inicializarPaginaEtapa — etapa:', processoAtual?.etapa_atual, '| cargo:', perfilAtual?.cargo);
+
+    // Descobre a origem do fluxo (Etapa 1 x Etapa 14) antes de qualquer render:
+    // as Etapas 16, 17 e 30 dependem disso para saber qual documento exibir.
+    await carregarOrigemFluxoProcesso(processoAtual);
+
     const modo = determinarModoAcesso(processoAtual, perfilAtual);
     console.log('[DEBUG] inicializarPaginaEtapa — modo:', modo);
     aplicarModoAcesso(modo);
@@ -2109,6 +2140,10 @@ async function carregarProcessoCompleto(processoId) {
         }
 
         processoAtual = proc;
+
+        // Origem do fluxo (Etapa 1 x Etapa 14) antes do primeiro render do documento
+        await carregarOrigemFluxoProcesso(proc);
+
         if (alterouLida && typeof salvarNotificacoesMenuNoBanco === 'function') {
             salvarNotificacoesMenuNoBanco();
         }
@@ -2244,7 +2279,10 @@ function aplicarModoAcesso(modo) {
             aviso.style.cssText = 'background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:0.9rem;';
 
             if (ehEtapa16) {
-                aviso.innerHTML = '<strong>Etapa 1.2 — Retorno do AR em andamento.</strong><br>Este processo está com o <strong>Administrativo de Posturas</strong>. Você pode visualizar e baixar a Notificação Preliminar enquanto aguarda o retorno.';
+                const ehAuto16 = window.processoVeioDaEtapa14(processoAtual);
+                const rotuloEtapa16 = ehAuto16 ? 'Etapa 16' : 'Etapa 1.2';
+                const docEtapa16 = ehAuto16 ? 'o Auto de Infração' : 'a Notificação Preliminar';
+                aviso.innerHTML = `<strong>${rotuloEtapa16} — Retorno do AR em andamento.</strong><br>Este processo está com o <strong>Administrativo de Posturas</strong>. Você pode visualizar e baixar ${docEtapa16} enquanto aguarda o retorno.`;
             } else {
                 aviso.innerHTML = 'Você está visualizando este processo no modo <strong>leitura</strong>. Apenas o documento oficial pode ser visualizado e baixado.';
             }
@@ -2368,7 +2406,7 @@ function configurarBotoesDocumentoTopbar() {
     const btnImprimir = document.getElementById('btnImprimirEtapa');
     if (btnImprimir) {
         const svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2 2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>`;
-        if (ehStatusAutoInfracao(notificacaoAtual) || (!notificacaoAtual && (processoAtual?.etapa_atual >= 14))) {
+        if (ehStatusAutoInfracao(notificacaoAtual, processoAtual) || (!notificacaoAtual && window.etapaIndicaAutoInfracao(processoAtual?.etapa_atual, processoAtual))) {
             btnImprimir.innerHTML = `${svgIcon} Imprimir / PDF (Auto de Infração)`;
         } else {
             btnImprimir.innerHTML = `${svgIcon} Imprimir / PDF (Notificação)`;
@@ -6393,6 +6431,9 @@ function preencherCabecalhoPagina(proc) {
 
         // Mapeamento amigável do status
         const statusMap = {
+            'notificacao_preliminar': 'Notificação Preliminar',
+            'auto_infracao': 'Auto de Infração',
+            'encerrado': 'Encerrado',
             'em_aberto': 'Em Aberto',
             'em_andamento': 'Em Andamento',
             'aguardando_ar': 'Aguardando AR',
@@ -6407,9 +6448,15 @@ function preencherCabecalhoPagina(proc) {
         let bg = '#dcfce7'; // green default (finalizado / concluido)
         let color = '#166534';
 
-        if (stLow === 'em_aberto' || stLow === 'em_andamento') {
+        if (stLow === 'notificacao_preliminar' || stLow === 'em_aberto' || stLow === 'em_andamento') {
             bg = '#eff6ff'; // blue
             color = '#1e40af';
+        } else if (stLow === 'auto_infracao') {
+            bg = '#fdf2f2'; // vermelho claro, igual ao selo "Auto de Infração" das notificações
+            color = '#b93838';
+        } else if (stLow === 'encerrado') {
+            bg = '#eae6ee'; // cinza, igual ao selo "Encerrada"
+            color = '#4a4553';
         } else if (stLow === 'aguardando_ar') {
             bg = '#fef9c3'; // yellow
             color = '#854d0e';
@@ -6762,7 +6809,9 @@ function renderizarDocumentoOficial(proc) {
         return;
     }
 
-    const ehAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? ehStatusAutoInfracao(notificacaoAtual) : (etapaAtual >= 14 || ehStatusAutoInfracao(proc));
+    const ehAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
+        ? ehStatusAutoInfracao(notificacaoAtual, proc)
+        : (window.etapaIndicaAutoInfracao(etapaAtual, proc) || ehStatusAutoInfracao(proc, proc));
 
     if (ehAuto) {
         if (window.gerarAutoDeInfracao) {
@@ -7327,7 +7376,7 @@ async function renderizarEtapa2(proc) {
                 }
 
                 let statusBadge = '';
-                if (ehStatusAutoInfracao(n)) statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Auto de Infração</span>';
+                if (ehStatusAutoInfracao(n, processoAtual)) statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Auto de Infração</span>';
                 else if (n.status === 'encerrada') statusBadge = '<span style="background:#EAE6EE; color:#4A4553; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Encerrada</span>';
                 else if (n.status === 'atendida') statusBadge = '<span style="background:#EBF9F9; color:#2B7A78; border:1px solid #75C9C8; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Atendida</span>';
                 else if (n.status === 'defesa') statusBadge = '<span style="background:#F0F4FA; color:#3B5888; border:1px solid #C0B9DD; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Defesa</span>';
@@ -7801,7 +7850,7 @@ async function avancarNotificacaoEtapa2(index) {
             updateData.etapa_atual_id = etapaDb ? etapaDb.id : etapaProcesso;
             updateData.status = 'em_aberto';
         } else {
-            updateData.status = 'finalizado';
+            updateData.status = 'encerrado';
         }
 
         await supabaseClient
@@ -8245,11 +8294,13 @@ async function renderizarEtapa16(proc) {
         const tabDocumento = document.getElementById('tabDocumentoOficial');
         if (tabDocumento) tabDocumento.style.display = 'block';
 
-        // Preenche cabeçalho padrão e ajusta badges para Etapa 1.2
+        // Preenche cabeçalho padrão e ajusta badges conforme a origem do fluxo
         preencherCabecalhoPagina(proc);
         const elBadgeNum = document.getElementById('etapaNumBadge');
         const elBadgeSt = document.getElementById('etapaStatusBadge');
-        if (elBadgeNum) elBadgeNum.textContent = 'Etapa 1.2';
+        // "Etapa 1.2" é a numeração do fluxo da Notificação Preliminar; vindo do
+        // Auto de Infração a etapa é a 16 mesmo.
+        if (elBadgeNum) elBadgeNum.textContent = window.processoVeioDaEtapa14(proc) ? 'Etapa 16' : 'Etapa 1.2';
         if (elBadgeSt) elBadgeSt.textContent = 'Retorno do AR';
 
         // Renderiza a Notificação Preliminar
@@ -8274,6 +8325,8 @@ async function renderizarEtapa16(proc) {
     if (formulario16) formulario16.style.display = '';
     if (avisoFiscal) avisoFiscal.style.display = 'none';
 
+    ajustarRotulosEtapa16AoFluxo(proc);
+
     const campos = proc.campos || {};
     const dadosAR = campos.etapa16 || {};
 
@@ -8284,6 +8337,8 @@ async function renderizarEtapa16(proc) {
     setVal('arMotivoCorreios', dadosAR.motivo_correios);
 
     toggleBlocoRetornoSemSucesso();
+    atualizarAvisoTentativasAR(proc);
+    renderizarListaTentativasAR(proc);
     await carregarEExibirAnexosAR(proc);
 
     // Verifica prazo de 30 dias
@@ -8297,14 +8352,59 @@ async function renderizarEtapa16(proc) {
     }
 }
 
+// Ajusta os textos da Etapa 16 ao fluxo de origem: o documento enviado pelo AR
+// é a Notificação Preliminar (origem Etapa 1) ou o Auto de Infração (origem Etapa 14).
+function ajustarRotulosEtapa16AoFluxo(proc) {
+    const ehAuto = window.processoVeioDaEtapa14(proc);
+    const nomeDoc = ehAuto ? 'Auto de Infração' : 'Notificação Preliminar';
+    const artigo = ehAuto ? 'o' : 'a';
+    const efetivado = ehAuto ? 'efetivado' : 'efetivada';
+
+    const labelEl = document.querySelector('label[for="arRetornoSemSucesso"]');
+    if (labelEl) labelEl.textContent = `${nomeDoc} ${efetivado}?`;
+
+    const avisoLeitura = document.getElementById('avisoEtapa16Fiscal');
+    if (avisoLeitura) {
+        avisoLeitura.innerHTML = '<strong>Etapa com o Administrativo de Posturas.</strong><br>'
+            + `Aguarde o retorno do AR ser processado. Você pode visualizar e baixar ${artigo} ${nomeDoc} abaixo.`;
+    }
+}
+window.ajustarRotulosEtapa16AoFluxo = ajustarRotulosEtapa16AoFluxo;
+
 function toggleBlocoRetornoSemSucesso() {
     const select = document.getElementById('arRetornoSemSucesso');
     const bloco = document.getElementById('blocoRetornoSemSucesso');
     if (select && bloco) {
         // Exibe o bloco de retorno sem sucesso quando Notificação efetivada? for 'nao'
         bloco.style.display = select.value === 'nao' ? 'block' : 'none';
+        if (select.value === 'nao') {
+            atualizarAvisoTentativasAR(processoAtual);
+            renderizarListaTentativasAR(processoAtual);
+        }
     }
 }
+
+// Lista as tentativas de entrega já registradas, para o fiscal ver onde está.
+function renderizarListaTentativasAR(proc) {
+    const container = document.getElementById('listaTentativasAR');
+    if (!container) return;
+
+    const lista = obterRetornosARSemSucesso(proc);
+    if (lista.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = lista.map((t, i) => {
+        const dataFmt = window.formatarDataVistoriaRobusta(t.data) || t.data || '—';
+        return `<div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:#fff; border:1px solid #fecaca; border-radius:8px; font-size:0.83rem; color:#7f1d1d;">
+            <span style="font-weight:700;">${i + 1}ª tentativa</span>
+            <span style="color:#991b1b;">${dataFmt}</span>
+            <span style="color:#b91c1c;">${t.motivo || 'Motivo não informado'}</span>
+        </div>`;
+    }).join('');
+}
+window.renderizarListaTentativasAR = renderizarListaTentativasAR;
 
 async function carregarEExibirAnexosAR(proc) {
     if (!proc) return;
@@ -8669,6 +8769,73 @@ async function persistirAnexosAR(exigirObrigatorio = false) {
     return true;
 }
 
+// ── Tentativas de entrega do AR ────────────────────────────────────────────
+// O fluxo da Notificação Preliminar (origem Etapa 1) dá 3 chances de entrega ao
+// contribuinte antes de partir para o Edital. O fluxo do Auto de Infração
+// (origem Etapa 14) não tem essa repetição: a 1ª devolução já vai para a Etapa 17.
+const TENTATIVAS_AR_NOTIFICACAO_PRELIMINAR = 3;
+const TENTATIVAS_AR_AUTO_INFRACAO = 1;
+
+function limiteTentativasAR(proc) {
+    return window.processoVeioDaEtapa14(proc)
+        ? TENTATIVAS_AR_AUTO_INFRACAO
+        : TENTATIVAS_AR_NOTIFICACAO_PRELIMINAR;
+}
+window.limiteTentativasAR = limiteTentativasAR;
+
+function obterRetornosARSemSucesso(proc) {
+    const lista = proc?.campos?.etapa16?.retornos_sem_sucesso;
+    return Array.isArray(lista) ? lista : [];
+}
+
+// Registra a tentativa atual, sem duplicar quando o fiscal salva duas vezes
+// os mesmos dados. Devolve o total de tentativas sem sucesso já registradas.
+function registrarRetornoARSemSucesso(proc) {
+    if (!proc) return 0;
+    proc.campos = proc.campos || {};
+    proc.campos.etapa16 = proc.campos.etapa16 || {};
+
+    const lista = obterRetornosARSemSucesso(proc);
+    const dataAtual = proc.campos.etapa16.data_ultima_tentativa || '';
+    const motivoAtual = proc.campos.etapa16.motivo_correios || '';
+    const ultimo = lista[lista.length - 1];
+    const jaRegistrado = ultimo && ultimo.data === dataAtual && ultimo.motivo === motivoAtual;
+
+    if (!jaRegistrado) {
+        lista.push({
+            data: dataAtual || new Date().toISOString(),
+            motivo: motivoAtual,
+            registrado_em: new Date().toISOString()
+        });
+    }
+    proc.campos.etapa16.retornos_sem_sucesso = lista;
+    return lista.length;
+}
+
+// Atualiza o aviso da Etapa 16 com a regra do fluxo e as tentativas já feitas.
+function atualizarAvisoTentativasAR(proc) {
+    const el = document.getElementById('avisoTentativasAR');
+    if (!el) return;
+
+    const limite = limiteTentativasAR(proc);
+    const feitas = obterRetornosARSemSucesso(proc).length;
+
+    if (limite === 1) {
+        el.innerHTML = '<strong>Fluxo do Auto de Infração:</strong> não há repetição de envio. '
+            + 'Ao registrar este retorno sem sucesso, o processo segue direto para a '
+            + '<strong>Etapa 17 (Gerência Gera o Edital)</strong>.';
+        return;
+    }
+
+    const restantes = Math.max(0, limite - feitas);
+    el.innerHTML = `<strong>Fluxo da Notificação Preliminar:</strong> são ${limite} tentativas de entrega. `
+        + `Já registradas: <strong>${feitas} de ${limite}</strong>. `
+        + (restantes > 1
+            ? `Ainda restam ${restantes} tentativas antes do Edital.`
+            : `Este retorno sem sucesso leva o processo para a <strong>Etapa 17 (Gerência Gera o Edital)</strong>.`);
+}
+window.atualizarAvisoTentativasAR = atualizarAvisoTentativasAR;
+
 async function salvarEtapa16() {
     if (!processoAtual) return;
 
@@ -8690,22 +8857,7 @@ async function salvarEtapa16() {
     processoAtual.campos.etapa16.motivo_correios = getVal('arMotivoCorreios');
 
     if (notificacaoEfetivada === 'nao') {
-        const lista = processoAtual.campos.etapa16.retornos_sem_sucesso || [];
-        const ultimo = lista[lista.length - 1];
-        const dataAtual = processoAtual.campos.etapa16.data_ultima_tentativa || '';
-        const motivoAtual = processoAtual.campos.etapa16.motivo_correios || '';
-        const jaRegistrado = ultimo &&
-            ultimo.data === dataAtual &&
-            ultimo.motivo === motivoAtual;
-
-        if (!jaRegistrado) {
-            lista.push({
-                data: dataAtual || new Date().toISOString(),
-                motivo: motivoAtual,
-                registrado_em: new Date().toISOString()
-            });
-            processoAtual.campos.etapa16.retornos_sem_sucesso = lista;
-        }
+        registrarRetornoARSemSucesso(processoAtual);
     }
 
     if (processoAtual.campos.etapa16.numero_ar) {
@@ -8735,6 +8887,40 @@ async function salvarEtapa16() {
     }
 }
 
+// Salva uma tentativa de AR sem sucesso mantendo o processo na Etapa 16.
+// Usado no fluxo da Notificação Preliminar enquanto ainda restam tentativas.
+async function salvarTentativaARNaEtapa16(tentativas, limite) {
+    try {
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.campos = processoAtual.campos;
+
+        const { error } = await supabaseClient
+            .from('processos')
+            .update({ dados: processoAtual.dados })
+            .eq('id', processoAtual.id);
+        if (error) throw error;
+
+        await supabaseClient
+            .from('historico_etapas')
+            .insert([{
+                processo_id: processoAtual.id,
+                etapa_de_id: processoAtual.etapa_atual_id,
+                etapa_para_id: processoAtual.etapa_atual_id,
+                usuario_id: perfilAtual?.id,
+                condicao_aplicada: `Tentativa ${tentativas} de ${limite} do AR sem sucesso — permanece na Etapa 1.2`,
+                observacao: `Nº AR: ${processoAtual.campos?.etapa16?.numero_ar || 'N/A'} | `
+                    + `Motivo: ${processoAtual.campos?.etapa16?.motivo_correios || 'N/A'}`,
+                dados_etapa: { etapa16: processoAtual.campos?.etapa16 || {} }
+            }]);
+
+        return true;
+    } catch (err) {
+        console.error('Erro ao registrar tentativa do AR:', err);
+        alert('Erro ao registrar a tentativa do AR.');
+        return false;
+    }
+}
+
 async function avancarEtapa16() {
     if (!processoAtual) return;
 
@@ -8742,25 +8928,49 @@ async function avancarEtapa16() {
     if (!anexosOK) return;
 
     const getVal = id => document.getElementById(id)?.value?.trim() || '';
-    const dadosAR = processoAtual.campos?.etapa16 || {};
     const notificacaoEfetivada = getVal('arRetornoSemSucesso') || 'sim';
     const dataRecebimento = getVal('arDataRecebimento');
+
+    // Grava o que está no formulário antes de decidir o destino
+    processoAtual.campos = processoAtual.campos || {};
+    processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
+    const dadosAR = processoAtual.campos.etapa16;
+    dadosAR.numero_ar = getVal('arNumero');
+    dadosAR.data_recebimento = dataRecebimento;
+    dadosAR.notificacao_efetivada = notificacaoEfetivada;
+    dadosAR.retorno_sem_sucesso = (notificacaoEfetivada === 'nao') ? 'sim' : 'nao';
+    dadosAR.data_ultima_tentativa = getVal('arDataUltimaTentativa');
+    dadosAR.motivo_correios = getVal('arMotivoCorreios');
+
+    // A origem do fluxo define o destino e quantas tentativas de AR existem
+    const veioDaEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
 
     let proximaEtapaNumero = null;
     let condicao = '';
 
     if (notificacaoEfetivada === 'sim') {
-        const passouEtapa14 = await processoPassouPorEtapa(processoAtual, 14);
-        proximaEtapaNumero = passouEtapa14 ? 18 : 2;
-        condicao = passouEtapa14 ? 'AR recebido após Etapa 14' : 'AR recebido após Etapa 1';
+        proximaEtapaNumero = veioDaEtapa14 ? 18 : 2;
+        condicao = veioDaEtapa14 ? 'AR recebido após Etapa 14' : 'AR recebido após Etapa 1';
     } else {
-        proximaEtapaNumero = 17;
-        condicao = 'Retorno do AR sem sucesso (Notificação não efetivada)';
-    }
+        const tentativas = registrarRetornoARSemSucesso(processoAtual);
+        const limite = limiteTentativasAR(processoAtual);
 
-    if (!proximaEtapaNumero) {
-        alert('Preencha a Data de Recebimento pelo Proprietário ou registre 3 retornos sem sucesso para avançar.');
-        return;
+        if (tentativas < limite) {
+            // Fluxo da Notificação Preliminar ainda tem tentativas: permanece na Etapa 16
+            const salvou = await salvarTentativaARNaEtapa16(tentativas, limite);
+            if (salvou) {
+                alert(`Retorno sem sucesso registrado (${tentativas} de ${limite}).\n\n`
+                    + `O processo permanece na Etapa 1.2 para a próxima tentativa de entrega do AR. `
+                    + `Após ${limite} retornos sem sucesso ele seguirá para a Etapa 17 (Edital).`);
+                window.location.reload();
+            }
+            return;
+        }
+
+        proximaEtapaNumero = 17;
+        condicao = veioDaEtapa14
+            ? 'Retorno do AR sem sucesso no fluxo do Auto de Infração (vai direto ao Edital)'
+            : `Retorno do AR sem sucesso (${tentativas} de ${limite} tentativas no fluxo da Notificação Preliminar)`;
     }
 
     mostrarCarregamento('Avançando etapa...');
@@ -8830,6 +9040,22 @@ async function avancarEtapa16() {
 // ETAPA 17 — GERÊNCIA GERA O EDITAL
 // ============================================================================
 
+// Mostra de onde o processo veio e para onde vai, nas etapas compartilhadas
+// pelos dois fluxos (17 e 30). Sem isso o gerente não sabe se está tratando de
+// uma Notificação Preliminar ou de um Auto de Infração.
+function renderizarOrigemFluxoCompartilhada(proc, elementoId) {
+    const el = document.getElementById(elementoId);
+    if (!el) return;
+
+    const ehAuto = window.processoVeioDaEtapa14(proc);
+    const origem = ehAuto ? 'Auto de Infração (Etapa 14)' : 'Notificação Preliminar (Etapa 1)';
+    const destino = ehAuto ? 'Etapa 18 (Defesa do Auto)' : 'Etapa 2 (Defesa / Prazo)';
+
+    el.innerHTML = `<strong>Documento do processo:</strong> ${origem}. `
+        + `Se o AR for efetivado, o processo segue para a ${destino}.`;
+}
+window.renderizarOrigemFluxoCompartilhada = renderizarOrigemFluxoCompartilhada;
+
 function renderizarEtapa17(proc) {
     const modo = determinarModoAcesso(proc, perfilAtual);
 
@@ -8850,6 +9076,8 @@ function renderizarEtapa17(proc) {
     if (container17) container17.style.display = 'block';
     if (topbar17) topbar17.style.display = 'none';
     if (formulario17) formulario17.style.display = '';
+
+    renderizarOrigemFluxoCompartilhada(proc, 'origemFluxoEtapa17');
 
     const dadosEtapa17 = proc.campos?.etapa17 || {};
     renderizarAnexoEdital(dadosEtapa17.anexo_edital);
@@ -8990,7 +9218,7 @@ async function avancarEtapa17() {
     mostrarCarregamento('Avançando etapa...');
 
     try {
-        const passouEtapa14 = await processoPassouPorEtapa(processoAtual, 14);
+        const passouEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
         console.log('[DEBUG] avancarEtapa17 — passouEtapa14:', passouEtapa14);
         const proxEtapaNumero = passouEtapa14 ? 18 : 2;
         const status = passouEtapa14 ? 'edital_gerado_defesa' : 'edital_gerado_prazo';
@@ -9076,6 +9304,8 @@ function renderizarEtapa30(proc) {
     if (topbar30) topbar30.style.display = 'none';
     if (formulario30) formulario30.style.display = '';
 
+    renderizarOrigemFluxoCompartilhada(proc, 'origemFluxoEtapa30');
+
     const dadosAR = proc.campos?.etapa16 || {};
     setVal('ar30Numero', dadosAR.numero_ar);
 
@@ -9141,7 +9371,7 @@ async function avancarEtapa30() {
             proxEtapaNumero = 17;
             condicao = 'AR não efetivado';
         } else {
-            const passouEtapa14 = await processoPassouPorEtapa(processoAtual, 14);
+            const passouEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
             if (passouEtapa14) {
                 proxEtapaNumero = 18;
                 condicao = 'AR efetivado/localizado (já passou pela Etapa 14)';
@@ -9238,6 +9468,27 @@ async function processoPassouPorEtapa(proc, numeroEtapa) {
         return false;
     }
 }
+
+// ── Carrega a origem do fluxo e guarda em cache no processo ───────────────
+// Precisa rodar antes de renderizar as Etapas 16, 17 e 30, porque nelas o
+// documento (Notificação Preliminar x Auto de Infração) depende da origem.
+async function carregarOrigemFluxoProcesso(proc) {
+    if (!proc) return false;
+    if (typeof proc._veioDaEtapa14 === 'boolean') return proc._veioDaEtapa14;
+
+    // A coluna passou_auto_infracao é mantida pelo banco (migracao/situacao_processos.sql).
+    // Enquanto a migração não tiver rodado ela não vem no select, e caímos no histórico.
+    if (proc.passou_auto_infracao === true || proc.status === 'auto_infracao') {
+        proc._veioDaEtapa14 = true;
+    } else if (typeof proc.passou_auto_infracao === 'boolean') {
+        proc._veioDaEtapa14 = false;
+    } else {
+        proc._veioDaEtapa14 = await processoPassouPorEtapa(proc, 14);
+    }
+    console.log('[FLUXO] Processo veio da Etapa 14 (Auto de Infração)?', proc._veioDaEtapa14);
+    return proc._veioDaEtapa14;
+}
+window.carregarOrigemFluxoProcesso = carregarOrigemFluxoProcesso;
 
 // ── Verifica se o processo passou pela Etapa 17 (Edital) ──────────────────
 // Quando isso ocorre, o prazo de vencimento das notificações passa a ser 20 dias.
@@ -9698,7 +9949,8 @@ async function salvarEdicoesProcesso() {
 
         // 6. Recalcula e re-renderiza o documento correto para a etapa atual
         const numEtapa = parseInt(processoAtual.etapa_atual_id || processoAtual.etapa_atual || 1, 10);
-        const ehAuto = (typeof ehStatusAutoInfracao === 'function' && ehStatusAutoInfracao(processoAtual)) || numEtapa >= 14;
+        const ehAuto = (typeof ehStatusAutoInfracao === 'function' && ehStatusAutoInfracao(processoAtual, processoAtual))
+            || window.etapaIndicaAutoInfracao(numEtapa, processoAtual);
 
         if (numEtapa === 15) {
             // Etapa 15 não exibe documento abaixo do formulário (ver renderizarDocumentoOficial)
@@ -10331,7 +10583,9 @@ async function imprimirDocumentoOficial() {
         ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
         : parseInt(processoAtual?.etapa_atual || 1, 10);
 
-    const isAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? ehStatusAutoInfracao(notificacaoAtual) : (etapaAtual >= 14);
+    const isAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
+        ? ehStatusAutoInfracao(notificacaoAtual, processoAtual)
+        : window.etapaIndicaAutoInfracao(etapaAtual, processoAtual);
     const numNotifLimpo = (notificacaoAtual?.numero || processoAtual?.numero_processo || '2026-000001').replace(/[\/\\]/g, '-');
 
     // ── Notificação com status de Auto de Infração ──

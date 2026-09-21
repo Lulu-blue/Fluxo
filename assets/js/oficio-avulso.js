@@ -1,6 +1,8 @@
 // ============================================================
 // OFÍCIO SEMAC - GFP AVULSO (botão "Gerar Ofício" e aba "Ofícios" do painel)
-// Exclusivo do Gerente de Posturas e do Dev (ver usuarioPodeGerarOficioAvulso).
+// Gerado pelo Gerente de Posturas, pelo Administrativo de Posturas e pelo Dev
+// (ver usuarioPodeGerarOficioAvulso). A assinatura é sempre do Gerente de
+// Posturas, qualquer que seja o usuário logado (buscarNomeGerentePosturas).
 //
 // Numeração: usa a MESMA sequência dos ofícios da Etapa 15 — RPC
 // reservar_numero com a categoria 'Ofício GFP'. O número é gravado em
@@ -84,7 +86,7 @@ function mostrarErroOficioAvulso(texto, detalhe) {
 
 function podeUsarOficioAvulso() {
     if (typeof window.usuarioPodeGerarOficioAvulso === 'function' && !window.usuarioPodeGerarOficioAvulso()) {
-        alert('⚠️ Apenas o Gerente de Posturas pode gerar ofícios.');
+        alert('⚠️ Apenas o Gerente de Posturas e o Administrativo de Posturas podem gerar ofícios.');
         return false;
     }
     return !oficioAvulsoOcupado && !oficioAvulsoAtual;

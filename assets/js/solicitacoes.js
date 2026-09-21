@@ -210,14 +210,18 @@ function usuarioVeDestaqueMulta() {
 
 // ── Botões do cabeçalho: Novo Processo × Gerar Ofício ───────
 // Só o Fiscal abre processo (é ele quem assina o Relatório e o Auto de Infração).
-// O Gerente de Posturas ganha, no mesmo lugar, o Ofício SEMAC - GFP avulso.
+// O Gerente de Posturas e o Administrativo de Posturas ganham, no mesmo lugar, o
+// Ofício SEMAC - GFP avulso. Quem assina é sempre o Gerente de Posturas, mesmo
+// quando o Administrativo gera (ver buscarNomeGerentePosturas em oficio-avulso.js).
 // O Dev vê os dois botões, lado a lado, para poder testar os dois fluxos.
-// Gerente de Posturas é comparado pelo cargo exato, como no destaque de multa,
+// Os cargos são comparados pelo nome exato, como no destaque de multa,
 // para não liberar outras gerências.
 function usuarioPodeCriarProcesso() {
     const cargo = normalizarCargo(window.currentUserProfile?.cargo);
     return cargo === 'Fiscal de Postura' || cargo === 'Dev';
 }
+
+const CARGOS_GERAM_OFICIO_AVULSO = ['gerente de posturas', 'administrativo de posturas'];
 
 function usuarioPodeGerarOficioAvulso() {
     const cargoBruto = window.currentUserProfile?.cargo || '';
@@ -228,7 +232,7 @@ function usuarioPodeGerarOficioAvulso() {
         .replace(/[̀-ͯ]/g, '')
         .replace(/\s+/g, ' ')
         .trim();
-    return cargo === 'gerente de posturas';
+    return CARGOS_GERAM_OFICIO_AVULSO.includes(cargo);
 }
 
 function configurarBotoesAcaoPorCargo() {
@@ -710,6 +714,11 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         if (filtros.etapa) {
             query = query.eq('etapa_atual_id', parseInt(filtros.etapa));
         }
+        if (filtros.situacao) {
+            // processos.status é mantido pelo banco (migracao/situacao_processos.sql):
+            // notificacao_preliminar | auto_infracao | encerrado | cancelado
+            query = query.eq('status', filtros.situacao);
+        }
         if (filtros.descricao) {
             query = query.ilike('dados->>descricao', `%${filtros.descricao}%`);
         }
@@ -1048,6 +1057,7 @@ function coletarFiltros() {
         dataInicio: document.getElementById('filtroDataInicio')?.value || '',
         dataFim: document.getElementById('filtroDataFim')?.value || '',
         etapa: document.getElementById('filtroEtapa')?.value || '',
+        situacao: document.getElementById('filtroSituacao')?.value || '',
         descricao: document.getElementById('filtroDescricao')?.value.trim() || '',
         criador: document.getElementById('filtroCriador')?.value || '',
         responsavel: elResp ? elResp.value : '',
@@ -1230,6 +1240,7 @@ function bindEventos() {
         if (document.getElementById('filtroDataInicio')) document.getElementById('filtroDataInicio').value = '';
         if (document.getElementById('filtroDataFim')) document.getElementById('filtroDataFim').value = '';
         if (document.getElementById('filtroEtapa')) document.getElementById('filtroEtapa').value = '';
+        if (document.getElementById('filtroSituacao')) document.getElementById('filtroSituacao').value = '';
         if (document.getElementById('filtroDescricao')) document.getElementById('filtroDescricao').value = '';
         if (document.getElementById('filtroCriador')) document.getElementById('filtroCriador').value = '';
         const elResp = document.getElementById('filtroResponsavel');
@@ -2559,6 +2570,57 @@ window.atualizarContagemSelecionados = function () {
     }
 };
 
+// Junta todas as numerações de um processo que precisam voltar para a fila
+// (numeros_descartados) quando ele é excluído. Precisa rodar ANTES da exclusão,
+// porque autos, documentos e notificações somem junto com o processo.
+async function coletarNumerosParaDevolver(pItem) {
+    const pid = pItem.id;
+    const lista = [];
+    const vistos = new Set();
+    const add = (numero, categoria) => {
+        const n = String(numero || '').trim();
+        if (!n || !categoria) return;
+        const chave = `${categoria}|${n}`;
+        if (vistos.has(chave)) return;
+        vistos.add(chave);
+        lista.push({ numero: n, categoria });
+    };
+
+    // 1. Número do Processo e do Relatório
+    add(pItem.numero_processo, 'Processo');
+    add(pItem.dados?.relatorio_fiscal?.numero_relatorio || pItem.numero_relatorio || pItem.dados?.numero_relatorio, 'Relatório Fiscal');
+
+    // 2. Notificações NÃO têm numeração própria reservada (reservar_numero nunca é
+    // chamado com categoria 'Notificação') — o campo `numero` de cada notificação é
+    // só "{numero_processo}/NN" (ver etapa.js). Por isso não devolvemos nada aqui:
+    // devolver esse valor sob a categoria 'Notificação' reinseria o número do
+    // PROCESSO (já devolvido acima como 'Processo') sob a categoria errada.
+
+    // 3. Autos de Infração
+    const { data: autos } = await supabaseClient.from('autos_infracao').select('numero').eq('processo_id', pid);
+    (autos || []).forEach(a => add(a.numero, 'Auto de Infração'));
+
+    // 4. Documentos com numeração própria (Certidão, Réplica, Ofício GFP da Etapa 15...)
+    const { data: docs } = await supabaseClient.from('documentos').select('numero_sequencial, tipo').eq('processo_id', pid).not('numero_sequencial', 'is', null);
+    (docs || []).forEach(d => {
+        let cat = d.tipo;
+        if (cat === 'Relatório Fiscal Assinado') cat = 'Relatório Fiscal';
+        else if (cat === 'Auto de Infração Assinado') cat = 'Auto de Infração';
+        else if (cat === 'Notificação Preliminar Assinada' || cat === 'Notificação Preliminar') cat = 'Notificação';
+        else if (cat === 'Certidão Assinada') cat = 'Certidão Sem Defesa';
+        add(d.numero_sequencial, cat);
+    });
+
+    // 5. Ofício GFP da Etapa 15: o número também fica em dados.numero_oficio_gfp
+    // (do processo ou de cada notificação). Pega daqui também, para o caso de a
+    // linha em documentos não ter sido gravada — senão o número nunca voltaria.
+    add(pItem.dados?.numero_oficio_gfp, 'Ofício GFP');
+    const { data: notifs } = await supabaseClient.from('notificacoes').select('numero_oficio_gfp:dados->>numero_oficio_gfp').eq('processo_id', pid);
+    (notifs || []).forEach(n => add(n.numero_oficio_gfp, 'Ofício GFP'));
+
+    return lista;
+}
+
 window.excluirProcessosSelecionados = async function () {
     const chks = document.querySelectorAll('.chk-process:checked');
     if (chks.length === 0) {
@@ -2566,7 +2628,7 @@ window.excluirProcessosSelecionados = async function () {
         return;
     }
 
-    if (!confirm(`Tem certeza que deseja EXCLUIR DEFINITIVAMENTE ${chks.length} processo(s)?\n\nATENÇÃO: Esta ação é irreversível. O sistema apagará todos os dados anexados e devolverá todas as numerações (Protocolo, Relatório, Autos, Certidões) para a tabela de números descartados.`)) {
+    if (!confirm(`Tem certeza que deseja EXCLUIR DEFINITIVAMENTE ${chks.length} processo(s)?\n\nATENÇÃO: Esta ação é irreversível. O sistema apagará todos os dados anexados e devolverá todas as numerações (Protocolo, Relatório, Autos, Certidões, Ofícios GFP) para a tabela de números descartados.`)) {
         return;
     }
 
@@ -2581,54 +2643,28 @@ window.excluirProcessosSelecionados = async function () {
 
             console.log(`[EXCLUSÃO LOTE DEV] Processando exclusão do processo ${pid}`);
 
-            // 1. Devolver Número do Processo e Relatório (se tiver)
-            if (pItem.numero_processo) {
-                await supabaseClient.rpc('devolver_numero', { p_numero: pItem.numero_processo, p_categoria: 'Processo' });
-            }
-            const nRel = pItem.dados?.relatorio_fiscal?.numero_relatorio || pItem.numero_relatorio || pItem.dados?.numero_relatorio;
-            if (nRel) {
-                await supabaseClient.rpc('devolver_numero', { p_numero: nRel, p_categoria: 'Relatório Fiscal' });
-            }
+            // Ordem: junta os números, apaga o processo e SÓ DEPOIS devolve os números.
+            // Se devolvesse antes, um reservar_numero feito no intervalo tiraria o
+            // número da fila, veria que ainda consta como usado e o descartaria de vez
+            // (mesma regra do ofício avulso, em oficio-avulso.js). E se a exclusão
+            // falhar, nada é devolvido — o número continua com o processo.
+            const numeros = await coletarNumerosParaDevolver(pItem);
 
-            // 2. Notificações NÃO têm numeração própria reservada (reservar_numero nunca é
-            // chamado com categoria 'Notificação') — o campo `numero` de cada notificação é
-            // só "{numero_processo}/NN" (ver etapa.js). Por isso não devolvemos nada aqui:
-            // devolver esse valor sob a categoria 'Notificação' reinseria o número do
-            // PROCESSO (já devolvido corretamente acima como 'Processo') sob a categoria
-            // errada, causando duplicidade/confusão nas numerações disponíveis.
-
-            // 3. Devolver números de Autos de Infração
-            const { data: autos } = await supabaseClient.from('autos_infracao').select('numero').eq('processo_id', pid);
-            if (autos && autos.length > 0) {
-                for (const a of autos) {
-                    if (a.numero) {
-                        await supabaseClient.rpc('devolver_numero', { p_numero: a.numero, p_categoria: 'Auto de Infração' });
-                    }
-                }
-            }
-
-            // 4. Devolver números de Documentos Sequenciais (Ex: Certidão)
-            const { data: docs } = await supabaseClient.from('documentos').select('numero_sequencial, tipo').eq('processo_id', pid).not('numero_sequencial', 'is', null);
-            if (docs && docs.length > 0) {
-                for (const d of docs) {
-                    if (d.numero_sequencial) {
-                        let cat = d.tipo;
-                        if (cat === 'Relatório Fiscal Assinado') cat = 'Relatório Fiscal';
-                        else if (cat === 'Auto de Infração Assinado') cat = 'Auto de Infração';
-                        else if (cat === 'Notificação Preliminar Assinada' || cat === 'Notificação Preliminar') cat = 'Notificação';
-                        else if (cat === 'Certidão Assinada') cat = 'Certidão Sem Defesa';
-                        await supabaseClient.rpc('devolver_numero', { p_numero: d.numero_sequencial, p_categoria: cat });
-                    }
-                }
-            }
-
-            // 5. Exclusão em cascata (O banco apagará processo_infracoes, notificacoes, historico_etapas, documentos, autos_infracao...)
+            // Exclusão em cascata (o banco apaga processo_infracoes, notificacoes,
+            // historico_etapas, documentos, autos_infracao...)
             const { error: errDel } = await supabaseClient.from('processos').delete().eq('id', pid);
 
             if (errDel) {
                 console.error(`Erro ao excluir processo ${pid}:`, errDel);
-            } else {
-                excluidos++;
+                continue;
+            }
+            excluidos++;
+
+            for (const { numero, categoria } of numeros) {
+                const { error: errDev } = await supabaseClient
+                    .rpc('devolver_numero', { p_numero: numero, p_categoria: categoria });
+                // Falhar aqui só deixa um buraco na sequência; não gera repetição
+                if (errDev) console.warn(`[EXCLUSÃO] ${categoria} ${numero} não devolvido à fila:`, errDev.message);
             }
         }
 
@@ -2723,6 +2759,7 @@ window.carregarEExibirApuracaoDados = async function () {
                     id,
                     numero_processo,
                     status,
+                    passou_auto_infracao,
                     etapa_atual_id,
                     created_at,
                     fiscal_id,
@@ -2841,7 +2878,10 @@ window.carregarEExibirApuracaoDados = async function () {
             }
 
             // 4. Se o processo está em Etapa 14+ (Auto de Infração em diante) ou possui multa gerada
-            const temAutoOuMulta = (p.etapa_atual_id >= 14 || p.status === 'multa' || p.etapa14 || p.etapa15);
+            // Não usa mais "etapa >= 14": as Etapas 16, 17 e 30 também recebem processos
+            // que ainda estão em Notificação Preliminar. passou_auto_infracao continua
+            // true mesmo depois de encerrado/cancelado, então a multa não se perde.
+            const temAutoOuMulta = (p.passou_auto_infracao === true || p.status === 'auto_infracao' || p.etapa14 || p.etapa15);
             if (valMultaProc === 0 && temAutoOuMulta) {
                 if (typeof window.obterDadosLegaisEValoresAuto === 'function') {
                     try {
@@ -2876,6 +2916,11 @@ window.carregarEExibirApuracaoDados = async function () {
                     valMultaProc = 10 * upfmd;
                 }
             }
+
+            // Só é multa gerada se o processo virou Auto de Infração. Os valores da
+            // Etapa 1 (multas_customizadas) também existem em processos que ainda
+            // estão em Notificação Preliminar e não podem entrar na soma.
+            if (!temAutoOuMulta) valMultaProc = 0;
 
             if (valMultaProc > 0) {
                 fiscaisMap[fiscalIdKey].qtdMultas += 1;

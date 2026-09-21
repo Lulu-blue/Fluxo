@@ -492,13 +492,23 @@ function validarStep(step) {
             const containerImagens = document.getElementById('lista-imagens-legenda');
             const itensImagens = containerImagens ? containerImagens.querySelectorAll('.item-imagem-legenda') : [];
             let temImagemValida = false;
+            let temImagemPendente = false;
 
             for (const item of itensImagens) {
                 const imgInput = item.querySelector('.imagem-arquivo');
-                if (imgInput && (imgInput.files?.length > 0 || imgInput.getAttribute('data-base64'))) {
+                if (!imgInput) continue;
+                if (imgInput.getAttribute('data-base64')) {
                     temImagemValida = true;
-                    break;
+                } else if (imgInput.files?.length > 0) {
+                    // Arquivo escolhido, mas o envio ao Cloudinary ainda não terminou:
+                    // o relatório seria gerado sem a foto.
+                    temImagemPendente = true;
                 }
+            }
+
+            if (temImagemPendente) {
+                alert('Aguarde o envio da(s) imagem(ns) da vistoria terminar antes de continuar.');
+                return false;
             }
 
             if (!temImagemValida) {
@@ -908,7 +918,8 @@ async function finalizarSolicitacao() {
         try {
             let relatorioUrl = construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
             if (window.relatorioCustomizadoHTML && window.relatorioCustomizadoHTML.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('RELATORIO FISCAL')) {
-                relatorioUrl = window.relatorioCustomizadoHTML;
+                relatorioUrl = garantirImagensVistoriaNoHtml(window.relatorioCustomizadoHTML)
+                    || construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
             }
             const { data: docRF } = await supabaseClient.from('documentos').insert([{
                 processo_id: procCriado.id,
@@ -1217,7 +1228,8 @@ async function finalizarSolicitacao() {
                     const legenda = legInput ? legInput.value : '';
                     const imgFile = imgInput && imgInput.files ? imgInput.files[0] : null;
 
-                    const fonteImagem = imgFile || imgBase64;
+                    // Prioriza a URL já enviada na seleção (mesma usada no relatório)
+                    const fonteImagem = imgBase64 || imgFile;
                     if (fonteImagem) {
                         try {
                             const imgFinalUrl = (typeof window.uploadParaCloudinary === 'function')
@@ -1570,6 +1582,37 @@ function renderizarDocumentoRelatorio() {
             numerosReservadosEditor.processo
         );
     }
+}
+
+/**
+ * O HTML customizado do relatório (editor) é um "retrato" tirado em algum momento;
+ * se a foto terminou de subir depois disso, ela não está nele. Insere as imagens
+ * que faltam antes do encerramento/assinatura. Retorna null se não achar onde inserir.
+ */
+function garantirImagensVistoriaNoHtml(html) {
+    const itens = document.querySelectorAll('#lista-imagens-legenda .item-imagem-legenda');
+    let blocos = '';
+    itens.forEach((item) => {
+        const src = item.querySelector('.imagem-arquivo')?.getAttribute('data-base64');
+        if (!src || html.includes(src)) return;
+        const legenda = item.querySelector('.imagem-legenda')?.value || '';
+        blocos += `
+            <div style="text-align: center; margin: 20px 0; page-break-inside: avoid;">
+                <div style="display: inline-block; resize: both; overflow: hidden; max-width: 100%; min-width: 150px; min-height: 150px; border: 1px dashed #ccc; padding: 4px;">
+                    <img src="${src}" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
+                </div>
+                ${legenda ? `<p style="margin-top: 5px; font-style: italic; color: #555;">${legenda}</p>` : ''}
+            </div>
+        `;
+    });
+    if (!blocos) return html;
+
+    const ancoras = [/<p[^>]*>\s*Sem mais para o momento/i, /<!--\s*Assinatura\s*-->/i];
+    for (const re of ancoras) {
+        const m = html.match(re);
+        if (m) return html.slice(0, m.index) + blocos + html.slice(m.index);
+    }
+    return null;
 }
 
 function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj = null) {
@@ -2925,9 +2968,13 @@ window.adicionarCampoImagemLegenda = function () {
                 fileInput.removeAttribute('data-url');
                 return;
             }
+            fileInput.removeAttribute('data-base64');
+            fileInput.removeAttribute('data-url');
             try {
                 if (typeof window.uploadParaCloudinary === 'function') {
                     const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                    // O usuário pode ter trocado o arquivo enquanto este upload corria
+                    if (fileInput.files[0] !== file) return;
                     if (!urlCloud) {
                         fileInput.value = '';
                         fileInput.removeAttribute('data-base64');

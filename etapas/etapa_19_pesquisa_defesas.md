@@ -12,16 +12,18 @@
 | Lei 6.907/2008, art. 15 | "Proprietários, moradores ou ocupantes" devem manter quintais, pátios, terrenos e edificações limpos → o **possuidor** também responde | Texto no SAPL da Câmara |
 | Lei 6.907/2008, art. 18 | Multa de 4 a 10 UPFMD, em dobro na reincidência | ⚠️ confirmar a qual infração se aplica |
 | Lei 7.174/2010, arts. 1º a 4º | Limpeza, cercamento e passeio de lotes; multa por metro linear de testada em UPFMD; reincidência em dobro (art. 4º) | Já usada nos textos do sistema (`etapa.js`) |
-| **Decreto 17.326/2026** | Prazo de 15 dias para limpeza; **redução de até 50% da multa se regularizar em até 90 dias após a autuação**; reincidência em dobro | ⚠️ **só achei em notícias**, não o texto oficial |
+| **Lei 7.174/2010, art. 2º, IV** | Satisfeita a exigência objeto da notificação/auto, a penalidade **pode ser reduzida em até 50%** | **Confirmado**: é a base citada nos modelos de parecer do jurídico |
+| **Decreto 17.326/2026** | Prazo de 15 dias para limpeza; redução de até 50% se regularizar em até 90 dias após a autuação; reincidência em dobro | ⚠️ **só achei em notícias**, não o texto oficial |
 
-### ⚠️ Ponto a confirmar sobre a redução de 50%
-- No canvas, a regra é: "só limpeza tem redução de 50%".
-- Nas notícias sobre o Decreto 17.326/2026, a redução aparece como **"até 50%"** para quem **regularizar em até 90 dias após a autuação**. O texto parece falar de lotes em geral, incluindo muros e passeios.
-- Antes de programar a regra, confirmar com o jurídico:
-  - vale só para limpeza ou também para muro/passeio?
-  - é sempre 50% ou "até 50%"?
-  - o prazo de 90 dias conta da autuação ou da notificação?
-  - precisa ser pedida pelo contribuinte ou é automática?
+### Redução de 50% — esclarecido pelos modelos de parecer (18/09/2026)
+A base legal usada pelo jurídico é o **art. 2º, inciso IV, da Lei Municipal nº 7.174/2010**: satisfeita a exigência objeto da notificação ou do auto, a penalidade **pode ser reduzida em até 50%**.
+
+Os modelos mostram que a redução **não é exclusiva da limpeza**: há modelo de redução para limpeza, muro, passeio, reconstrução de muro e reconstrução de passeio. Ou seja, a anotação do canvas ("só limpeza tem redução de 50%") está mais restrita do que a prática.
+
+Ainda a confirmar:
+- é sempre 50% ou "até 50%" (com margem de decisão)?
+- há prazo limite para regularizar? (as notícias sobre o Decreto 17.326/2026 falam em 90 dias após a autuação; os modelos não citam prazo)
+- precisa ser pedida pelo contribuinte ou pode ser concedida de ofício?
 
 ## 2. Argumentos mais comuns nas defesas
 
