@@ -276,6 +276,13 @@
                                 <option value="cancelado">Cancelado</option>
                             </select>
                         </div>
+                        <div class="filter-group">
+                            <label for="filtroPrazo">Ordenar por</label>
+                            <select id="filtroPrazo">
+                                <option value="">Mais recentes primeiro</option>
+                                <option value="vencimento">Vencimento (vencidos e mais urgentes primeiro)</option>
+                            </select>
+                        </div>
                         <div class="filter-group" style="position: relative;">
                             <label for="btnFiltroInfracao">Tipo de Infração</label>
                             <button type="button" id="btnFiltroInfracao" class="filtro-dropdown-btn">
@@ -1135,19 +1142,6 @@
                             </div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group fg-full">
-                                <label>Imagens da Vistoria com Legenda <span class="required">*</span></label>
-                                <div id="container-imagens-legenda"
-                                    style="display: flex; flex-direction: column; gap: 10px;">
-                                    <button type="button" class="btn-inline"
-                                        style="align-self: flex-start; padding: 6px 12px; font-size: 0.8rem;"
-                                        onclick="adicionarCampoImagemLegenda()">+ Adicionar Imagem e Legenda</button>
-                                    <div id="lista-imagens-legenda"
-                                        style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-row">
                             <div class="form-group fg-medium">
                                 <label for="fiscDecreto">Decorrente de Decreto de Notificação? <span
                                         class="required">*</span></label>
@@ -1207,6 +1201,24 @@
                                         </div>
                                         <div id="decretoFileFeedback" class="field-feedback"></div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Imagens vêm DEPOIS do decreto: são obrigatórias só quando é decreto
+                             (marcador atualizado por atualizarObrigatoriedadeImagensVistoria) -->
+                        <div class="form-row" style="margin-top: 12px;">
+                            <div class="form-group fg-full">
+                                <label>Imagens da Vistoria com Legenda
+                                    <span class="required" id="marcadorImagensObrigatorias" style="display:none;">*</span>
+                                    <span class="optional" id="marcadorImagensOpcionais">(obrigatória se for decreto; legenda opcional)</span>
+                                </label>
+                                <div id="container-imagens-legenda"
+                                    style="display: flex; flex-direction: column; gap: 10px;">
+                                    <button type="button" class="btn-inline"
+                                        style="align-self: flex-start; padding: 6px 12px; font-size: 0.8rem;"
+                                        onclick="adicionarCampoImagemLegenda()">+ Adicionar Imagem e Legenda</button>
+                                    <div id="lista-imagens-legenda"
+                                        style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;"></div>
                                 </div>
                             </div>
                         </div>
@@ -1334,6 +1346,20 @@
                         <div class="form-group">
                             <label for="relTextoVistoria">Texto do Relatório (Descreva as transgressões)</label>
                             <textarea id="relTextoVistoria" class="form-input" rows="4"></textarea>
+                        </div>
+
+                        <!-- Aparece com e sem decreto (atualizarLabelsUIWizardStep5 só esconde o
+                             atendimento e o texto do relatório) -->
+                        <div class="form-group" id="grupoObservacoesFiscal" style="margin-top: 16px;">
+                            <label for="relObservacoesFiscal">Observações do Fiscal <span
+                                    class="optional">(opcional)</span></label>
+                            <textarea id="relObservacoesFiscal" class="form-input" rows="3"
+                                placeholder="Ex: Lote com entulho acumulado na lateral esquerda."></textarea>
+                            <small style="display:block; margin-top: 6px; color: #64748b;">
+                                Estas informações vão aparecer na <strong>Notificação Preliminar</strong> e no
+                                <strong>Auto de Infração</strong>, como "Observações do Fiscal:", abaixo das Instruções e
+                                antes da assinatura do fiscal. Deixe em branco para não aparecer.
+                            </small>
                         </div>
 
 

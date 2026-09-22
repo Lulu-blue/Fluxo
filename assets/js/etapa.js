@@ -350,11 +350,183 @@ async function criarNotificacoesDoProcesso(proc) {
     return notificacoesCriadas;
 }
 
-// ── Aplica a data de recebimento da Etapa 16 como data inicial do prazo de vencimento ──
-async function aplicarDataRecebimentoComoInicioPrazo(proc, dataRecebimento) {
-    if (!proc || !dataRecebimento) return;
-    const dataInicioISO = dataRecebimento.includes('T') ? dataRecebimento : new Date(dataRecebimento + 'T12:00:00').toISOString();
+// ── Início do prazo pelo AR (Etapa 16) ─────────────────────────────────────
+// 1º caso: data de recebimento pelo proprietário.
+// 2º caso: sem data de recebimento, vale a data em que o AR foi cadastrado.
+// O prazo de cada notificação (notificacoes.data_inicio / data_vencimento /
+// prazo_dias) é gravado a partir daqui, e prazo_origem diz qual caso valeu.
+// A Etapa 18 e o painel leem esses valores; ninguém mais recalcula.
+function obterDadosARProcesso(proc) {
+    return {
+        ...(proc?.dados?.etapa16 || {}),
+        ...(proc?.dados?.campos?.etapa16 || {}),
+        ...(proc?.campos?.etapa16 || {})
+    };
+}
 
+// Data (dia) em horário local ao meio-dia, igual ao que já era feito com o recebimento
+function dataLocalMeioDiaISO(valor) {
+    if (!valor) return null;
+    let ymd = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+        ymd = valor;
+    } else {
+        const d = new Date(valor);
+        if (isNaN(d.getTime())) return null;
+        const pad = n => String(n).padStart(2, '0');
+        ymd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+    return new Date(ymd + 'T12:00:00').toISOString();
+}
+
+function obterInicioPrazoAR(proc) {
+    const ar = obterDadosARProcesso(proc);
+    const recebimento = dataLocalMeioDiaISO(ar.data_recebimento || ar.data_recebimento_proprietario);
+    if (recebimento) return { dataISO: recebimento, origem: 'recebimento' };
+    const cadastro = dataLocalMeioDiaISO(ar.data_insercao_ar);
+    if (cadastro) return { dataISO: cadastro, origem: 'cadastro_ar' };
+    return null;
+}
+window.obterInicioPrazoAR = obterInicioPrazoAR;
+
+// Prazo do ciclo: Auto de Infração tem o prazo de defesa do Auto (20 dias ou 10
+// úteis); Notificação Preliminar mantém o prazo dela (20 dias depois de Edital).
+function prazoDoCicloNotificacao(n, ehAuto, passouEtapa17) {
+    if (ehAuto) return determinarPrazoAutoInfracao(n.descricao);
+    return passouEtapa17 ? 20 : (n.prazo_dias || obterPrazoNotificacao(n.descricao));
+}
+
+// Grava prazo_origem junto; se a migração (migracao/prazos_processos.sql) ainda
+// não rodou e a coluna não existe, grava o resto sem ela.
+async function gravarPrazoNotificacao(notifId, campos) {
+    try {
+        await atualizarNotificacaoNoBanco(notifId, campos);
+    } catch (err) {
+        if (String(err?.message || '').includes('prazo_origem')) {
+            const { prazo_origem, ...semOrigem } = campos;
+            await atualizarNotificacaoNoBanco(notifId, semOrigem);
+        } else {
+            throw err;
+        }
+    }
+}
+
+function refletirPrazoEmMemoria(proc, notifId, campos) {
+    const aplicar = alvo => { if (alvo && String(alvo.id) === String(notifId)) Object.assign(alvo, campos); };
+    (proc?.notificacoes || []).forEach(aplicar);
+    if (typeof notificacaoAtual !== 'undefined') aplicar(notificacaoAtual);
+}
+
+// Aplica o início do prazo do AR nas notificações do ciclo atual.
+//   opcoes.ehAuto       -> ciclo do Auto de Infração (prazo do Auto)
+//   opcoes.notificacao     -> só esta notificação (etapa aberta no contexto dela)
+//   opcoes.somenteNaEtapa  -> sem notificação aberta, só as que estão nesta etapa
+//                             (ex.: o AR do Auto não pode mexer na NP que ficou na Etapa 2)
+//   sem nenhum dos dois    -> todas as notificações do processo ainda em aberto
+async function aplicarInicioPrazoAR(proc, opcoes = {}) {
+    if (!proc) return false;
+    const inicio = obterInicioPrazoAR(proc);
+    const passouEtapa17 = await processoPassouPelaEtapa17(proc);
+
+    let notificacoes = [];
+    try {
+        notificacoes = await carregarNotificacoesDoBanco(proc.id) || [];
+    } catch (err) {
+        console.warn('Erro ao carregar notificações para aplicar o prazo:', err);
+        return false;
+    }
+    if (opcoes.notificacao?.id) {
+        notificacoes = notificacoes.filter(n => String(n.id) === String(opcoes.notificacao.id));
+    } else if (opcoes.somenteNaEtapa) {
+        notificacoes = notificacoes.filter(n =>
+            parseInt(n.etapas?.numero || n.etapa_atual_id || 0, 10) === opcoes.somenteNaEtapa);
+    }
+    // Pagamento: o Auto está em encerramento, só esperando o fiscal — não conta prazo
+    const fechadas = ['encerrada', 'atendida', 'pagamento'];
+    notificacoes = notificacoes.filter(n => !fechadas.includes(String(n.status || '').toLowerCase()));
+
+    const dataMov = new Date().toISOString();
+    for (const n of notificacoes) {
+        const prazoDias = prazoDoCicloNotificacao(n, !!opcoes.ehAuto, passouEtapa17);
+        const dataInicio = inicio?.dataISO || n.data_inicio || proc.created_at || dataMov;
+        const campos = {
+            prazo_dias: prazoDias,
+            data_inicio: dataInicio,
+            data_vencimento: calcularDataVencimento(dataInicio, prazoDias),
+            // Sem AR registrado o prazo não começou: o painel mostra "—"
+            prazo_origem: inicio ? inicio.origem : null,
+            data_movimentacao: dataMov
+        };
+
+        try {
+            await gravarPrazoNotificacao(n.id, campos);
+            refletirPrazoEmMemoria(proc, n.id, campos);
+        } catch (err) {
+            console.warn('Erro ao gravar o prazo da notificação', n.numero || n.id, err);
+        }
+    }
+    return true;
+}
+window.aplicarInicioPrazoAR = aplicarInicioPrazoAR;
+
+// O ciclo do AR (Etapas 16, 17 e 30) é de UMA notificação só quando o processo
+// está no painel da Etapa 2 e é a notificação aberta que passa pela 16/17/30
+// (o Auto daquela notificação). Se o próprio processo está na 16/17/30 — NP vinda
+// da Etapa 1 ou processo de decreto —, o ciclo é do processo inteiro, mesmo que a
+// página tenha sido aberta por um link de notificação. processoAtual.etapas é a
+// etapa real do processo no banco (a página sobrescreve etapa_atual com a da
+// notificação aberta, mas não essa).
+function notificacaoDoCicloAR() {
+    const notif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
+    if (!notif) return null;
+    const etapaRealProcesso = parseInt(processoAtual?.etapas?.numero || 0, 10);
+    return ETAPAS_AR_COMPARTILHADAS.includes(etapaRealProcesso) ? null : notif;
+}
+
+// Opções do ciclo do AR nas Etapas 16, 17 e 30: a notificação aberta ou, no nível
+// do processo, as notificações que estão na mesma etapa.
+function opcoesCicloAR(etapaNumero, ehAuto) {
+    const notif = notificacaoDoCicloAR();
+    return notif
+        ? { ehAuto, notificacao: notif }
+        : { ehAuto, somenteNaEtapa: etapaNumero };
+}
+
+// O AR da Etapa 16 é do Auto de Infração quando a notificação aberta virou Auto,
+// ou (no nível do processo) quando o processo veio da Etapa 14.
+function cicloDoAREhAuto() {
+    const notif = notificacaoDoCicloAR();
+    return notif
+        ? ehStatusAutoInfracao(notif, processoAtual)
+        : window.processoVeioDaEtapa14(processoAtual);
+}
+
+// A Etapa 2 é o painel central do processo que tem notificações: o processo fica
+// nela enquanto cada notificação segue o próprio caminho (calcularEtapaProcesso).
+// Por isso, quando a Etapa 16/17/30 foi aberta a partir de uma notificação (o Auto
+// de uma notificação), só a notificação anda — o processo continua na Etapa 2.
+// No nível do processo (NP vindo da Etapa 1, ou processo de decreto), o processo
+// anda junto, como sempre foi.
+function etapaDoProcessoAoSairDoCicloAR(proxEtapaId) {
+    const notif = notificacaoDoCicloAR();
+    return notif ? {} : { etapa_atual_id: proxEtapaId };
+}
+
+// Saída das Etapas 16, 17 e 30 para a 17/18: com uma notificação aberta, só ela
+// anda — as outras do processo (ex.: uma NP ainda na Etapa 2 enquanto outra
+// virou Auto) ficam onde estão. Sem notificação aberta, todas andam, como antes.
+async function moverNotificacoesDoCicloAR(proxEtapaId) {
+    const notif = notificacaoDoCicloAR();
+    let query = supabaseClient
+        .from('notificacoes')
+        .update({ etapa_atual_id: proxEtapaId, data_movimentacao: new Date().toISOString() });
+    query = notif?.id ? query.eq('id', notif.id) : query.eq('processo_id', processoAtual.id);
+    await query;
+}
+
+// Guarda a data de recebimento informada na Etapa 16 no processo
+function registrarDataRecebimentoAR(proc, dataRecebimento) {
+    if (!proc || !dataRecebimento) return;
     proc.campos = proc.campos || {};
     proc.campos.etapa16 = proc.campos.etapa16 || {};
     proc.campos.etapa16.data_recebimento = dataRecebimento;
@@ -365,71 +537,26 @@ async function aplicarDataRecebimentoComoInicioPrazo(proc, dataRecebimento) {
         proc.dados.etapa16.data_recebimento = dataRecebimento;
         proc.dados.etapa16.data_recebimento_proprietario = dataRecebimento;
     }
+}
 
-    const passouEtapa17 = await processoPassouPelaEtapa17(proc);
-
-    try {
-        const notificacoes = await carregarNotificacoesDoBanco(proc.id);
-        const dataMov = new Date().toISOString();
-        for (const n of notificacoes || []) {
-            const prazoDias = passouEtapa17 ? 20 : (n.prazo_dias || obterPrazoNotificacao(n.descricao));
-            const dataVenc = calcularDataVencimento(dataInicioISO, prazoDias);
-            await atualizarNotificacaoNoBanco(n.id, {
-                data_inicio: dataInicioISO,
-                data_vencimento: dataVenc,
-                prazo_dias: prazoDias,
-                data_movimentacao: dataMov
-            });
-            n.data_inicio = dataInicioISO;
-            n.data_vencimento = dataVenc;
-            n.prazo_dias = prazoDias;
-        }
-    } catch (err) {
-        console.warn('Erro ao atualizar datas das notificações no banco:', err);
-    }
-
-    if (proc.notificacoes && Array.isArray(proc.notificacoes)) {
-        proc.notificacoes.forEach(n => {
-            const prazoDias = passouEtapa17 ? 20 : (n.prazo_dias || obterPrazoNotificacao(n.descricao));
-            n.data_inicio = dataInicioISO;
-            n.data_vencimento = calcularDataVencimento(dataInicioISO, prazoDias);
-            n.prazo_dias = prazoDias;
-        });
-    }
-    if (proc.campos?.etapa2?.notificacoes && Array.isArray(proc.campos.etapa2.notificacoes)) {
-        proc.campos.etapa2.notificacoes.forEach(salva => {
-            const prazoDias = passouEtapa17 ? 20 : (salva.prazo_dias || obterPrazoNotificacao(salva.descricao));
-            salva.data_inicio = dataInicioISO;
-            salva.data_vencimento = calcularDataVencimento(dataInicioISO, prazoDias);
-            salva.prazo_dias = prazoDias;
-        });
+// Data de cadastro do AR: marcada quando o número do AR é informado ou trocado
+function registrarDataInsercaoAR(dadosAR, numeroAnterior) {
+    if (!dadosAR?.numero_ar) return;
+    if (!dadosAR.data_insercao_ar || dadosAR.numero_ar !== (numeroAnterior || '')) {
+        dadosAR.data_insercao_ar = new Date().toISOString();
     }
 }
 
 // ── Atualiza as notificações do processo ao retornar para a Etapa 2 ────────
 // Se o processo já passou pela Etapa 17, o prazo de vencimento passa a ser 20 dias.
-// Se há data de recebimento na Etapa 16, ela passa a ser a data inicial (data_inicio).
+// O início do prazo segue obterInicioPrazoAR (recebimento; sem ele, cadastro do AR).
 async function atualizarNotificacoesParaEtapa2(proc, etapa2Id) {
-    const passouEtapa17 = await processoPassouPelaEtapa17(proc);
-    const notificacoes = await carregarNotificacoesDoBanco(proc.id);
-    const dataMov = new Date().toISOString();
-
-    const dataRec = proc?.campos?.etapa16?.data_recebimento || proc?.campos?.etapa16?.data_recebimento_proprietario || proc?.dados?.etapa16?.data_recebimento || proc?.dados?.etapa16?.data_recebimento_proprietario;
-    const dataInicioAR = dataRec ? (dataRec.includes('T') ? dataRec : new Date(dataRec + 'T12:00:00').toISOString()) : null;
-
-    for (const n of notificacoes || []) {
-        const prazoDias = passouEtapa17 ? 20 : (n.prazo_dias || obterPrazoNotificacao(n.descricao));
-        const dataInicio = dataInicioAR || n.data_inicio || proc.created_at || new Date().toISOString();
-        const dataVencimento = calcularDataVencimento(dataInicio, prazoDias);
-
-        await atualizarNotificacaoNoBanco(n.id, {
-            etapa_atual_id: etapa2Id,
-            prazo_dias: prazoDias,
-            data_inicio: dataInicio,
-            data_vencimento: dataVencimento,
-            data_movimentacao: dataMov
-        });
-    }
+    // Move todas para a Etapa 2 (como sempre foi) e grava o prazo nas que estão em aberto
+    await supabaseClient
+        .from('notificacoes')
+        .update({ etapa_atual_id: etapa2Id, data_movimentacao: new Date().toISOString() })
+        .eq('processo_id', proc.id);
+    await aplicarInicioPrazoAR(proc, { ehAuto: false });
 }
 
 const MODO_ACESSO = {
@@ -457,7 +584,7 @@ const ETAPAS_MAP = {
     16: 'Retorno do AR',
     17: 'Gerência Gera o Edital',
     18: 'Solicitar Defesa ou Recurso',
-    19: 'Envio de Defesa ou Pagamento',
+    19: 'Parecer Jurídico',
     20: 'Realizar Pagamento',
     21: 'Fiscal Convocado Jurídico',
     22: 'Gerente Convocado Jurídico',
@@ -476,11 +603,14 @@ const ETAPAS_MAP = {
 // Mapa de etapas que cada cargo pode editar.
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
-    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 20, 21, 27, 28, 29, 31, 32],
     'Administrativo de Posturas': [15, 16, 17],
-    'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
+    // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
+    'Gerente': [11, 12, 15, 17, 18, 22, 25, 29, 30],
     'Secretário': [24],
-    'Jurídico': [23],
+    // Etapa 19 (Parecer Jurídico): Jurídico e Gerente de Interface Jurídica
+    'Jurídico': [18, 19, 23],
+    'Gerente de Interface Jurídica': [19],
     'Fazenda': [26]
 };
 
@@ -1506,6 +1636,9 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
             </div>
         `;
+    } else if (etapaNum === 19) {
+        // Parecer Jurídico: tela montada em assets/js/etapa19_parecer.js
+        conteudo = window.Etapa19 ? window.Etapa19.html(uploadHtml) : '';
     } else if (etapaNum === 29) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
@@ -1610,6 +1743,10 @@ function renderizarFormularioDinamico(etapaNum) {
                 if (typeof window.carregarEExibirAnexoRelatorioAssinado === 'function') window.carregarEExibirAnexoRelatorioAssinado();
             }
         }, 150);
+    }
+
+    if (etapaNum === 19) {
+        setTimeout(() => { if (window.Etapa19) window.Etapa19.configurar(); }, 150);
     }
 
     if (etapaNum === 15) {
@@ -2562,6 +2699,10 @@ async function avancarEtapaPadrao() {
     }
     if (etapaAtual === 17) {
         await avancarEtapa17();
+        return;
+    }
+    if (etapaAtual === 19 && window.Etapa19) {
+        await window.Etapa19.avancar();
         return;
     }
     if (etapaAtual === 30) {
@@ -6626,6 +6767,7 @@ async function preencherFormularioEdicao(proc) {
     setVal('editFiscDataVistoria', fisc.data_vistoria);
     setVal('editFiscDecreto', fisc.decreto || 'não');
     setVal('editFiscDescricao', fisc.descricao);
+    setVal('editObservacoesFiscal', d.relatorio_fiscal?.observacoes_fiscal || '');
 
     // Preenche a lista de imagens da vistoria
     const containerImagensEdit = document.getElementById('lista-imagens-legenda-edit');
@@ -6790,6 +6932,27 @@ function gerarBlocoInfracao(proc, disp, index) {
         </div>
     `;
 }
+
+// ── Observações do Fiscal (NP e AI) ────────────────────────────────────────
+// Preenchidas no passo "Relatório Fiscal" do novo processo (com ou sem decreto) e
+// guardadas em dados.relatorio_fiscal.observacoes_fiscal. Aparecem na Notificação
+// Preliminar e no Auto de Infração abaixo das Instruções, antes da assinatura do
+// fiscal — e só quando houver texto.
+function obterObservacoesFiscal(proc) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    return String(p?.dados?.relatorio_fiscal?.observacoes_fiscal || '').trim();
+}
+
+function htmlObservacoesFiscal(proc, estiloParagrafo) {
+    const texto = obterObservacoesFiscal(proc);
+    if (!texto) return '';
+    const seguro = texto
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+    const estilo = estiloParagrafo ? ` style="${estiloParagrafo}"` : '';
+    return `<p${estilo}><strong>Observações do Fiscal:</strong> ${seguro}</p>`;
+}
+window.htmlObservacoesFiscal = htmlObservacoesFiscal;
 
 // ── Renderizar Documento Oficial IDÊNTICO ao Modelo .docx ─────────────────
 function renderizarDocumentoOficial(proc) {
@@ -7068,6 +7231,7 @@ function renderizarDocumentoOficial(proc) {
                     <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
                     <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
                     <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
+                    ${htmlObservacoesFiscal(proc)}
                 </div>
 
                 <!-- 8. ASSINATURA FISCAL -->
@@ -7272,6 +7436,7 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
             status: n.status || 'pendente',
             etapa_atual: etapaNumero,
             data_movimentacao: n.data_movimentacao || null,
+            prazo_origem: n.prazo_origem || null,
             dados: n.dados || {}
         };
     });
@@ -7389,12 +7554,21 @@ async function renderizarEtapa2(proc) {
                     ? `<button type="button" class="btn-avancar-notif" data-index="${n.index}" style="margin-top:8px; padding:10px 18px; border-radius:8px; border:none; background:#80A1D4; color:white; font-weight:600; font-size:0.88rem; cursor:pointer; box-shadow:0 4px 12px rgba(128,161,212,0.3); transition:all 0.2s ease;">Avançar Notificação</button>`
                     : '';
 
-                const prazoHtml = (n.status === 'atendida' || jaAvancou)
-                    ? ''
-                    : `<div style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#475569;">
-                        <span>📅 Prazo: ${new Date(n.data_vencimento).toLocaleDateString('pt-BR')}</span>
+                // Notificação que virou Auto continua neste painel, com o prazo do Auto
+                // (o mesmo da Etapa 18). Enquanto o AR do Auto não volta, não há prazo.
+                const ehAutoNotif = ehStatusAutoInfracao(n, processoAtual);
+                const prazoAutoCorrendo = ehAutoNotif && !!(n.prazo_origem && n.data_vencimento);
+                const linhaPrazo = (rotulo) => `<div style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#475569;">
+                        <span>📅 ${rotulo}: ${new Date(n.data_vencimento).toLocaleDateString('pt-BR')}</span>
                         <span style="${infoPrazo.vencido ? 'color:#B93838; font-weight:600;' : 'color:#2B7A78; font-weight:600;'}">(${infoPrazo.texto})</span>
                     </div>`;
+                let prazoHtml = '';
+                // Pagamento: o Auto está em encerramento, o prazo deixa de contar
+                if (prazoAutoCorrendo && n.status !== 'encerrada' && n.status !== 'pagamento') {
+                    prazoHtml = linhaPrazo('Prazo de defesa do Auto');
+                } else if (!(n.status === 'atendida' || jaAvancou)) {
+                    prazoHtml = linhaPrazo('Prazo');
+                }
 
                 let textoMotivo = '';
                 if (n.status === 'atendida') textoMotivo = 'Houve Cumprimento (Atendida)';
@@ -7404,10 +7578,15 @@ async function renderizarEtapa2(proc) {
                 else if (n.status === 'dilacao') textoMotivo = 'Dilação de Prazo Solicitada';
                 else textoMotivo = 'Motivo não especificado';
 
+                const textoAvancou = ehAutoNotif
+                    ? (prazoAutoCorrendo
+                        ? `Virou Auto de Infração e está na Etapa ${etapaNotif} (Gerência de Posturas e Jurídico). Clique para abrir.`
+                        : `Virou Auto de Infração e está na Etapa ${etapaNotif} — o prazo do Auto começa quando o AR voltar. Clique para abrir.`)
+                    : `Esta notificação avançou e está na Etapa ${etapaNotif}. Clique para abrir.`;
                 const controlesHtml = jaAvancou ?
                     `<div style="font-size:0.9rem; color:#3B5888; font-weight:600; padding:10px; background:#F0F4FA; border:1px solid #C0B9DD; border-radius:8px; text-align:center;">
-                        Esta notificação avançou e está na Etapa ${etapaNotif}. Clique para abrir.
-                        <div style="font-size:0.82rem; color:#475569; margin-top:4px; font-weight:normal;">Avançou pois: <b>${textoMotivo}</b></div>
+                        ${textoAvancou}
+                        ${ehAutoNotif ? '' : `<div style="font-size:0.82rem; color:#475569; margin-top:4px; font-weight:normal;">Avançou pois: <b>${textoMotivo}</b></div>`}
                     </div>` :
                     `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
                         <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px;">
@@ -7899,12 +8078,8 @@ function determinarPrazoAutoInfracao(descricao) {
 }
 
 async function obterAutosEtapa18(proc) {
-    const dataArEnviado = proc.campos?.etapa16?.data_insercao_ar
-        || proc.campos?.etapa16?.data_recebimento
-        || proc.dados?.etapa16?.data_insercao_ar
-        || proc.dados?.etapa16?.data_recebimento
-        || proc.dados?.campos?.etapa16?.data_insercao_ar
-        || proc.dados?.campos?.etapa16?.data_recebimento;
+    // Mesma regra da Etapa 16: recebimento pelo proprietário; sem ele, cadastro do AR
+    const dataArEnviado = obterInicioPrazoAR(proc)?.dataISO;
 
     console.log('[DEBUG Etapa 18] Obter Autos — Processo ID:', proc.id, '| Data AR Enviado/Gravado:', dataArEnviado);
 
@@ -7942,9 +8117,13 @@ function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
 
     return notificacoes.map((n, index) => {
         const etapaNumero = parseInt(n.etapas?.numero || n.etapa_atual_id || n.etapa_atual || 18, 10);
-        const dataInicio = n.dados?.etapa16?.data_insercao_ar || n.dados?.etapa16?.data_recebimento || dataInicioGlobal;
-        const prazoDias = determinarPrazoAutoInfracao(n.descricao);
-        const dataVencimento = calcularDataVencimento(dataInicio, prazoDias);
+
+        // O prazo gravado pela Etapa 16/17/30 (prazo_origem preenchido) é o oficial.
+        // Só calcula aqui quando ele ainda não existe (processos anteriores à mudança).
+        const prazoGravado = !!(n.prazo_origem && n.data_vencimento);
+        const dataInicio = prazoGravado ? n.data_inicio : dataInicioGlobal;
+        const prazoDias = prazoGravado ? (n.prazo_dias || determinarPrazoAutoInfracao(n.descricao)) : determinarPrazoAutoInfracao(n.descricao);
+        const dataVencimento = prazoGravado ? n.data_vencimento : calcularDataVencimento(dataInicio, prazoDias);
         const numAuto = n.dados?.etapa14?.numero_auto_infracao || proc.campos?.etapa14?.numero_auto_infracao || proc.dados?.etapa14?.numero_auto_infracao || n.numero || `${proc.numero_processo || 'S/N'}/${String(index + 1).padStart(2, '0')}`;
         return {
             id: n.id,
@@ -8043,6 +8222,7 @@ async function renderizarEtapa18(proc) {
                 let statusBadge = '';
                 if (a.status === 'defesa') statusBadge = '<span style="background:#F0F4FA; color:#3B5888; border:1px solid #C0B9DD; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Defesa Selecionada</span>';
                 else if (a.status === 'pagamento') statusBadge = '<span style="background:#EBF9F9; color:#2B7A78; border:1px solid #75C9C8; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pagamento Selecionado</span>';
+                else if (a.status === 'sem_pagamento') statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Não fez o Pagamento</span>';
                 else if (infoPrazo.vencido) statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Vencido</span>';
                 else statusBadge = '<span style="background:#F7F4EA; color:#475569; border:1px solid #DED9E2; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pendente</span>';
 
@@ -8077,6 +8257,9 @@ async function renderizarEtapa18(proc) {
                     `<div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:4px;">
                         <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#334155; cursor:pointer; padding:8px 14px; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; background:#f8fafc;">
                             <input type="radio" name="opcaoAuto_${a.index}" value="defesa" ${a.status === 'defesa' ? 'checked' : ''} data-index="${a.index}"> Defesa
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#334155; cursor:pointer; padding:8px 14px; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; background:#f8fafc;">
+                            <input type="radio" name="opcaoAuto_${a.index}" value="sem_pagamento" ${a.status === 'sem_pagamento' ? 'checked' : ''} data-index="${a.index}"> Não fez o Pagamento
                         </label>
                         <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#334155; cursor:pointer; padding:8px 14px; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; background:#f8fafc;">
                             <input type="radio" name="opcaoAuto_${a.index}" value="pagamento" ${a.status === 'pagamento' ? 'checked' : ''} data-index="${a.index}"> Pagamento
@@ -8165,7 +8348,7 @@ async function avancarAutoEtapa18(index) {
 
     const selectedRadio = document.querySelector(`input[name="opcaoAuto_${index}"]:checked`);
     if (!selectedRadio) {
-        alert('Selecione uma opção ("Defesa" ou "Pagamento") para avançar este Auto de Infração.');
+        alert('Selecione uma opção ("Defesa", "Não fez o Pagamento" ou "Pagamento") para avançar este Auto de Infração.');
         return;
     }
 
@@ -8176,9 +8359,24 @@ async function avancarAutoEtapa18(index) {
 
     mostrarCarregamento('Avançando Auto de Infração...');
 
-    let proxEtapaNumero = (opcao === 'defesa') ? 19 : 31;
-    let statusProc = (opcao === 'defesa') ? 'defesa_auto' : 'pagamento_auto';
-    let condicao = (opcao === 'defesa') ? 'Defesa do Auto de Infração Apresentada' : 'Solicitado Pagamento do Auto de Infração';
+    // Caminhos da Etapa 18 (a antiga Etapa 20 "Realizar Pagamento" não entra mais):
+    //   Defesa              -> Etapa 19
+    //   Não fez o Pagamento -> Etapa 28 (Certificação do Vencimento)
+    //   Pagamento           -> Etapa 29 (Fiscal Emite Certidão)
+    const CAMINHOS_ETAPA_18 = {
+        defesa: { etapa: 19, statusProc: 'defesa_auto', condicao: 'Defesa do Auto de Infração Apresentada' },
+        sem_pagamento: { etapa: 28, statusProc: 'sem_pagamento_auto', condicao: 'Autuado não fez o pagamento do Auto de Infração' },
+        pagamento: { etapa: 29, statusProc: 'pagamento_auto', condicao: 'Pagamento do Auto de Infração realizado' }
+    };
+    const caminho = CAMINHOS_ETAPA_18[opcao];
+    if (!caminho) {
+        ocultarCarregamento();
+        alert('Opção inválida para a Etapa 18.');
+        return;
+    }
+    let proxEtapaNumero = caminho.etapa;
+    let statusProc = caminho.statusProc;
+    let condicao = caminho.condicao;
 
     try {
         let proxEtapaId = null;
@@ -8214,12 +8412,16 @@ async function avancarAutoEtapa18(index) {
         processoAtual.dados = processoAtual.dados || {};
         processoAtual.dados.campos = processoAtual.campos;
 
-        console.log('[DEBUG Etapa 18] Movendo processo para Etapa:', proxEtapaNumero, 'ID:', proxEtapaId);
+        // Quando o Auto é uma notificação, só ela anda: o processo continua no painel
+        // dele (Etapa 2 no fluxo com notificação, Etapa 18 no de decreto), que mostra
+        // o Auto como "avançou e está na Etapa X". Sem notificação, o processo anda.
+        const moverProcesso = !item.id;
+        console.log('[DEBUG Etapa 18] Auto vai para a Etapa:', proxEtapaNumero, '| processo anda junto?', moverProcesso);
 
         await supabaseClient
             .from('processos')
             .update({
-                etapa_atual_id: proxEtapaId,
+                ...(moverProcesso ? { etapa_atual_id: proxEtapaId } : {}),
                 status: statusProc,
                 dados: processoAtual.dados
             })
@@ -8577,10 +8779,20 @@ async function verificarPrazo15DiasEtapa16(proc) {
                 .maybeSingle();
             const etapa30Id = etapa30 ? etapa30.id : 30;
 
-            await supabaseClient
-                .from('processos')
-                .update({ etapa_atual_id: etapa30Id, status: 'prazo_ar_expirado' })
-                .eq('id', proc.id);
+            // Com uma notificação aberta (Auto de uma notificação), só ela vai para a
+            // Etapa 30 — o processo continua no painel da Etapa 2.
+            const notif = notificacaoDoCicloAR();
+            if (notif?.id) {
+                await supabaseClient
+                    .from('notificacoes')
+                    .update({ etapa_atual_id: etapa30Id, data_movimentacao: new Date().toISOString() })
+                    .eq('id', notif.id);
+            } else {
+                await supabaseClient
+                    .from('processos')
+                    .update({ etapa_atual_id: etapa30Id, status: 'prazo_ar_expirado' })
+                    .eq('id', proc.id);
+            }
 
             await supabaseClient
                 .from('historico_etapas')
@@ -8595,7 +8807,9 @@ async function verificarPrazo15DiasEtapa16(proc) {
                 }]);
 
             alert('O prazo do AR foi expirado. O processo foi encaminhado para a Etapa 30 (Gerência Localiza o AR).');
-            window.location.href = `etapa.html?processo=${proc.id}`;
+            window.location.href = notif?.id
+                ? `etapa.html?processo=${proc.id}&notificacao=${notif.id}`
+                : `etapa.html?processo=${proc.id}`;
             return true;
         } catch (err) {
             console.error('Erro ao mover processo para Etapa 30:', err);
@@ -8860,16 +9074,12 @@ async function salvarEtapa16() {
         registrarRetornoARSemSucesso(processoAtual);
     }
 
-    if (processoAtual.campos.etapa16.numero_ar) {
-        const numeroAnterior = numeroARAnterior || '';
-        const numeroAtual = processoAtual.campos.etapa16.numero_ar;
-        if (!processoAtual.campos.etapa16.data_insercao_ar || numeroAtual !== numeroAnterior) {
-            processoAtual.campos.etapa16.data_insercao_ar = new Date().toISOString();
-        }
-    }
+    registrarDataInsercaoAR(processoAtual.campos.etapa16, numeroARAnterior);
 
-    if (processoAtual.campos.etapa16.data_recebimento) {
-        await aplicarDataRecebimentoComoInicioPrazo(processoAtual, processoAtual.campos.etapa16.data_recebimento);
+    // AR efetivado: o prazo começa (recebimento; sem ele, data de cadastro do AR)
+    if (notificacaoEfetivada === 'sim') {
+        registrarDataRecebimentoAR(processoAtual, processoAtual.campos.etapa16.data_recebimento);
+        await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(16, cicloDoAREhAuto()));
     }
 
     try {
@@ -8935,12 +9145,15 @@ async function avancarEtapa16() {
     processoAtual.campos = processoAtual.campos || {};
     processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
     const dadosAR = processoAtual.campos.etapa16;
+    const numeroARAnterior = dadosAR.numero_ar;
     dadosAR.numero_ar = getVal('arNumero');
     dadosAR.data_recebimento = dataRecebimento;
     dadosAR.notificacao_efetivada = notificacaoEfetivada;
     dadosAR.retorno_sem_sucesso = (notificacaoEfetivada === 'nao') ? 'sim' : 'nao';
     dadosAR.data_ultima_tentativa = getVal('arDataUltimaTentativa');
     dadosAR.motivo_correios = getVal('arMotivoCorreios');
+    registrarDataInsercaoAR(dadosAR, numeroARAnterior);
+    if (notificacaoEfetivada === 'sim') registrarDataRecebimentoAR(processoAtual, dataRecebimento);
 
     // A origem do fluxo define o destino e quantas tentativas de AR existem
     const veioDaEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
@@ -8989,9 +9202,10 @@ async function avancarEtapa16() {
             await criarNotificacoesDoProcesso(processoAtual);
         }
 
-        // Aplica a data de recebimento como data inicial do prazo de vencimento das notificações
-        if (dataRecebimento) {
-            await aplicarDataRecebimentoComoInicioPrazo(processoAtual, dataRecebimento);
+        // Indo para a Etapa 18 (defesa do Auto): o prazo do Auto começa pelo AR.
+        // Indo para a Etapa 2, atualizarNotificacoesParaEtapa2 aplica o prazo da NP.
+        if (proximaEtapaNumero === 18) {
+            await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(16, true));
         }
 
         processoAtual.dados = processoAtual.dados || {};
@@ -9000,7 +9214,7 @@ async function avancarEtapa16() {
         await supabaseClient
             .from('processos')
             .update({
-                etapa_atual_id: proxEtapaId,
+                ...etapaDoProcessoAoSairDoCicloAR(proxEtapaId),
                 status: 'em_andamento',
                 dados: processoAtual.dados
             })
@@ -9010,10 +9224,7 @@ async function avancarEtapa16() {
         if (proximaEtapaNumero === 2) {
             await atualizarNotificacoesParaEtapa2(processoAtual, proxEtapaId);
         } else {
-            await supabaseClient
-                .from('notificacoes')
-                .update({ etapa_atual_id: proxEtapaId, data_movimentacao: new Date().toISOString() })
-                .eq('processo_id', processoAtual.id);
+            await moverNotificacoesDoCicloAR(proxEtapaId);
         }
 
         await supabaseClient
@@ -9242,20 +9453,22 @@ async function avancarEtapa17() {
         await supabaseClient
             .from('processos')
             .update({
-                etapa_atual_id: proxEtapaId,
+                ...etapaDoProcessoAoSairDoCicloAR(proxEtapaId),
                 status: status,
                 dados: processoAtual.dados
             })
             .eq('id', processoAtual.id);
 
         // Atualiza todas as notificações do processo para a etapa de destino
+        // Indo para a Etapa 18 (defesa do Auto): o prazo do Auto começa pelo AR
+        if (proxEtapaNumero === 18) {
+            await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(17, true));
+        }
+
         if (proxEtapaNumero === 2) {
             await atualizarNotificacoesParaEtapa2(processoAtual, proxEtapaId);
         } else {
-            await supabaseClient
-                .from('notificacoes')
-                .update({ etapa_atual_id: proxEtapaId, data_movimentacao: new Date().toISOString() })
-                .eq('processo_id', processoAtual.id);
+            await moverNotificacoesDoCicloAR(proxEtapaId);
         }
 
         await supabaseClient
@@ -9400,20 +9613,22 @@ async function avancarEtapa30() {
         await supabaseClient
             .from('processos')
             .update({
-                etapa_atual_id: proxEtapaId,
+                ...etapaDoProcessoAoSairDoCicloAR(proxEtapaId),
                 status: efetivado === 'sim' ? 'ar_efetivado' : 'ar_nao_efetivado',
                 dados: processoAtual.dados
             })
             .eq('id', processoAtual.id);
 
         // Atualiza todas as notificações do processo para a etapa de destino
+        // Indo para a Etapa 18 (defesa do Auto): o prazo do Auto começa pelo AR
+        if (proxEtapaNumero === 18) {
+            await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(30, true));
+        }
+
         if (proxEtapaNumero === 2) {
             await atualizarNotificacoesParaEtapa2(processoAtual, proxEtapaId);
         } else {
-            await supabaseClient
-                .from('notificacoes')
-                .update({ etapa_atual_id: proxEtapaId, data_movimentacao: new Date().toISOString() })
-                .eq('processo_id', processoAtual.id);
+            await moverNotificacoesDoCicloAR(proxEtapaId);
         }
 
         await supabaseClient
@@ -9659,6 +9874,11 @@ async function salvarEdicoesProcesso() {
                 data_vistoria: document.getElementById('editFiscDataVistoria')?.value || '',
                 decreto: document.getElementById('editFiscDecreto')?.value || 'não',
                 descricao: getVal('editFiscDescricao')
+            },
+            relatorio_fiscal: {
+                ...(dadosAtuais.relatorio_fiscal || {}),
+                // Aparece na NP e no AI (htmlObservacoesFiscal)
+                observacoes_fiscal: getVal('editObservacoesFiscal')
             }
         };
 
@@ -10908,16 +11128,17 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
                      <li><strong>Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010:</strong> muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.</li>
                      <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, III e outras legislações. MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-        } else if (disp.includes('120000233') || dispLow.includes('material de construção')) {
+        } else if (disp.includes('120000233') || dispLow.includes('limpeza de quintal')) {
+            titulo = 'Limpeza de quintal: infração aos artigos 14 e 15 da Lei nº 6.907/2008.';
+            prazo = '10 DIAS';
+            itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
+                     <li><strong>Proibido:</strong> Queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
+            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 18 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
+        } else if (dispLow.includes('material de construção')) {
             titulo = 'Depósito de material de construção em passeio ou via pública: infração ao artigo 6°, I, da Lei 6.907/2008.';
             prazo = '24 HORAS';
             itens = `<li>Desobstrução imediata do passeio e/ou via pública e a remoção de todo e qualquer material de construção depositado.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
-        } else if (disp.includes('120000235') || dispLow.includes('obstáculos em calçadas')) {
-            titulo = 'Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
-            prazo = '10 DIAS';
-            itens = `<li>Retirar os obstáculos do passeio.</li>`;
-            penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000239') || dispLow.includes('água servida')) {
             titulo = 'Água servida: infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
             prazo = '10 DIAS';
@@ -11044,6 +11265,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
             <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
             <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
+            ${htmlObservacoesFiscal(proc)}
         </div>
 
         <!-- 8. ASSINATURA FISCAL -->
@@ -12069,8 +12291,9 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
-                    </strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
+                    <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
                 </p>
+                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
             </div>
         `;
         } else {
@@ -12095,7 +12318,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 <p>
                     <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
                 </p>
-                
+                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
             </div>
         `;
         }

@@ -13,6 +13,12 @@
 --                  (nº do auto, nome, endereço, datas, assinante)
 --   [INSTRUÇÃO] -> preenchido à mão pelo jurídico; a tela destaca
 --                  os que ficaram pendentes antes de gerar o .docx
+--
+-- Regras de negócio:
+--   * reducao_50 = redução de exatamente 50% (não é "até 50%").
+--   * Casos sem modelo próprio (deferimento total de limpeza/muro/
+--     passeio, piso tátil, alvará, concessionárias) usam o modelo
+--     'parecer_livre' e são escritos à mão.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS modelos_parecer (
@@ -20,7 +26,7 @@ CREATE TABLE IF NOT EXISTS modelos_parecer (
     chave VARCHAR(60) NOT NULL UNIQUE,         -- Ex: limpeza_reducao_50
     titulo VARCHAR(160) NOT NULL,              -- Nome exibido na tela
     codigos_infracao TEXT[] DEFAULT '{}',      -- Ex: {120000232,120000233}
-    decisao VARCHAR(30) NOT NULL,              -- deferimento | indeferimento | reducao_50 | deferimento_parcial | diligencia
+    decisao VARCHAR(30) NOT NULL,              -- deferimento | indeferimento | reducao_50 | deferimento_parcial | diligencia | livre
     base_legal VARCHAR(200),
     ordem INT DEFAULT 0,
     texto TEXT NOT NULL,
@@ -586,7 +592,7 @@ Divinópolis/MG, {{DATA_HOJE}}.
 -- ─────────────────── OBSTÁCULO NO PASSEIO ───────────────────
 ('obstaculo_passeio_deferimento',
  'Obstáculo no passeio — deferimento (cancelamento do auto)',
- ARRAY['120000237','120000235'],
+ ARRAY['120000237'],
  'deferimento',
  'Art. 6º, XIV, e/ou art. 75 da Lei Municipal nº 6.907/2008',
  90,
@@ -621,7 +627,7 @@ Divinópolis/MG, {{DATA_HOJE}}.
 
 ('obstaculo_passeio_indeferimento',
  'Obstáculo no passeio — indeferimento',
- ARRAY['120000237','120000235'],
+ ARRAY['120000237'],
  'indeferimento',
  'Art. 6º, XIV, e/ou art. 75 da Lei Municipal nº 6.907/2008',
  91,
@@ -688,6 +694,42 @@ Após a juntada, retornem os autos para análise e emissão de parecer jurídico
 Divinópolis/MG, {{DATA_HOJE}}.
 
 {{ASSINANTE_NOME}}
+{{ASSINANTE_OAB}}$tpl$),
+
+-- ─────────────────────── PARECER LIVRE ───────────────────────
+('parecer_livre',
+ 'Parecer livre — escrever manualmente (casos sem modelo)',
+ ARRAY[]::TEXT[],
+ 'livre',
+ NULL,
+ 110,
+ $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
+
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação ao Auto de Infração nº {{AUTO_NUMERO}}, referente ao imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+
+[ESCREVER A ANÁLISE DA DEFESA]
+
+Opino pelo [DEFERIMENTO/INDEFERIMENTO] [DETALHAR A CONCLUSÃO].
+
+Encaminhe-se à autoridade competente para decisão.
+
+Divinópolis/MG, {{DATA_HOJE}}.
+
+{{ASSINANTE_NOME}}
+{{ASSINANTE_OAB}}$tpl$,
+ $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
+
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação ao Auto de Infração nº {{AUTO_NUMERO}}, referente ao imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+
+[ESCREVER A ANÁLISE DA DEFESA]
+
+Opino pelo [DEFERIMENTO/INDEFERIMENTO] [DETALHAR A CONCLUSÃO].
+
+Encaminhe-se à autoridade competente para decisão.
+
+Divinópolis/MG, {{DATA_HOJE}}.
+
+{{ASSINANTE_NOME}}
 {{ASSINANTE_OAB}}$tpl$)
 
 ON CONFLICT (chave) DO UPDATE SET
@@ -697,6 +739,11 @@ ON CONFLICT (chave) DO UPDATE SET
     base_legal       = EXCLUDED.base_legal,
     ordem            = EXCLUDED.ordem,
     texto_original   = EXCLUDED.texto_original;  -- 'texto' preservado: é o que o jurídico editou
+
+-- Queimada ainda não existe no catálogo de infrações: o modelo fica
+-- guardado, mas oculto na tela. Remova esta linha quando a queimada
+-- entrar em infracoes_catalogo e preencha codigos_infracao.
+UPDATE modelos_parecer SET ativo = FALSE WHERE chave = 'queimada_indeferimento';
 
 -- ============================================================
 -- Assinatura padrão do parecer (editável pelo jurídico)
@@ -716,3 +763,20 @@ GRANT ALL ON TABLE configuracoes_parecer TO anon, authenticated, service_role;
 INSERT INTO configuracoes_parecer (assinante_nome, assinante_oab, assinante_cargo)
 SELECT 'Fernanda Clainer Drumond Grossi', 'OAB/MG 164.427', 'Interface Jurídica'
 WHERE NOT EXISTS (SELECT 1 FROM configuracoes_parecer);
+
+-- ============================================================
+-- Etapa 19 passa a ser o Parecer Jurídico (fluxo do canvas).
+-- As transições antigas da 19 (→ 23 / → 20) não são usadas pela
+-- tela; as novas saídas são 22 (Gerência), 21 (Fiscal) e 24
+-- (Secretário).
+-- ============================================================
+UPDATE etapas
+SET nome = 'Parecer Jurídico',
+    descricao = 'O jurídico anexa ou cola a defesa, decide (deferido, indeferido ou redução de 50%) e emite o parecer.'
+WHERE numero = 19;
+
+INSERT INTO transicoes (etapa_origem_id, etapa_destino_id, condicao) VALUES
+    ((SELECT id FROM etapas WHERE numero = 19), (SELECT id FROM etapas WHERE numero = 22), 'Enviar para: Encaminhar à Gerência'),
+    ((SELECT id FROM etapas WHERE numero = 19), (SELECT id FROM etapas WHERE numero = 21), 'Enviar para: Devolver ao Fiscal'),
+    ((SELECT id FROM etapas WHERE numero = 19), (SELECT id FROM etapas WHERE numero = 24), 'Enviar para: Secretário para Despacho')
+ON CONFLICT (etapa_origem_id, etapa_destino_id, condicao) DO NOTHING;

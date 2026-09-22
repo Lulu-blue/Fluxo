@@ -148,13 +148,14 @@ function calcularEtapaProcesso(item) {
 
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
-    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 18, 19, 20, 21, 27, 28, 29, 31, 32],
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 19, 20, 21, 27, 28, 29, 31, 32],
     'Administrativo de Posturas': [15, 16, 17],
-    'Gerente': [11, 12, 15, 17, 22, 25, 29, 30],
-    'Gerente de Posturas': [11, 12, 15, 17, 22, 25, 29, 30],
+    // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
+    'Gerente': [11, 12, 15, 17, 18, 22, 25, 29, 30],
+    'Gerente de Posturas': [11, 12, 15, 17, 18, 22, 25, 29, 30],
     'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Secretário': [24],
-    'Jurídico': [23],
+    'Jurídico': [18, 23],
     'Fazenda': [26]
 };
 
@@ -174,7 +175,8 @@ function normalizarCargo(cargo) {
 
 function obterCargoResponsavelPelaEtapa(etapaNum) {
     const num = parseInt(etapaNum, 10);
-    if ([11, 12, 15, 17, 22, 25, 29, 30].includes(num)) return 'Gerente';
+    // 17 e 18 são compartilhadas (Administrativo / Jurídico); a linha fica com a cor da Gerência
+    if ([11, 12, 15, 17, 18, 22, 25, 29, 30].includes(num)) return 'Gerente';
     if ([16, 17].includes(num)) return 'Administrativo';
     if ([24].includes(num)) return 'Secretário';
     if ([23].includes(num)) return 'Jurídico';
@@ -509,6 +511,11 @@ function preencherDadosInterfaceUsuario(usuario) {
 let currentFetchId = 0;
 let dynamicBatchSize = 50;
 
+// Colunas processos.data_inicio_prazo / data_vencimento (migracao/prazos_processos.sql).
+// Mantidas pelo banco: vencimento mais próximo entre as notificações em aberto e o
+// início que corresponde a ele.
+let painelTemColunasPrazo = true;
+
 async function carregarSolicitacoes(append = false, tentativa = 1) {
     if (isFetchingMore && append) return;
 
@@ -557,7 +564,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
                 dados,
                 created_at,
                 updated_at,
-                fiscal_id
+                fiscal_id${painelTemColunasPrazo ? ',\n                data_inicio_prazo,\n                data_vencimento' : ''}
             `);
 
         // Aplicar filtros
@@ -714,6 +721,13 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         if (filtros.etapa) {
             query = query.eq('etapa_atual_id', parseInt(filtros.etapa));
         }
+        // Ordenar por vencimento: data mais antiga primeiro — vencidos há mais tempo,
+        // depois os que vencem hoje e os mais próximos de vencer. Processos sem prazo
+        // iniciado (AR ainda não voltou) não têm data e ficam de fora.
+        const ordenarPorVencimento = filtros.prazo === 'vencimento' && painelTemColunasPrazo;
+        if (ordenarPorVencimento) {
+            query = query.not('data_vencimento', 'is', null);
+        }
         if (filtros.situacao) {
             // processos.status é mantido pelo banco (migracao/situacao_processos.sql):
             // notificacao_preliminar | auto_infracao | encerrado | cancelado
@@ -731,11 +745,23 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         const from = currentOffset;
         const to = currentOffset + effectiveBatch - 1;
 
+        if (ordenarPorVencimento) {
+            query = query.order('data_vencimento', { ascending: true });
+        }
         const { data, error } = await query
             .range(from, to)
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            // Migração migracao/prazos_processos.sql ainda não rodou: abre sem as datas
+            if (painelTemColunasPrazo && String(error.message || '').includes('data_')) {
+                console.warn('[PAINEL] Colunas de prazo ainda não existem; rode migracao/prazos_processos.sql.');
+                painelTemColunasPrazo = false;
+                isFetchingMore = false;
+                return carregarSolicitacoes(append, tentativa);
+            }
+            throw error;
+        }
 
         // Ignorar se outra requisição já foi disparada
         if (myFetchId !== currentFetchId) return;
@@ -854,9 +880,9 @@ function renderizarTabela(dados, cargoFiltro) {
 
         const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '—';
         const nomeSolicitante = item.dados?.contribuinte?.nome || item.dados?.nome_solicitante || '—';
-        const dataInicio = formatarData(item.created_at);
-        const dataFinal = item.dados?.data_final ? formatarData(item.dados.data_final) : '—';
-        const diasVenc = calcularDiasVencimento(item.dados?.data_final);
+        const dataInicio = formatarData(item.data_inicio_prazo);
+        const dataFinal = formatarData(item.data_vencimento);
+        const diasVenc = calcularDiasVencimento(item.data_vencimento);
         const profileObj = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
         const nomeFiscal = profileObj?.nome || item.dados?.fiscal?.nome || item.dados?.fiscal_nome || item.dados?.fiscal?.fiscNome || '—';
         const etapaNumero = item.status === 'cancelado' ? '—' : (extrairEtapaNumero(item) || '—');
@@ -888,9 +914,7 @@ function renderizarTabela(dados, cargoFiltro) {
             <td class="col-nome">${nomeSolicitante}</td>
             <td class="col-data">${dataInicio}</td>
             <td class="col-data">${dataFinal}</td>
-            <td class="col-dias">
-                <span class="dias-badge ${diasVenc <= 5 ? 'urgente' : diasVenc <= 15 ? 'alerta' : ''}">${diasVenc >= 0 ? diasVenc + ' dias' : '—'}</span>
-            </td>
+            <td class="col-dias">${montarBadgeDiasVencimento(diasVenc)}</td>
             <td class="col-descricao" title="${nomeFiscal}">${truncar(nomeFiscal, 30)}</td>
             <td class="col-etapa">
                 ${etapaNumero === '—' ? '' : `<span class="etapa-badge">E${etapaNumero}</span>`}
@@ -1058,6 +1082,7 @@ function coletarFiltros() {
         dataFim: document.getElementById('filtroDataFim')?.value || '',
         etapa: document.getElementById('filtroEtapa')?.value || '',
         situacao: document.getElementById('filtroSituacao')?.value || '',
+        prazo: document.getElementById('filtroPrazo')?.value || '',
         descricao: document.getElementById('filtroDescricao')?.value.trim() || '',
         criador: document.getElementById('filtroCriador')?.value || '',
         responsavel: elResp ? elResp.value : '',
@@ -1077,9 +1102,9 @@ function exportarCSV() {
     const rows = dadosTabela.map(item => {
         const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '';
         const nome = item.dados?.contribuinte?.nome || item.dados?.nome_solicitante || '';
-        const dataInicio = formatarData(item.created_at);
-        const dataFinal = item.dados?.data_final ? formatarData(item.dados.data_final) : '';
-        const diasVenc = calcularDiasVencimento(item.dados?.data_final);
+        const dataInicio = item.data_inicio_prazo ? formatarData(item.data_inicio_prazo) : '';
+        const dataFinal = item.data_vencimento ? formatarData(item.data_vencimento) : '';
+        const diasVenc = calcularDiasVencimento(item.data_vencimento);
         const profileObj = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
         const nomeFiscal = profileObj?.nome || item.dados?.fiscal?.nome || item.dados?.fiscal_nome || item.dados?.fiscal?.fiscNome || '';
         const etapa = `${item.etapas?.numero || ''} - ${item.etapas?.nome || ETAPAS_MAP[item.etapas?.numero] || ''}`;
@@ -1090,7 +1115,7 @@ function exportarCSV() {
             nome,
             dataInicio,
             dataFinal,
-            diasVenc >= 0 ? diasVenc : '',
+            diasVenc === null ? '' : diasVenc,
             nomeFiscal,
             etapa
         ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
@@ -1124,12 +1149,27 @@ function formatarCpfCnpj(value) {
     return value;
 }
 
+// Dias entre hoje e o vencimento, contando por dia (como a página da etapa).
+// null = sem prazo; negativo = vencido.
 function calcularDiasVencimento(dataFinal) {
-    if (!dataFinal) return -1;
-    const agora = new Date();
+    if (!dataFinal) return null;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
     const final = new Date(dataFinal);
-    const diff = Math.ceil((final - agora) / (1000 * 60 * 60 * 24));
-    return diff;
+    if (isNaN(final.getTime())) return null;
+    final.setHours(0, 0, 0, 0);
+    return Math.round((final - hoje) / (1000 * 60 * 60 * 24));
+}
+
+function montarBadgeDiasVencimento(dias) {
+    if (dias === null) return '<span class="dias-badge">—</span>';
+    if (dias < 0) {
+        const n = Math.abs(dias);
+        return `<span class="dias-badge urgente">Vencido há ${n} dia${n === 1 ? '' : 's'}</span>`;
+    }
+    if (dias === 0) return '<span class="dias-badge urgente">Vence hoje</span>';
+    const classe = dias <= 5 ? 'urgente' : dias <= 15 ? 'alerta' : '';
+    return `<span class="dias-badge ${classe}">${dias} dia${dias === 1 ? '' : 's'}</span>`;
 }
 
 function truncar(str, max) {
@@ -1241,6 +1281,7 @@ function bindEventos() {
         if (document.getElementById('filtroDataFim')) document.getElementById('filtroDataFim').value = '';
         if (document.getElementById('filtroEtapa')) document.getElementById('filtroEtapa').value = '';
         if (document.getElementById('filtroSituacao')) document.getElementById('filtroSituacao').value = '';
+        if (document.getElementById('filtroPrazo')) document.getElementById('filtroPrazo').value = '';
         if (document.getElementById('filtroDescricao')) document.getElementById('filtroDescricao').value = '';
         if (document.getElementById('filtroCriador')) document.getElementById('filtroCriador').value = '';
         const elResp = document.getElementById('filtroResponsavel');
@@ -1467,7 +1508,7 @@ const AVISOS_PUBLICADOS = [
                     <span class="pub-cor" style="background:#ddd9f0;"></span>
                     <div>
                         <strong>Roxo claro — Gerência de Posturas</strong>
-                        <span class="pub-cor-desc">Etapas 11, 12, 15, 17, 22, 25, 29 e 30.</span>
+                        <span class="pub-cor-desc">Etapas 11, 12, 15, 17, 18, 22, 25, 29 e 30.</span>
                     </div>
                 </li>
                 <li>
@@ -1481,7 +1522,8 @@ const AVISOS_PUBLICADOS = [
                     <span class="pub-cor" style="background:#f7daea;"></span>
                     <div>
                         <strong>Rosa — Jurídico</strong>
-                        <span class="pub-cor-desc">Etapa 23, quando o processo está aguardando parecer.</span>
+                        <span class="pub-cor-desc">Etapa 23, quando o processo está aguardando parecer. Também atua na Etapa 18,
+                        que aparece com a cor da Gerência.</span>
                     </div>
                 </li>
                 <li>

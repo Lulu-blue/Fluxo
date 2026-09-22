@@ -131,6 +131,8 @@ CREATE TABLE IF NOT EXISTS notificacoes (
     prazo_dias INT DEFAULT 15,
     data_inicio TIMESTAMPTZ DEFAULT NOW(),
     data_vencimento TIMESTAMPTZ,
+    -- 'recebimento' | 'cadastro_ar' | 'legado' | NULL (prazo ainda não começou) — ver migracao/prazos_processos.sql
+    prazo_origem TEXT,
     status VARCHAR(30) DEFAULT 'pendente',    -- 'pendente', 'atendida', 'defesa', 'dilacao'
     etapa_atual_id INT REFERENCES etapas(id),  -- Etapa em que a notificação se encontra
     data_movimentacao TIMESTAMPTZ,
@@ -201,6 +203,10 @@ CREATE TABLE IF NOT EXISTS processos (
     -- Mantidos por trigger (migracao/situacao_processos.sql):
     status VARCHAR(30) DEFAULT 'notificacao_preliminar', -- 'notificacao_preliminar', 'auto_infracao', 'encerrado', 'cancelado'
     passou_auto_infracao BOOLEAN NOT NULL DEFAULT FALSE,  -- já passou pela Etapa 14 (nunca volta a false)
+    -- Mantidos por trigger (migracao/prazos_processos.sql): vencimento mais próximo
+    -- entre as notificações em aberto e o início que corresponde a ele
+    data_inicio_prazo TIMESTAMPTZ,
+    data_vencimento TIMESTAMPTZ,
 
     possui_decreto BOOLEAN,
     processo_existente BOOLEAN,

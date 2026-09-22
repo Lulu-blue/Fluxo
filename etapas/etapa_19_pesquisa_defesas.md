@@ -20,8 +20,9 @@ A base legal usada pelo jurídico é o **art. 2º, inciso IV, da Lei Municipal n
 
 Os modelos mostram que a redução **não é exclusiva da limpeza**: há modelo de redução para limpeza, muro, passeio, reconstrução de muro e reconstrução de passeio. Ou seja, a anotação do canvas ("só limpeza tem redução de 50%") está mais restrita do que a prática.
 
+Definido em 22/09/2026: a redução é de **exatamente 50%** (não há margem de escolha).
+
 Ainda a confirmar:
-- é sempre 50% ou "até 50%" (com margem de decisão)?
 - há prazo limite para regularizar? (as notícias sobre o Decreto 17.326/2026 falam em 90 dias após a autuação; os modelos não citam prazo)
 - precisa ser pedida pelo contribuinte ou pode ser concedida de ofício?
 

@@ -342,8 +342,23 @@ function atualizarLabelsUIWizardStep5() {
 }
 
 // ── Navegação do Wizard ─────────────────────────────────────
+// Imagens da Vistoria: obrigatórias só quando o processo é decorrente de Decreto
+// (a legenda nunca é). Por isso o campo do decreto vem antes das imagens no passo 3.
+function atualizarObrigatoriedadeImagensVistoria() {
+    const decreto = document.getElementById('fiscDecreto')?.value || '';
+    const obrig = document.getElementById('marcadorImagensObrigatorias');
+    const opc = document.getElementById('marcadorImagensOpcionais');
+    if (obrig) obrig.style.display = decreto === 'sim' ? '' : 'none';
+    if (opc) {
+        opc.style.display = decreto === 'sim' ? 'none' : '';
+        opc.textContent = decreto === 'nao' ? '(opcional)' : '(obrigatória se for decreto; legenda opcional)';
+    }
+}
+window.atualizarObrigatoriedadeImagensVistoria = atualizarObrigatoriedadeImagensVistoria;
+
 function atualizarWizard() {
     atualizarLabelsUIWizardStep5();
+    atualizarObrigatoriedadeImagensVistoria();
 
     // Mostrar/esconder steps
     for (let i = 1; i <= TOTAL_STEPS; i++) {
@@ -488,7 +503,15 @@ function validarStep(step) {
                 return false;
             }
 
-            // Validação das Imagens da Vistoria com Legenda (Obrigatório)
+            // O decreto vem antes das imagens: é ele que define se a imagem é obrigatória
+            const decreto = document.getElementById('fiscDecreto')?.value;
+            if (!decreto) {
+                alert('Informe se é decorrente de Decreto de Notificação.');
+                document.getElementById('fiscDecreto')?.focus();
+                return false;
+            }
+
+            // Imagens da Vistoria: obrigatórias só com Decreto (a legenda é sempre opcional)
             const containerImagens = document.getElementById('lista-imagens-legenda');
             const itensImagens = containerImagens ? containerImagens.querySelectorAll('.item-imagem-legenda') : [];
             let temImagemValida = false;
@@ -506,13 +529,14 @@ function validarStep(step) {
                 }
             }
 
+            // Vale com ou sem decreto: uma foto escolhida precisa terminar de subir
             if (temImagemPendente) {
                 alert('Aguarde o envio da(s) imagem(ns) da vistoria terminar antes de continuar.');
                 return false;
             }
 
-            if (!temImagemValida) {
-                alert('É OBRIGATÓRIO anexar pelo menos 1 Imagem da Vistoria com Legenda.');
+            if (decreto === 'sim' && !temImagemValida) {
+                alert('Processo decorrente de Decreto: é OBRIGATÓRIO anexar pelo menos 1 Imagem da Vistoria (a legenda é opcional).');
                 if (containerImagens && itensImagens.length === 0) {
                     if (typeof window.adicionarCampoImagemLegenda === 'function') {
                         window.adicionarCampoImagemLegenda();
@@ -520,13 +544,6 @@ function validarStep(step) {
                 }
                 const areaImagens = document.getElementById('container-imagens-legenda');
                 if (areaImagens) areaImagens.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return false;
-            }
-
-            const decreto = document.getElementById('fiscDecreto')?.value;
-            if (!decreto) {
-                alert('Informe se é decorrente de Decreto de Notificação.');
-                document.getElementById('fiscDecreto')?.focus();
                 return false;
             }
 
@@ -1507,6 +1524,8 @@ function coletarTodosDados() {
             assunto: document.getElementById('relAssunto').value,
             pa: document.getElementById('relPA').value,
             texto_vistoria: document.getElementById('relTextoVistoria').value,
+            // Aparece na NP e no AI (etapa.js → htmlObservacoesFiscal), não no Relatório
+            observacoes_fiscal: document.getElementById('relObservacoesFiscal')?.value?.trim() || '',
             html_customizado: window.relatorioCustomizadoHTML || null
         }
     };
@@ -2567,6 +2586,7 @@ function bindWizardEventos() {
     if (elFiscDecreto) {
         elFiscDecreto.addEventListener('change', (e) => {
             const sim = e.target.value === 'sim';
+            atualizarObrigatoriedadeImagensVistoria();
             const areaDecreto = document.getElementById('decretoAnexoArea');
             if (areaDecreto) areaDecreto.style.display = sim ? 'block' : 'none';
             if (sim) {
