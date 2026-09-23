@@ -1607,6 +1607,7 @@ function renderizarFormularioDinamico(etapaNum) {
             </div>
         `;
     } else if (etapaNum === 33 || (notificacaoAtual && notificacaoAtual.status === 'encerrada' && !notificacaoAtual.dados?.arquivado)) {
+        const docFluxo = window.rotuloDocumentoDoFluxo();
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
 
@@ -1638,24 +1639,45 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h2 style="margin:0; color:#1e293b; font-size:1.4rem; font-weight:800;">Notificação Encerrada: ${numNotificacao}</h2>
-                        <p style="margin:4px 0 0 0; color:#166534; font-size:0.95rem; font-weight:600;">Esta notificação foi finalizada por <b>${usuEnc}</b> em <b>${dataEnc}</b>.</p>
+                        <h2 style="margin:0; color:#1e293b; font-size:1.4rem; font-weight:800;">${docFluxo.rotulo} ${docFluxo.encerrado}: ${docFluxo.numero}</h2>
+                        <p style="margin:4px 0 0 0; color:#166534; font-size:0.95rem; font-weight:600;">${docFluxo.esteEsta} ${docFluxo.rotulo.toLowerCase()} foi ${docFluxo.finalizado} por <b>${usuEnc}</b> em <b>${dataEnc}</b>.</p>
                     </div>
                 </div>
 
-                <!-- Painel de Arquivos Gerados -->
-                <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:24px;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; border-bottom:2px solid #cbd5e1; padding-bottom:12px; flex-wrap:wrap; gap:12px;">
+                <!-- Documento Completo do Processo (o mesmo de antes do encerramento) -->
+                <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                         <div>
-                            <h3 style="margin:0; color:#0f172a; font-size:1.1rem; font-weight:700;">Arquivos e Relatórios do Processo</h3>
-                            <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Baixe cada documento individualmente ou faça o download de todos os arquivos do processo em um pacote ZIP.</p>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
+                                Todos os documentos do processo num arquivo só, com a Certidão de Encerramento assinada no final.
+                            </p>
                         </div>
-                        <button type="button" onclick="gerarZipComTodosDocumentos()" style="padding:10px 18px; background:linear-gradient(135deg, #1e40af, #2563eb); color:white; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; box-shadow:0 2px 4px rgba(37,99,235,0.2); transition:all 0.2s; display:flex; align-items:center; gap:8px;">
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true, certidaoFinal: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Baixar PDF Completo
+                            </button>
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true, certidaoFinal: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
+                                👁️ Visualizar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documentos avulsos -->
+                <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:24px;">
+                    <h3 style="margin:0 0 14px 0; color:#0f172a; font-size:1.1rem; font-weight:700;">📄 Documentos do processo</h3>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <button type="button" onclick="window.baixarDocUnico('certidao')" style="padding:12px 20px; background:#16a34a; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.92rem; cursor:pointer;">
+                            ⬇ Baixar Certidão Assinada
+                        </button>
+                        <button type="button" onclick="window.baixarDocUnico('historico')" style="padding:12px 20px; background:white; color:#334155; border:1px solid #cbd5e1; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
+                            📊 Baixar Relatório de Etapas
+                        </button>
+                        <button type="button" onclick="gerarZipComTodosDocumentos()" style="padding:12px 20px; background:white; color:#1e40af; border:1px solid #bfdbfe; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
                             📦 Baixar Pacote de Documentos (.ZIP)
                         </button>
-                    </div>
-                    <div id="gridArquivosEtapa29" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
-                        <p style="color:#64748b; font-size:0.9rem; margin:0;">Carregando documentos assinados...</p>
                     </div>
                 </div>
 
@@ -1807,6 +1829,7 @@ function renderizarFormularioDinamico(etapaNum) {
             </div>
         `;
     } else if (etapaNum === 29) {
+        const docFluxo = window.rotuloDocumentoDoFluxo();
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
 
@@ -1834,25 +1857,50 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h2 style="margin:0; color:#1e293b; font-size:1.4rem; font-weight:800;">Encerramento da Notificação: ${numNotificacao}</h2>
+                        <h2 style="margin:0; color:#1e293b; font-size:1.4rem; font-weight:800;">Encerramento d${docFluxo.artigo} ${docFluxo.rotulo}: ${docFluxo.numero}</h2>
                         <p style="margin:4px 0 0 0; color:#64748b; font-size:0.95rem;">Verifique os documentos e o relatório de etapas antes de concluir definitivamente.</p>
                     </div>
                 </div>
 
-                <!-- Painel de Arquivos Gerados -->
-                <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:24px;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; border-bottom:2px solid #cbd5e1; padding-bottom:12px; flex-wrap:wrap; gap:12px;">
+                <!-- Documento Completo do Processo -->
+                <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                         <div>
-                            <h3 style="margin:0; color:#0f172a; font-size:1.1rem; font-weight:700;">Arquivos e Relatórios do Processo</h3>
-                            <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Baixe cada documento individualmente ou faça o download de todos os arquivos do processo em um pacote ZIP.</p>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
+                                Todos os documentos do processo num arquivo só, com a <strong>Certidão de Encerramento no final</strong>.
+                                Depois de anexar a certidão assinada, ela entra no lugar da gerada.
+                            </p>
                         </div>
-                        <button type="button" onclick="gerarZipComTodosDocumentos()" style="padding:10px 18px; background:linear-gradient(135deg, #1e40af, #2563eb); color:white; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; box-shadow:0 2px 4px rgba(37,99,235,0.2); transition:all 0.2s; display:flex; align-items:center; gap:8px;">
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true, certidaoFinal: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Baixar PDF Completo
+                            </button>
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true, certidaoFinal: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
+                                👁️ Visualizar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Certidão de Encerramento e Relatório de Etapas -->
+                <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:24px;">
+                    <h3 style="margin:0 0 4px 0; color:#0f172a; font-size:1.1rem; font-weight:700;">📜 Certidão de Encerramento</h3>
+                    <p style="margin:0 0 14px 0; color:#64748b; font-size:0.85rem;">Baixe a certidão, colha a assinatura e anexe o documento assinado abaixo.</p>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <button type="button" onclick="window.baixarCertidaoEncerramentoPdf()" style="padding:12px 20px; background:#16a34a; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.92rem; cursor:pointer; display:flex; align-items:center; gap:8px;">
+                            ⬇ Baixar Certidão de Encerramento (PDF)
+                        </button>
+                        <button type="button" onclick="window.baixarDocUnico('historico')" style="padding:12px 20px; background:white; color:#334155; border:1px solid #cbd5e1; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
+                            📊 Baixar Relatório de Etapas
+                        </button>
+                        <button type="button" onclick="gerarZipComTodosDocumentos()" style="padding:12px 20px; background:white; color:#1e40af; border:1px solid #bfdbfe; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
                             📦 Baixar Pacote de Documentos (.ZIP)
                         </button>
                     </div>
-                    <div id="gridArquivosEtapa29" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
-                        <p style="color:#64748b; font-size:0.9rem; margin:0;">Carregando documentos assinados...</p>
-                    </div>
+
+                    ${typeof window.obterHtmlBlocoCertidaoAssinada === 'function' ? window.obterHtmlBlocoCertidaoAssinada() : ''}
                 </div>
 
                 <!-- Histórico Visual na Tela -->
@@ -1864,12 +1912,15 @@ function renderizarFormularioDinamico(etapaNum) {
                 <!-- Botão Gigante de Encerramento -->
                 <div style="background:#f0fdf4; padding:32px; border:2px dashed #86efac; border-radius:16px; display:flex; flex-direction:column; align-items:center;">
                     <h3 style="margin:0 0 16px 0; color:#166534; font-size:1.3rem; text-align:center;">Deseja encerrar esta Notificação definitivamente?</h3>
-                    <button type="button" onclick="finalizarEBaixarZipNotificacao()" style="padding:16px 36px; background:#16a34a; color:white; border:none; border-radius:12px; font-weight:800; font-size:1.15rem; cursor:pointer; display:flex; align-items:center; gap:10px; box-shadow:0 8px 20px rgba(22, 163, 74, 0.35); transition:all 0.2s;">
+                    <div id="avisoCertidaoEncerramento" style="display:none; background:#fffbeb; border:1px solid #fcd34d; color:#92400e; padding:12px 16px; border-radius:10px; margin-bottom:16px; font-size:0.9rem; font-weight:600; text-align:center;">
+                        Anexe a <strong>Certidão Assinada</strong> acima para liberar o encerramento d${docFluxo.artigo} ${docFluxo.rotulo.toLowerCase()}.
+                    </div>
+                    <button type="button" id="btnEncerrarNotificacaoEtapa29" onclick="finalizarEBaixarZipNotificacao()" style="padding:16px 36px; background:#16a34a; color:white; border:none; border-radius:12px; font-weight:800; font-size:1.15rem; cursor:pointer; display:flex; align-items:center; gap:10px; box-shadow:0 8px 20px rgba(22, 163, 74, 0.35); transition:all 0.2s;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                             <polyline points="22 4 12 14.01 9 11.01"></polyline>
                         </svg>
-                        Sim, Encerrar Notificação Definitivamente
+                        Sim, Encerrar ${docFluxo.rotulo} Definitivamente
                     </button>
                     <p style="margin:14px 0 0 0; color:#15803d; font-size:0.88rem; font-weight:600; text-align:center;">Atenção: Ao clicar acima, a notificação será marcada como encerrada no sistema.</p>
                 </div>
@@ -1933,9 +1984,25 @@ function renderizarFormularioDinamico(etapaNum) {
 
     if (etapaNum === 29 || etapaNum === 33 || (notificacaoAtual?.status === 'encerrada' && !notificacaoAtual?.dados?.arquivado)) {
         setTimeout(() => {
-            const containerDoc = document.getElementById('containerDocumentoOficial');
-            if (containerDoc) containerDoc.innerHTML = '';
-            if (typeof window.carregarArquivosEtapa29 === 'function') window.carregarArquivosEtapa29();
+            // Auto pago (opção "Pagamento" na Etapa 18): a Etapa 29 mostra a certidão
+            // de encerramento. Nos demais casos, a área do documento fica vazia.
+            const mostrarCertidaoPagamento = etapaNum === 29
+                && typeof window.autoFoiPagoNaEtapa18 === 'function' && window.autoFoiPagoNaEtapa18();
+
+            if (etapaNum === 29) {
+                if (typeof window.configurarEventosCertidaoAssinada === 'function') window.configurarEventosCertidaoAssinada();
+                if (typeof window.carregarEExibirAnexoCertidaoAssinada === 'function') window.carregarEExibirAnexoCertidaoAssinada();
+                if (typeof window.atualizarBotaoEncerrarEtapa29 === 'function') window.atualizarBotaoEncerrarEtapa29();
+            }
+
+            if (mostrarCertidaoPagamento) {
+                window.gerarCertidaoPagamento();
+            } else {
+                const containerDoc = document.getElementById('containerDocumentoOficial');
+                if (containerDoc) containerDoc.innerHTML = '';
+            }
+            // A lista de cards de documentos saiu do lugar: as Etapas 29 e 33 agora
+            // mostram o Documento Completo do Processo (PDF).
         }, 150);
     }
 
@@ -3216,17 +3283,27 @@ async function avancarEtapa7() {
 async function finalizarEBaixarZipNotificacao() {
     if (!notificacaoAtual) return;
 
+    const doc = window.rotuloDocumentoDoFluxo();
+
     const jaEncerrada = (notificacaoAtual.status === 'encerrada');
     if (jaEncerrada) {
-        alert('Esta notificação já se encontra encerrada.');
+        alert(`${doc.esteEsta} ${doc.rotulo.toLowerCase()} já se encontra encerrad${doc.artigo}.`);
         return;
     }
 
-    if (!confirm('Tem certeza que deseja encerrar esta notificação definitivamente?')) {
+    // Só encerra depois da Certidão Assinada anexada
+    if (typeof window.certidaoAssinadaAnexada === 'function' && !(await window.certidaoAssinadaAnexada())) {
+        alert(`Anexe a Certidão Assinada antes de encerrar ${doc.artigo === 'o' ? 'o' : 'a'} ${doc.rotulo.toLowerCase()}.`);
+        const areaDrop = document.getElementById('areaDropCertidaoAssinada');
+        if (areaDrop) areaDrop.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
     }
 
-    mostrarCarregamento('Encerrando notificação...');
+    if (!confirm(`Tem certeza que deseja encerrar ${doc.esteEsta.toLowerCase()} ${doc.rotulo.toLowerCase()} definitivamente?`)) {
+        return;
+    }
+
+    mostrarCarregamento(`Encerrando ${doc.rotulo.toLowerCase()}...`);
 
     try {
         const notifDados = { ...(notificacaoAtual.dados || {}) };
@@ -3249,7 +3326,7 @@ async function finalizarEBaixarZipNotificacao() {
             .eq('id', notificacaoAtual.id);
 
         ocultarCarregamento();
-        alert('Notificação encerrada com sucesso.');
+        alert(`${doc.rotulo} ${doc.encerrado.toLowerCase()} com sucesso.`);
         window.location.href = `etapa.html?processo=${processoAtual.id}`;
     } catch (err) {
         console.error('Erro ao encerrar notificação no banco:', err);
@@ -6282,6 +6359,47 @@ window.carregarEExibirAnexoCertidaoAssinada = async function () {
     }
 };
 
+// A Etapa 29 só encerra depois da certidão assinada anexada
+window.certidaoAssinadaAnexada = async function () {
+    const consultas = [];
+    if (notificacaoAtual?.id) {
+        consultas.push(supabaseClient.from('documentos').select('id')
+            .eq('notificacao_id', notificacaoAtual.id)
+            .in('tipo', ['Certidão', 'Certidão Assinada', 'Certidão Sem Defesa'])
+            .not('url', 'is', null).limit(1));
+    }
+    if (processoAtual?.id) {
+        consultas.push(supabaseClient.from('documentos').select('id')
+            .eq('processo_id', processoAtual.id)
+            .in('tipo', ['Certidão', 'Certidão Assinada', 'Certidão Sem Defesa'])
+            .not('url', 'is', null).limit(1));
+    }
+
+    try {
+        const resultados = await Promise.all(consultas);
+        if (resultados.some(r => !r.error && r.data && r.data.length > 0)) return true;
+    } catch (e) {
+        console.warn('Erro ao conferir a certidão assinada:', e);
+    }
+
+    // Anexo guardado direto na notificação (caminho antigo)
+    return !!(notificacaoAtual?.dados?.certidao_assinada_url || processoAtual?.dados?.certidao_assinada_url);
+};
+
+// Liga/desliga o botão de encerrar conforme a certidão assinada
+window.atualizarBotaoEncerrarEtapa29 = async function () {
+    const btn = document.getElementById('btnEncerrarNotificacaoEtapa29');
+    const aviso = document.getElementById('avisoCertidaoEncerramento');
+    if (!btn) return;
+
+    const temCertidao = await window.certidaoAssinadaAnexada();
+    btn.disabled = !temCertidao;
+    btn.style.opacity = temCertidao ? '' : '0.5';
+    btn.style.cursor = temCertidao ? 'pointer' : 'not-allowed';
+    btn.title = temCertidao ? '' : 'Anexe a Certidão Assinada para encerrar';
+    if (aviso) aviso.style.display = temCertidao ? 'none' : 'block';
+};
+
 window.exibirCertidaoAssinadaUI = function (nome, url) {
     const areaDrop = document.getElementById('areaDropCertidaoAssinada');
     const boxAtual = document.getElementById('anexoCertidaoAtual');
@@ -6298,6 +6416,7 @@ window.exibirCertidaoAssinadaUI = function (nome, url) {
         badge.style.background = '#dcfce7';
         badge.style.color = '#15803d';
     }
+    if (typeof window.atualizarBotaoEncerrarEtapa29 === 'function') window.atualizarBotaoEncerrarEtapa29();
 };
 
 window.removerCertidaoAssinadaUI = function () {
@@ -6314,6 +6433,7 @@ window.removerCertidaoAssinadaUI = function () {
         badge.style.background = '#f1f5f9';
         badge.style.color = '#64748b';
     }
+    if (typeof window.atualizarBotaoEncerrarEtapa29 === 'function') window.atualizarBotaoEncerrarEtapa29();
 };
 
 // ── Bloco de Anexo do Relatório Fiscal Assinado (Etapa 14 / Decreto) ───────────────────
@@ -11897,6 +12017,347 @@ async function carregarUsuarioSidebarEtapa() {
 
 window.toggleSidebarEtapa = toggleSidebarEtapa;
 
+// ── Número da certidão (compartilhado pelas certidões da notificação) ─────
+// Reserva o número uma vez só e guarda em notificacoes.numero_certidao e na
+// tabela documentos. Chamadas seguintes reaproveitam o mesmo número.
+async function garantirNumeroCertidaoDaNotificacao() {
+    const _anoAtual = new Date().getFullYear();
+        // ── Número da certidão: sequencial atômico ──────────────────────────────
+        // Usa o número já persistido na notificação; reserva novo apenas na 1ª vez.
+        let numCertidao = notificacaoAtual?.numero_certidao || '';
+
+        if (!numCertidao && notificacaoAtual?.id) {
+            try {
+                const { data: numReservado, error: errRes } = await supabaseClient
+                    .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Certidão Sem Defesa' });
+
+                if (errRes || !numReservado) {
+                    console.warn('Falha ao reservar número de certidão via RPC, buscando fallback:', errRes?.message);
+                    const { data } = await supabaseClient
+                        .from('notificacoes')
+                        .select('numero_certidao')
+                        .like('numero_certidao', `${_anoAtual}/%`);
+
+                    let max = 0;
+                    if (data && data.length > 0) {
+                        data.forEach(item => {
+                            if (item.numero_certidao) {
+                                const p = item.numero_certidao.split('/');
+                                if (p.length === 2) {
+                                    const v = parseInt(p[1], 10);
+                                    if (!isNaN(v) && v > max) max = v;
+                                }
+                            }
+                        });
+                    }
+                    numCertidao = `${_anoAtual}/${String(max + 1).padStart(3, '0')}`;
+                } else {
+                    numCertidao = numReservado;
+                }
+
+                // Persiste na tabela notificacoes para que recargas não gerem outro número
+                await supabaseClient
+                    .from('notificacoes')
+                    .update({ numero_certidao: numCertidao })
+                    .eq('id', notificacaoAtual.id);
+                notificacaoAtual.numero_certidao = numCertidao;
+
+                // Também cria/atualiza o registro padronizado na tabela 'documentos'
+                const usuarioId = typeof perfilAtual !== 'undefined' && perfilAtual?.id ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
+                const { data: docExistente } = await supabaseClient
+                    .from('documentos')
+                    .select('id')
+                    .eq('notificacao_id', notificacaoAtual.id)
+                    .eq('tipo', 'Certidão')
+                    .maybeSingle();
+
+                if (docExistente?.id) {
+                    await supabaseClient
+                        .from('documentos')
+                        .update({
+                            numero_sequencial: numCertidao,
+                            nome_arquivo: `Certidao_${numCertidao.replace(/[\/\\]/g, '-')}.pdf`
+                        })
+                        .eq('id', docExistente.id);
+                    if (notificacaoAtual.dados) notificacaoAtual.dados.certidao_id = docExistente.id;
+                } else {
+                    const { data: docIns } = await supabaseClient
+                        .from('documentos')
+                        .insert([{
+                            processo_id: processoAtual.id,
+                            notificacao_id: notificacaoAtual.id,
+                            etapa_id: processoAtual.etapa_atual_id || processoAtual.etapa_atual,
+                            tipo: 'Certidão',
+                            nome_arquivo: `Certidao_${numCertidao.replace(/[\/\\]/g, '-')}.pdf`,
+                            gerado_automaticamente: true,
+                            numero_sequencial: numCertidao,
+                            usuario_id: usuarioId || undefined
+                        }])
+                        .select('id')
+                        .single();
+                    if (docIns?.id && notificacaoAtual.dados) {
+                        notificacaoAtual.dados.certidao_id = docIns.id;
+                        await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
+                    }
+                }
+            } catch (e) {
+                console.warn('Erro inesperado ao reservar certidão:', e);
+                numCertidao = `${_anoAtual}/XXX`;
+            }
+        } else if (!numCertidao) {
+            numCertidao = `${_anoAtual}/XXX`;
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
+    return numCertidao;
+}
+window.garantirNumeroCertidaoDaNotificacao = garantirNumeroCertidaoDaNotificacao;
+
+// Coloca a certidão gerada pelo sistema como página do PDF (quando não há assinada)
+async function anexarCertidaoGeradaAoPdf(mergedPdf) {
+    const html = await montarHtmlCertidaoEncerramento();
+    if (!html) return false;
+
+    // O brasão precisa entrar embutido (base64). Vindo do arquivo, o navegador
+    // bloqueia a exportação da imagem gerada ("tainted canvas") e a página falha.
+    const brasaoBase64 = await obterBrasaoBase64();
+    const htmlPronto = prepararConteudoDocumento(html, brasaoBase64);
+
+    // Mesma medida de folha A4 das outras páginas (794 x 1123 px), senão a
+    // certidão, que é mais curta, sairia esticada para preencher a página.
+    const div = document.createElement('div');
+    div.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:794px; min-height:1123px; background:white; box-sizing:border-box;';
+    div.innerHTML = htmlPronto;
+    document.body.appendChild(div);
+    try {
+        const canvas = await html2canvas(div, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+        const img = await mergedPdf.embedJpg(canvas.toDataURL('image/jpeg', 0.95));
+        const page = mergedPdf.addPage([595.28, 841.89]);
+
+        // Desenha mantendo a proporção da imagem, alinhada ao topo
+        const larguraPagina = 595.28;
+        const alturaProporcional = larguraPagina * (canvas.height / canvas.width);
+        page.drawImage(img, {
+            x: 0,
+            y: Math.max(0, 841.89 - alturaProporcional),
+            width: larguraPagina,
+            height: Math.min(alturaProporcional, 841.89)
+        });
+        return true;
+    } catch (e) {
+        console.warn('Não foi possível anexar a certidão gerada ao PDF:', e);
+        return false;
+    } finally {
+        div.remove();
+    }
+}
+
+// Baixa só a Certidão de Encerramento, em PDF
+window.baixarCertidaoEncerramentoPdf = async function () {
+    if (!processoAtual) return;
+    mostrarCarregamento('Gerando a Certidão de Encerramento...');
+    try {
+        await carregarBibliotecasPDF();
+        const pdf = await PDFLib.PDFDocument.create();
+        const ok = await anexarCertidaoGeradaAoPdf(pdf);
+        if (!ok) {
+            ocultarCarregamento();
+            alert('Não foi possível gerar a Certidão de Encerramento.');
+            return;
+        }
+        const bytes = await pdf.save();
+        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+        const numCert = (notificacaoAtual?.numero_certidao || 'certidao').replace(/[\/\\]/g, '-');
+        ocultarCarregamento();
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `Certidao_Encerramento_${numCert}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao baixar a Certidão de Encerramento:', err);
+        alert('Erro ao gerar a Certidão de Encerramento.');
+    }
+};
+
+// ── Nome do documento em tratamento: Auto de Infração ou Notificação ──────
+// Processo por decreto nunca teve Notificação Preliminar: vai direto ao Auto.
+// Uma notificação que virou Auto também é encerrada como Auto.
+window.rotuloDocumentoDoFluxo = function () {
+    const notif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
+
+    // Número do Auto desta notificação (não vale o do processo: outra notificação
+    // do mesmo processo pode ter virado Auto, e esta não)
+    const numeroAutoDaNotificacao = notif
+        ? (notif.numero_auto_infracao || notif.dados?.numero_auto_infracao || notif.dados?.etapa14?.numero_auto_infracao)
+        : (processoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.etapa14?.numero_auto_infracao);
+
+    // A situação da própria notificação é a fonte certa (notificacoes.situacao).
+    // Não dá para usar o número da etapa: a NP também chega às etapas 29 e 33.
+    const ehAuto = notif
+        ? (notif.situacao === 'auto_infracao'
+            || notif.situacao === 'arquivado'
+            || String(notif.status || '').toLowerCase() === 'auto_infracao'
+            || !!numeroAutoDaNotificacao)
+        : window.processoVeioDaEtapa14(processoAtual);
+
+    const numeroAuto = numeroAutoDaNotificacao;
+
+    return ehAuto
+        ? {
+            rotulo: 'Auto de Infração',
+            artigo: 'o',
+            esteEsta: 'Este',
+            encerrado: 'Encerrado',
+            finalizado: 'finalizado',
+            numero: numeroAuto || notificacaoAtual?.numero || processoAtual?.numero_processo || 'S/N'
+        }
+        : {
+            rotulo: 'Notificação',
+            artigo: 'a',
+            esteEsta: 'Esta',
+            encerrado: 'Encerrada',
+            finalizado: 'finalizada',
+            numero: notificacaoAtual?.numero || processoAtual?.numero_processo || 'S/N'
+        };
+};
+
+// ── ETAPA 29: certidão de encerramento por pagamento ──────────────────────
+// Gerada quando o Auto é marcado como "Pagamento" na Etapa 18 e chega à Etapa 29.
+async function montarHtmlCertidaoEncerramento() {
+    if (!processoAtual) return '';
+
+    const d = processoAtual.dados || {};
+    const cont = d.contribuinte || {};
+    const imv = d.imovel || {};
+
+    const nomeAutuado = cont.nome || processoAtual?.campos?.contNome || '—';
+    const cpfCnpj = cont.cpf_cnpj || processoAtual?.campos?.contCpfCnpj || '—';
+    const ehCnpj = String(cpfCnpj).replace(/\D/g, '').length > 11;
+
+    // Endereço de correspondência do autuado
+    const partesEndAutuado = [
+        cont.logradouro || cont.endereco || '',
+        cont.numero ? `nº ${cont.numero}` : '',
+        cont.complemento || '',
+        cont.bairro ? `Bairro ${cont.bairro}` : '',
+        cont.cep ? `CEP ${cont.cep}` : ''
+    ].filter(Boolean);
+    // A cidade às vezes já vem com o estado ("Divinópolis-MG"); não repete o /MG
+    const cidadeBruta = String(cont.cidade || cont.municipio || 'Divinópolis').trim();
+    const cidadeAutuado = /[-\/\s]MG$/i.test(cidadeBruta)
+        ? cidadeBruta.replace(/[-\/\s]+MG$/i, '').trim() + '/MG'
+        : `${cidadeBruta}/MG`;
+    const enderecoAutuado = partesEndAutuado.length > 0
+        ? `${partesEndAutuado.join(', ')}, ${cidadeAutuado}`
+        : '—';
+
+    // Imóvel autuado
+    const partesEndImovel = [
+        imv.logradouro || imv.rua || '',
+        `nº ${imv.numero || '0'}`,
+        imv.bairro ? `Bairro ${imv.bairro}` : ''
+    ].filter(Boolean);
+    const enderecoImovel = partesEndImovel.length > 0 ? `${partesEndImovel.join(', ')}, Divinópolis/MG` : '—';
+    const inscricaoImovel = imv.inscricao || '—';
+
+    const numAuto = notificacaoAtual?.numero_auto_infracao
+        || notificacaoAtual?.dados?.numero_auto_infracao
+        || notificacaoAtual?.dados?.etapa14?.numero_auto_infracao
+        || processoAtual?.dados?.numero_auto_infracao
+        || '—';
+    const protocolo = (typeof obterProtocoloDoProcesso === 'function' ? obterProtocoloDoProcesso(processoAtual) : '') || '—';
+
+    const dataAtualFmt = new Date().toLocaleDateString('pt-BR');
+    const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
+    const nomeFiscal = fiscAutor.nome || 'Fiscal de Posturas';
+    const matriculaFiscal = fiscAutor.matricula || '';
+
+    const numCertidao = await garantirNumeroCertidaoDaNotificacao();
+
+    const corpo = `
+        <p style="margin: 0; text-align: justify; line-height: 1.6;">
+            Certifico, para os devidos fins, que o autuado <strong>${nomeAutuado}</strong>, inscrito no
+            ${ehCnpj ? 'CNPJ' : 'CPF'} sob o nº <strong>${cpfCnpj}</strong>, com endereço de correspondência
+            à ${enderecoAutuado}, efetuou o <strong>pagamento da multa</strong> referente ao
+            Auto de Infração nº <strong>${numAuto}</strong>, protocolo nº <strong>${protocolo}</strong>.
+        </p>
+
+        <p style="margin: 18px 0 0 0; text-align: justify; line-height: 1.6;">
+            Informações do imóvel autuado: lote de Inscrição Imobiliária Municipal nº
+            <strong>${inscricaoImovel}</strong>, situado à ${enderecoImovel}.
+        </p>
+
+        <p style="margin: 18px 0 0 0; text-align: justify; line-height: 1.6;">
+            Cumprida a obrigação, nada mais havendo a certificar, dá-se por <strong>encerrado</strong> o presente
+            processo administrativo.
+        </p>
+    `;
+
+    const htmlCertidao = `
+        <div id="documentoPronto" style="margin-top: 20px; font-family: Calibri, 'Carlito', Arial, sans-serif;">
+            <div style="padding: 40px 55px 0 55px; background: white; max-width: 820px; margin: 0 auto; color: #000; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border: 1px solid #cbd5e1;">
+
+                <!-- CABEÇALHO -->
+                <div style="display: flex; align-items: flex-start; gap: 18px; margin-bottom: 16px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; width: 100px; flex-shrink: 0;">
+                        <img src="assets/img/brasao_semac.jpeg" alt="Brasão SEMAC" style="width: 90px; height: auto;" />
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="width: 100%; height: 10px; background-color: #F78C26; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">DIRETORIA DE MEIO AMBIENTE</div>
+                        <div style="font-size: 10pt; font-weight: bold; color: #000; line-height: 1.3;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
+                        <div style="font-size: 9pt; color: #000; margin-top: 3px; line-height: 1.3;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais CEP:35.501-170 Tel: (37) 3229-8176</div>
+                    </div>
+                </div>
+
+                <!-- CORPO -->
+                <div style="font-size: 12pt; line-height: 1.5; color: #000; margin-top: 20px;">
+                    <p style="margin: 0; text-align: center; font-size: 12pt;"><strong>CERTIDÃO ${numCertidao}</strong></p>
+                    <p style="margin: 1px 0; text-align: center; font-size: 12pt;">Fiscalização de Posturas</p>
+                    <p style="margin: 1px 0 28px 0; text-align: right; font-size: 12pt;">Divinópolis - MG ${dataAtualFmt}</p>
+                    ${corpo}
+                </div>
+
+                <!-- ASSINATURA -->
+                <div style="text-align: center; margin-top: 80px; padding-bottom: 28px; font-size: 12pt;">
+                    <div style="display: inline-block; min-width: 280px; border-top: 1px solid #000; padding-top: 6px;">
+                        <div>${nomeFiscal}</div>
+                        <div>Fiscal de Posturas</div>
+                        ${matriculaFiscal ? `<div>Matrícula: ${matriculaFiscal}</div>` : ''}
+                    </div>
+                </div>
+
+                <!-- RODAPÉ LARANJA -->
+                <div style="width: calc(100% + 110px); margin-left: -55px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+            </div>
+        </div>
+    `;
+
+    return htmlCertidao;
+}
+window.montarHtmlCertidaoEncerramento = montarHtmlCertidaoEncerramento;
+
+// Mostra a certidão na área do documento (Etapa 29)
+window.gerarCertidaoPagamento = async function () {
+    const html = await montarHtmlCertidaoEncerramento();
+    const container = document.getElementById('containerDocumentoOficial');
+    if (container && html) container.innerHTML = html;
+    return html;
+};
+
+// O Auto chegou à Etapa 29 pelo pagamento (opção "Pagamento" da Etapa 18)?
+window.autoFoiPagoNaEtapa18 = function () {
+    const st = String(notificacaoAtual?.status || '').toLowerCase();
+    if (st === 'pagamento') return true;
+    const autos = processoAtual?.campos?.etapa18?.autos || [];
+    return autos.some(a => a && String(a.status || '').toLowerCase() === 'pagamento'
+        && (!notificacaoAtual?.id || String(a.id || '') === String(notificacaoAtual.id)));
+};
+
 window.gerarCertidaoSemDefesa = async function (auto = false) {
     if (!processoAtual) return;
 
@@ -11943,94 +12404,8 @@ window.gerarCertidaoSemDefesa = async function (auto = false) {
     const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
     const nomeFiscal = fiscAutor.nome || 'Fiscal de Posturas';
     const matriculaFiscal = fiscAutor.matricula || '';
-    const _anoAtual = new Date().getFullYear();
 
-    // ── Número da certidão: sequencial atômico ──────────────────────────────
-    // Usa o número já persistido na notificação; reserva novo apenas na 1ª vez.
-    let numCertidao = notificacaoAtual?.numero_certidao || '';
-
-    if (!numCertidao && notificacaoAtual?.id) {
-        try {
-            const { data: numReservado, error: errRes } = await supabaseClient
-                .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Certidão Sem Defesa' });
-
-            if (errRes || !numReservado) {
-                console.warn('Falha ao reservar número de certidão via RPC, buscando fallback:', errRes?.message);
-                const { data } = await supabaseClient
-                    .from('notificacoes')
-                    .select('numero_certidao')
-                    .like('numero_certidao', `${_anoAtual}/%`);
-
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_certidao) {
-                            const p = item.numero_certidao.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numCertidao = `${_anoAtual}/${String(max + 1).padStart(3, '0')}`;
-            } else {
-                numCertidao = numReservado;
-            }
-
-            // Persiste na tabela notificacoes para que recargas não gerem outro número
-            await supabaseClient
-                .from('notificacoes')
-                .update({ numero_certidao: numCertidao })
-                .eq('id', notificacaoAtual.id);
-            notificacaoAtual.numero_certidao = numCertidao;
-
-            // Também cria/atualiza o registro padronizado na tabela 'documentos'
-            const usuarioId = typeof perfilAtual !== 'undefined' && perfilAtual?.id ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
-            const { data: docExistente } = await supabaseClient
-                .from('documentos')
-                .select('id')
-                .eq('notificacao_id', notificacaoAtual.id)
-                .eq('tipo', 'Certidão')
-                .maybeSingle();
-
-            if (docExistente?.id) {
-                await supabaseClient
-                    .from('documentos')
-                    .update({
-                        numero_sequencial: numCertidao,
-                        nome_arquivo: `Certidao_${numCertidao.replace(/[\/\\]/g, '-')}.pdf`
-                    })
-                    .eq('id', docExistente.id);
-                if (notificacaoAtual.dados) notificacaoAtual.dados.certidao_id = docExistente.id;
-            } else {
-                const { data: docIns } = await supabaseClient
-                    .from('documentos')
-                    .insert([{
-                        processo_id: processoAtual.id,
-                        notificacao_id: notificacaoAtual.id,
-                        etapa_id: processoAtual.etapa_atual_id || processoAtual.etapa_atual,
-                        tipo: 'Certidão',
-                        nome_arquivo: `Certidao_${numCertidao.replace(/[\/\\]/g, '-')}.pdf`,
-                        gerado_automaticamente: true,
-                        numero_sequencial: numCertidao,
-                        usuario_id: usuarioId || undefined
-                    }])
-                    .select('id')
-                    .single();
-                if (docIns?.id && notificacaoAtual.dados) {
-                    notificacaoAtual.dados.certidao_id = docIns.id;
-                    await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
-                }
-            }
-        } catch (e) {
-            console.warn('Erro inesperado ao reservar certidão:', e);
-            numCertidao = `${_anoAtual}/XXX`;
-        }
-    } else if (!numCertidao) {
-        numCertidao = `${_anoAtual}/XXX`;
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+    const numCertidao = await garantirNumeroCertidaoDaNotificacao();
 
     const imvLogradouro = imv.logradouro || imv.rua || '';
     const imvBairro = imv.bairro || '';
@@ -14098,6 +14473,25 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                     const u = doc.url || doc.dataUrl || doc.base64;
                     if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
                 }
+            }
+        }
+
+        // 3.15 Etapa 29: certidão de encerramento no final. Assinada, quando houver.
+        if (opcoes.certidaoFinal) {
+            const docCertAssinada = docsBanco.find(d => ['Certidão Assinada'].includes(d.tipo))
+                || docsBanco.find(d => ['Certidão', 'Certidão Sem Defesa'].includes(d.tipo) && (d.url || d.dataUrl))
+                || (notificacaoAtual?.dados?.certidao_assinada_url
+                    ? { url: notificacaoAtual.dados.certidao_assinada_url } : null);
+            const urlCertAssinada = docCertAssinada?.url || docCertAssinada?.dataUrl || docCertAssinada?.base64;
+
+            if (docCertAssinada?.id) idsAnexados.add(docCertAssinada.id);
+            const anexouAssinada = urlCertAssinada
+                ? await anexarArquivoAoPdf(urlCertAssinada, 'Certidão Assinada')
+                : false;
+
+            // Sem certidão assinada anexada: entra a gerada pelo sistema
+            if (!anexouAssinada) {
+                await anexarCertidaoGeradaAoPdf(mergedPdf);
             }
         }
 
