@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS processos (
     fiscal_id UUID NOT NULL REFERENCES profiles(id),
     etapa_atual_id INT NOT NULL REFERENCES etapas(id) DEFAULT 1,
     -- Mantidos por trigger (migracao/situacao_processos.sql):
-    status VARCHAR(30) DEFAULT 'notificacao_preliminar', -- 'notificacao_preliminar', 'auto_infracao', 'encerrado', 'cancelado'
+    status VARCHAR(30) DEFAULT 'notificacao_preliminar', -- 'notificacao_preliminar', 'auto_infracao', 'arquivado', 'encerrado', 'cancelado'
     passou_auto_infracao BOOLEAN NOT NULL DEFAULT FALSE,  -- já passou pela Etapa 14 (nunca volta a false)
     -- Mantidos por trigger (migracao/prazos_processos.sql): vencimento mais próximo
     -- entre as notificações em aberto e o início que corresponde a ele

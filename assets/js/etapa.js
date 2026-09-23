@@ -350,9 +350,11 @@ async function criarNotificacoesDoProcesso(proc) {
     return notificacoesCriadas;
 }
 
-// ── Início do prazo pelo AR (Etapa 16) ─────────────────────────────────────
+// ── Início do prazo (Etapas 16, 17 e 30) ───────────────────────────────────
 // 1º caso: data de recebimento pelo proprietário.
-// 2º caso: sem data de recebimento, vale a data em que o AR foi cadastrado.
+// 2º caso: o AR não encontrou o proprietário e saiu edital — vale a data em que o
+//          edital foi anexado (Etapa 17).
+// 3º caso: sem recebimento e sem edital, vale a data em que o AR foi cadastrado.
 // O prazo de cada notificação (notificacoes.data_inicio / data_vencimento /
 // prazo_dias) é gravado a partir daqui, e prazo_origem diz qual caso valeu.
 // A Etapa 18 e o painel leem esses valores; ninguém mais recalcula.
@@ -379,12 +381,35 @@ function dataLocalMeioDiaISO(valor) {
     return new Date(ymd + 'T12:00:00').toISOString();
 }
 
+function obterDataEditalProcesso(proc) {
+    return proc?.campos?.etapa17?.data_anexo_edital
+        || proc?.dados?.campos?.etapa17?.data_anexo_edital
+        || proc?.dados?.etapa17?.data_anexo_edital
+        || null;
+}
+
 function obterInicioPrazoAR(proc) {
     const ar = obterDadosARProcesso(proc);
+
     const recebimento = dataLocalMeioDiaISO(ar.data_recebimento || ar.data_recebimento_proprietario);
     if (recebimento) return { dataISO: recebimento, origem: 'recebimento' };
-    const cadastro = dataLocalMeioDiaISO(ar.data_insercao_ar);
+
+    const cadastroBruto = ar.data_insercao_ar;
+    const editalBruto = obterDataEditalProcesso(proc);
+
+    // Se veio um AR novo depois do edital, é o AR novo que vale
+    const editalMaisRecente = editalBruto && (!cadastroBruto || new Date(editalBruto) >= new Date(cadastroBruto));
+    if (editalMaisRecente) {
+        const edital = dataLocalMeioDiaISO(editalBruto);
+        if (edital) return { dataISO: edital, origem: 'edital' };
+    }
+
+    const cadastro = dataLocalMeioDiaISO(cadastroBruto);
     if (cadastro) return { dataISO: cadastro, origem: 'cadastro_ar' };
+
+    const edital = dataLocalMeioDiaISO(editalBruto);
+    if (edital) return { dataISO: edital, origem: 'edital' };
+
     return null;
 }
 window.obterInicioPrazoAR = obterInicioPrazoAR;
@@ -585,7 +610,7 @@ const ETAPAS_MAP = {
     17: 'Gerência Gera o Edital',
     18: 'Solicitar Defesa ou Recurso',
     19: 'Parecer Jurídico',
-    20: 'Realizar Pagamento',
+    20: 'Arquivamento do Processo',
     21: 'Fiscal Convocado Jurídico',
     22: 'Gerente Convocado Jurídico',
     23: 'Parecer Jurídico',
@@ -603,10 +628,11 @@ const ETAPAS_MAP = {
 // Mapa de etapas que cada cargo pode editar.
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
-    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 20, 21, 27, 28, 29, 31, 32],
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 21, 27, 29, 31, 32],
     'Administrativo de Posturas': [15, 16, 17],
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
-    'Gerente': [11, 12, 15, 17, 18, 22, 25, 29, 30],
+    // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
+    'Gerente': [11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30],
     'Secretário': [24],
     // Etapa 19 (Parecer Jurídico): Jurídico e Gerente de Interface Jurídica
     'Jurídico': [18, 19, 23],
@@ -719,8 +745,10 @@ async function inicializarPaginaEtapa() {
 
     let etapaAtual = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
 
-    // Virtualiza a etapa 33 para notificações encerradas
-    if (notificacaoAtual && notificacaoAtual.status === 'encerrada') {
+    // Virtualiza a etapa 33 para notificações encerradas. O Auto arquivado na
+    // Etapa 20 também fica 'encerrada', mas continua mostrando a Etapa 20 — é lá
+    // que o Gerente desfaz o arquivamento.
+    if (notificacaoAtual && notificacaoAtual.status === 'encerrada' && !notificacaoAtual.dados?.arquivado) {
         etapaAtual = 33;
     }
 
@@ -746,7 +774,9 @@ async function inicializarPaginaEtapa() {
     if (etapaAtual === 2 && !notificacaoAtual) {
         await renderizarEtapa2(processoAtual);
         configurarEventosEtapa2();
-    } else if (etapaAtual === 18 && !notificacaoAtual) {
+    } else if (etapaAtual === 18) {
+        // Com uma notificação aberta (o Auto dela), a Etapa 18 mostra só esse Auto.
+        // Sem notificação, mostra todos — é o painel do processo de decreto.
         await renderizarEtapa18(processoAtual);
         configurarEventosEtapa18();
     } else if (etapaAtual === 16) {
@@ -761,7 +791,7 @@ async function inicializarPaginaEtapa() {
     } else {
         configurarAbasPagina();
 
-        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 19, 20, 29, 33].includes(etapaAtual)) {
+        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 19, 20, 28, 29, 33].includes(etapaAtual)) {  // 20 = Arquivamento
             renderizarFormularioDinamico(etapaAtual);
             if (etapaAtual === 1 && !notificacaoAtual) {
                 configurarEventosPainelEtapa1();
@@ -1491,7 +1521,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         <span>📑 Informações da Capa do Processo</span>
                     </h3>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; font-size:0.9rem;">
-                        <div><strong style="color:#475569;">PROCESSO ADMINISTRATIVO – SEMAC Nº:</strong> <br><span style="color:#0f172a; font-weight:700;">${numNotificacao}</span></div>
+                        <div><strong style="color:#475569;">PROCESSO ADMINISTRATIVO – SEMAC Nº:</strong> <br><span style="color:#0f172a; font-weight:700;">${processoAtual?.numero_processo || numNotificacao}</span></div>
                         <div><strong style="color:#475569;">Autuado(a):</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeAutuado}</span></div>
                         <div><strong style="color:#475569;">cpf/cnpj:</strong> <br><span style="color:#0f172a; font-weight:600;">${cpfCnpjAutuado}</span></div>
                         <div><strong style="color:#475569;">Auto de Infração:</strong> <br><span style="color:#0f172a; font-weight:600;">${numAutoInfracao15}</span></div>
@@ -1576,7 +1606,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
             </div>
         `;
-    } else if (etapaNum === 33 || (notificacaoAtual && notificacaoAtual.status === 'encerrada')) {
+    } else if (etapaNum === 33 || (notificacaoAtual && notificacaoAtual.status === 'encerrada' && !notificacaoAtual.dados?.arquivado)) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
 
@@ -1639,6 +1669,143 @@ function renderizarFormularioDinamico(etapaNum) {
     } else if (etapaNum === 19) {
         // Parecer Jurídico: tela montada em assets/js/etapa19_parecer.js
         conteudo = window.Etapa19 ? window.Etapa19.html(uploadHtml) : '';
+    } else if (etapaNum === 20) {
+        // Arquivamento do Processo (Gerente de Posturas). Chega aqui pela Etapa 28.
+        const numProcesso20 = processoAtual?.numero_processo || '—';
+        const protocolo20 = (typeof obterProtocoloDoProcesso === 'function' ? obterProtocoloDoProcesso(processoAtual) : '') || '—';
+        const arquivado20 = !!(notificacaoAtual
+            ? notificacaoAtual.dados?.arquivado
+            : processoAtual?.dados?.arquivado);
+
+        conteudo = `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:24px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:16px;">
+                    <div style="background:#e0e7ff; padding:12px; border-radius:12px;">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3730a3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 20 – Arquivamento do Processo</h2>
+                        <p style="margin:4px 0 0 0; color:#64748b; font-size:0.92rem;">Processo ${numProcesso20} — enviado à dívida ativa pelo protocolo ${protocolo20}.</p>
+                    </div>
+                    <span id="badgeArquivadoEtapa20" style="margin-left:auto; padding:6px 14px; border-radius:20px; font-size:0.82rem; font-weight:700; ${arquivado20 ? 'background:#e2e8f0; color:#334155;' : 'background:#fef9c3; color:#854d0e;'}">
+                        ${arquivado20 ? '📦 Arquivado' : 'Aguardando arquivamento'}
+                    </span>
+                </div>
+
+                <!-- Documento completo -->
+                <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+                        <div>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
+                                Mesmo documento da Etapa 28, com uma <strong>última página</strong> registrando o envio à dívida ativa pelo protocolo ${protocolo20}.
+                            </p>
+                        </div>
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true, paginaDividaAtiva: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Baixar PDF Completo
+                            </button>
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true, paginaDividaAtiva: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
+                                👁️ Visualizar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Arquivar / desfazer -->
+                <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px;">
+                    <h3 style="margin:0 0 6px 0; color:#1e293b; font-size:1.05rem; font-weight:700;">📦 Arquivamento</h3>
+                    <p style="margin:0 0 14px 0; color:#64748b; font-size:0.88rem;">
+                        Arquivar encerra o processo. Se precisar, dá para desfazer: ele volta a ser Auto de Infração e retorna à Etapa 18.
+                    </p>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                        <button type="button" id="btnArquivarEtapa20" style="padding:12px 22px; background:#334155; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.94rem; cursor:pointer; ${arquivado20 ? 'display:none;' : ''}">
+                            📦 Arquivar processo
+                        </button>
+                        <button type="button" id="btnDesarquivarEtapa20" style="padding:12px 20px; background:white; color:#b45309; border:1px solid #fcd34d; border-radius:10px; font-weight:700; font-size:0.94rem; cursor:pointer; ${arquivado20 ? '' : 'display:none;'}">
+                            ↩️ Desfazer arquivamento e voltar para a Etapa 18
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (etapaNum === 28) {
+        // Certificação do Vencimento: chega aqui quando o Gerente marca
+        // "Não fez o Pagamento" na Etapa 18. Acesso: Gerente de Posturas,
+        // Administrativo de Posturas e Dev.
+        const numProcesso28 = processoAtual?.numero_processo || '—';
+        const infoAR28 = window.montarDadosARParaPagina(processoAtual);
+        const mensagemProtocolo = window.montarMensagemProtocoloEtapa28(processoAtual);
+
+        conteudo = `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:24px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:16px;">
+                    <div style="background:#fee2e2; padding:12px; border-radius:12px;">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 28 – Certificação do Vencimento</h2>
+                        <p style="margin:4px 0 0 0; color:#64748b; font-size:0.92rem;">Processo ${numProcesso28} — o autuado não fez o pagamento do Auto de Infração.</p>
+                    </div>
+                </div>
+
+                <!-- Documento completo do processo -->
+                <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+                        <div>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
+                                Capa ➔ documentos do processo ➔ Auto de Infração ➔ <strong>Multa</strong> ➔ <strong>Fotos do AR</strong>
+                                ➔ <strong>Página com os dados do AR</strong> ➔ <strong>Edital</strong> ➔ demais anexos, na ordem em que entraram.
+                            </p>
+                        </div>
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Baixar PDF Completo
+                            </button>
+                            <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
+                                👁️ Visualizar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumo do AR (o mesmo que vai na página do PDF) -->
+                <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
+                    <h3 style="margin:0 0 12px 0; color:#1e3a8a; font-size:1.05rem; font-weight:700;">📬 Aviso de Recebimento (AR)</h3>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; font-size:0.9rem;">
+                        <div><strong style="color:#475569;">Número do AR:</strong><br><span style="color:#0f172a; font-weight:600;">${infoAR28.numeroAR}</span></div>
+                        ${infoAR28.entregue
+                            ? `<div><strong style="color:#475569;">Recebido pelo proprietário em:</strong><br><span style="color:#0f172a; font-weight:600;">${infoAR28.dataRecebimento}</span></div>`
+                            : `<div><strong style="color:#475569;">Data da última tentativa:</strong><br><span style="color:#0f172a; font-weight:600;">${infoAR28.dataUltimaTentativa}</span></div>
+                               <div><strong style="color:#475569;">Motivo dos Correios:</strong><br><span style="color:#0f172a; font-weight:600;">${infoAR28.motivoCorreios}</span></div>
+                               <div><strong style="color:#475569;">Data do edital:</strong><br><span style="color:#0f172a; font-weight:600;">${infoAR28.dataEdital}</span></div>`}
+                    </div>
+                </div>
+
+                <!-- Mensagem para o protocolo -->
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:20px;">
+                    <h3 style="margin:0 0 6px 0; color:#1e40af; font-size:1.05rem; font-weight:700;">💬 Mensagem para enviar no protocolo</h3>
+                    <p style="margin:0 0 12px 0; color:#1e40af; font-size:0.86rem;">Pode editar o texto antes de copiar. A edição não é salva no processo.</p>
+                    <textarea id="mensagemProtocoloEtapa28" rows="4" style="width:100%; padding:12px 14px; border:1px solid #bfdbfe; border-radius:10px; font-family:inherit; font-size:0.94rem; color:#0f172a; background:white; resize:vertical;">${mensagemProtocolo}</textarea>
+                    <div style="display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap;">
+                        <button type="button" id="btnCopiarMensagemEtapa28" style="padding:10px 18px; background:#2563eb; color:white; border:none; border-radius:8px; font-weight:600; font-size:0.9rem; cursor:pointer;">
+                            📋 Copiar mensagem
+                        </button>
+                        <button type="button" id="btnRestaurarMensagemEtapa28" style="padding:10px 16px; background:white; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; font-weight:600; font-size:0.9rem; cursor:pointer;">
+                            Restaurar texto padrão
+                        </button>
+                        <span id="feedbackCopiaEtapa28" style="color:#15803d; font-weight:700; font-size:0.9rem; display:none;">✓ copiado</span>
+                    </div>
+                </div>
+            </div>
+        `;
     } else if (etapaNum === 29) {
         const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : 'Desconhecido';
         const hist = notificacaoAtual?.dados?.historico || [];
@@ -1749,6 +1916,14 @@ function renderizarFormularioDinamico(etapaNum) {
         setTimeout(() => { if (window.Etapa19) window.Etapa19.configurar(); }, 150);
     }
 
+    if (etapaNum === 28) {
+        setTimeout(() => configurarEventosEtapa28(), 100);
+    }
+
+    if (etapaNum === 20) {
+        setTimeout(() => configurarEventosEtapa20(), 100);
+    }
+
     if (etapaNum === 15) {
         setTimeout(() => {
             if (typeof window.carregarAnexosMultaEtapa15 === 'function') window.carregarAnexosMultaEtapa15();
@@ -1756,7 +1931,7 @@ function renderizarFormularioDinamico(etapaNum) {
         }, 100);
     }
 
-    if (etapaNum === 29 || etapaNum === 33 || notificacaoAtual?.status === 'encerrada') {
+    if (etapaNum === 29 || etapaNum === 33 || (notificacaoAtual?.status === 'encerrada' && !notificacaoAtual?.dados?.arquivado)) {
         setTimeout(() => {
             const containerDoc = document.getElementById('containerDocumentoOficial');
             if (containerDoc) containerDoc.innerHTML = '';
@@ -2531,7 +2706,8 @@ function obterProximaEtapa(etapaAtual) {
     const regras = {
         1: 16,
         16: 2,
-        30: 18
+        30: 18,
+        28: 20   // Certificação do Vencimento ➔ Arquivamento do Processo
     };
     return regras[etapaAtual] || etapaAtual + 1;
 }
@@ -6535,12 +6711,221 @@ async function avancarEtapa1() {
     }
 }
 
+// Mostra "Auto de Infração Nº X" no cabeçalho. O número sai dos dados já
+// carregados e, se não estiver lá, da tabela autos_infracao. Sem número (Auto
+// ainda não gerado), mostra a notificação que deu origem, para não passar o
+// número dela como se fosse do Auto.
+async function atualizarIdentificacaoDoAutoNoCabecalho(proc) {
+    const el = document.getElementById('etapaItemIdentificacao');
+    if (!el || !notificacaoAtual) return;
+
+    let numero = notificacaoAtual.numero_auto_infracao
+        || notificacaoAtual.dados?.numero_auto_infracao
+        || notificacaoAtual.dados?.etapa14?.numero_auto_infracao
+        || proc?.dados?.numero_auto_infracao
+        || proc?.dados?.etapa14?.numero_auto_infracao
+        || '';
+
+    if (!numero) {
+        try {
+            let query = supabaseClient.from('autos_infracao').select('numero, notificacao_id');
+            query = notificacaoAtual.id
+                ? query.eq('notificacao_id', notificacaoAtual.id)
+                : query.eq('processo_id', proc.id);
+            const { data } = await query.order('created_at', { ascending: false }).limit(1);
+            if (data && data.length > 0) numero = data[0].numero || '';
+        } catch (e) {
+            console.warn('Aviso ao buscar o número do Auto de Infração:', e);
+        }
+    }
+
+    el.textContent = numero
+        ? `Auto de Infração Nº ${numero}`
+        : `Auto de Infração (nº ainda não gerado) — origem: Notificação Nº ${notificacaoAtual.numero || 'S/N'}`;
+}
+
+// ── ETAPA 20: arquivar e desfazer o arquivamento ──────────────────────────
+// Arquivar encerra o Auto (status 'encerrada'). Desfazer devolve o Auto de
+// Infração para a Etapa 18, para o Gerente escolher o caminho de novo.
+async function arquivarProcessoEtapa20() {
+    if (!processoAtual) return;
+    if (!confirm('Arquivar este processo?\n\nEle será dado como encerrado. Você poderá desfazer depois, se precisar.')) return;
+
+    mostrarCarregamento('Arquivando processo...');
+    try {
+        const dataArquivamento = new Date().toISOString();
+
+        if (notificacaoAtual?.id) {
+            const dadosNotif = {
+                ...(notificacaoAtual.dados || {}),
+                arquivado: true,
+                data_arquivamento: dataArquivamento,
+                status_antes_arquivamento: notificacaoAtual.status || 'auto_infracao'
+            };
+            await atualizarNotificacaoNoBanco(notificacaoAtual.id, { status: 'encerrada', dados: dadosNotif });
+            notificacaoAtual.dados = dadosNotif;
+            notificacaoAtual.status = 'encerrada';
+
+            // Situação do processo: arquivado (não é encerrado — dá para desfazer)
+            await supabaseClient
+                .from('processos')
+                .update({ status: 'arquivado' })
+                .eq('id', processoAtual.id);
+        } else {
+            processoAtual.dados = processoAtual.dados || {};
+            processoAtual.dados.arquivado = true;
+            processoAtual.dados.data_arquivamento = dataArquivamento;
+            await supabaseClient
+                .from('processos')
+                .update({ status: 'arquivado', dados: processoAtual.dados })
+                .eq('id', processoAtual.id);
+        }
+
+        await supabaseClient.from('historico_etapas').insert([{
+            processo_id: processoAtual.id,
+            notificacao_id: notificacaoAtual?.id || null,
+            etapa_de_id: processoAtual.etapa_atual_id,
+            etapa_para_id: processoAtual.etapa_atual_id,
+            usuario_id: perfilAtual?.id,
+            condicao_aplicada: 'Processo arquivado (Etapa 20)',
+            observacao: `Enviado à dívida ativa pelo protocolo ${obterProtocoloDoProcesso(processoAtual) || '—'}.`
+        }]);
+
+        alert('Processo arquivado.');
+        window.location.reload();
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao arquivar o processo:', err);
+        alert('Erro ao arquivar o processo.');
+    }
+}
+
+async function desarquivarProcessoEtapa20() {
+    if (!processoAtual) return;
+    if (!confirm('Desfazer o arquivamento?\n\nO Auto de Infração volta para a Etapa 18.')) return;
+
+    mostrarCarregamento('Desfazendo arquivamento...');
+    try {
+        const { data: etapa18 } = await supabaseClient.from('etapas').select('id').eq('numero', 18).maybeSingle();
+        const etapa18Id = etapa18 ? etapa18.id : 18;
+
+        if (notificacaoAtual?.id) {
+            const dadosNotif = { ...(notificacaoAtual.dados || {}) };
+            delete dadosNotif.arquivado;
+            delete dadosNotif.data_arquivamento;
+            delete dadosNotif.status_antes_arquivamento;
+            await atualizarNotificacaoNoBanco(notificacaoAtual.id, {
+                status: 'auto_infracao',
+                etapa_atual_id: etapa18Id,
+                dados: dadosNotif,
+                data_movimentacao: new Date().toISOString()
+            });
+            notificacaoAtual.dados = dadosNotif;
+            notificacaoAtual.status = 'auto_infracao';
+
+            // Tira o processo de arquivado; o banco recalcula a situação
+            await supabaseClient
+                .from('processos')
+                .update({ status: 'auto_infracao' })
+                .eq('id', processoAtual.id);
+        } else {
+            processoAtual.dados = processoAtual.dados || {};
+            delete processoAtual.dados.arquivado;
+            delete processoAtual.dados.data_arquivamento;
+            await supabaseClient
+                .from('processos')
+                .update({ etapa_atual_id: etapa18Id, status: 'auto_infracao', dados: processoAtual.dados })
+                .eq('id', processoAtual.id);
+        }
+
+        await supabaseClient.from('historico_etapas').insert([{
+            processo_id: processoAtual.id,
+            notificacao_id: notificacaoAtual?.id || null,
+            etapa_de_id: processoAtual.etapa_atual_id,
+            etapa_para_id: etapa18Id,
+            usuario_id: perfilAtual?.id,
+            condicao_aplicada: 'Arquivamento desfeito — volta para a Etapa 18',
+            observacao: 'O Auto de Infração voltou a ficar em aberto.'
+        }]);
+
+        alert('Arquivamento desfeito. O Auto de Infração voltou para a Etapa 18.');
+        window.location.href = notificacaoAtual?.id
+            ? `etapa.html?processo=${processoAtual.id}&notificacao=${notificacaoAtual.id}`
+            : `etapa.html?processo=${processoAtual.id}`;
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao desfazer o arquivamento:', err);
+        alert('Erro ao desfazer o arquivamento.');
+    }
+}
+
+function configurarEventosEtapa20() {
+    const btnArquivar = document.getElementById('btnArquivarEtapa20');
+    const btnDesarquivar = document.getElementById('btnDesarquivarEtapa20');
+    if (btnArquivar && !btnArquivar.dataset.ligado) {
+        btnArquivar.dataset.ligado = '1';
+        btnArquivar.addEventListener('click', arquivarProcessoEtapa20);
+    }
+    if (btnDesarquivar && !btnDesarquivar.dataset.ligado) {
+        btnDesarquivar.dataset.ligado = '1';
+        btnDesarquivar.addEventListener('click', desarquivarProcessoEtapa20);
+    }
+}
+window.configurarEventosEtapa20 = configurarEventosEtapa20;
+
+// ── ETAPA 28: mensagem para o protocolo ───────────────────────────────────
+function configurarEventosEtapa28() {
+    const txt = document.getElementById('mensagemProtocoloEtapa28');
+    const btnCopiar = document.getElementById('btnCopiarMensagemEtapa28');
+    const btnRestaurar = document.getElementById('btnRestaurarMensagemEtapa28');
+    const feedback = document.getElementById('feedbackCopiaEtapa28');
+    if (!txt || !btnCopiar) return;
+
+    const mostrarFeedback = (texto, cor) => {
+        if (!feedback) return;
+        feedback.textContent = texto;
+        feedback.style.color = cor;
+        feedback.style.display = 'inline';
+        setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+    };
+
+    btnCopiar.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(txt.value);
+            mostrarFeedback('✓ copiado', '#15803d');
+        } catch (e) {
+            // Navegador sem permissão da área de transferência: seleciona para copiar à mão
+            txt.focus();
+            txt.select();
+            mostrarFeedback('Selecionado — use Ctrl+C para copiar', '#b45309');
+        }
+    });
+
+    if (btnRestaurar) {
+        btnRestaurar.addEventListener('click', () => {
+            txt.value = window.montarMensagemProtocoloEtapa28(processoAtual);
+            mostrarFeedback('Texto padrão restaurado', '#1e40af');
+        });
+    }
+}
+window.configurarEventosEtapa28 = configurarEventosEtapa28;
+
 // ── Preencher Cabeçalho e Badges ──────────────────────────────────────────
 function preencherCabecalhoPagina(proc) {
     const elNum = document.getElementById('etapaProcNumero');
     if (elNum) {
         if (notificacaoAtual) {
-            elNum.parentNode.innerHTML = `Notificação Nº <span id="etapaProcNumero">${notificacaoAtual.numero || 'S/N'}</span>`;
+            // O título é sempre o número do PROCESSO. O número da notificação (ou do
+            // Auto, quando ela virou Auto de Infração) vem abaixo, como identificação.
+            const ehAuto = ehStatusAutoInfracao(notificacaoAtual, proc);
+            elNum.parentNode.innerHTML = `Processo Nº <span id="etapaProcNumero">${proc.numero_processo || 'S/N'}</span>`
+                + `<div id="etapaItemIdentificacao" style="font-size:0.92rem; color:#64748b; font-weight:600; margin-top:4px;">`
+                + `${ehAuto ? 'Auto de Infração' : `Notificação Nº ${notificacaoAtual.numero || 'S/N'}`}</div>`;
+            if (ehAuto) {
+                // O número do Auto é próprio dele (tabela autos_infracao) e nunca o da
+                // notificação. Como pode ainda não estar carregado, a busca é assíncrona.
+                atualizarIdentificacaoDoAutoNoCabecalho(proc);
+            }
             const btnVoltarPainel = document.querySelector('.etapa-topbar .btn-voltar[href="painel.html"]');
             if (btnVoltarPainel) {
                 btnVoltarPainel.href = `etapa.html?processo=${proc.id}`;
@@ -6567,13 +6952,16 @@ function preencherCabecalhoPagina(proc) {
 
     const elBadgeSt = document.getElementById('etapaStatusBadge');
     if (elBadgeSt) {
-        const rawStatus = proc.status || 'em_aberto';
+        // Com uma notificação aberta, o selo é a situação DELA (notificacoes.situacao,
+        // de migracao/situacao_por_notificacao.sql). Sem notificação, o resumo do processo.
+        const rawStatus = (notificacaoAtual?.situacao) || proc.status || 'em_aberto';
         const stLow = rawStatus.toLowerCase();
 
         // Mapeamento amigável do status
         const statusMap = {
             'notificacao_preliminar': 'Notificação Preliminar',
             'auto_infracao': 'Auto de Infração',
+            'arquivado': 'Arquivado',
             'encerrado': 'Encerrado',
             'em_aberto': 'Em Aberto',
             'em_andamento': 'Em Andamento',
@@ -6598,6 +6986,9 @@ function preencherCabecalhoPagina(proc) {
         } else if (stLow === 'encerrado') {
             bg = '#eae6ee'; // cinza, igual ao selo "Encerrada"
             color = '#4a4553';
+        } else if (stLow === 'arquivado') {
+            bg = '#e0e7ff'; // roxo claro: foi para a dívida ativa, mas dá para desfazer
+            color = '#3730a3';
         } else if (stLow === 'aguardando_ar') {
             bg = '#fef9c3'; // yellow
             color = '#854d0e';
@@ -6607,6 +6998,21 @@ function preencherCabecalhoPagina(proc) {
         }
         elBadgeSt.style.background = bg;
         elBadgeSt.style.color = color;
+
+        // Nº do protocolo (Etapa 18), logo ao lado da situação
+        const protocolo = obterProtocoloDoProcesso(proc);
+        let elProtocolo = document.getElementById('etapaProtocoloBadge');
+        if (protocolo) {
+            if (!elProtocolo) {
+                elProtocolo = document.createElement('span');
+                elProtocolo.id = 'etapaProtocoloBadge';
+                elProtocolo.style.cssText = 'background:#e0f2fe; color:#075985; padding:4px 12px; border-radius:12px; font-size:0.8rem; font-weight:600;';
+                elBadgeSt.parentNode.insertBefore(elProtocolo, elBadgeSt.nextSibling);
+            }
+            elProtocolo.textContent = `Protocolo Nº ${protocolo}`;
+        } else if (elProtocolo) {
+            elProtocolo.remove();
+        }
     }
 }
 
@@ -8084,7 +8490,11 @@ async function obterAutosEtapa18(proc) {
     console.log('[DEBUG Etapa 18] Obter Autos — Processo ID:', proc.id, '| Data AR Enviado/Gravado:', dataArEnviado);
 
     if (proc.notificacoes && Array.isArray(proc.notificacoes) && proc.notificacoes.length > 0) {
-        return normalizarAutosTabelaEtapa18(proc, proc.notificacoes, dataArEnviado);
+        const notif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
+        const lista = notif
+            ? proc.notificacoes.filter(n => String(n.id) === String(notif.id))
+            : proc.notificacoes;
+        return normalizarAutosTabelaEtapa18(proc, lista.length > 0 ? lista : proc.notificacoes, dataArEnviado);
     }
 
     const dispositivos = obterDispositivosDoProcesso(proc);
@@ -8110,6 +8520,51 @@ async function obterAutosEtapa18(proc) {
             dados: salva.dados || {}
         };
     });
+}
+
+// ── Nº do protocolo do Auto (Etapa 18) ─────────────────────────────────────
+// Preenchido pelo Gerente de Posturas ou pelo Jurídico na Etapa 18 e guardado na
+// própria notificação (dados.numero_protocolo). Aparece no cabeçalho da página,
+// ao lado da situação do processo.
+function obterProtocoloDoAuto(auto) {
+    return String(auto?.dados?.numero_protocolo || auto?.numero_protocolo || '').trim();
+}
+
+function obterProtocoloDoProcesso(proc) {
+    const p = proc || processoAtual;
+    const daNotificacao = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
+        ? notificacaoAtual.dados?.numero_protocolo
+        : null;
+    return String(daNotificacao || p?.dados?.numero_protocolo || '').trim();
+}
+window.obterProtocoloDoProcesso = obterProtocoloDoProcesso;
+
+// Grava o protocolo digitado no card: na notificação (quando existe) e no processo
+async function gravarProtocoloDoAuto(item, index, numeroProtocolo) {
+    const protocolo = String(numeroProtocolo || '').trim();
+
+    processoAtual.campos = processoAtual.campos || {};
+    processoAtual.campos.etapa18 = processoAtual.campos.etapa18 || {};
+    processoAtual.campos.etapa18.autos = processoAtual.campos.etapa18.autos || [];
+    processoAtual.campos.etapa18.autos[index] = {
+        ...(processoAtual.campos.etapa18.autos[index] || item || {}),
+        numero_protocolo: protocolo
+    };
+
+    if (item?.id) {
+        const dadosNotif = { ...(item.dados || {}), numero_protocolo: protocolo };
+        await atualizarNotificacaoNoBanco(item.id, { dados: dadosNotif });
+        item.dados = dadosNotif;
+        if (typeof notificacaoAtual !== 'undefined' && notificacaoAtual && String(notificacaoAtual.id) === String(item.id)) {
+            notificacaoAtual.dados = dadosNotif;
+        }
+        (processoAtual.notificacoes || []).forEach(n => {
+            if (String(n.id) === String(item.id)) n.dados = dadosNotif;
+        });
+    } else {
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.numero_protocolo = protocolo;
+    }
 }
 
 function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
@@ -8266,6 +8721,20 @@ async function renderizarEtapa18(proc) {
                         </label>
                     </div>`;
 
+                // Nº do protocolo (Sistema Betha), preenchido pelo Gerente de Posturas ou pelo Jurídico
+                const protocoloAuto = obterProtocoloDoAuto(a);
+                const protocoloHtml = jaAvancou
+                    ? (protocoloAuto
+                        ? `<div style="font-size:0.88rem; color:#475569;">📄 Protocolo Nº <strong>${protocoloAuto}</strong></div>`
+                        : '')
+                    : `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                        <label for="protocoloAuto_${a.index}" style="font-size:0.88rem; color:#334155; font-weight:600;">Nº do Protocolo</label>
+                        <input type="text" id="protocoloAuto_${a.index}" class="input-protocolo-auto" data-index="${a.index}"
+                            value="${protocoloAuto}" placeholder="Ex: 12345/2026"
+                            style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.88rem; color:#0f172a; min-width:180px;">
+                        <span style="font-size:0.8rem; color:#64748b;">Protocolo do Sistema Betha. Aparece ao lado da situação do processo.</span>
+                    </div>`;
+
                 const tituloCard = String(a.numero).toLowerCase().includes('auto') ? a.numero : `Auto de Infração: ${a.numero}`;
 
                 card.innerHTML = `
@@ -8277,6 +8746,7 @@ async function renderizarEtapa18(proc) {
                         ${statusBadge}
                     </div>
                     ${prazoHtml}
+                    ${protocoloHtml}
                     ${controlesHtml}
                     ${btnAvancarHtml}
                 `;
@@ -8310,36 +8780,67 @@ function configurarEventosEtapa18() {
     }
 }
 
+// Evita salvar duas vezes com duplo clique
+let salvandoEtapa18 = false;
+
 async function salvarEtapa18() {
     if (!processoAtual) return;
-    console.log('[DEBUG Etapa 18] Salvando opções do formulário...');
-    const autos = await obterAutosEtapa18(processoAtual);
+    if (salvandoEtapa18) return;
 
-    processoAtual.campos = processoAtual.campos || {};
-    processoAtual.campos.etapa18 = processoAtual.campos.etapa18 || {};
-    processoAtual.campos.etapa18.autos = processoAtual.campos.etapa18.autos || [];
-
-    autos.forEach((a, index) => {
-        const rad = document.querySelector(`input[name="opcaoAuto_${index}"]:checked`);
-        if (rad) {
-            a.status = rad.value;
-        }
-        processoAtual.campos.etapa18.autos[index] = a;
-    });
+    const btnSalvar = document.getElementById('btnSalvarEtapa18');
+    const textoOriginal = btnSalvar ? btnSalvar.innerHTML : '';
+    salvandoEtapa18 = true;
+    if (btnSalvar) {
+        btnSalvar.disabled = true;
+        btnSalvar.style.opacity = '0.7';
+        btnSalvar.style.cursor = 'wait';
+        btnSalvar.innerHTML = 'Salvando...';
+    }
 
     try {
-        processoAtual.dados = processoAtual.dados || {};
-        processoAtual.dados.campos = processoAtual.campos;
+        console.log('[DEBUG Etapa 18] Salvando opções do formulário...');
+        const autos = await obterAutosEtapa18(processoAtual);
 
-        await supabaseClient
-            .from('processos')
-            .update({ dados: processoAtual.dados })
-            .eq('id', processoAtual.id);
-        console.log('[DEBUG Etapa 18] Opções salvas com sucesso no banco!');
-        alert('Opções salvas com sucesso.');
-    } catch (err) {
-        console.error('[DEBUG Etapa 18] Erro ao salvar Etapa 18:', err);
-        alert('Erro ao salvar opções.');
+        processoAtual.campos = processoAtual.campos || {};
+        processoAtual.campos.etapa18 = processoAtual.campos.etapa18 || {};
+        processoAtual.campos.etapa18.autos = processoAtual.campos.etapa18.autos || [];
+
+        for (let index = 0; index < autos.length; index++) {
+            const a = autos[index];
+            const rad = document.querySelector(`input[name="opcaoAuto_${index}"]:checked`);
+            if (rad) {
+                a.status = rad.value;
+            }
+            processoAtual.campos.etapa18.autos[index] = a;
+
+            const inpProtocolo = document.getElementById(`protocoloAuto_${index}`);
+            if (inpProtocolo) {
+                await gravarProtocoloDoAuto(a, index, inpProtocolo.value);
+            }
+        }
+
+        try {
+            processoAtual.dados = processoAtual.dados || {};
+            processoAtual.dados.campos = processoAtual.campos;
+
+            await supabaseClient
+                .from('processos')
+                .update({ dados: processoAtual.dados })
+                .eq('id', processoAtual.id);
+            console.log('[DEBUG Etapa 18] Opções salvas com sucesso no banco!');
+            alert('Opções salvas com sucesso.');
+        } catch (err) {
+            console.error('[DEBUG Etapa 18] Erro ao salvar Etapa 18:', err);
+            alert('Erro ao salvar opções.');
+        }
+    } finally {
+        salvandoEtapa18 = false;
+        if (btnSalvar) {
+            btnSalvar.disabled = false;
+            btnSalvar.style.opacity = '';
+            btnSalvar.style.cursor = '';
+            btnSalvar.innerHTML = textoOriginal;
+        }
     }
 }
 
@@ -8358,6 +8859,16 @@ async function avancarAutoEtapa18(index) {
     const item = autos[index];
 
     mostrarCarregamento('Avançando Auto de Infração...');
+
+    // Guarda o Nº do protocolo digitado no card antes de mover o Auto
+    const inpProtocolo = document.getElementById(`protocoloAuto_${index}`);
+    if (inpProtocolo) {
+        try {
+            await gravarProtocoloDoAuto(item, index, inpProtocolo.value);
+        } catch (errProt) {
+            console.warn('[DEBUG Etapa 18] Erro ao salvar o Nº do protocolo:', errProt);
+        }
+    }
 
     // Caminhos da Etapa 18 (a antiga Etapa 20 "Realizar Pagamento" não entra mais):
     //   Defesa              -> Etapa 19
@@ -9354,6 +9865,8 @@ function processarArquivoEdital(file) {
             processoAtual.campos = processoAtual.campos || {};
             processoAtual.campos.etapa17 = processoAtual.campos.etapa17 || {};
             processoAtual.campos.etapa17.anexo_edital = anexo;
+            // O prazo de defesa conta desta data quando o AR não encontrou o proprietário
+            processoAtual.campos.etapa17.data_anexo_edital = new Date().toISOString();
         }
         renderizarAnexoEdital(anexo);
     };
@@ -9424,6 +9937,11 @@ async function avancarEtapa17() {
     if (!anexo) {
         alert('Anexe o edital gerado para avançar.');
         return;
+    }
+
+    // Garante a data do edital mesmo se o fiscal não clicou em "Salvar Edital"
+    if (!processoAtual.campos.etapa17.data_anexo_edital) {
+        processoAtual.campos.etapa17.data_anexo_edital = new Date().toISOString();
     }
 
     mostrarCarregamento('Avançando etapa...');
@@ -12992,7 +13510,125 @@ window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
     return { docObj: null, url: null };
 };
 
-window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
+// opcoes.etapa28: acrescenta, depois do processo completo, a multa, as fotos do AR,
+// a página com os dados do AR, o edital e os demais anexos (ver Etapa 28).
+// ── ETAPA 28: página com os dados do AR dentro do PDF ─────────────────────
+// Mostra o número do AR e a data de recebimento pelo proprietário. Quando não
+// houve recebimento, mostra a data da última tentativa e o motivo dos Correios.
+window.montarDadosARParaPagina = function (proc) {
+    const ar = (typeof obterDadosARProcesso === 'function')
+        ? obterDadosARProcesso(proc)
+        : (proc?.campos?.etapa16 || {});
+    const fmt = v => (window.formatarDataVistoriaRobusta ? window.formatarDataVistoriaRobusta(v) : v) || '—';
+    const recebimento = ar.data_recebimento || ar.data_recebimento_proprietario;
+    const tentativas = Array.isArray(ar.retornos_sem_sucesso) ? ar.retornos_sem_sucesso : [];
+    const ultima = tentativas.length > 0 ? tentativas[tentativas.length - 1] : null;
+
+    return {
+        numeroAR: ar.numero_ar || '—',
+        entregue: !!recebimento,
+        dataRecebimento: fmt(recebimento),
+        dataCadastro: fmt(ar.data_insercao_ar),
+        dataUltimaTentativa: fmt(ultima?.data || ar.data_ultima_tentativa),
+        motivoCorreios: (ultima?.motivo || ar.motivo_correios || '').trim() || 'Não informado',
+        totalTentativas: tentativas.length,
+        dataEdital: fmt(proc?.campos?.etapa17?.data_anexo_edital)
+    };
+};
+
+async function anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64) {
+    const info = window.montarDadosARParaPagina(processoAtual);
+    const numProc = processoAtual?.numero_processo || '—';
+    const cont = processoAtual?.contribuinte || processoAtual?.dados?.contribuinte || {};
+    const nomeAutuado = cont.nome || processoAtual?.campos?.contNome || '—';
+
+    const linhas = info.entregue
+        ? `<tr><td class="rot">Data de recebimento pelo proprietário</td><td class="val">${info.dataRecebimento}</td></tr>`
+        : `<tr><td class="rot">Recebimento pelo proprietário</td><td class="val">Não houve — o AR retornou sem entrega</td></tr>
+           <tr><td class="rot">Data da última tentativa</td><td class="val">${info.dataUltimaTentativa}</td></tr>
+           <tr><td class="rot">Motivo informado pelos Correios</td><td class="val">${info.motivoCorreios}</td></tr>
+           ${info.totalTentativas > 1 ? `<tr><td class="rot">Tentativas de entrega registradas</td><td class="val">${info.totalTentativas}</td></tr>` : ''}
+           <tr><td class="rot">Data do edital</td><td class="val">${info.dataEdital}</td></tr>`;
+
+    const div = document.createElement('div');
+    div.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:794px; min-height:1123px; padding:40px 50px; background:white; font-family:Arial, Helvetica, sans-serif; box-sizing:border-box; color:#000;';
+    div.innerHTML = `
+        <style>
+            .rot { padding:10px 12px; border:1px solid #999; width:45%; font-weight:bold; font-size:11pt; }
+            .val { padding:10px 12px; border:1px solid #999; font-size:11pt; }
+        </style>
+        <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:18px;">
+            ${brasaoBase64 ? `<img src="${brasaoBase64}" style="width:75px; height:auto;">` : ''}
+            <div style="flex:1;">
+                <div style="width:100%; height:8px; background:#F78C26; margin-bottom:4px;"></div>
+                <div style="font-size:10pt; font-weight:bold;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                <div style="font-size:10pt; font-weight:bold;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
+            </div>
+        </div>
+        <h2 style="text-align:center; font-size:14pt; margin:24px 0 6px 0;">AVISO DE RECEBIMENTO (AR)</h2>
+        <p style="text-align:center; font-size:11pt; margin:0 0 24px 0;">Processo Administrativo SEMAC nº ${numProc}</p>
+        <table style="width:100%; border-collapse:collapse;">
+            <tr><td class="rot">Autuado(a)</td><td class="val">${nomeAutuado}</td></tr>
+            <tr><td class="rot">Número do AR</td><td class="val">${info.numeroAR}</td></tr>
+            <tr><td class="rot">Data de cadastro do AR no sistema</td><td class="val">${info.dataCadastro}</td></tr>
+            ${linhas}
+        </table>
+        <p style="font-size:10pt; margin-top:28px; color:#333;">Documento gerado pelo sistema em ${new Date().toLocaleDateString('pt-BR')}.</p>
+    `;
+    document.body.appendChild(div);
+    try {
+        const canvas = await html2canvas(div, { scale: 2, useCORS: true });
+        const img = await mergedPdf.embedJpg(canvas.toDataURL('image/jpeg', 0.95));
+        const page = mergedPdf.addPage([595.28, 841.89]);
+        page.drawImage(img, { x: 0, y: 0, width: 595.28, height: 841.89 });
+    } finally {
+        div.remove();
+    }
+}
+
+// ── ETAPA 20: última página do PDF com o envio à dívida ativa ─────────────
+async function anexarPaginaProtocoloDividaAtivaAoPdf(mergedPdf, brasaoBase64) {
+    const protocolo = (typeof obterProtocoloDoProcesso === 'function' ? obterProtocoloDoProcesso(processoAtual) : '') || 'XXX';
+    const mensagem = window.montarMensagemProtocoloEtapa28(processoAtual);
+    const numProc = processoAtual?.numero_processo || '—';
+
+    const div = document.createElement('div');
+    div.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:794px; min-height:1123px; padding:40px 50px; background:white; font-family:Arial, Helvetica, sans-serif; box-sizing:border-box; color:#000;';
+    div.innerHTML = `
+        <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:18px;">
+            ${brasaoBase64 ? `<img src="${brasaoBase64}" style="width:75px; height:auto;">` : ''}
+            <div style="flex:1;">
+                <div style="width:100%; height:8px; background:#F78C26; margin-bottom:4px;"></div>
+                <div style="font-size:10pt; font-weight:bold;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                <div style="font-size:10pt; font-weight:bold;">GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS</div>
+            </div>
+        </div>
+        <h2 style="text-align:center; font-size:14pt; margin:24px 0 6px 0;">ENVIO PARA A DÍVIDA ATIVA</h2>
+        <p style="text-align:center; font-size:11pt; margin:0 0 30px 0;">Processo Administrativo SEMAC nº ${numProc}</p>
+        <p style="font-size:12pt; line-height:1.7; text-align:justify;">
+            <strong>Enviado por protocolo ${protocolo} para a dívida ativa:</strong> ${mensagem}
+        </p>
+        <p style="font-size:10pt; margin-top:40px; color:#333;">Documento gerado pelo sistema em ${new Date().toLocaleDateString('pt-BR')}.</p>
+    `;
+    document.body.appendChild(div);
+    try {
+        const canvas = await html2canvas(div, { scale: 2, useCORS: true });
+        const img = await mergedPdf.embedJpg(canvas.toDataURL('image/jpeg', 0.95));
+        const page = mergedPdf.addPage([595.28, 841.89]);
+        page.drawImage(img, { x: 0, y: 0, width: 595.28, height: 841.89 });
+    } finally {
+        div.remove();
+    }
+}
+
+// Mensagem que o Gerente envia no protocolo (Etapa 28)
+window.montarMensagemProtocoloEtapa28 = function (proc) {
+    const cont = proc?.contribuinte || proc?.dados?.contribuinte || {};
+    const nome = cont.nome || proc?.campos?.contNome || '[contribuinte]';
+    return `Prezados (as), em análise no nosso protocolo, não foi encontrado nenhum protocolo de defesa em nome de ${nome}, podendo assim, dar continuidade no processo de cobrança.`;
+};
+
+window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opcoes = {}) {
     if (!processoAtual) {
         alert('Processo não encontrado.');
         return;
@@ -13003,7 +13639,8 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
     try {
         await carregarBibliotecasPDF();
 
-        const numNotifOuProc = notificacaoAtual?.numero || processoAtual?.numero_processo || '261/2026';
+        // A capa e o nome do arquivo usam o número do PROCESSO. O número da
+        // notificação/Auto aparece nos documentos internos, não no lugar dele.
         const numProcesso = processoAtual?.numero_processo || '2026/000001';
         const numAutoInfracaoCapa = processoAtual?.dados?.numero_auto_infracao
             || processoAtual?.dados?.etapa14?.numero_auto_infracao
@@ -13072,7 +13709,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
                     PROCESSO ADMINISTRATIVO – SEMAC
                 </div>
                 <div style="font-size: 15pt; font-weight: bold; color: #000; margin-top: 10px;">
-                    Nº: ${numNotifOuProc}
+                    Nº: ${numProcesso}
                 </div>
             </div>
 
@@ -13287,6 +13924,9 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
             || (processoAtual?.dados?.etapa14?.anexo_url ? { url: processoAtual.dados.etapa14.anexo_url } : null);
         let urlAI = docAI?.url || docAI?.dataUrl || docAI?.base64;
 
+        // Ids já anexados, para não repetir documento no fim
+        const idsAnexados = new Set();
+
         if (decretoSim) {
             // ORDEM COM DECRETO: Capa, BIC, Decreto, Certidão, Outros (na ordem que foram anexados), Auto de Infração
 
@@ -13339,7 +13979,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
                         </div>
 
                         <div style="text-align: justify; line-height: 2.0; font-size: 11.5pt; color: #000; margin-top: 30px; background: #f8fafc; padding: 24px; border-radius: 10px; border-left: 4px solid #F78C26;">
-                            <p style="margin: 0 0 16px 0;">Certifica-se que o presente Processo Administrativo SEMAC Nº <strong>${numNotifOuProc}</strong> (Processo Nº <strong>${numProcesso}</strong>), instaurado em face do autuado(a) <strong>${nomeAutuado}</strong> (CPF/CNPJ: <strong>${cpfCnpjAutuado}</strong>), é instruído e regido sob os termos e efeitos legais do <strong>Decreto Municipal Nº ${numDec}</strong> do Município de Divinópolis / MG.</p>
+                            <p style="margin: 0 0 16px 0;">Certifica-se que o presente Processo Administrativo SEMAC Nº <strong>${numProcesso}</strong>, instaurado em face do autuado(a) <strong>${nomeAutuado}</strong> (CPF/CNPJ: <strong>${cpfCnpjAutuado}</strong>), é instruído e regido sob os termos e efeitos legais do <strong>Decreto Municipal Nº ${numDec}</strong> do Município de Divinópolis / MG.</p>
                             <p style="margin: 0;">A presente notificação e penalidades aplicadas possuem fundamentação no diploma normativo supracitado, servindo este documento como peça integrante dos autos administrativos.</p>
                         </div>
                     </div>
@@ -13362,11 +14002,13 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
             if (urlCertidao) await anexarArquivoAoPdf(urlCertidao, 'Certidão Assinada');
 
             // 4. Outros Documentos Intermediários na Ordem de Criação
-            const idsProcessados = new Set([docBIC?.id, docDecreto?.id, docCertidao?.id, docAI?.id].filter(Boolean));
-            for (const doc of docsBanco) {
-                if (!idsProcessados.has(doc.id)) {
-                    let u = doc.url || doc.dataUrl || doc.base64;
-                    if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+            [docBIC, docDecreto, docCertidao, docAI].forEach(d => { if (d?.id) idsAnexados.add(d.id); });
+            if (!opcoes.etapa28) {
+                for (const doc of docsBanco) {
+                    if (!idsAnexados.has(doc.id)) {
+                        let u = doc.url || doc.dataUrl || doc.base64;
+                        if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                    }
                 }
             }
 
@@ -13398,14 +14040,17 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
                 || processoAtual?._arAnexosLocais?.[0]
                 || (notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0] ? { url: notificacaoAtual.dados.etapa16.anexos_ar[0].url || notificacaoAtual.dados.etapa16.anexos_ar[0].base64 } : null);
             let urlAR = docAR?.url || docAR?.dataUrl || docAR?.base64;
-            if (urlAR) await anexarArquivoAoPdf(urlAR, 'AR');
+            // Na Etapa 28 o AR entra depois da multa, junto com as fotos (ver bloco abaixo)
+            if (urlAR && !opcoes.etapa28) await anexarArquivoAoPdf(urlAR, 'AR');
 
             // 5. Outros Documentos Intermediários na Ordem de Criação
-            const idsProcessados = new Set([docBIC?.id, docRF?.id, docNP?.id, docAR?.id, docAI?.id].filter(Boolean));
-            for (const doc of docsBanco) {
-                if (!idsProcessados.has(doc.id)) {
-                    let u = doc.url || doc.dataUrl || doc.base64;
-                    if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+            [docBIC, docRF, docNP, docAR, docAI].forEach(d => { if (d?.id) idsAnexados.add(d.id); });
+            if (!opcoes.etapa28) {
+                for (const doc of docsBanco) {
+                    if (!idsAnexados.has(doc.id)) {
+                        let u = doc.url || doc.dataUrl || doc.base64;
+                        if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                    }
                 }
             }
 
@@ -13413,11 +14058,63 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download') {
             if (urlAI) await anexarArquivoAoPdf(urlAI, 'Auto de Infração Assinado');
         }
 
+        // 3.1 Etapa 28: multa, fotos do AR, página com os dados do AR, edital e o resto
+        if (opcoes.etapa28) {
+            const docMulta = docsBanco.find(d => ['Multa', 'Documento de Multa', 'Guia de Multa'].includes(d.tipo)
+                || (d.nome_arquivo || '').toLowerCase().includes('multa'));
+            const urlMulta = docMulta?.url
+                || processoAtual?.dados?.etapa15?.multa_url
+                || notificacaoAtual?.dados?.etapa15?.multa_url;
+            if (docMulta?.id) idsAnexados.add(docMulta.id);
+            if (urlMulta) await anexarArquivoAoPdf(urlMulta, 'Documento da Multa');
+
+            const docsAR = docsBanco.filter(d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo));
+            for (const dAR of docsAR) {
+                idsAnexados.add(dAR.id);
+                const u = dAR.url || dAR.dataUrl || dAR.base64;
+                if (u) await anexarArquivoAoPdf(u, dAR.nome_arquivo || 'Anexo do AR');
+            }
+            if (docsAR.length === 0) {
+                const anexosLocais = processoAtual?.campos?.etapa16?.anexos_ar || [];
+                for (const aLocal of anexosLocais) {
+                    const u = aLocal.url || aLocal.dataUrl;
+                    if (u) await anexarArquivoAoPdf(u, aLocal.nome || 'Anexo do AR');
+                }
+            }
+
+            await anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64);
+
+            const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo)
+                || (d.nome_arquivo || '').toLowerCase().includes('edital'));
+            const anexoEditalLocal = processoAtual?.campos?.etapa17?.anexo_edital
+                || processoAtual?.dados?.campos?.etapa17?.anexo_edital;
+            const urlEdital = docEdital?.url || anexoEditalLocal?.url || anexoEditalLocal?.dataUrl;
+            if (docEdital?.id) idsAnexados.add(docEdital.id);
+            if (urlEdital) await anexarArquivoAoPdf(urlEdital, 'Edital');
+
+            // Demais documentos, na ordem em que entraram no sistema
+            for (const doc of docsBanco) {
+                if (!idsAnexados.has(doc.id)) {
+                    const u = doc.url || doc.dataUrl || doc.base64;
+                    if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                }
+            }
+        }
+
+        // 3.2 Etapa 20: última página, com o envio à dívida ativa
+        if (opcoes.paginaDividaAtiva) {
+            await anexarPaginaProtocoloDividaAtivaAoPdf(mergedPdf, brasaoBase64);
+        }
+
         // 4. Salvar PDF Unificado
         const pdfBytes = await mergedPdf.save();
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
         const blobUrl = URL.createObjectURL(blob);
-        const nomeArquivoPdf = `Processo_Completo_SEMAC_${numNotifOuProc.replace(/[\/\\]/g, '-')}.pdf`;
+        const nomeArquivoPdf = opcoes.paginaDividaAtiva
+            ? `Processo_Arquivado_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`
+            : opcoes.etapa28
+            ? `Processo_Completo_Vencimento_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`
+            : `Processo_Completo_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`;
 
         ocultarCarregamento();
 

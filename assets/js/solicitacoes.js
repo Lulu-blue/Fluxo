@@ -23,7 +23,7 @@ const ETAPAS_MAP = {
     17: 'Gerência Gera o Edital',
     18: 'Solicitar Defesa ou Recurso',
     19: 'Envio de Defesa ou Pagamento',
-    20: 'Realizar Pagamento',
+    20: 'Arquivamento do Processo',
     21: 'Fiscal Convocado Jurídico',
     22: 'Gerente Convocado Jurídico',
     23: 'Parecer Jurídico',
@@ -148,11 +148,12 @@ function calcularEtapaProcesso(item) {
 
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
-    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 19, 20, 21, 27, 28, 29, 31, 32],
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 19, 21, 27, 29, 31, 32],
     'Administrativo de Posturas': [15, 16, 17],
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
-    'Gerente': [11, 12, 15, 17, 18, 22, 25, 29, 30],
-    'Gerente de Posturas': [11, 12, 15, 17, 18, 22, 25, 29, 30],
+    // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
+    'Gerente': [11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30],
+    'Gerente de Posturas': [11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30],
     'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
     'Secretário': [24],
     'Jurídico': [18, 23],
@@ -173,10 +174,104 @@ function normalizarCargo(cargo) {
     return cargo;
 }
 
+// Situação de cada notificação / Auto (notificacoes.situacao), mantida pelo banco
+// (migracao/situacao_por_notificacao.sql). Um processo pode ter notificações em
+// situações diferentes: uma encerrada, outra virando Auto, outra arquivada.
+const SITUACOES_PROCESSO = {
+    notificacao_preliminar: 'Notificação Preliminar',
+    auto_infracao: 'Auto de Infração',
+    arquivado: 'Arquivado',
+    encerrado: 'Encerrado',
+    cancelado: 'Cancelado'
+};
+
+function montarBadgeSituacao(situacao, quantidade) {
+    const chave = String(situacao || '').toLowerCase();
+    const rotulo = SITUACOES_PROCESSO[chave];
+    const sufixo = quantidade > 1 ? ` (${quantidade})` : '';
+    if (!rotulo) {
+        // Sem a situação nova ainda (migração não rodou) ou valor antigo
+        return `<span class="situacao-badge outro">${situacao || '—'}</span>`;
+    }
+    return `<span class="situacao-badge ${chave}">${rotulo}${sufixo}</span>`;
+}
+
+// Processos que têm ALGUMA notificação na situação escolhida (filtro Situação).
+// Devolve null quando a coluna ainda não existe (migração não rodada).
+async function obterProcessosPorSituacaoDaNotificacao(situacao) {
+    try {
+        const { data, error } = await supabaseClient
+            .from('notificacoes')
+            .select('processo_id')
+            .eq('situacao', situacao);
+        if (error) {
+            if (String(error.message || '').includes('situacao')) return null;
+            console.warn('[PAINEL] Erro no filtro de situação:', error.message);
+            return null;
+        }
+        return [...new Set((data || []).map(n => n.processo_id).filter(Boolean))];
+    } catch (e) {
+        console.warn('[PAINEL] Erro no filtro de situação:', e);
+        return null;
+    }
+}
+
+// Traz as situações das notificações dos processos listados numa consulta só
+let painelTemSituacaoNotificacao = true;
+
+async function anexarSituacoesDasNotificacoes(itens) {
+    if (!painelTemSituacaoNotificacao || !itens || itens.length === 0) return;
+    const ids = itens.map(i => i.id).filter(Boolean);
+    if (ids.length === 0) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('notificacoes')
+            .select('processo_id, situacao')
+            .in('processo_id', ids);
+
+        if (error) {
+            if (String(error.message || '').includes('situacao')) {
+                console.warn('[PAINEL] Coluna de situação das notificações ainda não existe; rode migracao/situacao_por_notificacao.sql.');
+                painelTemSituacaoNotificacao = false;
+            }
+            return;
+        }
+
+        const porProcesso = {};
+        (data || []).forEach(n => {
+            if (!n.processo_id || !n.situacao) return;
+            porProcesso[n.processo_id] = porProcesso[n.processo_id] || {};
+            porProcesso[n.processo_id][n.situacao] = (porProcesso[n.processo_id][n.situacao] || 0) + 1;
+        });
+        itens.forEach(item => { item.situacoes_notificacoes = porProcesso[item.id] || null; });
+    } catch (e) {
+        console.warn('[PAINEL] Erro ao buscar a situação das notificações:', e);
+    }
+}
+
+// Uma linha por processo, mostrando a situação de cada notificação dele.
+// Sem notificações (ou antes da migração), cai no resumo do processo.
+const ORDEM_SITUACOES = ['auto_infracao', 'notificacao_preliminar', 'arquivado', 'encerrado', 'cancelado'];
+
+function montarColunaSituacao(item) {
+    const porSituacao = item.situacoes_notificacoes;
+    if (!porSituacao || Object.keys(porSituacao).length === 0) {
+        return montarBadgeSituacao(item.status);
+    }
+    const chaves = Object.keys(porSituacao).sort((a, b) => {
+        const ia = ORDEM_SITUACOES.indexOf(a), ib = ORDEM_SITUACOES.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    return `<div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">`
+        + chaves.map(k => montarBadgeSituacao(k, porSituacao[k])).join('')
+        + `</div>`;
+}
+
 function obterCargoResponsavelPelaEtapa(etapaNum) {
     const num = parseInt(etapaNum, 10);
     // 17 e 18 são compartilhadas (Administrativo / Jurídico); a linha fica com a cor da Gerência
-    if ([11, 12, 15, 17, 18, 22, 25, 29, 30].includes(num)) return 'Gerente';
+    if ([11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30].includes(num)) return 'Gerente';
     if ([16, 17].includes(num)) return 'Administrativo';
     if ([24].includes(num)) return 'Secretário';
     if ([23].includes(num)) return 'Jurídico';
@@ -729,9 +824,15 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             query = query.not('data_vencimento', 'is', null);
         }
         if (filtros.situacao) {
-            // processos.status é mantido pelo banco (migracao/situacao_processos.sql):
-            // notificacao_preliminar | auto_infracao | encerrado | cancelado
-            query = query.eq('status', filtros.situacao);
+            // A situação é de cada notificação (migracao/situacao_por_notificacao.sql):
+            // traz o processo que tiver ALGUMA notificação nessa situação. Processos
+            // sem notificação entram pelo resumo em processos.status.
+            const idsPorSituacao = await obterProcessosPorSituacaoDaNotificacao(filtros.situacao);
+            if (idsPorSituacao && idsPorSituacao.length > 0) {
+                query = query.or(`id.in.(${idsPorSituacao.join(',')}),status.eq.${filtros.situacao}`);
+            } else {
+                query = query.eq('status', filtros.situacao);
+            }
         }
         if (filtros.descricao) {
             query = query.ilike('dados->>descricao', `%${filtros.descricao}%`);
@@ -790,6 +891,9 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
                 item.profiles = profilesMap[item.fiscal_id];
             }
         });
+
+        // Situação de cada notificação / Auto (coluna Situação)
+        await anexarSituacoesDasNotificacoes(rawData);
 
         // Se retornou menos que o lote efetivo, indica fim dos dados
         if (rawData.length < effectiveBatch) {
@@ -916,6 +1020,7 @@ function renderizarTabela(dados, cargoFiltro) {
             <td class="col-data">${dataFinal}</td>
             <td class="col-dias">${montarBadgeDiasVencimento(diasVenc)}</td>
             <td class="col-descricao" title="${nomeFiscal}">${truncar(nomeFiscal, 30)}</td>
+            <td class="col-situacao">${montarColunaSituacao(item)}</td>
             <td class="col-etapa">
                 ${etapaNumero === '—' ? '' : `<span class="etapa-badge">E${etapaNumero}</span>`}
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
@@ -1004,7 +1109,7 @@ function renderizarTabela(dados, cargoFiltro) {
                     }).join('');
 
                     trDet.innerHTML = `
-                        <td colspan="9" style="padding: 6px 16px 14px 16px; background: #F7F4EA; border-bottom: 2px solid #DED9E2;">
+                        <td colspan="10" style="padding: 6px 16px 14px 16px; background: #F7F4EA; border-bottom: 2px solid #DED9E2;">
                             <div style="display: flex; flex-direction: column; gap: 8px;">
                                 ${boxes}
                             </div>
@@ -1090,6 +1195,16 @@ function coletarFiltros() {
     };
 }
 
+function montarTextoSituacaoCsv(item) {
+    const porSituacao = item.situacoes_notificacoes;
+    if (!porSituacao || Object.keys(porSituacao).length === 0) {
+        return SITUACOES_PROCESSO[String(item.status || '').toLowerCase()] || item.status || '';
+    }
+    return Object.keys(porSituacao)
+        .map(k => `${SITUACOES_PROCESSO[k] || k}${porSituacao[k] > 1 ? ` (${porSituacao[k]})` : ''}`)
+        .join(' + ');
+}
+
 // ── Exportar CSV ────────────────────────────────────────────
 function exportarCSV() {
     if (!dadosTabela || dadosTabela.length === 0) {
@@ -1097,7 +1212,7 @@ function exportarCSV() {
         return;
     }
 
-    const headers = ['Protocolo', 'CPF/CNPJ', 'Nome do Solicitante', 'Data Início', 'Data Final', 'Dias p/ Vencimento', 'Fiscal', 'Etapa'];
+    const headers = ['Protocolo', 'CPF/CNPJ', 'Nome do Solicitante', 'Data Início', 'Data Final', 'Dias p/ Vencimento', 'Fiscal', 'Situação', 'Etapa'];
 
     const rows = dadosTabela.map(item => {
         const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '';
@@ -1117,6 +1232,7 @@ function exportarCSV() {
             dataFinal,
             diasVenc === null ? '' : diasVenc,
             nomeFiscal,
+            montarTextoSituacaoCsv(item),
             etapa
         ].map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
     });
@@ -1508,7 +1624,7 @@ const AVISOS_PUBLICADOS = [
                     <span class="pub-cor" style="background:#ddd9f0;"></span>
                     <div>
                         <strong>Roxo claro — Gerência de Posturas</strong>
-                        <span class="pub-cor-desc">Etapas 11, 12, 15, 17, 18, 22, 25, 29 e 30.</span>
+                        <span class="pub-cor-desc">Etapas 11, 12, 15, 17, 18, 20, 22, 25, 28, 29 e 30.</span>
                     </div>
                 </li>
                 <li>

@@ -693,6 +693,7 @@ body {
 .col-data { min-width: 100px; white-space: nowrap; }
 .col-dias { min-width: 100px; text-align: center; }
 .col-descricao { max-width: 250px; }
+.col-situacao { min-width: 150px; }
 .col-etapa { min-width: 160px; }
 .col-acoes { min-width: 100px; text-align: center; }
 
@@ -728,6 +729,23 @@ body {
     margin-right: 8px;
     flex-shrink: 0;
 }
+
+/* Situação do processo (processos.status), mantida pelo banco */
+.situacao-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.situacao-badge.notificacao_preliminar { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.situacao-badge.auto_infracao          { background: #fdf2f2; color: #b93838; border: 1px solid #f8a4a4; }
+.situacao-badge.arquivado              { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+.situacao-badge.encerrado              { background: #eae6ee; color: #4a4553; border: 1px solid #ded9e2; }
+.situacao-badge.cancelado              { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.situacao-badge.outro                  { background: #f7f4ea; color: #475569; border: 1px solid #ded9e2; }
 
 .etapa-nome {
     font-size: 0.8rem;
