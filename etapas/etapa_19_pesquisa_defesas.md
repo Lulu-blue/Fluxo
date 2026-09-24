@@ -13,7 +13,9 @@
 | Lei 6.907/2008, art. 18 | Multa de 4 a 10 UPFMD, em dobro na reincidência | ⚠️ confirmar a qual infração se aplica |
 | Lei 7.174/2010, arts. 1º a 4º | Limpeza, cercamento e passeio de lotes; multa por metro linear de testada em UPFMD; reincidência em dobro (art. 4º) | Já usada nos textos do sistema (`etapa.js`) |
 | **Lei 7.174/2010, art. 2º, IV** | Satisfeita a exigência objeto da notificação/auto, a penalidade **pode ser reduzida em até 50%** | **Confirmado**: é a base citada nos modelos de parecer do jurídico |
-| **Decreto 17.326/2026** | Prazo de 15 dias para limpeza; redução de até 50% se regularizar em até 90 dias após a autuação; reincidência em dobro | ⚠️ **só achei em notícias**, não o texto oficial |
+| **Lei 7.174/2010, art. 2º** | Admite a **notificação por edital** quando necessária; o inciso III fixa o prazo de 15 dias para limpeza e conservação de imóvel não edificado | **Confirmado** pelos modelos revisados |
+| **Lei 7.174/2010, art. 3º, § 1º, IV** | Penalidade pela falta de limpeza adequada | **Confirmado** pelos modelos revisados |
+| **Decreto 17.326/2026** | Fez a **notificação geral** (por publicação) dos proprietários, com o mesmo prazo da Lei; o parágrafo único do art. 1º dispensa a notificação preliminar **individual**, sem eliminar a chance de regularizar antes da multa | **Confirmado** pelos modelos revisados; o texto oficial ainda não foi lido |
 
 ### Redução de 50% — esclarecido pelos modelos de parecer (18/09/2026)
 A base legal usada pelo jurídico é o **art. 2º, inciso IV, da Lei Municipal nº 7.174/2010**: satisfeita a exigência objeto da notificação ou do auto, a penalidade **pode ser reduzida em até 50%**.

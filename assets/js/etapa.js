@@ -791,7 +791,7 @@ async function inicializarPaginaEtapa() {
     } else {
         configurarAbasPagina();
 
-        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 19, 20, 28, 29, 33].includes(etapaAtual)) {  // 20 = Arquivamento
+        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 19, 20, 21, 22, 24, 28, 29, 33].includes(etapaAtual)) {  // 20 = Arquivamento
             renderizarFormularioDinamico(etapaAtual);
             if (etapaAtual === 1 && !notificacaoAtual) {
                 configurarEventosPainelEtapa1();
@@ -1691,6 +1691,15 @@ function renderizarFormularioDinamico(etapaNum) {
     } else if (etapaNum === 19) {
         // Parecer Jurídico: tela montada em assets/js/etapa19_parecer.js
         conteudo = window.Etapa19 ? window.Etapa19.html(uploadHtml) : '';
+    } else if (etapaNum === 21) {
+        // Fiscal convocado pelo Jurídico: mesma origem da Etapa 19
+        conteudo = window.Etapa21 ? window.Etapa21.html(uploadHtml) : '';
+    } else if (etapaNum === 22) {
+        // Gerente convocado pelo Jurídico: mesma tela da 21
+        conteudo = window.Etapa22 ? window.Etapa22.html(uploadHtml) : '';
+    } else if (etapaNum === 24) {
+        // Secretário Despacha: assets/js/etapa24_despacho.js
+        conteudo = window.Etapa24 ? window.Etapa24.html(uploadHtml) : '';
     } else if (etapaNum === 20) {
         // Arquivamento do Processo (Gerente de Posturas). Chega aqui pela Etapa 28.
         const numProcesso20 = processoAtual?.numero_processo || '—';
@@ -1967,6 +1976,18 @@ function renderizarFormularioDinamico(etapaNum) {
         setTimeout(() => { if (window.Etapa19) window.Etapa19.configurar(); }, 150);
     }
 
+    if (etapaNum === 21) {
+        setTimeout(() => { if (window.Etapa21) window.Etapa21.configurar(); }, 150);
+    }
+
+    if (etapaNum === 22) {
+        setTimeout(() => { if (window.Etapa22) window.Etapa22.configurar(); }, 150);
+    }
+
+    if (etapaNum === 24) {
+        setTimeout(() => { if (window.Etapa24) window.Etapa24.configurar(); }, 150);
+    }
+
     if (etapaNum === 28) {
         setTimeout(() => configurarEventosEtapa28(), 100);
     }
@@ -2172,6 +2193,15 @@ function renderizarFormularioDinamico(etapaNum) {
                     data_upload: new Date().toISOString()
                 });
             }));
+
+            // Espera todos os uploads. Arquivo que falhou volta como null
+            // (o uploadParaCloudinary já avisou o usuário), então sai da lista.
+            const newAnexos = (await Promise.all(readPromises)).filter(Boolean);
+
+            if (newAnexos.length === 0) {
+                renderizarListaAnexos();
+                return;
+            }
 
             const etapaKey = `etapa${etapaNum}`;
             const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
@@ -2946,6 +2976,18 @@ async function avancarEtapaPadrao() {
     }
     if (etapaAtual === 19 && window.Etapa19) {
         await window.Etapa19.avancar();
+        return;
+    }
+    if (etapaAtual === 21 && window.Etapa21) {
+        await window.Etapa21.avancar();
+        return;
+    }
+    if (etapaAtual === 22 && window.Etapa22) {
+        await window.Etapa22.avancar();
+        return;
+    }
+    if (etapaAtual === 24 && window.Etapa24) {
+        await window.Etapa24.avancar();
         return;
     }
     if (etapaAtual === 30) {
@@ -11976,6 +12018,29 @@ function restaurarEstadoSidebarEtapa() {
     }
 }
 
+// Mesmas regras de cargo do painel: Ofícios (Gerente/Administrativo de Posturas e Dev)
+// e Apuração de dados (Secretário(a) e Dev). Sem isso as abas sumiam ao abrir a solicitação.
+function configurarTabsPorCargoEtapa(perfil) {
+    const cargoBruto = perfil?.cargo || '';
+    const cargoNorm = normalizarCargo(cargoBruto);
+    const cargoSimples = cargoBruto
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const podeOficios = cargoNorm === 'Dev' ||
+        ['gerente de posturas', 'administrativo de posturas'].includes(cargoSimples);
+    const podeApuracao = cargoNorm === 'Dev' || cargoNorm === 'Secretário';
+
+    const tabOficios = document.getElementById('tab-oficios-etapa');
+    if (tabOficios) tabOficios.style.display = podeOficios ? 'flex' : 'none';
+
+    const tabApuracao = document.getElementById('tab-apuracao-etapa');
+    if (tabApuracao) tabApuracao.style.display = podeApuracao ? 'flex' : 'none';
+}
+
 async function carregarUsuarioSidebarEtapa() {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -12001,6 +12066,8 @@ async function carregarUsuarioSidebarEtapa() {
                     avatarEl.textContent = iniciais;
                 }
             }
+
+            configurarTabsPorCargoEtapa(profile);
         }
 
         const btnLogout = document.getElementById('btnLogoutEtapa');
@@ -14003,6 +14070,47 @@ window.montarMensagemProtocoloEtapa28 = function (proc) {
     return `Prezados (as), em análise no nosso protocolo, não foi encontrado nenhum protocolo de defesa em nome de ${nome}, podendo assim, dar continuidade no processo de cobrança.`;
 };
 
+// Renderiza um HTML em página(s) A4 dentro de um PDF do PDFLib. Texto longo
+// é fatiado em quantas páginas forem necessárias.
+window.anexarHtmlPaginadoAoPdf = async function (mergedPdf, htmlPagina) {
+    const div = document.createElement('div');
+    div.style.position = 'absolute';
+    div.style.left = '-9999px';
+    div.style.top = '-9999px';
+    div.style.width = '794px';
+    div.style.minHeight = '1123px';
+    div.style.padding = '50px 60px';
+    div.style.background = 'white';
+    div.style.fontFamily = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    div.style.boxSizing = 'border-box';
+    div.style.color = '#1e293b';
+    div.innerHTML = htmlPagina;
+    document.body.appendChild(div);
+
+    let canvas;
+    try {
+        canvas = await html2canvas(div, { scale: 2, useCORS: true });
+    } finally {
+        document.body.removeChild(div);
+    }
+
+    const alturaPagina = Math.round(canvas.width * (841.89 / 595.28));
+    for (let y = 0; y < canvas.height; y += alturaPagina) {
+        const fatia = document.createElement('canvas');
+        fatia.width = canvas.width;
+        fatia.height = alturaPagina;
+        const ctx = fatia.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, fatia.width, fatia.height);
+        const altura = Math.min(alturaPagina, canvas.height - y);
+        ctx.drawImage(canvas, 0, y, canvas.width, altura, 0, 0, canvas.width, altura);
+
+        const img = await mergedPdf.embedJpg(fatia.toDataURL('image/jpeg', 0.95));
+        const page = mergedPdf.addPage([595.28, 841.89]);
+        page.drawImage(img, { x: 0, y: 0, width: 595.28, height: 841.89 });
+    }
+};
+
 window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opcoes = {}) {
     if (!processoAtual) {
         alert('Processo não encontrado.');
@@ -14046,6 +14154,19 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
 
         // 1. Criar PDF Unificado usando PDFLib
         const mergedPdf = await PDFLib.PDFDocument.create();
+
+        // Página com os dados do AR (quem recebeu, quando, tentativas). A Etapa 28
+        // já a inclui no bloco próprio; outras telas pedem por opcoes.paginaDadosAr.
+        let paginaDadosArIncluida = false;
+        const incluirPaginaDadosAr = async () => {
+            if (!opcoes.paginaDadosAr || opcoes.etapa28 || paginaDadosArIncluida) return;
+            paginaDadosArIncluida = true;
+            try {
+                await anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64);
+            } catch (errAr) {
+                console.warn('[PDF Unificado] Falha ao gerar a página com os dados do AR:', errAr);
+            }
+        };
 
         // 2. Renderizar Página da Capa (Página 1)
         const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || '';
@@ -14208,6 +14329,35 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 if (!arrayBuffer) {
                     console.warn(`[PDF MERGE] Não foi possível obter ArrayBuffer para ${identificacaoDoc}`);
                     return false;
+                }
+
+                // 0. Imagem (PNG/JPG) vai direto para o caminho de imagem. Sem isso
+                // ela era lida como PDF, falhava no PDFLib e no PDF.js e só então
+                // entrava — com dois erros no console a cada anexo.
+                const assinatura = new Uint8Array(arrayBuffer.slice(0, 4));
+                const ehPdfBytes = assinatura[0] === 0x25 && assinatura[1] === 0x50
+                    && assinatura[2] === 0x44 && assinatura[3] === 0x46; // %PDF
+                const ehPngBytes = assinatura[0] === 0x89 && assinatura[1] === 0x50;
+                const ehJpgBytes = assinatura[0] === 0xFF && assinatura[1] === 0xD8;
+
+                if (!ehPdfBytes && (ehPngBytes || ehJpgBytes)) {
+                    try {
+                        const img = ehPngBytes
+                            ? await mergedPdf.embedPng(arrayBuffer)
+                            : await mergedPdf.embedJpg(arrayBuffer);
+                        const pageImg = mergedPdf.addPage([595.28, 841.89]);
+                        const { width, height } = img.scaleToFit(550, 790);
+                        pageImg.drawImage(img, {
+                            x: (595.28 - width) / 2,
+                            y: (841.89 - height) / 2,
+                            width,
+                            height
+                        });
+                        console.log(`[PDF MERGE] ${identificacaoDoc} anexado como imagem`);
+                        return true;
+                    } catch (imgDiretoErr) {
+                        console.warn(`[PDF MERGE] Falha ao anexar a imagem ${identificacaoDoc}:`, imgDiretoErr);
+                    }
                 }
 
                 // 1. Tentar carregar com PDFLib com ignoreEncryption: true
@@ -14417,6 +14567,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             let urlAR = docAR?.url || docAR?.dataUrl || docAR?.base64;
             // Na Etapa 28 o AR entra depois da multa, junto com as fotos (ver bloco abaixo)
             if (urlAR && !opcoes.etapa28) await anexarArquivoAoPdf(urlAR, 'AR');
+            await incluirPaginaDadosAr();
 
             // 5. Outros Documentos Intermediários na Ordem de Criação
             [docBIC, docRF, docNP, docAR, docAI].forEach(d => { if (d?.id) idsAnexados.add(d.id); });
@@ -14500,11 +14651,30 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             await anexarPaginaProtocoloDividaAtivaAoPdf(mergedPdf, brasaoBase64);
         }
 
+        // Se o caminho acima não passou pelo AR (ex.: processo com decreto),
+        // a página com os dados do AR entra aqui, antes das peças finais.
+        await incluirPaginaDadosAr();
+
+        // 3.3 Itens finais enviados pela tela que pediu o PDF.
+        // A Etapa 24 usa isso para juntar a defesa, as movimentações com o
+        // Fiscal e a Gerência e, por último, o parecer jurídico.
+        for (const item of (opcoes.itensFinais || [])) {
+            try {
+                if (item.tipo === 'arquivo' && item.url) {
+                    await anexarArquivoAoPdf(item.url, item.nome || 'Documento');
+                } else if (item.html) {
+                    await window.anexarHtmlPaginadoAoPdf(mergedPdf, item.html);
+                }
+            } catch (errItem) {
+                console.warn('[PDF Unificado] Falha ao anexar item final:', item?.nome || item?.tipo, errItem);
+            }
+        }
+
         // 4. Salvar PDF Unificado
         const pdfBytes = await mergedPdf.save();
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
         const blobUrl = URL.createObjectURL(blob);
-        const nomeArquivoPdf = opcoes.paginaDividaAtiva
+        const nomeArquivoPdf = opcoes.nomeArquivo || opcoes.paginaDividaAtiva
             ? `Processo_Arquivado_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`
             : opcoes.etapa28
             ? `Processo_Completo_Vencimento_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`

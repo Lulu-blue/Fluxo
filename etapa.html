@@ -11,7 +11,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="icon" type="image/png" href="assets/img/icone.png">
+    <link rel="apple-touch-icon" href="assets/img/icone.png">
     <!-- Estilos do Painel -->
     <link rel="stylesheet" href="assets/css/painel.css">
     <style>
@@ -748,6 +749,42 @@
                         <!-- Notificações -->
                     </div>
                 </div>
+                <!-- Só aparece para Gerente de Posturas, Administrativo e Dev (ver configurarTabsPorCargoEtapa) -->
+                <a href="painel.html#oficios" id="tab-oficios-etapa" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                    </svg>
+                    Ofícios
+                </a>
+                <a href="painel.html#avisos">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    Avisos
+                </a>
+                <a href="painel.html#instrucoes">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                    </svg>
+                    Instruções
+                </a>
+                <!-- Só aparece para Secretário(a) e Dev (ver configurarTabsPorCargoEtapa) -->
+                <a href="painel.html#apuracao" id="tab-apuracao-etapa" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span>Apuração de dados</span>
+                </a>
                 <a href="painel.html#configuracoes">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                         stroke-linecap="round" stroke-linejoin="round">
@@ -758,6 +795,9 @@
                     Configurações
                 </a>
             </nav>
+            <div class="sidebar-brand">
+                <img src="assets/img/logo.png" alt="Logo" class="sidebar-brand-img">
+            </div>
             <div class="sidebar-footer">
                 <div class="user-badge" id="userBadgeEtapa">
                     <div class="user-avatar" id="sidebarAvatarEtapa">FP</div>
@@ -1576,7 +1616,9 @@
     <script src="assets/js/brasao-base64.js"></script>
     <script src="assets/js/oficio-modelo.js"></script>
     <script src="assets/js/etapa.js"></script>
-    <script src="assets/js/etapa19_parecer.js"></script>
+    <!-- ?v= evita que o navegador use uma versão antiga em cache -->
+    <script src="assets/js/etapa19_parecer.js?v=20260925"></script>
+    <script src="assets/js/etapa24_despacho.js?v=20260925"></script>
     <script src="assets/js/chat_juridico.js"></script>
 </body>
 

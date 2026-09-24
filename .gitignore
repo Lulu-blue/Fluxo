@@ -1,6 +1,6 @@
 # Backup local da migração de anexos (migracao/migrar_anexos.mjs).
 # Contém ARs e multas com dados pessoais de contribuintes: nunca pode ir para o GitHub.
-migracao/backup/
+migracao/
 
 # Cópias completas do banco feitas com pg_dump
 *.dump

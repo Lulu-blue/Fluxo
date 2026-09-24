@@ -126,6 +126,7 @@ body {
     padding: 16px 0;
     gap: 2px;
     position: relative;
+    overflow-y: auto;
 }
 
 .sidebar-nav a {
@@ -173,6 +174,26 @@ body {
     padding: 16px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     position: relative;
+    flex-shrink: 0;
+}
+
+/* Logo entre o menu e a linha divisória do perfil (aparece sempre junto da sidebar) */
+.sidebar-brand {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 4px 8px 10px;
+}
+
+.sidebar-brand-img {
+    width: auto;
+    height: 400px;
+    max-height: 31vh;
+    max-width: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
+    pointer-events: none;
 }
 
 /* User Badge */
@@ -945,6 +966,10 @@ body {
     .sidebar {
         width: 220px;
         min-width: 220px;
+    }
+
+    .sidebar-brand-img {
+        height: 200px;
     }
 
     .filters-grid {

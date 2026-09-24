@@ -599,6 +599,29 @@ function preencherDadosInterfaceUsuario(usuario) {
     configurarFiltroDestaqueMulta();
 
     configurarBotoesAcaoPorCargo();
+
+    // Quando se chega pela sidebar da etapa (painel.html#oficios, #avisos, ...)
+    abrirPaginaDoHash();
+}
+
+// Abre a aba indicada na URL. Usado pelos links da sidebar da tela de etapa,
+// que precisam voltar ao painel já na página certa.
+let hashDaUrlJaAplicado = false;
+
+function abrirPaginaDoHash() {
+    if (hashDaUrlJaAplicado) return;
+
+    const pagina = (window.location.hash || '').replace('#', '').trim();
+    if (!pagina) return;
+
+    const link = document.querySelector(`.sidebar-nav a[data-page="${pagina}"]`);
+    if (!link) return;
+
+    // Aba restrita que o cargo não enxerga: mantém o painel nas Solicitações
+    if (link.style.display === 'none') return;
+
+    hashDaUrlJaAplicado = true;
+    link.click();
 }
 
 // ── Carregar solicitações com filtros ────────────────────────

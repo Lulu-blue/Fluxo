@@ -61,13 +61,25 @@ INSERT INTO modelos_parecer (chave, titulo, codigos_infracao, decisao, base_lega
  10,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do lote situado na {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A irregularidade foi constatada em {{DATA_CONSTATACAO}}. A fotografia apresentada pela contribuinte demonstra a posterior limpeza do imóvel, sem prejuízo de eventual vistoria fiscal para verificar a situação do lote. Nos termos do art. 2º, inciso IV, da Lei Municipal nº 7.174/2010, satisfeita a exigência objeto do auto de infração, a penalidade pode ser reduzida em até 50%.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que o imóvel permanecia sem a limpeza adequada.
 
-Opino pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}. A limpeza posterior justifica a redução, mas não afasta a infração constatada, permanecendo válido o auto.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo de 15 dias estabelecido no inciso III do referido artigo para a limpeza e conservação dos imóveis não edificados.
 
-Encaminhe-se à autoridade competente para decisão e, em caso de acolhimento, para emissão de guia atualizada.
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A falta de limpeza adequada sujeita o responsável à penalidade prevista no art. 3º, § 1º, inciso IV, da Lei Municipal nº 7.174/2010.
+
+No caso, a documentação apresentada demonstra que o interessado promoveu posteriormente a limpeza integral do imóvel, satisfazendo a obrigação que motivou a autuação. A regularização posterior não determina o cancelamento do Auto de Infração, pois não afasta a irregularidade constatada pela Fiscalização, produzindo apenas os efeitos previstos no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010.
+
+Diante disso, opino pelo indeferimento de eventual pedido de cancelamento do Auto de Infração e pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}, com a emissão de nova guia para pagamento.
+
+Encaminhe-se à autoridade competente para decisão.
 
 Divinópolis/MG, {{DATA_HOJE}}.
 
@@ -75,13 +87,25 @@ Divinópolis/MG, {{DATA_HOJE}}.
 {{ASSINANTE_OAB}}$tpl$,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do lote situado na {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A irregularidade foi constatada em {{DATA_CONSTATACAO}}. A fotografia apresentada pela contribuinte demonstra a posterior limpeza do imóvel, sem prejuízo de eventual vistoria fiscal para verificar a situação do lote. Nos termos do art. 2º, inciso IV, da Lei Municipal nº 7.174/2010, satisfeita a exigência objeto do auto de infração, a penalidade pode ser reduzida em até 50%.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que o imóvel permanecia sem a limpeza adequada.
 
-Opino pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}. A limpeza posterior justifica a redução, mas não afasta a infração constatada, permanecendo válido o auto.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo de 15 dias estabelecido no inciso III do referido artigo para a limpeza e conservação dos imóveis não edificados.
 
-Encaminhe-se à autoridade competente para decisão e, em caso de acolhimento, para emissão de guia atualizada.
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A falta de limpeza adequada sujeita o responsável à penalidade prevista no art. 3º, § 1º, inciso IV, da Lei Municipal nº 7.174/2010.
+
+No caso, a documentação apresentada demonstra que o interessado promoveu posteriormente a limpeza integral do imóvel, satisfazendo a obrigação que motivou a autuação. A regularização posterior não determina o cancelamento do Auto de Infração, pois não afasta a irregularidade constatada pela Fiscalização, produzindo apenas os efeitos previstos no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010.
+
+Diante disso, opino pelo indeferimento de eventual pedido de cancelamento do Auto de Infração e pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}, com a emissão de nova guia para pagamento.
+
+Encaminhe-se à autoridade competente para decisão.
 
 Divinópolis/MG, {{DATA_HOJE}}.
 
@@ -96,11 +120,25 @@ Divinópolis/MG, {{DATA_HOJE}}.
  11,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do lote situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-Embora as fotografias apresentadas indiquem que houve capina, elas também mostram [DESCREVER OS RESÍDUOS OU A IRREGULARIDADE REMANESCENTE]. Assim, não ficou comprovada a limpeza adequada do imóvel nem o atendimento integral da exigência objeto do auto de infração.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que o imóvel permanecia sem a limpeza adequada.
 
-O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade à satisfação da exigência objeto da notificação ou do auto. Diante da regularização incompleta, opino pelo indeferimento do pedido de redução de 50% da multa e pela manutenção do Auto de Infração nº {{AUTO_NUMERO}}.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo de 15 dias estabelecido no inciso III do referido artigo para a limpeza e conservação dos imóveis não edificados.
+
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A falta de limpeza adequada sujeita o responsável à penalidade prevista no art. 3º, § 1º, inciso IV, da Lei Municipal nº 7.174/2010.
+
+Embora a documentação apresentada indique a realização de capina ou limpeza parcial, verifica-se a permanência de [RESÍDUOS DA CAPINA/ENTULHOS/LIXO/VEGETAÇÃO ALTA/OUTRA IRREGULARIDADE]. Portanto, não ficou comprovado o atendimento integral da obrigação.
+
+O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade à satisfação do objeto da notificação ou do Auto de Infração.
+
+Diante disso, opino pelo indeferimento da defesa e do pedido de redução de 50%, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a multa aplicada, sem prejuízo de nova análise caso o interessado comprove posteriormente a limpeza integral, observado o prazo legal.
 
 Encaminhe-se à autoridade competente para decisão.
 
@@ -110,11 +148,25 @@ Divinópolis/MG, {{DATA_HOJE}}.
 {{ASSINANTE_OAB}}$tpl$,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do lote situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela falta de limpeza do imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-Embora as fotografias apresentadas indiquem que houve capina, elas também mostram [DESCREVER OS RESÍDUOS OU A IRREGULARIDADE REMANESCENTE]. Assim, não ficou comprovada a limpeza adequada do imóvel nem o atendimento integral da exigência objeto do auto de infração.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que o imóvel permanecia sem a limpeza adequada.
 
-O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade à satisfação da exigência objeto da notificação ou do auto. Diante da regularização incompleta, opino pelo indeferimento do pedido de redução de 50% da multa e pela manutenção do Auto de Infração nº {{AUTO_NUMERO}}.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo de 15 dias estabelecido no inciso III do referido artigo para a limpeza e conservação dos imóveis não edificados.
+
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A falta de limpeza adequada sujeita o responsável à penalidade prevista no art. 3º, § 1º, inciso IV, da Lei Municipal nº 7.174/2010.
+
+Embora a documentação apresentada indique a realização de capina ou limpeza parcial, verifica-se a permanência de [RESÍDUOS DA CAPINA/ENTULHOS/LIXO/VEGETAÇÃO ALTA/OUTRA IRREGULARIDADE]. Portanto, não ficou comprovado o atendimento integral da obrigação.
+
+O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade à satisfação do objeto da notificação ou do Auto de Infração.
+
+Diante disso, opino pelo indeferimento da defesa e do pedido de redução de 50%, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a multa aplicada, sem prejuízo de nova análise caso o interessado comprove posteriormente a limpeza integral, observado o prazo legal.
 
 Encaminhe-se à autoridade competente para decisão.
 
@@ -132,13 +184,25 @@ Divinópolis/MG, {{DATA_HOJE}}.
  20,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A documentação apresentada demonstra que o muro foi construído após a autuação, atendendo à exigência objeto do auto de infração. Nos termos do art. 2º, inciso IV, da Lei Municipal nº 7.174/2010, a regularização permite a redução da penalidade em até 50%.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}. A construção posterior do muro justifica a redução, mas não afasta a infração constatada, permanecendo válido o auto.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção de muro.
 
-Encaminhe-se à autoridade competente para decisão e, em caso de acolhimento, para emissão de guia atualizada.
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+No caso, a documentação apresentada demonstra que o muro foi posteriormente construído de maneira adequada, satisfazendo a obrigação que motivou a autuação.
+
+A construção posterior não determina o cancelamento do Auto de Infração, pois não afasta a irregularidade constatada pela Fiscalização. Contudo, o art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 permite a redução da penalidade em até 50% quando satisfeito o objeto da notificação ou do Auto.
+
+Diante disso, opino pelo indeferimento de eventual pedido de cancelamento do Auto de Infração e pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}, com a emissão de nova guia para pagamento.
+
+Encaminhe-se à autoridade competente para decisão.
 
 Divinópolis/MG, {{DATA_HOJE}}.
 
@@ -146,13 +210,25 @@ Divinópolis/MG, {{DATA_HOJE}}.
 {{ASSINANTE_OAB}}$tpl$,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A documentação apresentada demonstra que o muro foi construído após a autuação, atendendo à exigência objeto do auto de infração. Nos termos do art. 2º, inciso IV, da Lei Municipal nº 7.174/2010, a regularização permite a redução da penalidade em até 50%.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}. A construção posterior do muro justifica a redução, mas não afasta a infração constatada, permanecendo válido o auto.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção de muro.
 
-Encaminhe-se à autoridade competente para decisão e, em caso de acolhimento, para emissão de guia atualizada.
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+No caso, a documentação apresentada demonstra que o muro foi posteriormente construído de maneira adequada, satisfazendo a obrigação que motivou a autuação.
+
+A construção posterior não determina o cancelamento do Auto de Infração, pois não afasta a irregularidade constatada pela Fiscalização. Contudo, o art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 permite a redução da penalidade em até 50% quando satisfeito o objeto da notificação ou do Auto.
+
+Diante disso, opino pelo indeferimento de eventual pedido de cancelamento do Auto de Infração e pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}, com a emissão de nova guia para pagamento.
+
+Encaminhe-se à autoridade competente para decisão.
 
 Divinópolis/MG, {{DATA_HOJE}}.
 
@@ -167,11 +243,23 @@ Divinópolis/MG, {{DATA_HOJE}}.
  21,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A falta do muro foi constatada em {{DATA_CONSTATACAO}}, conforme [AUTO/RELATÓRIO/FOTOGRAFIAS]. A defesa alega [RESUMIR], mas [INDICAR POR QUE A ALEGAÇÃO NÃO AFASTA A INFRAÇÃO]. Também não foi comprovada a construção do muro, requisito para a redução da penalidade prevista no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo indeferimento da defesa e do pedido de redução da multa, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a penalidade aplicada.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção de muro.
+
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A documentação apresentada não comprova a construção adequada do muro nem, portanto, a satisfação da obrigação que motivou a autuação.
+
+O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade ao cumprimento do objeto da notificação ou do Auto de Infração.
+
+Diante disso, opino pelo indeferimento da defesa e do pedido de redução de 50%, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a multa aplicada, sem prejuízo de nova análise caso o interessado comprove posteriormente o cumprimento integral da obrigação, observado o prazo legal.
 
 Encaminhe-se à autoridade competente para decisão.
 
@@ -181,11 +269,23 @@ Divinópolis/MG, {{DATA_HOJE}}.
 {{ASSINANTE_OAB}}$tpl$,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de muro no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A falta do muro foi constatada em {{DATA_CONSTATACAO}}, conforme [AUTO/RELATÓRIO/FOTOGRAFIAS]. A defesa alega [RESUMIR], mas [INDICAR POR QUE A ALEGAÇÃO NÃO AFASTA A INFRAÇÃO]. Também não foi comprovada a construção do muro, requisito para a redução da penalidade prevista no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo indeferimento da defesa e do pedido de redução da multa, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a penalidade aplicada.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção de muro.
+
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A documentação apresentada não comprova a construção adequada do muro nem, portanto, a satisfação da obrigação que motivou a autuação.
+
+O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade ao cumprimento do objeto da notificação ou do Auto de Infração.
+
+Diante disso, opino pelo indeferimento da defesa e do pedido de redução de 50%, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a multa aplicada, sem prejuízo de nova análise caso o interessado comprove posteriormente o cumprimento integral da obrigação, observado o prazo legal.
 
 Encaminhe-se à autoridade competente para decisão.
 
@@ -203,13 +303,25 @@ Divinópolis/MG, {{DATA_HOJE}}.
  30,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A documentação juntada demonstra que o passeio foi construído após a autuação, em atendimento à exigência objeto do auto de infração, conforme [INDICAR A PROVA DA EXECUÇÃO E DA CONFORMIDADE DO PASSEIO]. O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 permite a redução da penalidade em até 50% quando satisfeita essa exigência.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}. A construção posterior do passeio justifica a redução, mas não afasta a infração constatada, permanecendo válido o auto.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção do passeio.
 
-Encaminhe-se à autoridade competente para decisão e, em caso de acolhimento, para emissão de guia atualizada.
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+No caso, a documentação apresentada demonstra que o passeio foi posteriormente construído de maneira adequada, satisfazendo a obrigação que motivou a autuação.
+
+A construção posterior não determina o cancelamento do Auto de Infração, pois não afasta a irregularidade constatada pela Fiscalização. Contudo, o art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 permite a redução da penalidade em até 50% quando satisfeito o objeto da notificação ou do Auto.
+
+Diante disso, opino pelo indeferimento de eventual pedido de cancelamento do Auto de Infração e pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}, com a emissão de nova guia para pagamento.
+
+Encaminhe-se à autoridade competente para decisão.
 
 Divinópolis/MG, {{DATA_HOJE}}.
 
@@ -217,13 +329,25 @@ Divinópolis/MG, {{DATA_HOJE}}.
 {{ASSINANTE_OAB}}$tpl$,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A documentação juntada demonstra que o passeio foi construído após a autuação, em atendimento à exigência objeto do auto de infração, conforme [INDICAR A PROVA DA EXECUÇÃO E DA CONFORMIDADE DO PASSEIO]. O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 permite a redução da penalidade em até 50% quando satisfeita essa exigência.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}. A construção posterior do passeio justifica a redução, mas não afasta a infração constatada, permanecendo válido o auto.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção do passeio.
 
-Encaminhe-se à autoridade competente para decisão e, em caso de acolhimento, para emissão de guia atualizada.
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+No caso, a documentação apresentada demonstra que o passeio foi posteriormente construído de maneira adequada, satisfazendo a obrigação que motivou a autuação.
+
+A construção posterior não determina o cancelamento do Auto de Infração, pois não afasta a irregularidade constatada pela Fiscalização. Contudo, o art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 permite a redução da penalidade em até 50% quando satisfeito o objeto da notificação ou do Auto.
+
+Diante disso, opino pelo indeferimento de eventual pedido de cancelamento do Auto de Infração e pelo deferimento da redução de 50% da multa aplicada no Auto de Infração nº {{AUTO_NUMERO}}, com a emissão de nova guia para pagamento.
+
+Encaminhe-se à autoridade competente para decisão.
 
 Divinópolis/MG, {{DATA_HOJE}}.
 
@@ -238,11 +362,23 @@ Divinópolis/MG, {{DATA_HOJE}}.
  31,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A falta do passeio foi constatada em {{DATA_CONSTATACAO}}, conforme [AUTO/RELATÓRIO/FOTOGRAFIAS]. A defesa alega [RESUMIR], mas [INDICAR POR QUE A ALEGAÇÃO NÃO AFASTA A INFRAÇÃO]. Não há comprovação de que o passeio tenha sido construído em atendimento à exigência do auto, razão pela qual não se aplica a redução prevista no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo indeferimento da defesa e do pedido de redução da multa, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a penalidade aplicada.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção do passeio.
+
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A documentação apresentada não comprova a construção adequada do passeio nem, portanto, a satisfação da obrigação que motivou a autuação.
+
+O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade ao cumprimento do objeto da notificação ou do Auto de Infração.
+
+Diante disso, opino pelo indeferimento da defesa e do pedido de redução de 50%, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a multa aplicada, sem prejuízo de nova análise caso o interessado comprove posteriormente o cumprimento integral da obrigação, observado o prazo legal.
 
 Encaminhe-se à autoridade competente para decisão.
 
@@ -252,11 +388,23 @@ Divinópolis/MG, {{DATA_HOJE}}.
 {{ASSINANTE_OAB}}$tpl$,
  $tpl$PARECER JURÍDICO – AUTO DE INFRAÇÃO Nº {{AUTO_NUMERO}}
 
-Trata-se de defesa apresentada por {{DEFENDENTE}} contra a multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
+Trata-se de defesa apresentada por {{DEFENDENTE}} em relação à multa aplicada pela ausência de passeio no imóvel situado à {{ENDERECO}}, inscrição imobiliária nº {{INSCRICAO}}.
 
-A falta do passeio foi constatada em {{DATA_CONSTATACAO}}, conforme [AUTO/RELATÓRIO/FOTOGRAFIAS]. A defesa alega [RESUMIR], mas [INDICAR POR QUE A ALEGAÇÃO NÃO AFASTA A INFRAÇÃO]. Não há comprovação de que o passeio tenha sido construído em atendimento à exigência do auto, razão pela qual não se aplica a redução prevista no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010.
+Conforme consta do Auto de Infração, após o transcurso do prazo concedido na notificação geral, a Fiscalização realizou vistoria em {{DATA_CONSTATACAO}} e constatou que a obrigação permanecia descumprida.
 
-Opino pelo indeferimento da defesa e do pedido de redução da multa, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a penalidade aplicada.
+O art. 2º da Lei Municipal nº 7.174/2010 admite expressamente a notificação por edital quando necessária. Com fundamento nessa previsão, o Decreto Municipal nº 17.326/2026 promoveu a notificação geral dos proprietários e responsáveis por imóveis situados no Município, concedendo o mesmo prazo estabelecido na Lei para a construção do passeio.
+
+Embora o parágrafo único do art. 1º do Decreto disponha sobre a dispensa da notificação preliminar individual, a publicação oficial cumpriu a função de notificação preliminar geral. A dispensa refere-se à repetição da comunicação de forma pessoal, e não à eliminação da oportunidade de regularização antes da aplicação da penalidade.
+
+A autuação ocorreu somente após o transcurso do prazo concedido e mediante vistoria destinada a individualizar o imóvel, identificar o responsável e constatar a permanência da irregularidade. Após a lavratura do Auto, também foi assegurado ao autuado o direito de defesa.
+
+Desse modo, não se identifica ilegalidade na adoção da notificação geral prevista no Decreto nº 17.326/2026, que não criou nova penalidade, não alterou o prazo legal nem suprimiu a possibilidade de cumprimento voluntário da obrigação.
+
+A documentação apresentada não comprova a construção adequada do passeio nem, portanto, a satisfação da obrigação que motivou a autuação.
+
+O art. 2º, inciso IV, da Lei Municipal nº 7.174/2010 condiciona a redução da penalidade ao cumprimento do objeto da notificação ou do Auto de Infração.
+
+Diante disso, opino pelo indeferimento da defesa e do pedido de redução de 50%, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e a multa aplicada, sem prejuízo de nova análise caso o interessado comprove posteriormente o cumprimento integral da obrigação, observado o prazo legal.
 
 Encaminhe-se à autoridade competente para decisão.
 
@@ -780,3 +928,183 @@ INSERT INTO transicoes (etapa_origem_id, etapa_destino_id, condicao) VALUES
     ((SELECT id FROM etapas WHERE numero = 19), (SELECT id FROM etapas WHERE numero = 21), 'Enviar para: Devolver ao Fiscal'),
     ((SELECT id FROM etapas WHERE numero = 19), (SELECT id FROM etapas WHERE numero = 24), 'Enviar para: Secretário para Despacho')
 ON CONFLICT (etapa_origem_id, etapa_destino_id, condicao) DO NOTHING;
+
+
+-- ============================================================
+-- Revisão de 24/09/2026 — nova redação dos modelos de limpeza,
+-- muro e passeio (fundamentação do Decreto 17.326/2026).
+-- Põe em uso o texto novo. ATENÇÃO: descarta edições feitas na
+-- tela nesses 6 modelos. Comente este bloco se não quiser isso.
+-- ============================================================
+UPDATE modelos_parecer
+SET texto = texto_original, updated_at = NOW()
+WHERE chave IN (
+    'limpeza_reducao_50', 'limpeza_indeferimento',
+    'muro_reducao_50', 'muro_indeferimento',
+    'passeio_reducao_50', 'passeio_indeferimento'
+);
+
+-- ============================================================
+-- ETAPA 24 — Despacho do Secretário
+-- Os modelos de despacho ficam na mesma tabela, marcados com
+-- tipo = 'despacho' (os pareceres da Etapa 19 são tipo 'parecer').
+-- Marcadores próprios do despacho: {{PROCESSO_NUMERO}}, {{CPF}},
+-- {{ORIGEM_CABECALHO}} e {{ORIGEM}}. Os dois últimos se adaptam ao
+-- processo: viram "Notificação Preliminar nº X" quando houve NP,
+-- "Decreto Municipal nº X" nos processos por decreto e, na falta dos
+-- dois, o próprio "Auto de Infração nº X".
+-- ({{NOTIFICACAO_NUMERO}} continua funcionando em modelos antigos.)
+-- ============================================================
+
+ALTER TABLE modelos_parecer
+    ADD COLUMN IF NOT EXISTS tipo VARCHAR(20) NOT NULL DEFAULT 'parecer';
+
+INSERT INTO modelos_parecer (chave, titulo, codigos_infracao, decisao, base_legal, ordem, tipo, texto, texto_original) VALUES
+
+('despacho_indeferimento',
+ 'Despacho — indeferimento da defesa',
+ ARRAY[]::TEXT[],
+ 'indeferimento',
+ NULL,
+ 200,
+ 'despacho',
+ $tpl$DESPACHO ADMINISTRATIVO
+
+Processo/Protocolo Administrativo nº: {{PROCESSO_NUMERO}}
+{{ORIGEM_CABECALHO}}
+Interessado: {{DEFENDENTE}} – CPF nº {{CPF}}
+Assunto: Defesa Administrativa em face do Auto de Infração/Multa nº {{AUTO_NUMERO}}
+
+Considerando o Parecer Jurídico exarado nos autos, o qual opinou pelo conhecimento da defesa administrativa apresentada por {{DEFENDENTE}} e, no mérito, pelo seu indeferimento, com a manutenção integral do Auto de Infração nº {{AUTO_NUMERO}};
+
+Considerando que as razões apresentadas na defesa administrativa não demonstram vício ou ilegalidade capaz de desconstituir a autuação, tampouco comprovam o cumprimento tempestivo e integral da obrigação estabelecida {{ORIGEM}};
+ACOLHO integralmente o Parecer Jurídico acostado aos autos, adotando seus fundamentos como razão de decidir.
+
+INDEFIRO a Defesa Administrativa apresentada por {{DEFENDENTE}}, mantendo-se íntegra a penalidade aplicada por meio do Auto de Infração nº {{AUTO_NUMERO}}, bem como todos os seus efeitos legais.
+
+DETERMINO o prosseguimento do procedimento administrativo nos termos legais.
+
+Divinópolis/MG, {{DATA_HOJE}}.$tpl$,
+ $tpl$DESPACHO ADMINISTRATIVO
+
+Processo/Protocolo Administrativo nº: {{PROCESSO_NUMERO}}
+{{ORIGEM_CABECALHO}}
+Interessado: {{DEFENDENTE}} – CPF nº {{CPF}}
+Assunto: Defesa Administrativa em face do Auto de Infração/Multa nº {{AUTO_NUMERO}}
+
+Considerando o Parecer Jurídico exarado nos autos, o qual opinou pelo conhecimento da defesa administrativa apresentada por {{DEFENDENTE}} e, no mérito, pelo seu indeferimento, com a manutenção integral do Auto de Infração nº {{AUTO_NUMERO}};
+
+Considerando que as razões apresentadas na defesa administrativa não demonstram vício ou ilegalidade capaz de desconstituir a autuação, tampouco comprovam o cumprimento tempestivo e integral da obrigação estabelecida {{ORIGEM}};
+ACOLHO integralmente o Parecer Jurídico acostado aos autos, adotando seus fundamentos como razão de decidir.
+
+INDEFIRO a Defesa Administrativa apresentada por {{DEFENDENTE}}, mantendo-se íntegra a penalidade aplicada por meio do Auto de Infração nº {{AUTO_NUMERO}}, bem como todos os seus efeitos legais.
+
+DETERMINO o prosseguimento do procedimento administrativo nos termos legais.
+
+Divinópolis/MG, {{DATA_HOJE}}.$tpl$),
+
+('despacho_deferimento',
+ 'Despacho — deferimento da defesa (cancelamento do Auto)',
+ ARRAY[]::TEXT[],
+ 'deferimento',
+ NULL,
+ 201,
+ 'despacho',
+ $tpl$DESPACHO ADMINISTRATIVO
+
+Processo/Protocolo Administrativo nº: {{PROCESSO_NUMERO}}
+{{ORIGEM_CABECALHO}}
+Interessado: {{DEFENDENTE}} – CPF nº {{CPF}}
+Assunto: Defesa Administrativa em face do Auto de Infração/Multa nº {{AUTO_NUMERO}}
+
+Considerando o Parecer Jurídico exarado nos autos, o qual opinou pelo conhecimento da defesa administrativa apresentada por {{DEFENDENTE}} e, no mérito, pelo seu deferimento;
+
+Considerando que as razões apresentadas na defesa administrativa afastam a irregularidade que motivou a autuação;
+ACOLHO integralmente o Parecer Jurídico acostado aos autos, adotando seus fundamentos como razão de decidir.
+
+DEFIRO a Defesa Administrativa apresentada por {{DEFENDENTE}}, determinando o cancelamento do Auto de Infração nº {{AUTO_NUMERO}} e de todos os seus efeitos legais.
+
+DETERMINO o prosseguimento do procedimento administrativo nos termos legais.
+
+Divinópolis/MG, {{DATA_HOJE}}.$tpl$,
+ $tpl$DESPACHO ADMINISTRATIVO
+
+Processo/Protocolo Administrativo nº: {{PROCESSO_NUMERO}}
+{{ORIGEM_CABECALHO}}
+Interessado: {{DEFENDENTE}} – CPF nº {{CPF}}
+Assunto: Defesa Administrativa em face do Auto de Infração/Multa nº {{AUTO_NUMERO}}
+
+Considerando o Parecer Jurídico exarado nos autos, o qual opinou pelo conhecimento da defesa administrativa apresentada por {{DEFENDENTE}} e, no mérito, pelo seu deferimento;
+
+Considerando que as razões apresentadas na defesa administrativa afastam a irregularidade que motivou a autuação;
+ACOLHO integralmente o Parecer Jurídico acostado aos autos, adotando seus fundamentos como razão de decidir.
+
+DEFIRO a Defesa Administrativa apresentada por {{DEFENDENTE}}, determinando o cancelamento do Auto de Infração nº {{AUTO_NUMERO}} e de todos os seus efeitos legais.
+
+DETERMINO o prosseguimento do procedimento administrativo nos termos legais.
+
+Divinópolis/MG, {{DATA_HOJE}}.$tpl$),
+
+('despacho_reducao_50',
+ 'Despacho — redução de 50% da multa',
+ ARRAY[]::TEXT[],
+ 'reducao_50',
+ 'Art. 2º, IV, da Lei Municipal nº 7.174/2010',
+ 202,
+ 'despacho',
+ $tpl$DESPACHO ADMINISTRATIVO
+
+Processo/Protocolo Administrativo nº: {{PROCESSO_NUMERO}}
+{{ORIGEM_CABECALHO}}
+Interessado: {{DEFENDENTE}} – CPF nº {{CPF}}
+Assunto: Defesa Administrativa em face do Auto de Infração/Multa nº {{AUTO_NUMERO}}
+
+Considerando o Parecer Jurídico exarado nos autos, o qual opinou pelo conhecimento da defesa administrativa apresentada por {{DEFENDENTE}} e, no mérito, pelo indeferimento do pedido de cancelamento do Auto de Infração nº {{AUTO_NUMERO}} e pelo deferimento da redução de 50% da multa aplicada;
+
+Considerando que a regularização posterior não afasta a irregularidade constatada pela Fiscalização, produzindo apenas os efeitos previstos no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010;
+ACOLHO integralmente o Parecer Jurídico acostado aos autos, adotando seus fundamentos como razão de decidir.
+
+DEFIRO PARCIALMENTE a Defesa Administrativa apresentada por {{DEFENDENTE}}, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e reduzindo em 50% o valor da multa aplicada.
+
+DETERMINO a emissão de nova guia para pagamento, com o valor reduzido, e o prosseguimento do procedimento administrativo nos termos legais.
+
+Divinópolis/MG, {{DATA_HOJE}}.$tpl$,
+ $tpl$DESPACHO ADMINISTRATIVO
+
+Processo/Protocolo Administrativo nº: {{PROCESSO_NUMERO}}
+{{ORIGEM_CABECALHO}}
+Interessado: {{DEFENDENTE}} – CPF nº {{CPF}}
+Assunto: Defesa Administrativa em face do Auto de Infração/Multa nº {{AUTO_NUMERO}}
+
+Considerando o Parecer Jurídico exarado nos autos, o qual opinou pelo conhecimento da defesa administrativa apresentada por {{DEFENDENTE}} e, no mérito, pelo indeferimento do pedido de cancelamento do Auto de Infração nº {{AUTO_NUMERO}} e pelo deferimento da redução de 50% da multa aplicada;
+
+Considerando que a regularização posterior não afasta a irregularidade constatada pela Fiscalização, produzindo apenas os efeitos previstos no art. 2º, inciso IV, da Lei Municipal nº 7.174/2010;
+ACOLHO integralmente o Parecer Jurídico acostado aos autos, adotando seus fundamentos como razão de decidir.
+
+DEFIRO PARCIALMENTE a Defesa Administrativa apresentada por {{DEFENDENTE}}, mantendo-se o Auto de Infração nº {{AUTO_NUMERO}} e reduzindo em 50% o valor da multa aplicada.
+
+DETERMINO a emissão de nova guia para pagamento, com o valor reduzido, e o prosseguimento do procedimento administrativo nos termos legais.
+
+Divinópolis/MG, {{DATA_HOJE}}.$tpl$)
+
+ON CONFLICT (chave) DO UPDATE SET
+    titulo         = EXCLUDED.titulo,
+    decisao        = EXCLUDED.decisao,
+    tipo           = EXCLUDED.tipo,
+    ordem          = EXCLUDED.ordem,
+    texto_original = EXCLUDED.texto_original;
+
+UPDATE etapas
+SET nome = 'Secretário Despacha',
+    descricao = 'O secretário lê o processo unificado, decide (deferido, indeferido ou redução de 50%) e emite o despacho administrativo.'
+WHERE numero = 24;
+
+
+-- ============================================================
+-- Revisão de 26/09/2026 — despacho sem campo de observação e com
+-- a origem correta (Notificação Preliminar, Decreto ou o próprio
+-- Auto). Põe o texto novo em uso nos 3 modelos de despacho.
+-- ============================================================
+UPDATE modelos_parecer
+SET texto = texto_original, updated_at = NOW()
+WHERE tipo = 'despacho';

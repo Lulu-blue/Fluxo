@@ -16,11 +16,32 @@
 (function () {
     'use strict';
 
+    const VERSAO = '2026-09-25';
+    console.info(`[Etapa 19/21/22] versão ${VERSAO}`);
+
     const DESTINOS = [
         { etapa: 22, rotulo: 'Encaminhar à Gerência', detalhe: 'Etapa 22 — Gerente convocado pelo Jurídico' },
         { etapa: 21, rotulo: 'Devolver ao Fiscal', detalhe: 'Etapa 21 — Fiscal convocado pelo Jurídico' },
         { etapa: 24, rotulo: 'Secretário para Despacho', detalhe: 'Etapa 24 — Secretário despacha' }
     ];
+
+    // Etapas em que alguém é convocado pelo jurídico e devolve o Auto para a 19.
+    const CONVOCADOS = {
+        21: {
+            nome: 'Fiscal',
+            titulo: 'Fiscal convocado pelo Jurídico',
+            cor: '#0f766e',
+            fundoIcone: '#ecfeff',
+            exemplo: 'Ex.: realizada nova vistoria em .../.../...; o imóvel estava limpo.'
+        },
+        22: {
+            nome: 'Gerência',
+            titulo: 'Gerente convocado pelo Jurídico',
+            cor: '#b45309',
+            fundoIcone: '#fffbeb',
+            exemplo: 'Ex.: a gerência confirma o valor da multa e o cálculo da testada.'
+        }
+    };
 
     const DECISOES = {
         deferimento: { rotulo: 'Deferido', cor: '#16a34a', fundo: '#f0fdf4' },
@@ -68,12 +89,85 @@
     }
 
     // Mesmo lugar onde o etapa.js guarda os anexos genéricos da etapa.
-    function dadosEtapa19() {
+    function dadosEtapa(numero) {
         const alvo = notificacaoAtual
             ? (notificacaoAtual.dados = notificacaoAtual.dados || {})
             : (processoAtual.campos = processoAtual.campos || {});
-        alvo.etapa19 = alvo.etapa19 || {};
-        return alvo.etapa19;
+        const chave = `etapa${numero}`;
+        alvo[chave] = alvo[chave] || {};
+        return alvo[chave];
+    }
+
+    function dadosEtapa19() {
+        return dadosEtapa(19);
+    }
+
+    // Idas e vindas com o Fiscal (Etapa 21): cada item guarda o pedido do
+    // jurídico e, depois, a resposta do fiscal.
+    function listarDiligencias() {
+        const dados = dadosEtapa19();
+        dados.diligencias = dados.diligencias || [];
+        return dados.diligencias;
+    }
+
+    function diligenciaAberta() {
+        const lista = listarDiligencias();
+        const ultima = lista[lista.length - 1];
+        return ultima && !ultima.resposta ? ultima : null;
+    }
+
+    // Diligências antigas não guardavam o destino: eram sempre do Fiscal.
+    function papelDiligencia(d) {
+        return d.papel || CONVOCADOS[d.destino || 21].nome;
+    }
+
+    function dataHora(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function htmlAnexos(anexos) {
+        if (!anexos || !anexos.length) return '';
+        return `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">${anexos.map(a => {
+            const url = a.url || a.dataUrl || a.base64 || '';
+            const nome = escaparHtml(a.nome || 'Anexo');
+            return url
+                ? `<a href="${escaparHtml(url)}" target="_blank" rel="noopener" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:0.82rem; font-weight:600; text-decoration:none;">📎 ${nome}</a>`
+                : `<span style="padding:6px 12px; background:#f1f5f9; color:#64748b; border-radius:6px; font-size:0.82rem;">📎 ${nome}</span>`;
+        }).join('')}</div>`;
+    }
+
+    function blocoTexto(titulo, corpo, cor, anexos) {
+        return `
+            <div style="background:white; border-left:4px solid ${cor}; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px;">
+                <div style="font-size:0.78rem; font-weight:700; color:${cor}; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px;">${titulo}</div>
+                <div style="white-space:pre-wrap; font-size:0.92rem; color:#1e293b; line-height:1.5;">${escaparHtml(corpo || '—')}</div>
+                ${htmlAnexos(anexos)}
+            </div>
+        `;
+    }
+
+    // Histórico das idas e vindas, usado nas duas etapas.
+    function htmlDiligencias({ incluirAberta }) {
+        const itens = listarDiligencias().filter(d => incluirAberta || d.resposta);
+        if (!itens.length) return '';
+        const cartoes = itens.map((d, i) => `
+            <div style="display:flex; flex-direction:column; gap:10px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+                <div style="font-size:0.85rem; font-weight:700; color:#334155;">Diligência ${i + 1}${d.resposta ? '' : ` — aguardando ${papelDiligencia(d) === 'Gerência' ? 'a Gerência' : 'o Fiscal'}`}</div>
+                ${blocoTexto(`Jurídico pediu a${papelDiligencia(d) === 'Gerência' ? '' : 'o'} ${papelDiligencia(d)} · ${escaparHtml(d.enviado_por || '')} · ${dataHora(d.enviado_em)}`, d.mensagem, '#7c3aed')}
+                ${d.resposta
+                    ? blocoTexto(`${papelDiligencia(d)} respondeu · ${escaparHtml(d.resposta.respondido_por || '')} · ${dataHora(d.resposta.respondido_em)}`, d.resposta.texto, CONVOCADOS[d.destino || 21].cor, d.resposta.anexos)
+                    : ''}
+            </div>
+        `).join('');
+        return `
+            <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px;">
+                <h4 style="margin:0 0 4px 0; color:#1e293b; font-size:1rem; font-weight:700;">Idas e vindas com o Fiscal e a Gerência</h4>
+                <p style="margin:0 0 12px 0; color:#64748b; font-size:0.85rem;">O que o jurídico pediu e o que foi respondido.</p>
+                <div style="display:flex; flex-direction:column; gap:12px;">${cartoes}</div>
+            </div>
+        `;
     }
 
     async function persistirDados() {
@@ -88,6 +182,17 @@
             .update({ dados: processoAtual.dados })
             .eq('id', processoAtual.id);
         if (error) throw error;
+    }
+
+    // Falha de rede (Supabase/Cloudinary fora do ar ou internet caída) x erro real.
+    function avisarFalha(err, acao) {
+        const semRede = !navigator.onLine
+            || /Failed to fetch|NetworkError|ERR_|Load failed/i.test(err?.message || '');
+        if (semRede) {
+            alert(`Não foi possível ${acao}: o sistema está sem conexão com o servidor.\n\nO que você digitou continua na tela. Verifique a internet e tente de novo.`);
+        } else {
+            alert(`Erro ao ${acao}: ${err?.message || 'falha inesperada'}`);
+        }
     }
 
     function podeEditar() {
@@ -113,9 +218,9 @@
         };
     }
 
-    // Autos (notificações) do processo que estão na Etapa 19.
-    function autosNaEtapa19() {
-        return obterNotificacoesProcesso(processoAtual).filter(n => numeroEtapaDaNotificacao(n) === 19);
+    // Autos (notificações) do processo que estão na etapa informada.
+    function autosNaEtapa(numero) {
+        return obterNotificacoesProcesso(processoAtual).filter(n => numeroEtapaDaNotificacao(n) === numero);
     }
 
     async function carregarModelos() {
@@ -125,7 +230,8 @@
             .eq('ativo', true)
             .order('ordem', { ascending: true });
         if (error) throw error;
-        modelos = data || [];
+        // tipo 'despacho' pertence à Etapa 24; bancos antigos não têm a coluna.
+        modelos = (data || []).filter(m => (m.tipo || 'parecer') === 'parecer');
 
         const { data: cfg } = await supabaseClient
             .from('configuracoes_parecer')
@@ -219,6 +325,8 @@
 
                 <div id="e19Resumo" style="${cartao} margin-bottom:20px; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;"></div>
 
+                <div id="e19Diligencias"></div>
+
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="${cartao}">
                         <h4 style="${titulo}">1. Defesa</h4>
@@ -232,6 +340,11 @@
                     <div style="${cartao}">
                         <h4 style="${titulo}">2. Decisão <span style="color:#ef4444;">*</span></h4>
                         <p id="e19InfoInfracao" style="${sub}"></p>
+                        <div style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:12px 14px; border-radius:8px; font-size:0.85rem; line-height:1.5; margin-bottom:14px;">
+                            <strong>Antes de escolher, confira:</strong> a data da publicação do Decreto, a data da vistoria, o prazo da obrigação,
+                            a identificação do imóvel e se a documentação comprova o cumprimento integral.
+                            Se a obrigação já estava cumprida dentro do prazo preliminar, o caso é de <strong>cancelamento do Auto</strong>, e não de redução da multa.
+                        </div>
                         <div id="e19Decisoes" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
                         <div id="e19AvisoLivre" hidden style="margin-top:12px; font-size:0.85rem; color:#475569; background:#f1f5f9; padding:10px 12px; border-radius:8px;">
                             Não há modelo para esta decisão nesta infração. O texto abre com a estrutura básica para ser escrito à mão.
@@ -264,6 +377,12 @@
                                     <span><strong style="color:#1e293b;">${d.rotulo}</strong><br><span style="font-size:0.82rem; color:#64748b;">${d.detalhe}</span></span>
                                 </label>
                             `).join('')}
+                        </div>
+
+                        <div id="e19BlocoPedidoFiscal" hidden style="margin-top:14px; background:white; border:1px solid #cbd5e1; border-radius:8px; padding:14px;">
+                            <label for="e19PedidoFiscal" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:6px;"><span id="e19RotuloPedido">O que o fiscal precisa fazer ou responder</span> <span style="color:#94a3b8; font-weight:500;">(opcional)</span></label>
+                            <textarea id="e19PedidoFiscal" rows="4" placeholder="Ex.: realizar nova vistoria no imóvel e informar se a limpeza foi concluída." style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
+                            <p id="e19AjudaPedido" style="margin:8px 0 0 0; color:#64748b; font-size:0.83rem;"></p>
                         </div>
                     </div>
                 </div>
@@ -562,41 +681,87 @@
         } catch (err) {
             ocultarCarregamento();
             console.error('[Etapa 19] Erro ao salvar:', err);
-            alert('Erro ao salvar o parecer.');
+            avisarFalha(err, 'salvar o parecer');
         }
     }
 
     async function avancar() {
-        if (!notificacaoAtual && autosNaEtapa19().length) {
+        if (!notificacaoAtual && autosNaEtapa(19).length) {
             alert('O parecer é emitido por Auto de Infração. Abra o Auto na lista para emitir o parecer.');
             return;
         }
         const form = coletarFormulario();
 
-        if (!form.decisao) {
-            alert('Escolha a decisão do parecer (item 2).');
-            return;
-        }
-        if (!form.parecer_texto.trim()) {
-            alert('O texto do parecer está vazio (item 3).');
-            return;
-        }
         if (!form.destino) {
             alert('Escolha para onde o processo segue (item 4).');
             return;
         }
-        const pendencias = listarPendencias(form.parecer_texto);
-        if (pendencias.length && !confirm(`O parecer ainda tem ${pendencias.length} trecho(s) entre colchetes sem preencher. Deseja avançar mesmo assim?`)) {
-            return;
+
+        // Devolver ao Fiscal é uma diligência: vai sem o parecer pronto,
+        // levando só o pedido escrito pelo jurídico.
+        const pedidoAoFiscal = (document.getElementById('e19PedidoFiscal')?.value || '').trim();
+        const convocado = CONVOCADOS[form.destino];
+        const ehDiligencia = !!convocado;
+
+        const temDefesa = !!form.defesa_texto.trim() || (dadosEtapa19().anexos || []).length > 0;
+
+        if (ehDiligencia) {
+            // Sem parecer tudo bem: o fiscal precisa é da defesa em mãos.
+            if (!temDefesa) {
+                alert(`Antes de enviar ${convocado.nome === 'Gerência' ? 'à Gerência' : 'ao Fiscal'}, anexe o arquivo da defesa ou cole o texto dela (item 1).`);
+                return;
+            }
+        } else {
+            if (!temDefesa && !confirm('Não há texto nem anexo da defesa (item 1). Deseja avançar mesmo assim?')) {
+                return;
+            }
+            if (!form.decisao) {
+                alert('Escolha a decisão do parecer (item 2).');
+                return;
+            }
+            if (!form.parecer_texto.trim()) {
+                alert('O texto do parecer está vazio (item 3).');
+                return;
+            }
+            // Colchetes pendentes barram o avanço: o parecer não pode sair
+            // com trechos por preencher.
+            const pendencias = listarPendencias(form.parecer_texto);
+            if (pendencias.length) {
+                alert(
+                    `O parecer ainda tem ${pendencias.length} trecho(s) entre colchetes para preencher:\n\n`
+                    + `${pendencias.slice(0, 8).join('\n')}${pendencias.length > 8 ? '\n(e outros)' : ''}\n\n`
+                    + 'Preencha ou apague esses trechos no item 3 antes de avançar.'
+                );
+                const area = document.getElementById('e19TextoParecer');
+                if (area) {
+                    area.focus();
+                    const pos = area.value.indexOf(pendencias[0]);
+                    if (pos >= 0) area.setSelectionRange(pos, pos + pendencias[0].length);
+                }
+                return;
+            }
         }
 
         const destino = DESTINOS.find(d => d.etapa === form.destino);
-        const motivo = `Parecer Jurídico: ${DECISOES[form.decisao].rotulo} — ${destino.rotulo}`;
+        const motivo = ehDiligencia
+            ? `Parecer Jurídico: enviado ${convocado.nome === 'Gerência' ? 'à Gerência' : 'ao Fiscal'} para diligência`
+            : `Parecer Jurídico: ${DECISOES[form.decisao].rotulo} — ${destino.rotulo}`;
 
-        mostrarCarregamento('Salvando parecer e avançando...');
+        mostrarCarregamento(ehDiligencia ? 'Enviando ao Fiscal...' : 'Salvando parecer e avançando...');
         try {
             const dados = gravarNoObjeto(form);
-            dados.data_parecer = new Date().toISOString();
+            if (ehDiligencia) {
+                listarDiligencias().push({
+                    id: `d${Date.now()}`,
+                    destino: form.destino,
+                    papel: convocado.nome,
+                    mensagem: pedidoAoFiscal || '(sem pedido escrito — analisar a defesa)',
+                    enviado_em: new Date().toISOString(),
+                    enviado_por: perfilAtual?.nome || ''
+                });
+            } else {
+                dados.data_parecer = new Date().toISOString();
+            }
             await persistirDados();
 
             // Com o Auto aberto, moverProcessoParaEtapa move só a notificação:
@@ -622,7 +787,7 @@
         } catch (err) {
             ocultarCarregamento();
             console.error('[Etapa 19] Erro ao avançar:', err);
-            alert('Erro ao salvar o parecer e avançar a etapa.');
+            avisarFalha(err, 'salvar o parecer e avançar a etapa');
         }
     }
 
@@ -630,7 +795,7 @@
 
     // O parecer é de um Auto: aberta pelo processo, a etapa só lista os
     // Autos que estão na 19 para abrir cada um (o processo fica na 18).
-    function renderizarListaDeAutos(raiz, notificacoes) {
+    function renderizarListaDeAutos(raiz, notificacoes, chamada) {
         const itens = notificacoes.map(n => {
             const auto = montarAuto(n);
             const descricao = window.obterDescricaoInfracao ? window.obterDescricaoInfracao(auto.descricao) : auto.descricao;
@@ -651,7 +816,7 @@
 
         raiz.innerHTML = `
             <h3 style="margin:0 0 4px 0; color:#1e293b; font-size:1.15rem; font-weight:700;">Parecer Jurídico</h3>
-            <p style="margin:0 0 16px 0; color:#64748b; font-size:0.9rem;">O parecer é emitido por Auto de Infração. Clique no Auto para abrir a análise da defesa.</p>
+            <p style="margin:0 0 16px 0; color:#64748b; font-size:0.9rem;">${escaparHtml(chamada || 'O parecer é emitido por Auto de Infração. Clique no Auto para abrir a análise da defesa.')}</p>
             <div style="display:flex; flex-direction:column; gap:12px;">${itens}</div>
         `;
     }
@@ -675,7 +840,7 @@
         if (!raiz || !processoAtual) return;
 
         if (!notificacaoAtual) {
-            const naEtapa = autosNaEtapa19();
+            const naEtapa = autosNaEtapa(19);
             if (naEtapa.length) {
                 renderizarListaDeAutos(raiz, naEtapa);
                 return;
@@ -716,6 +881,33 @@
             if (radioDestino) radioDestino.checked = true;
         }
 
+        const blocoPedido = document.getElementById('e19BlocoPedidoFiscal');
+        const alternarPedido = () => {
+            const destino = parseInt(document.querySelector('input[name="e19Destino"]:checked')?.value || '0', 10);
+            const convocado = CONVOCADOS[destino];
+            if (blocoPedido) blocoPedido.hidden = !convocado;
+            if (!convocado) return;
+
+            const artigo = convocado.nome === 'Gerência' ? 'à Gerência' : 'ao Fiscal';
+            const quem = convocado.nome === 'Gerência' ? 'a gerência' : 'o fiscal';
+            const rotulo = document.getElementById('e19RotuloPedido');
+            if (rotulo) rotulo.textContent = `O que ${quem} precisa fazer ou responder`;
+            const ajuda = document.getElementById('e19AjudaPedido');
+            if (ajuda) {
+                ajuda.innerHTML = `Enviar ${artigo} <strong>não exige o parecer pronto</strong>, mas <strong>exige a defesa</strong> (anexo ou texto colado no item 1). `
+                    + `${convocado.nome === 'Gerência' ? 'A gerência recebe' : 'O fiscal recebe'} a defesa e este pedido, responde por escrito ou com anexos, e o Auto volta para cá.`;
+            }
+            const campo = document.getElementById('e19PedidoFiscal');
+            if (campo) campo.placeholder = convocado.nome === 'Gerência'
+                ? 'Ex.: confirmar o valor da multa e o cálculo da testada.'
+                : 'Ex.: realizar nova vistoria no imóvel e informar se a limpeza foi concluída.';
+        };
+        document.querySelectorAll('input[name="e19Destino"]').forEach(radio => radio.addEventListener('change', alternarPedido));
+        alternarPedido();
+
+        const areaDiligencias = document.getElementById('e19Diligencias');
+        if (areaDiligencias) areaDiligencias.innerHTML = htmlDiligencias({ incluirAberta: true });
+
         areaParecer?.addEventListener('input', atualizarPendencias);
         document.getElementById('e19BtnCopiar')?.addEventListener('click', copiarTexto);
         document.getElementById('e19BtnReaplicar')?.addEventListener('click', recarregarModelo);
@@ -726,5 +918,225 @@
         if (!podeEditar()) aplicarSomenteLeitura();
     }
 
+    // ========================================================================
+    // ETAPAS 21 e 22 — quem foi convocado responde ao Jurídico
+    // Mesma mecânica nas duas: o convocado (Fiscal na 21, Gerente na 22) vê o
+    // pedido e a defesa, responde por escrito ou com anexos, e o Auto volta
+    // para a 19. Tudo é lido e gravado no mesmo bloco etapa19 do Auto.
+    // ========================================================================
+
+    function telaRetorno(etapa) {
+        const papel = CONVOCADOS[etapa];
+        const pre = `e${etapa}`;
+
+        function htmlTela(uploadHtml) {
+            const cartao = 'background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;';
+            const titulo = 'margin:0 0 4px 0; color:#1e293b; font-size:1rem; font-weight:700;';
+            const sub = 'margin:0 0 12px 0; color:#64748b; font-size:0.85rem;';
+
+            return `
+                <div id="${pre}Tela" style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
+                        <div style="background:${papel.fundoIcone}; padding:10px; border-radius:10px;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${papel.cor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">${papel.titulo}</h3>
+                            <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Veja o que o jurídico pediu, responda e devolva o Auto para a Etapa 19.</p>
+                        </div>
+                    </div>
+
+                    <div id="${pre}Resumo" style="${cartao} margin-bottom:20px; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;"></div>
+
+                    <div id="${pre}Pedido" style="margin-bottom:20px;"></div>
+
+                    <div style="${cartao} margin-bottom:20px;">
+                        <h4 style="${titulo}">Defesa apresentada</h4>
+                        <p style="${sub}">Texto e anexos que o jurídico recebeu.</p>
+                        <div id="${pre}Defesa"></div>
+                    </div>
+
+                    <div id="${pre}Historico"></div>
+
+                    <div style="${cartao}">
+                        <h4 style="${titulo}">Sua resposta ao jurídico <span style="color:#ef4444;">*</span></h4>
+                        <p style="${sub}">Escreva a resposta, anexe documentos, ou faça as duas coisas.</p>
+                        ${uploadHtml('Clique para selecionar ou arraste os documentos da resposta aqui')}
+                        <textarea id="${pre}Resposta" rows="7" placeholder="${papel.exemplo}" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; margin-top:20px;">
+                        <button type="button" id="${pre}BtnSalvar" class="btn-primary" style="padding:12px 24px;">Salvar rascunho</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderizarResumo() {
+            const el = document.getElementById(`${pre}Resumo`);
+            if (!el) return;
+            const v = valoresMarcadores(autoSelecionado);
+            const descricao = window.obterDescricaoInfracao
+                ? window.obterDescricaoInfracao(autoSelecionado?.descricao)
+                : autoSelecionado?.descricao;
+            const campos = [
+                ['Auto de Infração', v.AUTO_NUMERO],
+                ['Infração', descricao],
+                ['Autuado', v.DEFENDENTE],
+                ['Imóvel', v.ENDERECO]
+            ];
+            el.innerHTML = campos.map(([rotulo, valor]) => `
+                <div>
+                    <div style="font-size:0.75rem; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.03em;">${rotulo}</div>
+                    <div style="font-size:0.92rem; color:${valor ? '#1e293b' : '#b45309'}; font-weight:500; margin-top:2px;">${valor ? escaparHtml(valor) : 'Não informado'}</div>
+                </div>
+            `).join('');
+        }
+
+        async function salvarRascunho() {
+            dadosEtapa(etapa).resposta_texto = document.getElementById(`${pre}Resposta`)?.value || '';
+            mostrarCarregamento('Salvando resposta...');
+            try {
+                await persistirDados();
+                ocultarCarregamento();
+                alert('Resposta salva.');
+            } catch (err) {
+                ocultarCarregamento();
+                console.error(`[Etapa ${etapa}] Erro ao salvar:`, err);
+                avisarFalha(err, 'salvar a resposta');
+            }
+        }
+
+        async function avancarTela() {
+            if (!notificacaoAtual && autosNaEtapa(etapa).length) {
+                alert('A resposta é por Auto de Infração. Abra o Auto na lista para responder.');
+                return;
+            }
+
+            const texto = (document.getElementById(`${pre}Resposta`)?.value || '').trim();
+            const anexos = dadosEtapa(etapa).anexos || [];
+            if (!texto && !anexos.length) {
+                alert('Escreva a resposta ao jurídico ou anexe ao menos um documento.');
+                return;
+            }
+
+            mostrarCarregamento('Devolvendo ao Jurídico...');
+            try {
+                const registro = {
+                    texto,
+                    anexos,
+                    respondido_em: new Date().toISOString(),
+                    respondido_por: perfilAtual?.nome || ''
+                };
+
+                const aberta = diligenciaAberta();
+                if (aberta) {
+                    aberta.resposta = registro;
+                } else {
+                    // Auto que chegou aqui sem pedido registrado (ex.: enviado por
+                    // uma versão anterior): guarda a resposta assim mesmo.
+                    listarDiligencias().push({
+                        id: `d${Date.now()}`,
+                        destino: etapa,
+                        papel: papel.nome,
+                        mensagem: '(sem pedido registrado)',
+                        enviado_em: null,
+                        enviado_por: '',
+                        resposta: registro
+                    });
+                }
+
+                // Os anexos passam a pertencer à resposta: a próxima ida e volta
+                // começa com a lista limpa.
+                const dados = dadosEtapa(etapa);
+                dados.anexos = [];
+                dados.resposta_texto = '';
+
+                await persistirDados();
+                await moverProcessoParaEtapa(19, `${papel.nome} respondeu ao Jurídico`);
+            } catch (err) {
+                ocultarCarregamento();
+                console.error(`[Etapa ${etapa}] Erro ao devolver:`, err);
+                avisarFalha(err, 'devolver o Auto ao jurídico');
+            }
+        }
+
+        async function configurarTela() {
+            const raiz = document.getElementById(`${pre}Tela`);
+            if (!raiz || !processoAtual) return;
+
+            if (!notificacaoAtual) {
+                const naEtapa = autosNaEtapa(etapa);
+                if (naEtapa.length) {
+                    renderizarListaDeAutos(raiz, naEtapa, 'Clique no Auto para ver o pedido do jurídico e responder.');
+                    return;
+                }
+            }
+
+            autoSelecionado = montarAuto(notificacaoAtual);
+            renderizarResumo();
+
+            const aberta = diligenciaAberta();
+            const elPedido = document.getElementById(`${pre}Pedido`);
+            if (elPedido) {
+                elPedido.innerHTML = aberta
+                    ? blocoTexto(`O jurídico pediu · ${escaparHtml(aberta.enviado_por || '')} · ${dataHora(aberta.enviado_em)}`, aberta.mensagem, '#7c3aed')
+                    : '<div style="background:#fffbeb; border:1px solid #fde68a; color:#78350f; padding:12px 16px; border-radius:10px; font-size:0.9rem;">Não há pedido registrado pelo jurídico para este Auto. Responda mesmo assim, se for o caso.</div>';
+            }
+
+            const dados19 = dadosEtapa19();
+            const elDefesa = document.getElementById(`${pre}Defesa`);
+            if (elDefesa) {
+                elDefesa.innerHTML = (dados19.defesa_texto || (dados19.anexos || []).length)
+                    ? blocoTexto('Defesa do autuado', dados19.defesa_texto, '#2563eb', dados19.anexos)
+                    : '<div style="font-size:0.9rem; color:#64748b;">O jurídico não registrou o texto da defesa nem anexos.</div>';
+            }
+
+            const elHistorico = document.getElementById(`${pre}Historico`);
+            if (elHistorico) elHistorico.innerHTML = htmlDiligencias({ incluirAberta: false });
+
+            const areaResposta = document.getElementById(`${pre}Resposta`);
+            if (areaResposta) areaResposta.value = dadosEtapa(etapa).resposta_texto || '';
+            document.getElementById(`${pre}BtnSalvar`)?.addEventListener('click', salvarRascunho);
+
+            if (!podeEditar()) {
+                if (areaResposta) areaResposta.readOnly = true;
+                const btn = document.getElementById(`${pre}BtnSalvar`);
+                if (btn) btn.hidden = true;
+                const upload = document.querySelector(`#${pre}Tela #areaDropGenerico`);
+                if (upload) upload.hidden = true;
+            }
+        }
+
+        return { html: htmlTela, configurar: configurarTela, avancar: avancarTela };
+    }
+
+    // Peças reaproveitadas pela Etapa 24 (assets/js/etapa24_despacho.js).
+    window.ParecerCompartilhado = {
+        escaparHtml,
+        dataHora,
+        htmlAnexos,
+        blocoTexto,
+        dadosEtapa,
+        dadosEtapa19,
+        persistirDados,
+        listarDiligencias,
+        papelDiligencia,
+        htmlDiligencias,
+        montarAuto,
+        autosNaEtapa,
+        renderizarListaDeAutos,
+        valoresMarcadores,
+        preencherModelo,
+        listarPendencias,
+        podeEditar,
+        CONVOCADOS,
+        DECISOES
+    };
+
     window.Etapa19 = { html, configurar, avancar };
+    window.Etapa21 = telaRetorno(21);
+    window.Etapa22 = telaRetorno(22);
 })();

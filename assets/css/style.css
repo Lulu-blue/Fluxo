@@ -53,12 +53,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 60px;
+    padding: 0;
+    overflow: hidden;
 }
 
 .welcome-msg {
     color: white;
     max-width: 1000px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
 }
 
 .welcome-msg h1 {
@@ -67,6 +71,19 @@ body {
     letter-spacing: -1px;
     color: #ffffff;
     text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.welcome-logo {
+    /* --logo-scale: 1 = logo ocupando toda a altura da tela.
+       Aumente para ampliar mais (o desenho comeca a ser cortado). */
+    --logo-scale: 0.7;
+    display: block;
+    width: auto;
+    height: calc(100vh * var(--logo-scale));
+    max-width: none;
+    object-fit: contain;
+    transform: translateY(-2%);
+    filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.4));
 }
 
 /* --- LADO DO FORMULÁRIO --- */
