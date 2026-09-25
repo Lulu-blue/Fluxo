@@ -151,16 +151,17 @@
         const info = {};         // dados usados no veredito
         let webllm = null;
         let modeloTeste = null;
+        let motorAtual = null;   // engine do WebLLM em uso
 
         const URLS_REDE = [
             { nome: 'Hugging Face (arquivos do modelo)', url: 'https://huggingface.co/mlc-ai/Qwen2.5-0.5B-Instruct-q4f16_1-MLC/resolve/main/mlc-chat-config.json', chave: 'hf' },
             { nome: 'GitHub (bibliotecas do modelo)', url: 'https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/README.md', chave: 'github' },
             { nome: 'jsDelivr (biblioteca WebLLM)', url: 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2/package.json', chave: 'jsdelivr' },
-            // Os pesos do modelo (centenas de MB) não vêm de huggingface.co:
-            // vêm destes CDNs. É neles que a rede costuma cortar o download.
-            { nome: 'CDN dos pesos do modelo (us.aws.cdn.hf.co)', url: 'https://us.aws.cdn.hf.co/', chave: 'cdnPesos', semCors: true },
-            { nome: 'CDN alternativo dos pesos (cas-bridge.xethub.hf.co)', url: 'https://cas-bridge.xethub.hf.co/', chave: 'cdnPesosAlt', semCors: true }
         ];
+
+        // Arquivo real de pesos do modelo de teste. Baixar um pedaço dele é a
+        // única forma honesta de saber se a rede deixa o download acontecer.
+        const URL_PESOS = 'https://huggingface.co/mlc-ai/Qwen2.5-0.5B-Instruct-q4f16_1-MLC/resolve/main/params_shard_0.bin';
 
         const SIMBOLO = { ok: '✓', aviso: '!', erro: '✕' };
 
@@ -202,6 +203,7 @@
             await testarWebGPU();
             await testarArmazenamento();
             await testarRede();
+            await testarDownloadDosPesos();
             if (info.gpuOk) await benchmarkGPU();
 
             mostrarVeredito();
@@ -318,6 +320,29 @@
             }));
         }
 
+        // Baixa 1 MB de um arquivo de pesos: é o caminho que o teste real usa
+        // (huggingface.co redireciona para o CDN) e o que a rede costuma cortar.
+        async function testarDownloadDosPesos() {
+            const inicio = performance.now();
+            try {
+                const resp = await fetch(URL_PESOS, { headers: { Range: 'bytes=0-1048575' }, cache: 'no-store' });
+                if (!resp.ok && resp.status !== 206) throw new Error('HTTP ' + resp.status);
+                const buffer = await resp.arrayBuffer();
+                const segundos = (performance.now() - inicio) / 1000;
+                const mb = buffer.byteLength / 1048576;
+                const velocidade = mb / segundos;
+                info.rede.pesos = true;
+                info.velocidadeMbs = velocidade;
+                const minutos = Math.max(1, Math.round((400 / velocidade) / 60));
+                adicionar('lista', 'Rede', 'Download dos arquivos do modelo', 'ok',
+                    `${mb.toFixed(1).replace('.', ',')} MB baixados a ${velocidade.toFixed(1).replace('.', ',')} MB/s — um modelo de 400 MB levaria cerca de ${minutos} min`);
+            } catch (e) {
+                info.rede.pesos = false;
+                adicionar('lista', 'Rede', 'Download dos arquivos do modelo', 'erro',
+                    `A rede cortou o download (${e.message}). É o mesmo erro do teste real: os pesos vêm de us.aws.cdn.hf.co / cas-bridge.xethub.hf.co. Sem liberar esses endereços, os arquivos do modelo precisam ser hospedados em outro lugar (ex.: Supabase).`);
+            }
+        }
+
         // Multiplicação de matrizes 512x512 na GPU: uma medida simples de desempenho.
         async function benchmarkGPU() {
             const N = 512;
@@ -387,9 +412,11 @@
         function mostrarVeredito() {
             const el = document.getElementById('veredito');
             el.hidden = false;
-            const redeOk = info.rede?.hf && info.rede?.github && info.rede?.jsdelivr;
+            const redeOk = info.rede?.hf && info.rede?.github && info.rede?.jsdelivr && info.rede?.pesos;
             const obsRede = redeOk ? '' :
-                ' <br>Atenção: a rede bloqueou algum endereço. Os arquivos do modelo precisarão ser hospedados em outro local (ex.: Supabase).';
+                (info.rede?.pesos === false
+                    ? ' <br><strong>Atenção: esta rede corta o download dos arquivos do modelo.</strong> O computador até roda a IA, mas os arquivos precisarão ser hospedados em outro local (ex.: Supabase).'
+                    : ' <br>Atenção: a rede bloqueou algum endereço. Os arquivos do modelo precisarão ser hospedados em outro local (ex.: Supabase).');
 
             let classe;
             let texto;
@@ -437,12 +464,21 @@
                 await carregarWebLLM();
 
                 const inicioCarga = performance.now();
+                // Tentativa anterior deixa o motor descartado: sem soltar a
+                // referência, a nova execução falha com "Object has already
+                // been disposed".
+                if (motorAtual) {
+                    try { await motorAtual.unload(); } catch (e) { /* já descartado */ }
+                    motorAtual = null;
+                }
+
                 const engine = await webllm.CreateMLCEngine(modeloTeste, {
                     initProgressCallback: p => {
                         barra.style.width = Math.round((p.progress || 0) * 100) + '%';
                         textoProg.textContent = p.text;
                     }
                 });
+                motorAtual = engine;
                 const segCarga = (performance.now() - inicioCarga) / 1000;
                 adicionar('listaCompleto', 'Teste real', 'Download e carregamento do modelo', 'ok',
                     `${modeloTeste} em ${segCarga.toFixed(0)} s`);
@@ -475,9 +511,27 @@
                 saida.textContent = resp.choices[0].message.content;
                 saida.hidden = false;
                 textoProg.textContent = 'Teste concluído.';
-                await engine.unload();
+                try { await engine.unload(); } catch (e) { /* já descartado */ }
+                motorAtual = null;
+
+                // Rodar o modelo de novo na mesma página trava placas de vídeo
+                // integradas (DXGI_ERROR_DEVICE_HUNG). Recarregar resolve, e o
+                // modelo já baixado continua guardado no navegador.
+                btn.textContent = 'Testar de novo (recarrega a página)';
+                btn.onclick = () => window.location.reload();
             } catch (e) {
                 const msg = e.message || String(e);
+                const gpuTravou = /device.*lost|DEVICE_HUNG|DEVICE_REMOVED|GPUDeviceLostInfo|disposed/i.test(msg);
+                if (gpuTravou) {
+                    adicionar('listaCompleto', 'Teste real', 'Teste real', 'erro',
+                        'A placa de vídeo travou, o que é comum em placas Intel integradas ao rodar o modelo duas vezes na mesma página. '
+                        + 'Recarregue a página (F5) e tente de novo — o modelo já baixado continua guardado no navegador.');
+                    textoProg.textContent = 'A placa de vídeo travou. Recarregue a página.';
+                    btn.textContent = 'Recarregar página';
+                    btn.onclick = () => window.location.reload();
+                    btn.disabled = false;
+                    return;
+                }
                 const pareceRede = /Cache|network|fetch|Failed to execute 'add'|ERR_/i.test(msg);
                 adicionar('listaCompleto', 'Teste real', 'Teste real', 'erro', pareceRede
                     ? `${msg} — A rede cortou o download dos arquivos do modelo. Os pesos não vêm de huggingface.co: vêm de us.aws.cdn.hf.co / cas-bridge.xethub.hf.co, que costumam ser barrados por firewall ou proxy. O computador em si passou no teste rápido.`
