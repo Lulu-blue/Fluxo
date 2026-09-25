@@ -155,7 +155,11 @@
         const URLS_REDE = [
             { nome: 'Hugging Face (arquivos do modelo)', url: 'https://huggingface.co/mlc-ai/Qwen2.5-0.5B-Instruct-q4f16_1-MLC/resolve/main/mlc-chat-config.json', chave: 'hf' },
             { nome: 'GitHub (bibliotecas do modelo)', url: 'https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/README.md', chave: 'github' },
-            { nome: 'jsDelivr (biblioteca WebLLM)', url: 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2/package.json', chave: 'jsdelivr' }
+            { nome: 'jsDelivr (biblioteca WebLLM)', url: 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2/package.json', chave: 'jsdelivr' },
+            // Os pesos do modelo (centenas de MB) não vêm de huggingface.co:
+            // vêm destes CDNs. É neles que a rede costuma cortar o download.
+            { nome: 'CDN dos pesos do modelo (us.aws.cdn.hf.co)', url: 'https://us.aws.cdn.hf.co/', chave: 'cdnPesos', semCors: true },
+            { nome: 'CDN alternativo dos pesos (cas-bridge.xethub.hf.co)', url: 'https://cas-bridge.xethub.hf.co/', chave: 'cdnPesosAlt', semCors: true }
         ];
 
         const SIMBOLO = { ok: '✓', aviso: '!', erro: '✕' };
@@ -297,11 +301,16 @@
             await Promise.all(URLS_REDE.map(async alvo => {
                 const inicio = performance.now();
                 try {
-                    const resp = await fetch(alvo.url, { cache: 'no-store' });
+                    // Os CDNs de pesos não liberam CORS na raiz: aqui só
+                    // interessa saber se a conexão é aceita ou cortada.
+                    const resp = await fetch(alvo.url, alvo.semCors
+                        ? { mode: 'no-cors', cache: 'no-store' }
+                        : { cache: 'no-store' });
                     const ms = Math.round(performance.now() - inicio);
-                    info.rede[alvo.chave] = resp.ok;
-                    adicionar('lista', 'Rede', alvo.nome, resp.ok ? 'ok' : 'aviso',
-                        resp.ok ? `Acessível (${ms} ms)` : `Respondeu com erro HTTP ${resp.status}`);
+                    const acessivel = alvo.semCors ? true : resp.ok;
+                    info.rede[alvo.chave] = acessivel;
+                    adicionar('lista', 'Rede', alvo.nome, acessivel ? 'ok' : 'aviso',
+                        acessivel ? `Conexão aceita (${ms} ms)` : `Respondeu com erro HTTP ${resp.status}`);
                 } catch (e) {
                     info.rede[alvo.chave] = false;
                     adicionar('lista', 'Rede', alvo.nome, 'erro', 'Bloqueado ou sem conexão (possível bloqueio da rede da prefeitura)');
@@ -468,7 +477,11 @@
                 textoProg.textContent = 'Teste concluído.';
                 await engine.unload();
             } catch (e) {
-                adicionar('listaCompleto', 'Teste real', 'Teste real', 'erro', e.message || String(e));
+                const msg = e.message || String(e);
+                const pareceRede = /Cache|network|fetch|Failed to execute 'add'|ERR_/i.test(msg);
+                adicionar('listaCompleto', 'Teste real', 'Teste real', 'erro', pareceRede
+                    ? `${msg} — A rede cortou o download dos arquivos do modelo. Os pesos não vêm de huggingface.co: vêm de us.aws.cdn.hf.co / cas-bridge.xethub.hf.co, que costumam ser barrados por firewall ou proxy. O computador em si passou no teste rápido.`
+                    : msg);
                 textoProg.textContent = 'O teste falhou.';
             } finally {
                 btn.disabled = false;
