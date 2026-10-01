@@ -791,7 +791,7 @@ async function inicializarPaginaEtapa() {
     } else {
         configurarAbasPagina();
 
-        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 19, 20, 21, 22, 24, 28, 29, 33].includes(etapaAtual)) {  // 20 = Arquivamento
+        if (notificacaoAtual || [1, 3, 4, 5, 7, 10, 11, 13, 14, 15, 19, 20, 21, 22, 24, 25, 28, 29, 31, 33].includes(etapaAtual)) {  // 20 = Arquivamento
             renderizarFormularioDinamico(etapaAtual);
             if (etapaAtual === 1 && !notificacaoAtual) {
                 configurarEventosPainelEtapa1();
@@ -1700,6 +1700,12 @@ function renderizarFormularioDinamico(etapaNum) {
     } else if (etapaNum === 24) {
         // Secretário Despacha: assets/js/etapa24_despacho.js
         conteudo = window.Etapa24 ? window.Etapa24.html(uploadHtml) : '';
+    } else if (etapaNum === 25) {
+        // Gerente cumpre o decreto: assets/js/etapa25_fazenda.js
+        conteudo = window.Etapa25 ? window.Etapa25.html(uploadHtml) : '';
+    } else if (etapaNum === 31) {
+        // Comprovante de pagamento: mesmo arquivo da Etapa 25
+        conteudo = window.Etapa31 ? window.Etapa31.html(uploadHtml) : '';
     } else if (etapaNum === 20) {
         // Arquivamento do Processo (Gerente de Posturas). Chega aqui pela Etapa 28.
         const numProcesso20 = processoAtual?.numero_processo || '—';
@@ -1986,6 +1992,14 @@ function renderizarFormularioDinamico(etapaNum) {
 
     if (etapaNum === 24) {
         setTimeout(() => { if (window.Etapa24) window.Etapa24.configurar(); }, 150);
+    }
+
+    if (etapaNum === 25) {
+        setTimeout(() => { if (window.Etapa25) window.Etapa25.configurar(); }, 150);
+    }
+
+    if (etapaNum === 31) {
+        setTimeout(() => { if (window.Etapa31) window.Etapa31.configurar(); }, 150);
     }
 
     if (etapaNum === 28) {
@@ -2988,6 +3002,14 @@ async function avancarEtapaPadrao() {
     }
     if (etapaAtual === 24 && window.Etapa24) {
         await window.Etapa24.avancar();
+        return;
+    }
+    if (etapaAtual === 25 && window.Etapa25) {
+        await window.Etapa25.avancar();
+        return;
+    }
+    if (etapaAtual === 31 && window.Etapa31) {
+        await window.Etapa31.avancar();
         return;
     }
     if (etapaAtual === 30) {

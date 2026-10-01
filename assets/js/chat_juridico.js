@@ -31,11 +31,114 @@
         return (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     }
 
-    // Qualquer cargo acima do Fiscal de Postura (Gerente, Administrativo,
-    // Interface Jurídica, Jurídico, Secretário, Fazenda, Dev).
-    function ehSuperior(cargo) {
+    // ── Papéis e permissões do chat ──────────────────────────────────────
+    // O papel é o cargo reduzido ao que importa aqui. 'juridico' cobre tanto
+    // o Jurídico quanto o Gerente de Interface Jurídica.
+    function papelDoCargo(cargo) {
         const c = normalizarTexto(cargo);
-        return c !== '' && !c.includes('fiscal');
+        if (c === 'dev' || c.includes('desenvolvedor') || c.includes('developer')) return 'dev';
+        if (c.includes('interface') || c.includes('jurid')) return 'juridico';
+        if (c.includes('secretar')) return 'secretario';
+        if (c.includes('admin')) return 'admin';
+        if (c.includes('gerente')) return 'gerente';
+        if (c.includes('fiscal')) return 'fiscal';
+        if (c.includes('fazend')) return 'fazenda';
+        return 'outro';
+    }
+
+    // Para quem cada papel pode escrever. O fiscal só fala no processo dele
+    // (ver contextoChat.podeEnviar).
+    const DESTINOS_PERMITIDOS = {
+        fiscal: ['gerente', 'juridico'],
+        juridico: ['gerente', 'fiscal'],
+        gerente: ['fiscal', 'juridico'],
+        admin: ['fiscal'],
+        secretario: ['fiscal', 'gerente', 'juridico', 'admin'],
+        dev: ['fiscal', 'gerente', 'juridico', 'admin', 'secretario']
+    };
+
+    // Papéis que enxergam todas as conversas.
+    const VE_TUDO = ['secretario', 'dev'];
+
+    const ROTULO_PAPEL = {
+        fiscal: 'Fiscal responsável',
+        juridico: 'Interface Jurídica',
+        gerente: 'Gerência de Posturas',
+        admin: 'Administrativo de Posturas',
+        secretario: 'Secretário'
+    };
+
+    // Cargos que devem ser avisados quando a mensagem vai para um papel.
+    const CARGOS_DO_PAPEL = {
+        fiscal: ['Fiscal de Postura'],
+        juridico: ['Jurídico', 'Gerente de Interface Jurídica'],
+        gerente: ['Gerente'],
+        admin: ['Administrativo de Posturas'],
+        secretario: ['Secretário']
+    };
+
+    // Contexto do usuário no processo aberto: papel, se é o fiscal do processo
+    // e para quem ele pode escrever aqui.
+    let contextoChat = null;
+
+    async function carregarContextoChat(perfil) {
+        const papel = papelDoCargo(perfil.cargo);
+        let fiscalDoProcesso = null;
+
+        if (currentProcessoId) {
+            try {
+                const { data: proc } = await supabaseClient
+                    .from('processos')
+                    .select('fiscal_id')
+                    .eq('id', currentProcessoId)
+                    .maybeSingle();
+                if (proc?.fiscal_id) {
+                    const { data: fiscal } = await supabaseClient
+                        .from('profiles')
+                        .select('id, nome')
+                        .eq('id', proc.fiscal_id)
+                        .maybeSingle();
+                    fiscalDoProcesso = fiscal || { id: proc.fiscal_id, nome: 'Fiscal responsável' };
+                }
+            } catch (e) {
+                console.warn('Não foi possível descobrir o fiscal do processo:', e);
+            }
+        }
+
+        const souFiscalDoProcesso = papel === 'fiscal'
+            && !!fiscalDoProcesso?.id && fiscalDoProcesso.id === perfil.id;
+
+        // Fiscal em processo de outro fiscal não escreve nada.
+        const destinos = (papel === 'fiscal' && !souFiscalDoProcesso)
+            ? []
+            : (DESTINOS_PERMITIDOS[papel] || []);
+
+        fiscalResponsavel = fiscalDoProcesso;
+        contextoChat = {
+            papel,
+            perfil,
+            fiscalDoProcesso,
+            souFiscalDoProcesso,
+            destinos: destinos.filter(d => d !== papel),
+            veTudo: VE_TUDO.includes(papel)
+        };
+        return contextoChat;
+    }
+
+    // Uma mensagem é visível para quem a enviou, para quem ela foi endereçada
+    // e para os papéis que veem tudo.
+    function mensagemVisivelParaMim(msg, perfil, contexto) {
+        if (!contexto) return true;
+        if (contexto.veTudo) return true;
+        if (ehMensagemMinha(msg, perfil)) return true;
+        if (msg.destinatario_id) return msg.destinatario_id === perfil.id;
+        if (msg.destinatario) {
+            if (msg.destinatario === 'fiscal') return contexto.souFiscalDoProcesso;
+            return msg.destinatario === contexto.papel;
+        }
+        // Mensagem antiga, de antes do controle de destinatário: fica visível
+        // para o fiscal do processo e para os papéis que veem tudo.
+        return contexto.souFiscalDoProcesso;
     }
 
     function escaparHtml(txt) {
@@ -439,6 +542,7 @@
                     Carregando conversas...
                 </div>
             </div>
+            <div id="chatAvisoSemEnvio" style="display:none; padding:12px 16px; background:#fffbeb; border-top:1px solid #fde68a; color:#78350f; font-size:0.82rem;"></div>
             <div class="chat-footer" id="chatJuridicoFooter">
                 <div class="chat-file-preview" id="chatFilePreview">
                     <span id="chatFileName">arquivo.pdf</span>
@@ -530,6 +634,9 @@
 
         try {
             let conversas = [];
+            const perfil = await getPerfilAtualAsync();
+            const papel = papelDoCargo(perfil.cargo);
+            const veTudo = VE_TUDO.includes(papel);
 
             // 1. Tentar buscar da tabela chats_interface_juridica
             try {
@@ -578,14 +685,47 @@
                 });
             }
 
+            // Quem não vê tudo só enxerga as conversas em que participa. Para
+            // saber quem é o fiscal de cada processo, busca os processos da lista.
+            if (!veTudo && conversas.length > 0) {
+                const ids = [...new Set(conversas.map(c => c.processo_id).filter(Boolean))];
+                let fiscalPorProcesso = {};
+                let numeroPorProcesso = {};
+                if (ids.length) {
+                    const { data: procs } = await supabaseClient
+                        .from('processos')
+                        .select('id, numero_processo, fiscal_id')
+                        .in('id', ids);
+                    (procs || []).forEach(p => {
+                        fiscalPorProcesso[p.id] = p.fiscal_id;
+                        numeroPorProcesso[p.id] = p.numero_processo;
+                    });
+                }
+
+                conversas = conversas
+                    .map(conv => {
+                        const contexto = {
+                            papel,
+                            veTudo: false,
+                            souFiscalDoProcesso: papel === 'fiscal' && fiscalPorProcesso[conv.processo_id] === perfil.id
+                        };
+                        return {
+                            ...conv,
+                            numero_processo: conv.numero_processo || numeroPorProcesso[conv.processo_id],
+                            mensagens: (conv.mensagens || []).filter(m => mensagemVisivelParaMim(m, perfil, contexto))
+                        };
+                    })
+                    .filter(conv => conv.mensagens.length > 0);
+            }
+
             if (conversas.length === 0) {
                 container.innerHTML = `
                     <div style="text-align:center; color:#64748b; font-size:0.85rem; margin-top:40px; padding:0 20px;">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" style="margin-bottom:12px;">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                         </svg>
-                        <p style="font-weight:600; color:#334155; margin-bottom:4px;">Nenhuma conversa iniciada</p>
-                        <p style="font-size:0.78rem;">As conversas sobre os processos com a Interface Jurídica e Gerência aparecerão aqui.</p>
+                        <p style="font-weight:600; color:#334155; margin-bottom:4px;">Nenhuma conversa para você</p>
+                        <p style="font-size:0.78rem;">Aqui aparecem apenas as conversas que você enviou ou recebeu.</p>
                     </div>
                 `;
                 return;
@@ -629,17 +769,18 @@
     // mensagem — Gerência, Administrativo etc. → Gerência; Interface/Jurídico → Jurídico.
     // Não sobrescreve se o usuário já trocou manualmente.
     function aplicarDestinoPadraoPelaUltimaMensagem(mensagens, perfil) {
-        if (ehSuperior(perfil.cargo) || destinoAlteradoManualmente) return;
+        if (destinoAlteradoManualmente) return;
         const select = document.getElementById('chatDestinatarioSelect');
-        if (!select) return;
+        const destinos = contextoChat?.destinos || [];
+        if (!select || destinos.length < 2) return;
 
-        const ultimaRecebida = [...mensagens].reverse()
-            .find(m => !ehMensagemMinha(m, perfil) && ehSuperior(m.sender_cargo));
+        const ultimaRecebida = [...mensagens].reverse().find(m => !ehMensagemMinha(m, perfil));
         if (!ultimaRecebida || ultimaRecebida.id === ultimaMsgRecebidaAplicada) return;
         ultimaMsgRecebidaAplicada = ultimaRecebida.id;
 
-        const cargo = normalizarTexto(ultimaRecebida.sender_cargo);
-        select.value = (cargo.includes('interface') || cargo.includes('juridic')) ? 'juridico' : 'gerente';
+        // Responder para quem falou por último, quando esse destino é permitido.
+        const papelRemetente = papelDoCargo(ultimaRecebida.sender_cargo);
+        if (destinos.includes(papelRemetente)) select.value = papelRemetente;
     }
 
     // Com o chat fechado, mantém o contador de mensagens não lidas do processo atualizado
@@ -653,7 +794,10 @@
                 .select('mensagens')
                 .eq('processo_id', currentProcessoId)
                 .maybeSingle();
-            const naoLidas = (data?.mensagens || []).filter(m => ehNaoLidaParaMim(m, perfil)).length;
+            const contexto = contextoChat || await carregarContextoChat(perfil);
+            const naoLidas = (data?.mensagens || [])
+                .filter(m => mensagemVisivelParaMim(m, perfil, contexto) && ehNaoLidaParaMim(m, perfil))
+                .length;
             atualizarBadgeVisual(naoLidas);
         } catch (err) {
             console.warn('Erro ao atualizar contador do chat:', err);
@@ -677,6 +821,9 @@
         if (headerSub) headerSub.textContent = 'Gerente de Interface Jurídica';
 
         const perfil = await getPerfilAtualAsync();
+        const contexto = await carregarContextoChat(perfil);
+        montarSelecaoDestinos(contexto);
+        if (footer && contexto.destinos.length === 0) footer.style.display = 'none';
 
         try {
             let chatData = null;
@@ -706,7 +853,9 @@
             }
 
             currentChatData = chatData;
-            const mensagens = chatData?.mensagens || [];
+            // Cada um vê apenas o que enviou e o que foi endereçado a ele.
+            const mensagens = (chatData?.mensagens || [])
+                .filter(m => mensagemVisivelParaMim(m, perfil, contexto));
 
             // Marca como visualizadas as recebidas (chat aberto e aba visível)
             if (perfil.id && !document.hidden && mensagens.some(m => ehNaoLidaParaMim(m, perfil))) {
@@ -733,8 +882,8 @@
             if (mensagens.length === 0) {
                 container.innerHTML = `
                     <div style="text-align:center; color:#64748b; font-size:0.85rem; margin-top:40px; padding:0 20px;">
-                        <p style="font-weight:600; color:#334155; margin-bottom:4px;">Nenhuma mensagem ainda</p>
-                        <p style="font-size:0.78rem;">Inicie a conversa com o Gerente de Interface Jurídica sobre este processo.</p>
+                        <p style="font-weight:600; color:#334155; margin-bottom:4px;">Nenhuma mensagem para você neste processo</p>
+                        <p style="font-size:0.78rem;">${contexto.destinos.length ? 'Escreva abaixo para iniciar a conversa.' : 'Só aparecem aqui as mensagens que você enviou ou recebeu.'}</p>
                     </div>
                 `;
                 return;
@@ -762,7 +911,7 @@
                 const autorNome = msg.sender_nome && msg.sender_nome !== 'Usuário' ? msg.sender_nome : (eMinha ? (perfil.nome || 'Fiscal') : 'Atendimento');
                 const tagDestino = msg.destinatario === 'fiscal'
                     ? `Fiscal ${msg.destinatario_nome || 'responsável'}`
-                    : msg.destinatario === 'gerente' ? 'Gerência' : 'Jurídico';
+                    : (ROTULO_PAPEL[msg.destinatario] || 'Jurídico');
 
                 let anexoHtml = '';
                 if (msg.anexos && msg.anexos.length > 0) {
@@ -833,22 +982,38 @@
             }
         }
 
-        const nomeRemetente = perfil.nome && perfil.nome !== 'Usuário' ? perfil.nome : 'Luiza';
-        const isGerente = (perfil.cargo && perfil.cargo.toLowerCase().includes('interface')) || (perfil.cargo && perfil.cargo.toLowerCase().includes('gerente'));
-        const destinatarioVal = document.getElementById('chatDestinatarioSelect')?.value || 'juridico';
-        const paraFiscal = destinatarioVal === 'fiscal' && !!fiscalResponsavel;
+        const nomeRemetente = perfil.nome && perfil.nome !== 'Usuário' ? perfil.nome : 'Usuário';
+        const contexto = contextoChat || await carregarContextoChat(perfil);
+        const destinatarioVal = document.getElementById('chatDestinatarioSelect')?.value || '';
+
+        // Quem não tem destino permitido não envia: o fiscal em processo de
+        // outro fiscal, por exemplo.
+        if (!contexto.destinos.includes(destinatarioVal)) {
+            alert(contexto.destinos.length === 0
+                ? 'Você não pode enviar mensagens neste processo.'
+                : 'Escolha um destinatário válido para a sua função.');
+            return;
+        }
+
+        const paraFiscal = destinatarioVal === 'fiscal';
+        const fiscalDestino = contexto.fiscalDoProcesso;
+        if (paraFiscal && !fiscalDestino?.id) {
+            alert('Este processo não tem fiscal responsável registrado, então não dá para enviar a mensagem a ele.');
+            return;
+        }
+
         const nomeDestinatarioRotulo = paraFiscal
-            ? `Fiscal responsável (${fiscalResponsavel.nome})`
-            : (destinatarioVal === 'gerente') ? 'Gerência de Posturas' : 'Interface Jurídica';
+            ? `Fiscal responsável (${fiscalDestino.nome})`
+            : (ROTULO_PAPEL[destinatarioVal] || destinatarioVal);
 
         const novaMensagem = {
             id: crypto.randomUUID(),
             sender_id: perfil.id || null,
             sender_nome: nomeRemetente,
             sender_cargo: perfil.cargo || 'Fiscal de Postura',
-            destinatario: paraFiscal ? 'fiscal' : destinatarioVal,
-            destinatario_id: paraFiscal ? fiscalResponsavel.id : null,
-            destinatario_nome: paraFiscal ? fiscalResponsavel.nome : null,
+            destinatario: destinatarioVal,
+            destinatario_id: paraFiscal ? fiscalDestino.id : null,
+            destinatario_nome: paraFiscal ? fiscalDestino.nome : null,
             texto: texto,
             anexos: anexos,
             created_at: new Date().toISOString()
@@ -886,7 +1051,7 @@
                         .from('chats_interface_juridica')
                         .update({
                             mensagens: mensagensAtuais,
-                            lida_gerente: isGerente ? true : false,
+                            lida_gerente: papelDoCargo(perfil.cargo) !== 'fiscal',
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', resTable.id);
@@ -901,7 +1066,7 @@
                             solicitante_nome: nomeRemetente,
                             solicitante_cargo: perfil.cargo,
                             mensagens: mensagensAtuais,
-                            lida_gerente: isGerente ? true : false
+                            lida_gerente: papelDoCargo(perfil.cargo) !== 'fiscal'
                         });
                     if (!errIns) salvouTabela = true;
                 }
@@ -921,43 +1086,42 @@
                 updated_at: new Date().toISOString()
             };
 
-            // Adicionar Notificação do Sistema para o destinatário correto
+            // Notificação no sino de quem vai receber a mensagem. Direcionada
+            // à pessoa quando ela é conhecida (fiscal do processo); nos demais
+            // casos, uma para cada cargo que compõe o papel — 'juridico', por
+            // exemplo, alcança Jurídico e Gerente de Interface Jurídica.
             dadosAtualizados.notificacoes_menu = dadosAtualizados.notificacoes_menu || [];
 
-            let destinatarioCargo = 'Fiscal de Postura';
-            let destinatarioId = null;
-            let tituloNotif = 'Nova mensagem no Chat';
-
-            if (paraFiscal) {
-                // Notificação direcionada: só o fiscal responsável pelo processo recebe
-                destinatarioId = fiscalResponsavel.id;
-                tituloNotif = `Mensagem de ${perfil.cargo || 'superior'}`;
-            } else if (isGerente) {
-                destinatarioCargo = 'Fiscal de Postura';
-                tituloNotif = (destinatarioVal === 'gerente') ? 'Resposta da Gerência' : 'Resposta da Interface Jurídica';
-            } else {
-                if (destinatarioVal === 'gerente') {
-                    destinatarioCargo = 'Gerente';
-                    tituloNotif = 'Nova mensagem para a Gerência';
-                } else {
-                    destinatarioCargo = 'Gerente de Interface Jurídica';
-                    tituloNotif = 'Nova mensagem no Chat Jurídico';
-                }
-            }
-
-            dadosAtualizados.notificacoes_menu.push({
-                id: crypto.randomUUID(),
+            const resumoMensagem = `${nomeRemetente} (${perfil.cargo || 'Usuário'}) para [${nomeDestinatarioRotulo}]: "${texto.slice(0, 50)}${texto.length > 50 ? '...' : ''}"`;
+            const tituloNotif = `Nova mensagem de ${perfil.cargo || 'Usuário'} no chat`;
+            const baseNotificacao = {
                 tipo: 'chat_juridico',
                 titulo: tituloNotif,
-                mensagem: `${nomeRemetente} (${perfil.cargo || 'Usuário'}) para [${nomeDestinatarioRotulo}]: "${texto.slice(0, 50)}${texto.length > 50 ? '...' : ''}"`,
+                mensagem: resumoMensagem,
                 processo_id: currentProcessoId,
                 numero_processo: numProcesso,
                 notificacao_id: currentNotificacaoId || null,
-                destinatario_cargo: destinatarioCargo,
-                destinatario_id: destinatarioId,
                 lida: false,
                 created_at: new Date().toISOString()
-            });
+            };
+
+            if (paraFiscal) {
+                dadosAtualizados.notificacoes_menu.push({
+                    ...baseNotificacao,
+                    id: crypto.randomUUID(),
+                    destinatario_cargo: 'Fiscal de Postura',
+                    destinatario_id: fiscalDestino.id
+                });
+            } else {
+                (CARGOS_DO_PAPEL[destinatarioVal] || []).forEach(cargo => {
+                    dadosAtualizados.notificacoes_menu.push({
+                        ...baseNotificacao,
+                        id: crypto.randomUUID(),
+                        destinatario_cargo: cargo,
+                        destinatario_id: null
+                    });
+                });
+            }
 
             await supabaseClient
                 .from('processos')
@@ -975,43 +1139,41 @@
         }
     }
 
-    // ── Destino "Fiscal responsável" (só para superiores, dentro de um processo) ──
-    async function prepararDestinoFiscalResponsavel() {
+    // Monta o seletor "Para:" com os destinos permitidos ao papel do usuário.
+    // Sem destinos, o campo de escrever some e a pessoa só acompanha.
+    function montarSelecaoDestinos(contexto) {
         const select = document.getElementById('chatDestinatarioSelect');
-        if (!select || !currentProcessoId) return;
+        const footer = document.getElementById('chatJuridicoFooter');
+        const aviso = document.getElementById('chatAvisoSemEnvio');
+        if (!select) return;
 
-        const perfil = await getPerfilAtualAsync();
-        if (!ehSuperior(perfil.cargo)) return;
+        const destinos = contexto?.destinos || [];
 
-        try {
-            const { data: proc } = await supabaseClient
-                .from('processos')
-                .select('fiscal_id')
-                .eq('id', currentProcessoId)
-                .maybeSingle();
-            if (!proc?.fiscal_id || proc.fiscal_id === perfil.id) return;
-
-            const { data: fiscal } = await supabaseClient
-                .from('profiles')
-                .select('id, nome')
-                .eq('id', proc.fiscal_id)
-                .maybeSingle();
-            if (!fiscal) return;
-
-            fiscalResponsavel = fiscal;
-
-            let opt = select.querySelector('option[value="fiscal"]');
-            if (!opt) {
-                opt = document.createElement('option');
-                opt.value = 'fiscal';
-                opt.style.color = '#0f172a';
-                select.insertBefore(opt, select.firstChild);
-                select.value = 'fiscal';
+        if (destinos.length === 0) {
+            select.innerHTML = '';
+            select.style.display = 'none';
+            if (footer) footer.style.display = 'none';
+            if (aviso) {
+                aviso.style.display = 'block';
+                aviso.textContent = contexto?.papel === 'fiscal'
+                    ? 'Este processo é de outro fiscal: você pode acompanhar, mas não enviar mensagens.'
+                    : 'Seu cargo não envia mensagens por aqui.';
             }
-            opt.textContent = `Fiscal responsável — ${fiscal.nome}`;
-        } catch (err) {
-            console.warn('Não foi possível carregar o fiscal responsável do processo:', err);
+            return;
         }
+
+        select.style.display = '';
+        if (aviso) aviso.style.display = 'none';
+
+        const anterior = select.value;
+        select.innerHTML = destinos.map(d => {
+            const rotulo = d === 'fiscal' && contexto.fiscalDoProcesso?.nome
+                ? `Fiscal ${contexto.fiscalDoProcesso.nome}`
+                : ROTULO_PAPEL[d] || d;
+            return `<option value="${d}" style="color:#0f172a;">${escaparHtml(rotulo)}</option>`;
+        }).join('');
+
+        if (destinos.includes(anterior)) select.value = anterior;
     }
 
     // ── Abrir/Fechar Chat Drawer ──────────────────────────────────────────
@@ -1019,8 +1181,8 @@
         if (!chatDrawer) injectChatElements();
         chatOverlay.classList.add('active');
         chatDrawer.classList.add('active');
-        await getPerfilAtualAsync();
-        await prepararDestinoFiscalResponsavel();
+        const perfilAberto = await getPerfilAtualAsync();
+        montarSelecaoDestinos(await carregarContextoChat(perfilAberto));
 
         assinaturaMensagens = null; // força redesenhar ao abrir
         if (currentProcessoId) {

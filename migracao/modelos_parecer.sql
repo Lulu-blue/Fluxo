@@ -1108,3 +1108,122 @@ WHERE numero = 24;
 UPDATE modelos_parecer
 SET texto = texto_original, updated_at = NOW()
 WHERE tipo = 'despacho';
+
+-- ============================================================
+-- ETAPA 25 — Gerente cumpre o decreto
+-- Ofícios à Fazenda (tipo 'oficio_fazenda') e as mensagens curtas
+-- que o gerente copia para o protocolo (tipo 'mensagem_fazenda').
+-- No corpo do ofício, **texto** vira negrito e a linha em branco
+-- separa parágrafos. Marcadores: {{AUTO_NUMERO}}, {{DEFENDENTE}},
+-- {{PROCESSO_NUMERO}} e {{TEXTO_MANUAL}} (o que o gerente escreve
+-- na tela, só na alteração de valor).
+-- ============================================================
+
+INSERT INTO modelos_parecer (chave, titulo, codigos_infracao, decisao, base_legal, ordem, tipo, texto, texto_original) VALUES
+
+('oficio_fazenda_reducao_50',
+ 'Ofício à Fazenda — redução de 50%',
+ ARRAY[]::TEXT[],
+ 'reducao_50',
+ NULL,
+ 300,
+ 'oficio_fazenda',
+ $tpl$Prezado Senhor,
+
+Considerando o **Auto de Infração nº {{AUTO_NUMERO}}** em face de **{{DEFENDENTE}}**, cujo **PA {{PROCESSO_NUMERO}}** tramitou corretamente, com os devidos documentos e prazos estabelecidos.
+
+Considerando ainda que foram respeitados os princípios da legalidade, da ampla defesa e do contraditório.
+
+Informo que ao final, a fiscalização verificou em nova vistoria no imóvel, que após o recebimento do Auto de Infração houve o cumprimento da obrigação, ficando assim, concedido a **redução de 50%** do valor das penalidades impostas, nos moldes legais.
+
+Diante dos fatos, requisito portanto, que seja emitido a guia para o pagamento da penalidade com o desconto legal, **eventual pedido de inscrição em dívida ativa será encaminhado após término do prazo recursal.**
+
+Coloco-me à disposição para quaisquer esclarecimentos adicionais.
+
+Atenciosamente,$tpl$,
+ $tpl$Prezado Senhor,
+
+Considerando o **Auto de Infração nº {{AUTO_NUMERO}}** em face de **{{DEFENDENTE}}**, cujo **PA {{PROCESSO_NUMERO}}** tramitou corretamente, com os devidos documentos e prazos estabelecidos.
+
+Considerando ainda que foram respeitados os princípios da legalidade, da ampla defesa e do contraditório.
+
+Informo que ao final, a fiscalização verificou em nova vistoria no imóvel, que após o recebimento do Auto de Infração houve o cumprimento da obrigação, ficando assim, concedido a **redução de 50%** do valor das penalidades impostas, nos moldes legais.
+
+Diante dos fatos, requisito portanto, que seja emitido a guia para o pagamento da penalidade com o desconto legal, **eventual pedido de inscrição em dívida ativa será encaminhado após término do prazo recursal.**
+
+Coloco-me à disposição para quaisquer esclarecimentos adicionais.
+
+Atenciosamente,$tpl$),
+
+('oficio_fazenda_alteracao_valor',
+ 'Ofício à Fazenda — alteração de valor',
+ ARRAY[]::TEXT[],
+ 'alteracao_valor',
+ NULL,
+ 301,
+ 'oficio_fazenda',
+ $tpl$Prezado Senhor,
+
+Considerando o **Auto de Infração nº {{AUTO_NUMERO}}** em face de **{{DEFENDENTE}}**, cujo **PA {{PROCESSO_NUMERO}}** tramitou corretamente, com os devidos documentos e prazos estabelecidos.
+
+Considerando ainda que foram respeitados os princípios da legalidade, da ampla defesa e do contraditório.
+
+{{TEXTO_MANUAL}}
+
+Diante dos fatos, requisito portanto, que seja emitido a guia para o pagamento da penalidade com o desconto legal, **eventual pedido de inscrição em dívida ativa será encaminhado após término do prazo recursal.**
+
+Coloco-me à disposição para quaisquer esclarecimentos adicionais.
+
+Atenciosamente,$tpl$,
+ $tpl$Prezado Senhor,
+
+Considerando o **Auto de Infração nº {{AUTO_NUMERO}}** em face de **{{DEFENDENTE}}**, cujo **PA {{PROCESSO_NUMERO}}** tramitou corretamente, com os devidos documentos e prazos estabelecidos.
+
+Considerando ainda que foram respeitados os princípios da legalidade, da ampla defesa e do contraditório.
+
+{{TEXTO_MANUAL}}
+
+Diante dos fatos, requisito portanto, que seja emitido a guia para o pagamento da penalidade com o desconto legal, **eventual pedido de inscrição em dívida ativa será encaminhado após término do prazo recursal.**
+
+Coloco-me à disposição para quaisquer esclarecimentos adicionais.
+
+Atenciosamente,$tpl$),
+
+('mensagem_fazenda_reducao_50',
+ 'Mensagem de protocolo — redução de 50%',
+ ARRAY[]::TEXT[], 'reducao_50', NULL, 310, 'mensagem_fazenda',
+ $tpl$Protocolo enviado para a fazenda solicitando redução de 50% do valor$tpl$,
+ $tpl$Protocolo enviado para a fazenda solicitando redução de 50% do valor$tpl$),
+
+('mensagem_fazenda_alteracao_valor',
+ 'Mensagem de protocolo — alteração de valor',
+ ARRAY[]::TEXT[], 'alteracao_valor', NULL, 311, 'mensagem_fazenda',
+ $tpl$Protocolo enviado para a fazenda solicitando a alteração de valor$tpl$,
+ $tpl$Protocolo enviado para a fazenda solicitando a alteração de valor$tpl$),
+
+('mensagem_fazenda_cancelamento',
+ 'Mensagem de protocolo — cancelamento',
+ ARRAY[]::TEXT[], 'cancelamento', NULL, 312, 'mensagem_fazenda',
+ $tpl$Protocolo enviado para a fazenda solicitando o cancelamento da penalidade$tpl$,
+ $tpl$Protocolo enviado para a fazenda solicitando o cancelamento da penalidade$tpl$),
+
+('mensagem_fazenda_continuidade',
+ 'Mensagem de protocolo — continuidade da cobrança',
+ ARRAY[]::TEXT[], 'continuidade', NULL, 313, 'mensagem_fazenda',
+ $tpl$Darei continuidade na cobrança conforme o despacho$tpl$,
+ $tpl$Darei continuidade na cobrança conforme o despacho$tpl$)
+
+ON CONFLICT (chave) DO UPDATE SET
+    titulo         = EXCLUDED.titulo,
+    decisao        = EXCLUDED.decisao,
+    tipo           = EXCLUDED.tipo,
+    ordem          = EXCLUDED.ordem,
+    texto_original = EXCLUDED.texto_original;
+
+UPDATE etapas SET nome = 'Gerente Cumpre o Decreto',
+    descricao = 'O gerente escolhe o desfecho (redução de 50%, alteração de valor, cancelamento ou continuidade), gera o ofício à Fazenda e a mensagem de protocolo.'
+WHERE numero = 25;
+
+UPDATE etapas SET nome = 'Comprovante de Pagamento',
+    descricao = 'Acompanha o prazo retomado na Etapa 25 e registra se o pagamento foi feito.'
+WHERE numero = 31;

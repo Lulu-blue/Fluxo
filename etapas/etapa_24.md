@@ -13,7 +13,7 @@ Vale por **Auto de Infração**, não pelo processo: o processo continua no pain
 ## Campos da Tela
 1. **Documentos do processo**
    - **Abrir / Baixar processo unificado:** é o **PDF oficial com capa**, o mesmo gerado nas etapas de encerramento (`window.gerarPdfProcessoCompletoEtapa15`), agora completo. Depois da capa e dos documentos do banco (BIC, relatório, notificação, AR, multa, Auto de Infração), entram as peças da fase jurídica, nesta ordem: **defesa** (o texto colado vira uma página com o cabeçalho da SEMAC, seguido dos anexos), **movimentações com Fiscal e Gerência** (uma página com cada pedido, cada resposta e seus anexos) e, **por último, o parecer jurídico**. Textos longos são quebrados em quantas páginas forem necessárias. Entra também a **página com os dados do AR** (número, data de cadastro, recebimento ou tentativas e motivo dos Correios), logo depois do arquivo do AR.
-   - **Ver parecer jurídico** e **Ver defesa:** abrem cada um separado, para consulta rápida.
+   - **Ver parecer jurídico**, **Ver defesa** e **Ver despacho salvo:** abrem cada peça separada, para consulta rápida.
    - Abaixo, a lista numerada do que entra no processo unificado.
 2. **Decisão** (obrigatória): deferido, indeferido ou redução de 50%. Vem pré-marcada com o que o parecer opinou, e o secretário pode trocar.
 3. **Documento do despacho** (opcional): anexo do despacho já assinado.

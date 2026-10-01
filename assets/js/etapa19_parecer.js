@@ -327,6 +327,15 @@
 
                 <div id="e19Diligencias"></div>
 
+                <div style="${cartao} margin-bottom:20px;">
+                    <h4 style="${titulo}">Documentos do processo</h4>
+                    <p style="${sub}">O PDF oficial com capa, o mesmo da Etapa 24: capa, documentos do processo, dados do AR, Auto de Infração e, quando já existirem, a defesa, as movimentações e o parecer.</p>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button type="button" id="e19BtnUnificado" class="btn-primary" style="padding:10px 18px;">Abrir processo unificado (PDF)</button>
+                        <button type="button" id="e19BtnBaixarUnificado" style="${botaoSec}">Baixar processo unificado</button>
+                    </div>
+                </div>
+
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="${cartao}">
                         <h4 style="${titulo}">1. Defesa</h4>
@@ -335,6 +344,21 @@
                         <label for="e19TextoDefesa" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin:4px 0 8px 0;">Texto da defesa</label>
                         <textarea id="e19TextoDefesa" rows="7" placeholder="Cole aqui o texto da defesa..." style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
                         <div id="e19AvisoPdf" hidden style="margin-top:8px; font-size:0.85rem; color:#92400e;"></div>
+
+                        <div id="e19BlocoIA" hidden style="margin-top:14px; background:white; border:1px solid #ddd6fe; border-radius:10px; padding:14px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                                <div>
+                                    <div style="font-weight:700; color:#5b21b6; font-size:0.92rem;">Resumo automático da defesa</div>
+                                    <div style="color:#64748b; font-size:0.82rem;">Roda no próprio computador: o texto da defesa não é enviado para nenhum servidor.</div>
+                                </div>
+                                <button type="button" id="e19BtnIA" style="padding:9px 16px; border-radius:8px; border:none; background:#7c3aed; color:white; font-weight:600; font-size:0.85rem; cursor:pointer;">Analisar defesa com IA</button>
+                            </div>
+                            <div id="e19ProgressoIA" hidden style="margin-top:10px;">
+                                <div style="height:8px; background:#ede9fe; border-radius:4px; overflow:hidden;"><div id="e19BarraIA" style="height:100%; width:0; background:#7c3aed; transition:width 0.3s;"></div></div>
+                                <div id="e19TextoProgressoIA" style="margin-top:6px; font-size:0.82rem; color:#6d28d9;"></div>
+                            </div>
+                            <div id="e19ResultadoIA" hidden style="margin-top:12px;"></div>
+                        </div>
                     </div>
 
                     <div style="${cartao}">
@@ -575,6 +599,120 @@
         }
     }
 
+    // ------------------------------------------------------------------- IA
+
+    let analiseIA = null;
+
+    function decisoesDisponiveis() {
+        return opcoesDecisao(autoSelecionado?.codigo || '').map(op => op.decisao);
+    }
+
+    function renderizarAnaliseIA(resultado) {
+        const el = document.getElementById('e19ResultadoIA');
+        if (!el) return;
+        analiseIA = resultado;
+
+        const rotulos = window.IADefesa?.ALEGACOES || {};
+        const alegacoes = (resultado.alegacoes || [])
+            .map(a => `<li>${escaparHtml(rotulos[a] || a)}</li>`).join('');
+        const decisao = resultado.sugestao ? DECISOES[resultado.sugestao] : null;
+
+        el.hidden = false;
+        el.innerHTML = `
+            <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px; padding:12px 14px;">
+                <div style="font-size:0.78rem; font-weight:700; color:#6d28d9; text-transform:uppercase; letter-spacing:0.03em;">Resumo</div>
+                <div style="font-size:0.92rem; color:#1e293b; line-height:1.5; margin-top:4px;">${escaparHtml(resultado.resumo)}</div>
+
+                ${alegacoes ? `
+                    <div style="font-size:0.78rem; font-weight:700; color:#6d28d9; text-transform:uppercase; letter-spacing:0.03em; margin-top:12px;">A defesa alega</div>
+                    <ul style="margin:4px 0 0 18px; padding:0; font-size:0.9rem; color:#334155; line-height:1.5;">${alegacoes}</ul>
+                ` : ''}
+
+                ${decisao ? `
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid #ddd6fe;">
+                        <div style="font-size:0.9rem; color:#334155;">Sugestão: <strong style="color:${decisao.cor};">${decisao.rotulo}</strong></div>
+                        <button type="button" id="e19BtnUsarSugestaoIA" style="padding:7px 14px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#334155; font-weight:600; font-size:0.83rem; cursor:pointer;">Usar esta sugestão</button>
+                    </div>
+                    ${resultado.motivo ? `<div style="font-size:0.85rem; color:#64748b; margin-top:6px;">${escaparHtml(resultado.motivo)}</div>` : ''}
+                ` : '<div style="font-size:0.88rem; color:#b45309; margin-top:12px;">A IA não conseguiu sugerir uma decisão para esta infração.</div>'}
+
+                <div style="font-size:0.78rem; color:#94a3b8; margin-top:12px;">
+                    Sugestão automática (${escaparHtml(resultado.modelo || 'modelo local')}, ${resultado.segundos}s). <strong>Confira antes de usar:</strong> a decisão e o parecer são sempre do jurídico.
+                </div>
+            </div>
+        `;
+
+        document.getElementById('e19BtnUsarSugestaoIA')?.addEventListener('click', () => {
+            const radio = document.querySelector(`input[name="e19Decisao"][value="${resultado.sugestao}"]`);
+            if (!radio) return;
+            radio.checked = true;
+            aoMudarDecisao(resultado.sugestao);
+        });
+    }
+
+    async function analisarDefesaComIA() {
+        const btn = document.getElementById('e19BtnIA');
+        const progresso = document.getElementById('e19ProgressoIA');
+        const barra = document.getElementById('e19BarraIA');
+        const textoProgresso = document.getElementById('e19TextoProgressoIA');
+        const texto = document.getElementById('e19TextoDefesa')?.value || '';
+
+        if (texto.trim().length < 40) {
+            alert('Cole o texto da defesa (ou anexe o PDF) antes de pedir o resumo.');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Analisando...';
+        progresso.hidden = false;
+        barra.style.width = '0';
+        textoProgresso.textContent = 'Preparando...';
+
+        try {
+            const resultado = await window.IADefesa.analisar(
+                texto,
+                {
+                    infracao: window.obterDescricaoInfracao
+                        ? window.obterDescricaoInfracao(autoSelecionado?.descricao)
+                        : autoSelecionado?.descricao,
+                    decisoes: decisoesDisponiveis()
+                },
+                {
+                    onProgresso: p => {
+                        if (p.etapa === 'download') barra.style.width = Math.round((p.progresso || 0) * 100) + '%';
+                        if (p.etapa !== 'download') barra.style.width = '100%';
+                        textoProgresso.textContent = p.texto || '';
+                    },
+                    onParcial: parcial => {
+                        textoProgresso.textContent = `Escrevendo o resumo... (${parcial.length} caracteres)`;
+                    }
+                }
+            );
+            progresso.hidden = true;
+            renderizarAnaliseIA(resultado);
+        } catch (err) {
+            console.error('[Etapa 19] Falha na análise com IA:', err);
+            progresso.hidden = true;
+            alert(err.message || 'Não foi possível analisar a defesa.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Analisar defesa com IA';
+        }
+    }
+
+    // O bloco da IA só aparece quando o computador aguenta rodar o modelo.
+    async function prepararIA() {
+        const bloco = document.getElementById('e19BlocoIA');
+        if (!bloco || !window.IADefesa || !podeEditar()) return;
+        if (!(await window.IADefesa.suportaWebGPU())) return;
+
+        bloco.hidden = false;
+        document.getElementById('e19BtnIA')?.addEventListener('click', analisarDefesaComIA);
+
+        const salva = dadosEtapa19().ia;
+        if (salva?.resumo) renderizarAnaliseIA(salva);
+    }
+
     // ------------------------------------------------------------ modelo padrão
 
     function abrirEdicaoModelo() {
@@ -661,6 +799,7 @@
         const dados = dadosEtapa19();
         const modelo = form.decisao ? modeloDaDecisao(form.decisao) : null;
         Object.assign(dados, form, {
+            ia: analiseIA || dados.ia || null,
             modelo_chave: modelo?.chave || null,
             auto_numero: autoSelecionado?.numero || '',
             auto_notificacao_id: autoSelecionado?.notificacao?.id || null,
@@ -909,11 +1048,22 @@
         if (areaDiligencias) areaDiligencias.innerHTML = htmlDiligencias({ incluirAberta: true });
 
         areaParecer?.addEventListener('input', atualizarPendencias);
+        const abrirUnificado = async acao => {
+            if (!window.ProcessoUnificado) {
+                alert('Gerador do processo unificado não encontrado.');
+                return;
+            }
+            await window.ProcessoUnificado.gerar(acao, autoSelecionado);
+        };
+        document.getElementById('e19BtnUnificado')?.addEventListener('click', () => abrirUnificado('abrir'));
+        document.getElementById('e19BtnBaixarUnificado')?.addEventListener('click', () => abrirUnificado('download'));
         document.getElementById('e19BtnCopiar')?.addEventListener('click', copiarTexto);
         document.getElementById('e19BtnReaplicar')?.addEventListener('click', recarregarModelo);
         document.getElementById('e19BtnEditarModelo')?.addEventListener('click', abrirEdicaoModelo);
         document.getElementById('e19BtnSalvar')?.addEventListener('click', salvarRascunho);
         document.getElementById('inputAnexoGenerico')?.addEventListener('change', extrairTextoDosAnexos);
+
+        prepararIA();
 
         if (!podeEditar()) aplicarSomenteLeitura();
     }

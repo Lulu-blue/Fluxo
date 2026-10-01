@@ -29,14 +29,19 @@ window.escaparHtmlOficio = function (txt) {
  * @param {String} d.pa                  Processo administrativo
  * @param {Boolean} d.nomeEditavel       true deixa o nome do destinatário editável na tela
  */
-window.montarHtmlOficioGfp = function (d) {
+/**
+ * Moldura do ofício (cabeçalho, número, destinatário, assunto e assinatura).
+ * O corpo vem pronto em d.corpoHtml, então cada etapa escreve o texto dela sem
+ * repetir o papel timbrado.
+ */
+window.montarHtmlOficioSemac = function (d) {
     const esc = window.escaparHtmlOficio;
     const estiloNomeEditavel = d.nomeEditavel
         ? 'outline:none; border-bottom:1px dashed #2563eb; padding:0 2px; cursor:text; min-width:180px; display:inline-block;'
         : '';
 
     return `
-        <div id="documentoOficioGfp" style="font-family: Calibri, 'Carlito', Arial, sans-serif;">
+        <div id="${d.idDocumento || 'documentoOficioGfp'}" style="font-family: Calibri, 'Carlito', Arial, sans-serif;">
             <div style="padding: 50px 55px 30px 55px; background: white; max-width: 820px; margin: 0 auto; color: #000;">
 
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px; border-collapse: collapse;">
@@ -75,10 +80,28 @@ window.montarHtmlOficioGfp = function (d) {
                 </div>
 
                 <div style="font-size: 11pt; margin-bottom: 24px;">
-                    <strong>Assunto: Emissão de guia para pagamento</strong>
+                    <strong>Assunto: ${esc(d.assunto || 'Emissão de guia para pagamento')}</strong>
                 </div>
 
-                <div style="font-size: 11pt; line-height: 1.6; text-align: justify;">
+                ${d.corpoHtml || ''}
+
+                <div style="text-align: center; margin-top: 70px; padding-bottom: 28px; font-size: 11pt; line-height: 1.5;">
+                    <div><em>(assinado digitalmente)</em></div>
+                    <div><strong>${esc(d.gerenteNome)}</strong></div>
+                    <div><strong>${window.CARGO_ASSINATURA_OFICIO}</strong></div>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+window.montarHtmlOficioGfp = function (d) {
+    const esc = window.escaparHtmlOficio;
+    return window.montarHtmlOficioSemac({
+        ...d,
+        assunto: 'Emissão de guia para pagamento',
+        corpoHtml: `
+<div style="font-size: 11pt; line-height: 1.6; text-align: justify;">
                     <p style="margin: 0 0 16px 0;">Prezado Senhor,</p>
 
                     <p style="margin: 0 0 16px 0; text-indent: 40px;">
@@ -106,15 +129,8 @@ window.montarHtmlOficioGfp = function (d) {
 
                     <p style="margin: 0 0 16px 0; text-indent: 40px;">Atenciosamente,</p>
                 </div>
-
-                <div style="text-align: center; margin-top: 70px; padding-bottom: 28px; font-size: 11pt; line-height: 1.5;">
-                    <div><em>(assinado digitalmente)</em></div>
-                    <div><strong>${esc(d.gerenteNome)}</strong></div>
-                    <div><strong>${window.CARGO_ASSINATURA_OFICIO}</strong></div>
-                </div>
-            </div>
-        </div>
-    `;
+        `
+    });
 };
 
 // Data do ofício: mês e ano, sem o dia

@@ -309,16 +309,65 @@
             });
         }
 
+        // Despacho do Secretário (Etapa 24): entra nas etapas seguintes.
+        const d24 = P().dadosEtapa(24);
+        if (d24.despacho_texto) {
+            itens.push({
+                tipo: 'pagina',
+                nome: 'Despacho do Secretário',
+                html: paginaOficial(
+                    'Despacho Administrativo',
+                    `Auto de Infração nº ${v.AUTO_NUMERO} · ${DECISOES_24[d24.decisao]?.rotulo || 'sem decisão registrada'}`,
+                    corpoTexto(d24.despacho_texto)
+                )
+            });
+        }
+        (d24.anexos || []).forEach(anexo => {
+            const url = anexo.url || anexo.dataUrl;
+            if (url) itens.push({ tipo: 'arquivo', nome: anexo.nome || 'Despacho assinado', url });
+        });
+
+        // Cumprimento pelo gerente (Etapa 25): ofício à Fazenda, a resposta dada
+        // no protocolo e a nova multa.
+        const d25 = P().dadosEtapa(25);
+        if (d25.oficio_html) {
+            itens.push({ tipo: 'pagina', nome: 'Ofício à Fazenda', html: d25.oficio_html });
+        }
+        if (d25.mensagem) {
+            const rotuloOpcao = {
+                reducao_50: 'Redução de 50%',
+                alteracao_valor: 'Alteração de valor',
+                cancelamento: 'Cancelamento',
+                continuidade: 'Continuidade na cobrança'
+            }[d25.opcao] || '—';
+            itens.push({
+                tipo: 'pagina',
+                nome: 'Resposta no protocolo',
+                html: paginaOficial(
+                    'Resposta do Gerente no protocolo',
+                    `Auto de Infração nº ${v.AUTO_NUMERO} · ${rotuloOpcao}`,
+                    corpoTexto(d25.mensagem)
+                )
+            });
+        }
+        (d25.anexos || []).forEach(anexo => {
+            const url = anexo.url || anexo.dataUrl;
+            if (url) itens.push({ tipo: 'arquivo', nome: anexo.nome || 'Nova multa', url });
+        });
+
         return itens;
     }
 
     // Usa o mesmo PDF oficial das outras etapas (capa + documentos do banco)
     // e acrescenta no fim a defesa, as movimentações e o parecer.
-    async function gerarProcessoUnificado(acao) {
+    async function gerarProcessoUnificado(acao, autoDaTela) {
         if (typeof window.gerarPdfProcessoCompletoEtapa15 !== 'function') {
             alert('Gerador do processo unificado não encontrado.');
             return;
         }
+        // Chamado pela Etapa 19, onde o Auto vem de fora desta tela.
+        if (autoDaTela) auto = autoDaTela;
+        else if (!auto) auto = P().montarAuto(notificacaoAtual);
         const v = valoresDespacho();
         await window.gerarPdfProcessoCompletoEtapa15(acao, {
             paginaDadosAr: true,
@@ -327,7 +376,14 @@
         });
     }
 
-    function abrirParecer() {
+    // As telas das etapas seguintes chamam estas visualizações passando o Auto.
+    function garantirAuto(autoDaTela) {
+        if (autoDaTela) auto = autoDaTela;
+        else if (!auto) auto = P().montarAuto(notificacaoAtual);
+    }
+
+    function abrirParecer(autoDaTela) {
+        garantirAuto(autoDaTela);
         const d19 = dados19();
         if (!d19.parecer_texto) {
             alert('O parecer jurídico ainda não foi emitido.');
@@ -336,7 +392,22 @@
         abrirJanela('Parecer Jurídico', paginaTexto('Parecer Jurídico', `Decisão do jurídico: ${P().DECISOES[d19.decisao]?.rotulo || '—'}`, d19.parecer_texto));
     }
 
-    function abrirDefesa() {
+    function abrirDespacho(autoDaTela) {
+        garantirAuto(autoDaTela);
+        const d24 = dados24();
+        if (!d24.despacho_texto) {
+            alert('O despacho do Secretário ainda não foi emitido.');
+            return;
+        }
+        abrirJanela('Despacho Administrativo', paginaTexto(
+            'Despacho Administrativo',
+            `Decisão do Secretário: ${DECISOES_24[d24.decisao]?.rotulo || '—'}`,
+            d24.despacho_texto
+        ));
+    }
+
+    function abrirDefesa(autoDaTela) {
+        garantirAuto(autoDaTela);
         const d19 = dados19();
         const anexos = d19.anexos || [];
         if (!d19.defesa_texto && !anexos.length) {
@@ -385,6 +456,7 @@
                         <button type="button" id="e24BtnBaixarUnificado" style="${botao}">Baixar processo unificado</button>
                         <button type="button" id="e24BtnParecer" style="${botao}">Ver parecer jurídico</button>
                         <button type="button" id="e24BtnDefesa" style="${botao}">Ver defesa</button>
+                        <button type="button" id="e24BtnVerDespacho" style="${botao}">Ver despacho salvo</button>
                     </div>
                     <div id="e24ListaDocs" style="margin-top:14px;"></div>
                 </div>
@@ -670,8 +742,9 @@
         despacho?.addEventListener('input', atualizarPendencias);
         document.getElementById('e24BtnUnificado')?.addEventListener('click', () => gerarProcessoUnificado('abrir'));
         document.getElementById('e24BtnBaixarUnificado')?.addEventListener('click', () => gerarProcessoUnificado('download'));
-        document.getElementById('e24BtnParecer')?.addEventListener('click', abrirParecer);
-        document.getElementById('e24BtnDefesa')?.addEventListener('click', abrirDefesa);
+        document.getElementById('e24BtnParecer')?.addEventListener('click', () => abrirParecer());
+        document.getElementById('e24BtnDefesa')?.addEventListener('click', () => abrirDefesa());
+        document.getElementById('e24BtnVerDespacho')?.addEventListener('click', () => abrirDespacho());
         document.getElementById('e24BtnGerar')?.addEventListener('click', gerarDespacho);
         document.getElementById('e24BtnCopiar')?.addEventListener('click', copiarTexto);
         document.getElementById('e24BtnSalvar')?.addEventListener('click', salvarRascunho);
@@ -687,6 +760,15 @@
             if (upload) upload.hidden = true;
         }
     }
+
+    // O processo unificado também é usado pela Etapa 19.
+    window.ProcessoUnificado = {
+        gerar: gerarProcessoUnificado,
+        itensFinais: itensFinaisDoProcesso,
+        verParecer: abrirParecer,
+        verDespacho: abrirDespacho,
+        verDefesa: abrirDefesa
+    };
 
     window.Etapa24 = { html, configurar, avancar };
 })();
