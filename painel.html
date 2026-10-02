@@ -1043,7 +1043,9 @@
                         <div class="form-row">
                             <div class="form-group fg-medium">
                                 <label for="contMunicipio">Município</label>
-                                <input type="text" id="contMunicipio" placeholder="Município" value="Divinópolis">
+                                <!-- Sem valor fixo: há autuados de outras cidades, e o município
+                                     vem do BIC quando o arquivo é importado. -->
+                                <input type="text" id="contMunicipio" placeholder="Ex.: Divinópolis">
                             </div>
                             <div class="form-group fg-small">
                                 <label for="contCep">CEP</label>
@@ -1363,8 +1365,8 @@
                                 placeholder="Ex: Lote com entulho acumulado na lateral esquerda."></textarea>
                             <small style="display:block; margin-top: 6px; color: #64748b;">
                                 Estas informações vão aparecer na <strong>Notificação Preliminar</strong> e no
-                                <strong>Auto de Infração</strong>, como "Observações do Fiscal:", abaixo das Instruções e
-                                antes da assinatura do fiscal. Deixe em branco para não aparecer.
+                                <strong>Auto de Infração</strong>, como "Observações do Fiscal:", abaixo do valor da multa
+                                e acima do prazo de defesa. Deixe em branco para não aparecer.
                             </small>
                         </div>
 

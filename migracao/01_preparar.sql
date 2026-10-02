@@ -10,10 +10,58 @@
 --   2. O banco confere, ele mesmo, que ainda guarda EXATAMENTE o arquivo que
 --      foi copiado para o backup (comparando o hash SHA-256). Se alguém tiver
 --      trocado o arquivo depois do backup, nada é alterado.
---   3. As cópias da Multa dentro de `dados` são trocadas com jsonb_set, que
---      mexe só naquela chave. Um UPDATE vindo do script precisaria reenviar o
---      JSON inteiro e poderia apagar uma edição feita ao mesmo tempo por alguém.
+--   3. As cópias do mesmo arquivo dentro dos JSONs são trocadas pelo próprio
+--      banco, lendo e gravando na mesma instrução. Um UPDATE vindo do script
+--      precisaria reenviar o JSON inteiro e poderia apagar uma edição feita ao
+--      mesmo tempo por outra pessoa.
 -- ============================================================
+
+
+-- ────────────────────────────────────────────────────────────
+-- Troca, dentro de um JSON, toda string exatamente igual a p_antigo.
+-- Serve para qualquer tipo de anexo: a cópia do arquivo pode estar em
+-- `etapa15.multa_url`, `etapa14.anexo_url`, `anexos[].url`, nas mensagens do
+-- chat ou em qualquer chave nova que apareça depois.
+-- ────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION migracao_jsonb_trocar_texto(
+    p_dados  JSONB,
+    p_antigo TEXT,
+    p_novo   TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+    v_resultado JSONB;
+BEGIN
+    IF p_dados IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    CASE jsonb_typeof(p_dados)
+        WHEN 'string' THEN
+            IF p_dados #>> '{}' = p_antigo THEN
+                RETURN to_jsonb(p_novo);
+            END IF;
+            RETURN p_dados;
+
+        WHEN 'array' THEN
+            SELECT COALESCE(jsonb_agg(migracao_jsonb_trocar_texto(item, p_antigo, p_novo)), '[]'::jsonb)
+              INTO v_resultado
+              FROM jsonb_array_elements(p_dados) AS item;
+            RETURN v_resultado;
+
+        WHEN 'object' THEN
+            SELECT COALESCE(jsonb_object_agg(chave, migracao_jsonb_trocar_texto(valor, p_antigo, p_novo)), '{}'::jsonb)
+              INTO v_resultado
+              FROM jsonb_each(p_dados) AS campos(chave, valor);
+            RETURN v_resultado;
+
+        ELSE
+            RETURN p_dados;
+    END CASE;
+END;
+$$;
 
 
 -- ────────────────────────────────────────────────────────────
@@ -35,6 +83,7 @@ DECLARE
     v_n_processos INT := 0;
     v_n_notif     INT := 0;
     v_n_autos     INT := 0;
+    v_n_chats     INT := 0;
 BEGIN
     IF auth.uid() IS NULL THEN
         RAISE EXCEPTION 'Acesso negado: é preciso estar autenticado.';
@@ -66,40 +115,49 @@ BEGIN
 
     UPDATE documentos SET url = p_url_nova WHERE id = p_documento_id;
 
-    IF v_tipo = 'Multa' THEN
-        -- Cópias da mesma Multa guardadas em JSON. Restrito ao processo deste
-        -- documento (sem varrer a tabela inteira) e só onde o conteúdo é
-        -- idêntico, comparado por hash. Uma cópia diferente fica intocada.
-        UPDATE processos
-           SET dados = jsonb_set(dados, '{etapa15,multa_url}', to_jsonb(p_url_nova))
-         WHERE id = v_processo_id
-           AND dados IS NOT NULL
-           AND dados->'etapa15'->>'multa_url' LIKE 'data:%'
-           AND encode(sha256(convert_to(dados->'etapa15'->>'multa_url', 'UTF8')), 'hex') = p_sha256_original;
-        GET DIAGNOSTICS v_n_processos = ROW_COUNT;
+    -- Cópias do mesmo arquivo guardadas em JSON, em qualquer chave. Restrito
+    -- ao processo deste documento (sem varrer as tabelas inteiras) e só onde o
+    -- conteúdo é exatamente o base64 que acabou de ser conferido; qualquer
+    -- outro valor fica intocado.
+    --
+    -- A troca lê e grava o JSON na mesma instrução, então o Postgres relê a
+    -- versão corrente da linha: uma edição feita por outra pessoa no mesmo
+    -- instante não é perdida.
+    UPDATE processos
+       SET dados = migracao_jsonb_trocar_texto(dados, v_url_atual, p_url_nova)
+     WHERE id = v_processo_id
+       AND dados IS NOT NULL
+       AND strpos(dados::text, v_url_atual) > 0;
+    GET DIAGNOSTICS v_n_processos = ROW_COUNT;
 
-        UPDATE notificacoes
-           SET dados = jsonb_set(dados, '{etapa15,multa_url}', to_jsonb(p_url_nova))
-         WHERE processo_id = v_processo_id
-           AND dados IS NOT NULL
-           AND dados->'etapa15'->>'multa_url' LIKE 'data:%'
-           AND encode(sha256(convert_to(dados->'etapa15'->>'multa_url', 'UTF8')), 'hex') = p_sha256_original;
-        GET DIAGNOSTICS v_n_notif = ROW_COUNT;
+    UPDATE notificacoes
+       SET dados = migracao_jsonb_trocar_texto(dados, v_url_atual, p_url_nova)
+     WHERE processo_id = v_processo_id
+       AND dados IS NOT NULL
+       AND strpos(dados::text, v_url_atual) > 0;
+    GET DIAGNOSTICS v_n_notif = ROW_COUNT;
 
-        UPDATE autos_infracao
-           SET dados = jsonb_set(dados, '{multa_url}', to_jsonb(p_url_nova))
-         WHERE processo_id = v_processo_id
-           AND dados IS NOT NULL
-           AND dados->>'multa_url' LIKE 'data:%'
-           AND encode(sha256(convert_to(dados->>'multa_url', 'UTF8')), 'hex') = p_sha256_original;
-        GET DIAGNOSTICS v_n_autos = ROW_COUNT;
-    END IF;
+    UPDATE autos_infracao
+       SET dados = migracao_jsonb_trocar_texto(dados, v_url_atual, p_url_nova)
+     WHERE processo_id = v_processo_id
+       AND dados IS NOT NULL
+       AND strpos(dados::text, v_url_atual) > 0;
+    GET DIAGNOSTICS v_n_autos = ROW_COUNT;
+
+    UPDATE chats_interface_juridica
+       SET mensagens = migracao_jsonb_trocar_texto(mensagens, v_url_atual, p_url_nova)
+     WHERE processo_id = v_processo_id
+       AND mensagens IS NOT NULL
+       AND strpos(mensagens::text, v_url_atual) > 0;
+    GET DIAGNOSTICS v_n_chats = ROW_COUNT;
 
     RETURN jsonb_build_object(
         'status', 'migrado',
+        'tipo', v_tipo,
         'copias_processos', v_n_processos,
         'copias_notificacoes', v_n_notif,
-        'copias_autos_infracao', v_n_autos
+        'copias_autos_infracao', v_n_autos,
+        'copias_chats', v_n_chats
     );
 END;
 $$;
@@ -125,6 +183,7 @@ DECLARE
     v_n_processos INT := 0;
     v_n_notif     INT := 0;
     v_n_autos     INT := 0;
+    v_n_chats     INT := 0;
 BEGIN
     IF auth.uid() IS NULL THEN
         RAISE EXCEPTION 'Acesso negado: é preciso estar autenticado.';
@@ -155,34 +214,42 @@ BEGIN
 
     UPDATE documentos SET url = p_url_original WHERE id = p_documento_id;
 
-    IF v_tipo = 'Multa' THEN
-        UPDATE processos
-           SET dados = jsonb_set(dados, '{etapa15,multa_url}', to_jsonb(p_url_original))
-         WHERE id = v_processo_id
-           AND dados IS NOT NULL
-           AND dados->'etapa15'->>'multa_url' = p_url_nova;
-        GET DIAGNOSTICS v_n_processos = ROW_COUNT;
+    -- Desfaz as cópias em JSON pelo mesmo caminho da ida: só troca onde o
+    -- valor é exatamente o link gravado por esta migração.
+    UPDATE processos
+       SET dados = migracao_jsonb_trocar_texto(dados, p_url_nova, p_url_original)
+     WHERE id = v_processo_id
+       AND dados IS NOT NULL
+       AND strpos(dados::text, p_url_nova) > 0;
+    GET DIAGNOSTICS v_n_processos = ROW_COUNT;
 
-        UPDATE notificacoes
-           SET dados = jsonb_set(dados, '{etapa15,multa_url}', to_jsonb(p_url_original))
-         WHERE processo_id = v_processo_id
-           AND dados IS NOT NULL
-           AND dados->'etapa15'->>'multa_url' = p_url_nova;
-        GET DIAGNOSTICS v_n_notif = ROW_COUNT;
+    UPDATE notificacoes
+       SET dados = migracao_jsonb_trocar_texto(dados, p_url_nova, p_url_original)
+     WHERE processo_id = v_processo_id
+       AND dados IS NOT NULL
+       AND strpos(dados::text, p_url_nova) > 0;
+    GET DIAGNOSTICS v_n_notif = ROW_COUNT;
 
-        UPDATE autos_infracao
-           SET dados = jsonb_set(dados, '{multa_url}', to_jsonb(p_url_original))
-         WHERE processo_id = v_processo_id
-           AND dados IS NOT NULL
-           AND dados->>'multa_url' = p_url_nova;
-        GET DIAGNOSTICS v_n_autos = ROW_COUNT;
-    END IF;
+    UPDATE autos_infracao
+       SET dados = migracao_jsonb_trocar_texto(dados, p_url_nova, p_url_original)
+     WHERE processo_id = v_processo_id
+       AND dados IS NOT NULL
+       AND strpos(dados::text, p_url_nova) > 0;
+    GET DIAGNOSTICS v_n_autos = ROW_COUNT;
+
+    UPDATE chats_interface_juridica
+       SET mensagens = migracao_jsonb_trocar_texto(mensagens, p_url_nova, p_url_original)
+     WHERE processo_id = v_processo_id
+       AND mensagens IS NOT NULL
+       AND strpos(mensagens::text, p_url_nova) > 0;
+    GET DIAGNOSTICS v_n_chats = ROW_COUNT;
 
     RETURN jsonb_build_object(
         'status', 'revertido',
         'copias_processos', v_n_processos,
         'copias_notificacoes', v_n_notif,
-        'copias_autos_infracao', v_n_autos
+        'copias_autos_infracao', v_n_autos,
+        'copias_chats', v_n_chats
     );
 END;
 $$;

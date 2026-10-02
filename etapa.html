@@ -1105,7 +1105,7 @@
                                 <textarea id="editObservacoesFiscal" class="form-input" rows="3"></textarea>
                                 <small style="display:block; margin-top:6px; color:#64748b;">
                                     Aparece na <strong>Notificação Preliminar</strong> e no <strong>Auto de Infração</strong>,
-                                    como "Observações do Fiscal:", abaixo das Instruções e antes da assinatura do fiscal.
+                                    como "Observações do Fiscal:", abaixo do valor da multa e acima do prazo de defesa.
                                     Deixe em branco para não aparecer.
                                 </small>
                             </div>
@@ -1337,6 +1337,44 @@
                                     <option value="sim">Sim, AR efetivado</option>
                                     <option value="nao">Não, AR não efetivado</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <!-- Só aparece quando o AR foi efetivado: a data inicia o prazo
+                             e o anexo comprova a entrega. -->
+                        <div id="blocoAR30Efetivado" style="display:none;">
+                            <div class="form-row" style="margin-top:20px;">
+                                <div class="form-group fg-full">
+                                    <label for="ar30DataRecebimento">Data de recebimento pelo proprietário
+                                        <span style="color:#dc2626; font-weight:600;">* (Obrigatório)</span></label>
+                                    <input type="date" id="ar30DataRecebimento" class="form-input">
+                                    <small style="display:block; margin-top:6px; color:#64748b;">
+                                        É dessa data que o prazo do autuado passa a contar.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="form-row" style="margin-top:20px;">
+                                <div class="form-group fg-full">
+                                    <label>Anexo(s) do AR <span style="color:#dc2626; font-weight:600;">*
+                                            (Obrigatório)</span></label>
+                                    <div id="areaDropAR30" class="drop-area-clean">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64748b"
+                                            stroke-width="1.8" style="margin-bottom:8px;">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                            <polyline points="17 8 12 3 7 8" />
+                                            <line x1="12" y1="3" x2="12" y2="15" />
+                                        </svg>
+                                        <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique
+                                            para selecionar ou arraste o(s) arquivo(s) do AR aqui</p>
+                                        <p style="margin:4px 0 0 0; color:#64748b; font-size:0.82rem;">Formatos aceitos:
+                                            PDF, JPG, PNG (pode selecionar vários)</p>
+                                        <input type="file" id="inputArquivoAR30" accept=".pdf,.jpg,.jpeg,.png" multiple
+                                            style="display:none;">
+                                    </div>
+                                    <div id="listaAnexosAR30"
+                                        style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
+                                </div>
                             </div>
                         </div>
 

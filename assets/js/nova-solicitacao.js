@@ -2935,7 +2935,7 @@ async function buscarContribuinteNoBanco(silencioso = false) {
             setIfEmpty('contNumero', data.numero);
             setIfEmpty('contComplemento', data.complemento);
             setIfEmpty('contBairro', data.bairro);
-            setIfEmpty('contMunicipio', data.municipio || 'Divinópolis');
+            setIfEmpty('contMunicipio', data.municipio);
             setIfEmpty('contCep', data.cep);
 
             mostrarFeedback('contFeedback', '✓ Contribuinte encontrado no banco! Dados preenchidos.', 'success');
@@ -3415,6 +3415,15 @@ function extrairDadosEspelhoCadastral(textoCompleto) {
     }
     dados.endereco_responsavel = endRespLine;
 
+    // Município do contribuinte: no BIC em PDF ele vem logo depois do CEP, no
+    // fim da linha do endereço — ex.: "... - 38400-376, Uberlândia/MG".
+    // Sem isto, autuado de outra cidade ficava sem município.
+    const munRespM = endRespLine.match(/\d{5}-\d{3}[\s,;\-]+([A-Za-zÀ-ÿ'’.\s]{3,60}?)\s*(?:\/\s*([A-Z]{2}))?(?=\s*[-,]|$)/);
+    if (munRespM && munRespM[1]) {
+        dados.municipio_responsavel = munRespM[1].replace(/\s{2,}/g, ' ').trim();
+        if (munRespM[2]) dados.uf_responsavel = munRespM[2];
+    }
+
     // Endereço do Imóvel
     let baseImvLine = ruas.length > 1 ? ruas[1] : (ruas.length > 0 ? ruas[0] : '');
     dados.endereco_imovel = baseImvLine;
@@ -3507,7 +3516,9 @@ async function handleArquivoBic(file) {
                 }
             }
 
-            preencherSeVazio('contMunicipio', 'Divinópolis');
+            // Sem município conhecido o campo fica em branco, para ninguém
+            // assumir Divinópolis por engano (há autuados de outras cidades).
+            preencherSeVazio('contMunicipio', dadosExt?.municipio_responsavel || dadosExt?.municipio_contribuinte || '');
         }
 
         // ── 2. DADOS DO IMÓVEL (Passo 2) ──────────────────────────
@@ -3921,10 +3932,31 @@ function extrairDadosDoTextoNP(texto) {
         document.getElementById('contCep').value = mContCep[1].trim();
     }
 
-    // Município
+    // Município do contribuinte. Normalmente vem rotulado ("Município: X"), mas
+    // em parte dos BICs ele aparece logo depois do CEP, sem rótulo —
+    // ex.: "CEP: 35500-000 SÃO GONÇALO DO PARÁ - MG". Sem esta segunda leitura,
+    // o município de fora de Divinópolis se perdia.
+    const ROTULOS_BIC = /^(?:Bairro|N[úu]mero|N[ºo]|CPF|CNPJ|Logradouro|Complemento|Observa[çc][ãa]o|Munic[íi]pio|CEP|Informa[çc][õo]es)\b/i;
+
+    const limparMunicipio = (valor) => String(valor || '')
+        .replace(/\s*[-\/]\s*(?:MG|M\.?G\.?|Minas\s+Gerais)\s*$/i, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    let municipioContribuinte = '';
     const mContMun = secContribuinte.match(/Munic[íi]pio[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:Número|Nº|CPF|Bairro|Observac[ãa]o)|\n|$)/i);
-    if (mContMun && mContMun[1].trim()) {
-        document.getElementById('contMunicipio').value = mContMun[1].trim();
+    if (mContMun) municipioContribuinte = limparMunicipio(mContMun[1]);
+
+    if (!municipioContribuinte) {
+        const mMunAposCep = secContribuinte.match(/CEP[:\s]*[\d][\d.\-]{5,10}[\s]+([^\n\r]+?)(?=\n|$)/i);
+        const candidato = limparMunicipio(mMunAposCep?.[1]);
+        if (candidato && candidato.length >= 3 && !ROTULOS_BIC.test(candidato)) {
+            municipioContribuinte = candidato;
+        }
+    }
+
+    if (municipioContribuinte) {
+        document.getElementById('contMunicipio').value = municipioContribuinte;
     }
 
     // Bairro do contribuinte

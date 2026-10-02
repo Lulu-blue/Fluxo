@@ -13,6 +13,7 @@
 -- ============================================================
 
 DROP FUNCTION IF EXISTS migracao_anexo_aplicar(UUID, TEXT, TEXT);
+DROP FUNCTION IF EXISTS migracao_jsonb_trocar_texto(JSONB, TEXT, TEXT);
 DROP FUNCTION IF EXISTS migracao_anexo_reverter(UUID, TEXT, TEXT, TEXT);
 
 NOTIFY pgrst, 'reload schema';
@@ -20,7 +21,7 @@ NOTIFY pgrst, 'reload schema';
 -- Confirma que sumiram (deve voltar vazio)
 SELECT proname
 FROM pg_proc
-WHERE proname IN ('migracao_anexo_aplicar', 'migracao_anexo_reverter');
+WHERE proname IN ('migracao_anexo_aplicar', 'migracao_anexo_reverter', 'migracao_jsonb_trocar_texto');
 
 -- ────────────────────────────────────────────────────────────
 -- O espaço em disco NÃO diminui com a migração sozinha.

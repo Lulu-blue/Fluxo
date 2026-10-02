@@ -5446,9 +5446,24 @@ function configurarEventosPainelEtapa1() {
                 }
             }
 
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const fileUrl = ev.target.result;
+            // O arquivo vai para o Cloudinary; no banco fica só o link. Guardar
+            // o PDF em base64 dentro de `dados` inflava a coluna e derrubava a
+            // performance do banco (ver cloudinary-config.js).
+            mostrarCarregamento('Enviando a Notificação Preliminar assinada...');
+            let arquivoParaEnviar = file;
+            if (typeof window.otimizarImagemParaUpload === 'function') {
+                arquivoParaEnviar = await window.otimizarImagemParaUpload(file);
+            }
+            const fileUrl = await window.uploadParaCloudinary(arquivoParaEnviar, 'semac_notificacoes');
+            ocultarCarregamento();
+
+            if (!fileUrl) {
+                // O uploadParaCloudinary já avisou o usuário sobre a falha
+                e.target.value = '';
+                return;
+            }
+
+            {
                 const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
 
                 // 1. Salva/Atualiza a URL do arquivo na tabela centralizada 'documentos'
@@ -5524,8 +5539,7 @@ function configurarEventosPainelEtapa1() {
                 } else {
                     renderizarPainelEtapa1(processoAtual);
                 }
-            };
-            reader.readAsDataURL(file);
+            }
         });
     }
 
@@ -5654,17 +5668,11 @@ function configurarEventosPainelEtapa1() {
 
             const reader = new FileReader();
             reader.onload = async (ev) => {
-                let fileUrl = ev.target.result;
-                if (typeof window.uploadParaCloudinary === 'function') {
-                    try {
-                        const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
-                        if (urlCloud) fileUrl = urlCloud;
-                    } catch (cldErr) {
-                        console.warn('[Cloudinary Warning] Upload falhou, usando fallback local DataURL:', cldErr);
-                    }
-                }
-                if (typeof fileUrl === 'string' && fileUrl.startsWith('data:') && fileUrl.length > 7000000) {
-                    alert('⚠️ Arquivo Muito Grande!\n\nO arquivo convertido (' + (fileUrl.length / 1024 / 1024 * 0.75).toFixed(1) + ' MB) excede o limite máximo permitido pelo banco de dados (5 MB).\nPor favor, comprima o arquivo antes de anexar.');
+                // Sem Cloudinary o anexo não é salvo: guardar o arquivo em base64
+                // dentro de `dados` inflava a coluna e derrubava o banco.
+                const fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                if (!fileUrl) {
+                    // O uploadParaCloudinary já avisou o usuário sobre a falha
                     e.target.value = '';
                     return;
                 }
@@ -5936,7 +5944,14 @@ window.configurarEventosReplicaAssinada = function () {
 
                 const reader = new FileReader();
                 reader.onload = async (ev) => {
-                    const fileUrl = ev.target.result;
+                    // O arquivo vai para o Cloudinary; no banco fica só o link.
+                    const fileUrl = await window.uploadParaCloudinary(file, 'semac_replicas');
+                    if (!fileUrl) {
+                        // O uploadParaCloudinary já avisou o usuário sobre a falha
+                        ocultarCarregamento();
+                        e.target.value = '';
+                        return;
+                    }
                     const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
 
                     let docId = notificacaoAtual?.dados?.replica_id || null;
@@ -6210,7 +6225,14 @@ window.configurarEventosCertidaoAssinada = function () {
 
                 const reader = new FileReader();
                 reader.onload = async (ev) => {
-                    const fileUrl = ev.target.result;
+                    // O arquivo vai para o Cloudinary; no banco fica só o link.
+                    const fileUrl = await window.uploadParaCloudinary(file, 'semac_certidoes');
+                    if (!fileUrl) {
+                        // O uploadParaCloudinary já avisou o usuário sobre a falha
+                        ocultarCarregamento();
+                        e.target.value = '';
+                        return;
+                    }
                     const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
                     const notifId = notificacaoAtual?.id || null;
                     const procId = processoAtual?.id || null;
@@ -6604,18 +6626,9 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
 
                 const reader = new FileReader();
                 reader.onload = async (ev) => {
-                    let fileUrl = ev.target.result;
-                    if (typeof window.uploadParaCloudinary === 'function') {
-                        try {
-                            const urlCloud = await window.uploadParaCloudinary(file, 'semac_relatorios');
-                            if (urlCloud) fileUrl = urlCloud;
-                        } catch (cldErr) {
-                            console.warn('[Cloudinary Warning] Upload falhou, usando fallback DataURL:', cldErr);
-                        }
-                    }
-                    if (typeof fileUrl === 'string' && fileUrl.startsWith('data:') && fileUrl.length > 7000000) {
+                    const fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
+                    if (!fileUrl) {
                         ocultarCarregamento();
-                        alert('⚠️ Arquivo Muito Grande!\n\nO arquivo convertido (' + (fileUrl.length / 1024 / 1024 * 0.75).toFixed(1) + ' MB) excede o limite máximo permitido pelo banco de dados (5 MB).\nPor favor, comprima o arquivo antes de anexar.');
                         e.target.value = '';
                         return;
                     }
@@ -7526,8 +7539,8 @@ function gerarBlocoInfracao(proc, disp, index) {
 // ── Observações do Fiscal (NP e AI) ────────────────────────────────────────
 // Preenchidas no passo "Relatório Fiscal" do novo processo (com ou sem decreto) e
 // guardadas em dados.relatorio_fiscal.observacoes_fiscal. Aparecem na Notificação
-// Preliminar e no Auto de Infração abaixo das Instruções, antes da assinatura do
-// fiscal — e só quando houver texto.
+// Preliminar e no Auto de Infração logo abaixo do valor da multa e acima do prazo
+// de defesa ("O autuado tem o prazo de...") — e só quando houver texto.
 function obterObservacoesFiscal(proc) {
     const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
     return String(p?.dados?.relatorio_fiscal?.observacoes_fiscal || '').trim();
@@ -7818,10 +7831,10 @@ function renderizarDocumentoOficial(proc) {
 
                 <!-- 7. OBSERVAÇÕES E INSTRUÇÕES -->
                 <div class="doc-obs-section">
+                    ${htmlObservacoesFiscal(proc)}
                     <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
                     <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
                     <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
-                    ${htmlObservacoesFiscal(proc)}
                 </div>
 
                 <!-- 8. ASSINATURA FISCAL -->
@@ -9338,8 +9351,12 @@ async function carregarEExibirAnexosAR(proc) {
     renderizarListaAnexosAR();
 }
 
+// Etapas 16 e 30 mostram a mesma lista de anexos do AR, cada uma no seu
+// container. Quem renderiza a tela diz qual usar.
+let idListaAnexosAR = 'listaAnexosARContainer';
+
 function renderizarListaAnexosAR() {
-    const container = document.getElementById('listaAnexosARContainer');
+    const container = document.getElementById(idListaAnexosAR);
     if (!container) return;
     container.innerHTML = '';
 
@@ -9515,6 +9532,7 @@ async function verificarPrazo15DiasEtapa16(proc) {
 }
 
 function configurarEventosEtapa16() {
+    idListaAnexosAR = 'listaAnexosARContainer';
     const selectRetorno = document.getElementById('arRetornoSemSucesso');
     if (selectRetorno) selectRetorno.addEventListener('change', toggleBlocoRetornoSemSucesso);
 
@@ -10228,6 +10246,13 @@ function renderizarEtapa30(proc) {
     setVal('ar30Efetivado', dadosEtapa30.efetivado || '');
     setVal('ar30Observacao', dadosEtapa30.observacao || '');
 
+    // AR efetivado aqui também inicia o prazo: pede a data de recebimento e o
+    // anexo, guardados no mesmo lugar da Etapa 16.
+    idListaAnexosAR = 'listaAnexosAR30';
+    setVal('ar30DataRecebimento', dadosAR.data_recebimento || dadosAR.data_recebimento_proprietario || '');
+    carregarEExibirAnexosAR(proc);
+    toggleBlocoAR30Efetivado();
+
     // Controle de permissão: apenas Gerente edita
     if (modo !== MODO_ACESSO.NORMAL && formulario30) {
         formulario30.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -10236,7 +10261,33 @@ function renderizarEtapa30(proc) {
     }
 }
 
+// Mostra os campos de data e anexo só quando o AR foi efetivado.
+function toggleBlocoAR30Efetivado() {
+    const bloco = document.getElementById('blocoAR30Efetivado');
+    if (!bloco) return;
+    bloco.style.display = (document.getElementById('ar30Efetivado')?.value === 'sim') ? 'block' : 'none';
+}
+
 function configurarEventosEtapa30() {
+    const selectEfetivado = document.getElementById('ar30Efetivado');
+    if (selectEfetivado) selectEfetivado.addEventListener('change', toggleBlocoAR30Efetivado);
+
+    const areaDrop30 = document.getElementById('areaDropAR30');
+    const inputFile30 = document.getElementById('inputArquivoAR30');
+    if (areaDrop30 && inputFile30) {
+        areaDrop30.addEventListener('click', () => inputFile30.click());
+        areaDrop30.addEventListener('dragover', (e) => { e.preventDefault(); areaDrop30.classList.add('dragover'); });
+        areaDrop30.addEventListener('dragleave', () => areaDrop30.classList.remove('dragover'));
+        areaDrop30.addEventListener('drop', (e) => {
+            e.preventDefault();
+            areaDrop30.classList.remove('dragover');
+            if (e.dataTransfer.files?.length) processarArquivosAR(e.dataTransfer.files);
+        });
+        inputFile30.addEventListener('change', (e) => {
+            if (e.target.files?.length) processarArquivosAR(e.target.files);
+        });
+    }
+
     const btnSalvar = document.getElementById('btnSalvarEtapa30');
     if (btnSalvar) btnSalvar.addEventListener('click', salvarEtapa30);
 
@@ -10251,6 +10302,21 @@ async function salvarEtapa30() {
 
     processoAtual.campos.etapa30.efetivado = document.getElementById('ar30Efetivado')?.value || '';
     processoAtual.campos.etapa30.observacao = document.getElementById('ar30Observacao')?.value?.trim() || '';
+
+    // AR efetivado nesta etapa: guarda a data de recebimento junto com os dados
+    // do AR (Etapa 16), inicia a contagem do prazo e envia os anexos.
+    if (processoAtual.campos.etapa30.efetivado === 'sim') {
+        const dataRecebimento = document.getElementById('ar30DataRecebimento')?.value || '';
+        processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
+        processoAtual.campos.etapa16.data_recebimento = dataRecebimento;
+        processoAtual.campos.etapa16.notificacao_efetivada = 'sim';
+
+        if (dataRecebimento) {
+            registrarDataRecebimentoAR(processoAtual, dataRecebimento);
+            await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(30, cicloDoAREhAuto()));
+        }
+        await persistirAnexosAR(false);
+    }
 
     try {
         processoAtual.dados = processoAtual.dados || {};
@@ -10274,6 +10340,32 @@ async function avancarEtapa30() {
     if (!efetivado) {
         alert('Informe se o AR foi efetivado/localizado para avançar.');
         return;
+    }
+
+    // Guarda a escolha e a observação mesmo sem passar pelo botão Salvar.
+    processoAtual.campos = processoAtual.campos || {};
+    processoAtual.campos.etapa30 = processoAtual.campos.etapa30 || {};
+    processoAtual.campos.etapa30.efetivado = efetivado;
+    processoAtual.campos.etapa30.observacao = document.getElementById('ar30Observacao')?.value?.trim() || '';
+
+    if (efetivado === 'sim') {
+        const dataRecebimento = document.getElementById('ar30DataRecebimento')?.value || '';
+        if (!dataRecebimento) {
+            alert('Informe a data de recebimento pelo proprietário: é dela que o prazo do autuado começa a contar.');
+            document.getElementById('ar30DataRecebimento')?.focus();
+            return;
+        }
+
+        processoAtual.campos = processoAtual.campos || {};
+        processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
+        processoAtual.campos.etapa16.data_recebimento = dataRecebimento;
+        processoAtual.campos.etapa16.notificacao_efetivada = 'sim';
+
+        // persistirAnexosAR(true) avisa e devolve false quando não há anexo.
+        if (!(await persistirAnexosAR(true))) return;
+
+        registrarDataRecebimentoAR(processoAtual, dataRecebimento);
+        await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(30, cicloDoAREhAuto()));
     }
 
     mostrarCarregamento('Avançando etapa...');
@@ -11498,6 +11590,49 @@ async function baixarRelatorioFiscalPdfEtapa() {
     }
 }
 
+// Procura a Notificação Preliminar assinada: primeiro na tabela documentos,
+// depois nas referências guardadas no processo e na notificação.
+async function obterNotificacaoPreliminarAssinada() {
+    const procId = processoAtual?.id;
+    const notifId = notificacaoAtual?.id;
+
+    if (procId || notifId) {
+        let query = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+        if (notifId && procId) {
+            query = query.or(`notificacao_id.eq.${notifId},processo_id.eq.${procId}`);
+        } else if (procId) {
+            query = query.eq('processo_id', procId);
+        } else {
+            query = query.eq('notificacao_id', notifId);
+        }
+
+        const { data } = await query;
+        const docsNP = (data || []).filter(d =>
+            ['Notificação Preliminar', 'Notificação Preliminar Assinada'].includes(d.tipo));
+        // O anexado pela pessoa tem preferência sobre qualquer cópia gerada pelo sistema.
+        const doc = docsNP.find(d => d.gerado_automaticamente === false) || docsNP[0];
+        if (doc?.url) return { url: doc.url, nome: doc.nome_arquivo };
+    }
+
+    const refProcesso = processoAtual?.campos?.anexo_np_assinada;
+    if (refProcesso?.documento_id) {
+        const { data } = await supabaseClient
+            .from('documentos')
+            .select('url, nome_arquivo')
+            .eq('id', refProcesso.documento_id)
+            .maybeSingle();
+        if (data?.url) return { url: data.url, nome: data.nome_arquivo || refProcesso.nome };
+    }
+    if (refProcesso?.url) return { url: refProcesso.url, nome: refProcesso.nome };
+
+    const urlNotificacao = notificacaoAtual?.dados?.notificacao_assinada_url;
+    if (urlNotificacao) {
+        return { url: urlNotificacao, nome: notificacaoAtual?.dados?.notificacao_assinada_nome };
+    }
+
+    return null;
+}
+
 async function imprimirDocumentoOficial() {
     if (!processoAtual) { alert('Processo não encontrado.'); return; }
 
@@ -11629,7 +11764,22 @@ async function imprimirDocumentoOficial() {
         return;
     }
 
-    // ── Etapas < 14: Lógica Original para Notificação Preliminar ──
+    // ── Notificação Preliminar ──
+    // Assinada e anexada, vale o arquivo anexado — igual ao Auto de Infração e
+    // ao Relatório Fiscal. Só na falta dele o documento é gerado do zero.
+    mostrarCarregamento('Buscando a Notificação Preliminar assinada...');
+    try {
+        const assinada = await obterNotificacaoPreliminarAssinada();
+        if (assinada?.url) {
+            ocultarCarregamento();
+            window.abrirOuBaixarDocumento(assinada.url, assinada.nome || `Notificacao_Preliminar_${numNotifLimpo}.pdf`);
+            return;
+        }
+    } catch (errNP) {
+        console.warn('Erro ao buscar a Notificação Preliminar assinada:', errNP);
+    }
+    ocultarCarregamento();
+
     try {
         mostrarCarregamento('Preparando Notificação Preliminar para impressão...');
         // Força sempre a renderização da Notificação Preliminar do processo no container
@@ -11964,10 +12114,10 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
 
         <!-- 7. OBSERVAÇÕES E INSTRUÇÕES -->
         <div style="margin: 32px 0; font-size: 11pt; line-height: 1.5;">
+            ${htmlObservacoesFiscal(proc)}
             <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
             <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
             <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
-            ${htmlObservacoesFiscal(proc)}
         </div>
 
         <!-- 8. ASSINATURA FISCAL -->
@@ -13268,6 +13418,8 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     MULTA NO VALOR DE R$ ${dadosLegais.valFormatado}
                 </p>
 
+                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
+
                 <p style="margin: 0 0 10px 0; text-align: justify;">
                     O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, protocolada via protocolo municipal. 
                 </p>
@@ -13275,7 +13427,6 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 <p style="margin: 0 0 10px 0; text-align: justify;">
                     <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
                 </p>
-                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
             </div>
         `;
         } else {
@@ -13293,6 +13444,8 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     ${dadosLegais.textoCompleto}
                 </p>
 
+                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
+
                 <p style="margin: 0 0 10px 0; text-align: justify;">
                     O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, , protocolada via protocolo municipal.
                 </p>
@@ -13300,7 +13453,6 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 <p>
                     <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
                 </p>
-                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
             </div>
         `;
         }
@@ -13467,14 +13619,11 @@ window.configurarEventosAIAssinado = function () {
             try {
                 const reader = new FileReader();
                 reader.onload = async (ev) => {
-                    let fileUrl = ev.target.result;
-                    if (typeof window.uploadParaCloudinary === 'function') {
-                        try {
-                            const urlCloud = await window.uploadParaCloudinary(file, 'semac_autos');
-                            if (urlCloud) fileUrl = urlCloud;
-                        } catch (cldErr) {
-                            console.warn('[Cloudinary Warning] Upload falhou, usando fallback DataURL:', cldErr);
-                        }
+                    const fileUrl = await window.uploadParaCloudinary(file, 'semac_autos');
+                    if (!fileUrl) {
+                        ocultarCarregamento();
+                        e.target.value = '';
+                        return;
                     }
                     const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
                     const notifId = notificacaoAtual?.id || null;

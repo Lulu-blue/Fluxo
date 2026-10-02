@@ -17,7 +17,14 @@ Quando chega nessa etapa, deve aparecer uma notificação para o usuário Gerent
 Vai aparecer para ele todas as informações do processo, mas o mais importante que é o Numero do AR.
 Gerencia fai informar se Foi efetivado ou não.
 
-## Check List 
-- Ar efetivado?
-    - Efetivado: etapa 17
-    - Não Efetivado: etapa 18/2
+### Quando o AR foi efetivado
+Marcando **"Sim, AR efetivado"**, a tela pede dois itens obrigatórios:
+- **Data de recebimento pelo proprietário** — é dela que o prazo do autuado passa a contar;
+- **Anexo(s) do AR** — o comprovante da entrega.
+
+Os dois ficam guardados junto com os dados do AR da Etapa 16 (`campos.etapa16.data_recebimento` e `anexos_ar`), e o prazo é iniciado na hora de salvar e de avançar. Sem a data ou sem o anexo, a etapa não avança.
+
+## Check List
+- AR efetivado?
+    - Efetivado: data de recebimento + anexo do AR → etapa 18 (se passou pela 14) ou etapa 2
+    - Não efetivado: etapa 17

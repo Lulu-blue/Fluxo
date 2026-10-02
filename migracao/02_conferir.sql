@@ -7,7 +7,7 @@
 
 
 -- ────────────────────────────────────────────────────────────
--- 1. Situação dos documentos de Anexo AR e Multa
+-- 1. Situação dos documentos, por tipo (todos entram na migração)
 --    Depois da migração, "em_base64" deve ser zero — ou só os que o script
 --    listou como problema / grande demais.
 -- ────────────────────────────────────────────────────────────
@@ -19,13 +19,12 @@ SELECT
     COUNT(*) FILTER (WHERE url IS NULL OR url = '')             AS sem_arquivo,
     pg_size_pretty(SUM(octet_length(url)) FILTER (WHERE url LIKE 'data:%')) AS peso_ainda_em_base64
 FROM documentos
-WHERE tipo IN ('Anexo AR', 'Multa')
 GROUP BY tipo
-ORDER BY tipo;
+ORDER BY em_base64 DESC, tipo;
 
 
 -- ────────────────────────────────────────────────────────────
--- 2. Cópias da Multa em JSON que ainda estão em base64
+-- 2. Cópias em JSON que ainda estão em base64
 --    Depois da migração, devem sobrar só as que não batem com nenhum documento
 --    (a migração nunca troca uma cópia com conteúdo diferente).
 -- ────────────────────────────────────────────────────────────
@@ -65,16 +64,16 @@ WHERE d.tipo = 'Multa'
 -- ────────────────────────────────────────────────────────────
 SELECT id, tipo, nome_arquivo, url
 FROM documentos
-WHERE tipo IN ('Anexo AR', 'Multa')
-  AND url IS NOT NULL
+WHERE url IS NOT NULL
   AND url NOT LIKE 'data:%'
   AND url !~* '^https://res\.cloudinary\.com/[^/]+/(image|raw|video)/upload/.+';
 
 
 -- ────────────────────────────────────────────────────────────
--- 5. Para informação: outros base64 que continuam no banco e ficam FORA do
---    escopo desta migração (edital, imagens antigas, cópias legadas etc.).
---    Não é erro — é o mapa do que ainda pesa.
+-- 5. O que ainda pesa: base64 que sobrou dentro dos JSONs.
+--    A migração troca as cópias que correspondem a um documento; o que
+--    aparecer aqui depois são arquivos guardados SÓ no JSON, sem linha em
+--    `documentos` (ex.: anexos antigos do chat).
 -- ────────────────────────────────────────────────────────────
 SELECT 'processos.dados' AS onde, COUNT(*) AS linhas_com_base64
 FROM processos
@@ -92,7 +91,10 @@ SELECT 'historico_etapas.dados_etapa', COUNT(*)
 FROM historico_etapas
 WHERE dados_etapa::TEXT LIKE '%;base64,%'
 UNION ALL
-SELECT 'documentos (outros tipos)', COUNT(*)
+SELECT 'chats_interface_juridica.mensagens', COUNT(*)
+FROM chats_interface_juridica
+WHERE mensagens::TEXT LIKE '%;base64,%'
+UNION ALL
+SELECT 'documentos', COUNT(*)
 FROM documentos
-WHERE tipo NOT IN ('Anexo AR', 'Multa')
-  AND url LIKE 'data:%';
+WHERE url LIKE 'data:%';

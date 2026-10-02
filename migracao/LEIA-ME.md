@@ -1,8 +1,13 @@
 # Migração de anexos: base64 → Cloudinary
 
-Tira do banco os arquivos de **Anexo AR** e **Multa** que estão gravados como base64
-(cerca de 118 MB, mais as cópias da Multa em `processos`, `notificacoes` e
-`autos_infracao`) e troca cada um por um link do Cloudinary.
+Tira do banco **todo arquivo gravado como base64** na tabela `documentos` — Anexo AR,
+Multa, Notificação Preliminar, Auto de Infração, Relatório Fiscal, Réplica, Certidão,
+Edital, defesas e o que mais houver — e troca cada um por um link do Cloudinary.
+As cópias do mesmo arquivo guardadas dentro dos JSONs (`processos`, `notificacoes`,
+`autos_infracao` e as mensagens do chat) são trocadas na mesma transação.
+
+O script descobre o que migrar pela própria coluna (`url` começando em `data:`),
+então tipos novos entram sozinhos, sem precisar editar lista nenhuma.
 
 Faça **fora do horário de expediente**. Os passos 1 e 3 leem o banco inteiro desses
 arquivos e pesam num banco que já anda no limite.
@@ -48,8 +53,22 @@ Tem que terminar com **"Todos os testes passaram."** Se não, pare.
 
 ### 1. Backup completo do banco
 
-No Supabase: **Project Settings → Database → Connection string → Session pooler**.
-Copie a string e troque `[YOUR-PASSWORD]` pela senha do banco.
+No Supabase, abra o projeto e clique no botão **Connect**, no alto da tela. Abre a janela
+_"Connect to your project"_, com cinco opções em cima: Framework, Server, **Direct**, ORM e MCP.
+Ela começa em **Framework** — clique em **Direct (Connection string)**, o terceiro.
+
+Role até **Session pooler** e copie a string de lá (porta 5432). Troque `[YOUR-PASSWORD]`
+pela senha do banco.
+
+A string fica assim:
+
+```
+postgresql://postgres.SEU-PROJETO:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+```
+
+> O Supabase muda esse menu de tempos em tempos. Se não achar o botão **Connect**,
+> procure por **Project Settings → Database**, na seção de conexão. O que importa é
+> pegar a string do **Session pooler** (porta 5432).
 
 Guarde o arquivo **fora da pasta do projeto**:
 
@@ -96,6 +115,7 @@ Pede para digitar `MIGRAR`. A saída mostra o número do processo de cada docume
 **Abra esses processos no sistema** e confira:
 - o "Visualizar" do AR abre o arquivo certo;
 - a Multa abre na etapa 15;
+- a Notificação Preliminar e o Auto de Infração abrem pelo botão Imprimir / PDF;
 - o PDF unificado da etapa 15 inclui a Multa.
 
 Só siga se estiver tudo certo.

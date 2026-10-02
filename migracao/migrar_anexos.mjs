@@ -2,8 +2,11 @@
 /* ============================================================================
    MIGRAÇÃO DE ANEXOS: base64 no banco → Cloudinary
 
-   Tira os arquivos de Anexo AR e Multa que estão gravados como base64 dentro do
-   banco e troca cada um por um link do Cloudinary — sem perder nenhum.
+   Tira do banco TODO arquivo gravado como base64 na tabela `documentos` —
+   qualquer tipo: Anexo AR, Multa, Notificação Preliminar, Auto de Infração,
+   Relatório Fiscal, Réplica, Certidão, Edital, defesas — e troca cada um por um
+   link do Cloudinary, sem perder nenhum. As cópias do mesmo arquivo guardadas
+   dentro dos JSONs (processos, notificações, autos e chat) são trocadas junto.
 
    Cada documento passa por esta ordem, e a etapa seguinte só acontece se a
    anterior foi confirmada:
@@ -40,9 +43,33 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ_PROJETO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const TIPOS_MIGRADOS = ['Anexo AR', 'Multa'];
-// Mesmas pastas usadas pelos uploads novos (etapa.js), para ficar tudo junto
-const PASTA_CLOUDINARY = { 'Anexo AR': 'Fluxograma/anexos_ar', 'Multa': 'Fluxograma/multas' };
+// Migra TODO documento guardado em base64, qualquer que seja o tipo.
+// A consulta filtra por url começando em 'data:', então tipos novos entram
+// sozinhos, sem precisar mexer aqui.
+
+// Mesmas pastas usadas pelos uploads novos (etapa.js), para ficar tudo junto.
+const PASTA_POR_TIPO = {
+    'Anexo AR': 'Fluxograma/anexos_ar',
+    'Multa': 'Fluxograma/multas',
+    'Notificação Preliminar': 'Fluxograma/semac_notificacoes',
+    'Notificação Preliminar Assinada': 'Fluxograma/semac_notificacoes',
+    'Auto de Infração': 'Fluxograma/semac_autos',
+    'Auto de Infração Assinado': 'Fluxograma/semac_autos',
+    'Relatório Fiscal': 'Fluxograma/semac_relatorios',
+    'Relatório Fiscal Assinado': 'Fluxograma/semac_relatorios',
+    'Réplica': 'Fluxograma/semac_replicas',
+    'Certidão': 'Fluxograma/semac_certidoes',
+    'Certidão Assinada': 'Fluxograma/semac_certidoes',
+    'Certidão Sem Defesa': 'Fluxograma/semac_certidoes',
+    'Edital': 'Fluxograma/semac_editais',
+    'Defesa': 'Fluxograma/semac_anexos',
+    'imagem': 'Fluxograma/semac_anexos'
+};
+const PASTA_PADRAO = 'Fluxograma/semac_documentos';
+
+function pastaDoTipo(tipo) {
+    return PASTA_POR_TIPO[tipo] || PASTA_PADRAO;
+}
 // Limite por arquivo no plano gratuito do Cloudinary
 const LIMITE_BYTES_CLOUDINARY = 10 * 1024 * 1024;
 // Pausa entre documentos, para não pesar num banco que já anda no limite
@@ -263,15 +290,16 @@ class ClienteSupabase {
     }
 
     // Lista sem a coluna url: é a coluna pesada, e aqui só precisamos dos ids
+    // Só os que ainda estão em base64 — o filtro é feito no banco, e a coluna
+    // pesada (url) continua fora do select.
     async listarDocumentos() {
-        const tipos = TIPOS_MIGRADOS.map(t => `"${t}"`).join(',');
         const todos = [];
         const tamanhoPagina = 500;
         for (let inicio = 0; ; inicio += tamanhoPagina) {
             const consulta = [
                 // processos(numero_processo) lê só essa coluna, sem tocar em `dados`
                 'select=id,tipo,nome_arquivo,processo_id,created_at,processos(numero_processo)',
-                `tipo=in.(${encodeURIComponent(tipos)})`,
+                'url=like.data:*',
                 'order=created_at.asc,id.asc',
                 `limit=${tamanhoPagina}`,
                 `offset=${inicio}`
@@ -355,7 +383,7 @@ async function enviarParaCloudinary(cfg, item, bytes) {
         const formulario = new FormData();
         formulario.append('file', new Blob([bytes], { type: item.mime }), `${item.id}.${item.extensao}`);
         formulario.append('upload_preset', cfg.uploadPreset);
-        formulario.append('folder', PASTA_CLOUDINARY[item.tipo]);
+        formulario.append('folder', pastaDoTipo(item.tipo));
 
         let corpo = {};
         try {
@@ -392,7 +420,20 @@ async function comandoConferir(caminhos) {
     const manifesto = await lerManifesto(caminhos);
 
     const documentos = await cliente.listarDocumentos();
-    console.log(`\n${documentos.length} documentos do tipo ${TIPOS_MIGRADOS.join(' / ')} encontrados.\n`);
+    if (documentos.length === 0) {
+        console.log('\nNenhum documento em base64 encontrado. Nada a fazer.\n');
+        return;
+    }
+
+    const porTipo = documentos.reduce((acc, d) => {
+        acc[d.tipo || 'sem tipo'] = (acc[d.tipo || 'sem tipo'] || 0) + 1;
+        return acc;
+    }, {});
+    console.log(`\n${documentos.length} documentos em base64 encontrados:`);
+    Object.entries(porTipo)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([tipo, qtd]) => console.log(`   ${String(qtd).padStart(4)} × ${tipo}`));
+    console.log('');
 
     for (const [indice, doc] of documentos.entries()) {
         const rotulo = `[${indice + 1}/${documentos.length}] ${doc.tipo} do processo ${doc.processos?.numero_processo || doc.processo_id}`;
