@@ -70,20 +70,65 @@ postgresql://postgres.SEU-PROJETO:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432
 > procure por **Project Settings → Database**, na seção de conexão. O que importa é
 > pegar a string do **Session pooler** (porta 5432).
 
-Guarde o arquivo **fora da pasta do projeto**:
+Guarde o arquivo **fora da pasta do projeto**. Como as tabelas deste banco têm linhas
+de vários MB (é esse o problema que a migração resolve), o backup vai **em partes**:
+assim, se a conexão cair, você repete só a parte que falhou.
 
 ```bash
 mkdir -p ~/backups_fluxograma
-pg_dump "COLE_AQUI_A_CONNECTION_STRING" \
-  --schema=public --format=custom --no-owner --no-privileges \
-  -f ~/backups_fluxograma/antes_migracao_$(date +%Y%m%d_%H%M).dump
+cd ~/backups_fluxograma
+
+# Cole a string do Session pooler e MANTENHA os parâmetros do fim:
+# eles seguram a conexão viva durante as transferências demoradas.
+CONN="postgresql://postgres.SEU-PROJETO:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require&keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=6"
+
+# 1) Estrutura completa + dados das tabelas leves
+pg_dump "$CONN" --schema=public --format=custom --no-owner --no-privileges \
+  --exclude-table-data=public.documentos \
+  --exclude-table-data=public.processos \
+  --exclude-table-data=public.notificacoes \
+  --exclude-table-data=public.autos_infracao \
+  --exclude-table-data=public.chats_interface_juridica \
+  -f antes_migracao_leve.dump
+
+# 2) Uma tabela pesada por vez. Se alguma falhar, rode de novo só aquela linha.
+for tabela in documentos processos notificacoes autos_infracao chats_interface_juridica; do
+  echo "== $tabela =="
+  pg_dump "$CONN" --schema=public --format=custom --no-owner --no-privileges \
+    --data-only --table=public.$tabela -f "antes_migracao_$tabela.dump" && echo "   ok"
+done
 ```
 
-Confirme que o backup tem os dados dos documentos (deve aparecer uma linha):
+Confirme que cada arquivo tem conteúdo (nenhum pode estar com poucos bytes):
 
 ```bash
-pg_restore --list ~/backups_fluxograma/antes_migracao_*.dump | grep "TABLE DATA public documentos"
+ls -lh ~/backups_fluxograma/antes_migracao_*.dump
+pg_restore --list ~/backups_fluxograma/antes_migracao_documentos.dump | grep "TABLE DATA"
 ```
+
+#### Se o `pg_dump` cair com "a conexão SSL foi fechada inesperadamente"
+
+É a tabela pesada sendo cortada no meio da transferência pelo pooler. Em ordem:
+
+1. **Repita só a tabela que falhou** — na maioria das vezes passa na segunda tentativa.
+2. **Confira os parâmetros `keepalives`** na string de conexão (eles estão no exemplo acima).
+3. **Rede com fio ou Wi-Fi estável**, sem VPN. A transferência leva alguns minutos.
+4. Se insistir em cair, baixe a tabela **em pedaços**, por data:
+
+```bash
+pg_dump "$CONN" --schema=public --format=custom --no-owner --no-privileges \
+  --data-only --table=public.autos_infracao -f antes_autos_parte1.dump   # tente de novo
+# alternativa, em partes por período:
+psql "$CONN" -c "\copy (SELECT * FROM autos_infracao WHERE created_at < '2026-01-01') TO 'autos_ate_2025.csv' WITH CSV HEADER"
+psql "$CONN" -c "\copy (SELECT * FROM autos_infracao WHERE created_at >= '2026-01-01') TO 'autos_2026.csv' WITH CSV HEADER"
+```
+
+> **A conexão direta (sem pooler) não resolve aqui:** ela só aceita IPv6, e esta rede
+> não tem. Por isso o caminho é o Session pooler com `keepalives`.
+
+Vale lembrar que o próprio script guarda, em `migracao/backup/`, **duas cópias de cada
+arquivo** antes de trocar qualquer coisa — o `pg_dump` é a rede de segurança a mais,
+para o caso de algo fora dos anexos dar errado.
 
 ### 2. Preparar o banco
 
