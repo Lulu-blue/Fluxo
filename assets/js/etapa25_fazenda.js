@@ -117,6 +117,98 @@ Atenciosamente,`
     const esc = txt => P().escaparHtml(txt);
 
     function dados25() { return P().dadosEtapa(25); }
+
+    // ------------------------------------------------------- valor da multa
+    // O desfecho muda o valor cobrado do Auto (autos_infracao.valor_multa); o
+    // banco refaz o total do processo. Regra e histórico: valorMultaPeloDesfecho
+    // e dadosComNovoValorMulta, no etapa.js.
+    let registroAuto = null;      // { id, numero, valor_multa, dados } em autos_infracao
+    let emissaoEstimada = false;  // Auto antigo sem valor gravado: calculado agora
+
+    const brl = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const lerValor = txt => (typeof window.parseNumberSafe === 'function' ? window.parseNumberSafe(txt, 0) : parseFloat(txt) || 0);
+
+    async function carregarRegistroAuto() {
+        registroAuto = null;
+        try {
+            let consulta = supabaseClient
+                .from('autos_infracao')
+                .select('id, numero, valor_multa, dados')
+                .eq('processo_id', processoAtual.id);
+            consulta = notificacaoAtual?.id
+                ? consulta.eq('notificacao_id', notificacaoAtual.id)
+                : consulta.eq('numero', auto?.numero || '');
+            const { data, error } = await consulta.order('created_at', { ascending: false }).limit(1);
+            if (error) throw error;
+            registroAuto = data?.[0] || null;
+        } catch (err) {
+            console.warn('[Etapa 25] Não foi possível ler o valor da multa do Auto (rode migracao/valor_multas.sql):', err?.message || err);
+        }
+    }
+
+    // Valor com que o Auto foi emitido. Auto antigo sem valor: calcula como na Etapa 14.
+    function valorDeEmissao() {
+        emissaoEstimada = false;
+        const doRegistro = registroAuto?.dados?.valor_emissao ?? registroAuto?.valor_multa;
+        if (doRegistro !== null && doRegistro !== undefined) return Number(doRegistro);
+        if (typeof window.calcularMultaDoAuto !== 'function') return null;
+        const dispItem = window.obterDescricaoInfracao ? window.obterDescricaoInfracao(auto?.descricao || '') : (auto?.descricao || '');
+        emissaoEstimada = true;
+        return window.calcularMultaDoAuto({ proc: processoAtual, notif: notificacaoAtual, dispItem }).valor;
+    }
+
+    function novoValorDaOpcao(opcao) {
+        const informado = lerValor(document.getElementById('e25NovoValor')?.value);
+        return window.valorMultaPeloDesfecho(opcao, valorDeEmissao(), informado);
+    }
+
+    function renderizarValorMulta() {
+        const el = document.getElementById('e25ValorMulta');
+        const opcao = opcaoMarcada();
+        if (!el) return;
+        if (!opcao || typeof window.valorMultaPeloDesfecho !== 'function') { el.hidden = true; return; }
+        const emissao = valorDeEmissao();
+        const novo = novoValorDaOpcao(opcao);
+        const linhaEmissao = emissao === null
+            ? 'Valor do Auto: <strong>não encontrado</strong>'
+            : `Valor do Auto na emissão: <strong>${brl(emissao)}</strong>${emissaoEstimada ? ' <span style="color:#b45309;">(calculado agora: o Auto não tinha valor gravado)</span>' : ''}`;
+        const linhaNovo = novo === null
+            ? (opcao === 'alteracao_valor' ? 'Informe o novo valor no item 3.' : '')
+            : `Valor cobrado depois deste desfecho: <strong>${brl(novo)}</strong>${opcao === 'cancelamento' ? ' (deixa de somar no total do processo)' : ''}`;
+        el.innerHTML = `${linhaEmissao}${linhaNovo ? `<br>${linhaNovo}` : ''}`;
+        el.hidden = false;
+    }
+
+    async function registrarValorDoDesfecho(form) {
+        if (typeof window.valorMultaPeloDesfecho !== 'function') return;
+        if (!registroAuto) await carregarRegistroAuto();
+        if (!registroAuto) {
+            console.warn('[Etapa 25] Auto sem registro em autos_infracao: o valor da multa não foi atualizado.');
+            return;
+        }
+        const emissao = valorDeEmissao();
+        const novo = window.valorMultaPeloDesfecho(form.opcao, emissao, lerValor(form.novo_valor));
+        const anterior = registroAuto.valor_multa === null ? null : Number(registroAuto.valor_multa);
+        if (novo === null || novo === anterior) return;
+
+        const dados = window.dadosComNovoValorMulta(registroAuto.dados, anterior, novo, {
+            desfecho: form.opcao,
+            rotulo: OPCOES[form.opcao]?.rotulo || '',
+            justificativa: form.texto_manual || '',
+            valorEmissao: emissao,
+            emissaoEstimada
+        });
+        const { error } = await supabaseClient
+            .from('autos_infracao')
+            .update({ valor_multa: novo, dados, updated_at: new Date().toISOString() })
+            .eq('id', registroAuto.id);
+        if (error) {
+            console.error('[Etapa 25] Erro ao atualizar o valor da multa:', error);
+            alert('O desfecho foi registrado, mas não foi possível atualizar o valor da multa no Auto. Avise o suporte.');
+            return;
+        }
+        registroAuto = { ...registroAuto, valor_multa: novo, dados };
+    }
     function dados31() { return P().dadosEtapa(31); }
 
     // ------------------------------------------------------------------ dados
@@ -337,11 +429,14 @@ Atenciosamente,`
                         `).join('')}
                     </div>
                     <div id="e25PrazoAviso" hidden style="margin-top:12px; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:10px 12px; border-radius:8px; font-size:0.85rem;"></div>
+                    <div id="e25ValorMulta" hidden style="margin-top:12px; background:white; border:1px solid #e2e8f0; color:#334155; padding:10px 12px; border-radius:8px; font-size:0.88rem;"></div>
                 </div>
 
                 <div id="e25BlocoTextoManual" hidden style="${cartao} margin-bottom:20px;">
-                    <h4 style="${titulo}">3. Justificativa da alteração de valor <span style="color:#ef4444;">*</span></h4>
-                    <p style="${sub}">Este parágrafo entra no meio do ofício, no lugar do texto padrão.</p>
+                    <h4 style="${titulo}">3. Alteração de valor <span style="color:#ef4444;">*</span></h4>
+                    <p style="${sub}">Informe o novo valor da multa e a justificativa. A justificativa entra no meio do ofício, no lugar do texto padrão.</p>
+                    <label for="e25NovoValor" style="display:block; font-weight:600; font-size:0.88rem; color:#334155; margin-bottom:6px;">Novo valor da multa (R$) <span style="color:#ef4444;">*</span></label>
+                    <input type="text" inputmode="decimal" id="e25NovoValor" placeholder="Ex.: 1.250,00" style="width:220px; max-width:100%; box-sizing:border-box; padding:10px 12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; font-family:inherit; margin-bottom:12px;">
                     <textarea id="e25TextoManual" rows="4" placeholder="Ex.: após nova medição da testada, verificou-se que o valor lançado deve ser retificado para..." style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
                 </div>
 
@@ -472,6 +567,7 @@ Atenciosamente,`
         document.getElementById('e25BlocoTextoManual').hidden = !config.exigeTextoManual;
         document.getElementById('e25BlocoOficio').hidden = !config.temOficio;
         document.getElementById('e25BlocoMulta').hidden = !config.exigeNovaMulta;
+        renderizarValorMulta();
 
         const mensagemArea = document.getElementById('e25Mensagem');
         const salvo = dados25();
@@ -538,6 +634,7 @@ Atenciosamente,`
         return {
             opcao: opcaoMarcada(),
             texto_manual: document.getElementById('e25TextoManual')?.value || '',
+            novo_valor: document.getElementById('e25NovoValor')?.value || '',
             mensagem: document.getElementById('e25Mensagem')?.value || ''
         };
     }
@@ -580,6 +677,11 @@ Atenciosamente,`
             alert('Escolha o desfecho (item 2).');
             return;
         }
+        if (config.exigeTextoManual && !(lerValor(form.novo_valor) > 0)) {
+            alert('Informe o novo valor da multa (item 3).');
+            document.getElementById('e25NovoValor')?.focus();
+            return;
+        }
         if (config.exigeTextoManual && !form.texto_manual.trim()) {
             alert('Escreva a justificativa da alteração de valor (item 3).');
             return;
@@ -601,6 +703,7 @@ Atenciosamente,`
             }
 
             await P().persistirDados();
+            await registrarValorDoDesfecho(form);
             await moverProcessoParaEtapa(config.destino, `Cumprimento do despacho: ${config.rotulo}`);
         } catch (err) {
             ocultarCarregamento();
@@ -627,6 +730,7 @@ Atenciosamente,`
         } catch (err) {
             console.error('[Etapa 25] Erro ao carregar modelos:', err);
         }
+        await carregarRegistroAuto();
         renderizarResumo('e25Resumo');
 
         const salvo = dados25();
@@ -636,6 +740,11 @@ Atenciosamente,`
         }
         const manual = document.getElementById('e25TextoManual');
         if (manual) manual.value = salvo.texto_manual || '';
+        const novoValor = document.getElementById('e25NovoValor');
+        if (novoValor) {
+            novoValor.value = salvo.novo_valor || '';
+            novoValor.addEventListener('input', renderizarValorMulta);
+        }
         await aoMudarOpcao();
 
         document.querySelectorAll('input[name="e25Opcao"]').forEach(r => r.addEventListener('change', aoMudarOpcao));
@@ -654,6 +763,8 @@ Atenciosamente,`
         document.getElementById('e25BtnVerDespacho')?.addEventListener('click', () => window.ProcessoUnificado?.verDespacho(auto));
 
         if (!P().podeEditar()) {
+            const campoValor = document.getElementById('e25NovoValor');
+            if (campoValor) campoValor.readOnly = true;
             raiz.querySelectorAll('input[type="radio"], textarea').forEach(el => {
                 el.disabled = el.tagName === 'INPUT';
                 el.readOnly = el.tagName === 'TEXTAREA';

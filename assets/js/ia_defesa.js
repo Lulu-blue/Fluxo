@@ -21,7 +21,7 @@
     const MODELOS = ['Qwen2.5-1.5B-Instruct', 'Qwen2.5-0.5B-Instruct'];
 
     // Alegações que o modelo pode marcar. Vieram do levantamento em
-    // etapas/etapa_19_pesquisa_defesas.md.
+    // README.md, Anexo C (pesquisa de argumentos das defesas).
     const ALEGACOES = {
         regularizou_no_prazo: 'Regularizou dentro do prazo da notificação',
         regularizou_depois: 'Regularizou depois do prazo ou da autuação',

@@ -70,65 +70,75 @@ postgresql://postgres.SEU-PROJETO:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432
 > procure por **Project Settings → Database**, na seção de conexão. O que importa é
 > pegar a string do **Session pooler** (porta 5432).
 
-Guarde o arquivo **fora da pasta do projeto**. Como as tabelas deste banco têm linhas
-de vários MB (é esse o problema que a migração resolve), o backup vai **em partes**:
-assim, se a conexão cair, você repete só a parte que falhou.
+Guarde os arquivos **fora da pasta do projeto**. O backup vai **em partes**: este banco
+tem linhas de vários MB (é esse o problema que a migração resolve), e um `pg_dump` único
+não sobrevive à transferência numa internet comum.
+
+Um comando só, com a string entre aspas:
 
 ```bash
-mkdir -p ~/backups_fluxograma
+~/"Área de Trabalho/Fluxograma/migracao/backup_tabelas_pesadas.sh" \
+  "postgresql://postgres.SEU-PROJETO:SENHA@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
+```
+
+Pode deixar rodando sem acompanhar. O script faz, em ordem, a **estrutura** do banco
+com os dados das tabelas leves e depois **cada tabela pesada no seu próprio arquivo**,
+dentro de `~/backups_fluxograma`. Ele cuida sozinho do que derruba o `pg_dump` comum:
+
+- usa `--inserts --rows-per-insert=50`, então **não abre um `COPY` longo**: percorre a
+  tabela com um cursor, de 50 em 50 linhas, em idas e voltas curtas;
+- **reescreve os parâmetros de rede** da string de conexão para valores tolerantes
+  (aguenta ~10 min de travada antes de desistir). Com valores apertados, é o próprio
+  computador que derruba o `pg_dump` quando o Wi-Fi engasga — o erro aparece como
+  `Tempo esgotado para conexão`, parecendo culpa do servidor;
+- **confere cada arquivo** com `pg_restore` antes de aceitá-lo, e só então o renomeia
+  para o nome final — arquivo truncado nunca fica parecendo pronto;
+- **espera a rede voltar** e **repete sozinho** até 10 vezes a parte que cair;
+- **pula o que já está íntegro**, então pode rodar de novo quantas vezes precisar;
+- termina em `Todas as tabelas pedidas estão salvas e conferidas.` ou lista o que faltou.
+
+Para refazer só uma parte, passe o nome dela (`estrutura` ou o nome da tabela):
+
+```bash
+~/"Área de Trabalho/Fluxograma/migracao/backup_tabelas_pesadas.sh" "$CONN" documentos
+```
+
+**Confira no final** que está tudo íntegro — é esta a verificação que importa, não o
+tamanho do arquivo:
+
+```bash
 cd ~/backups_fluxograma
-
-# Cole a string do Session pooler e MANTENHA os parâmetros do fim:
-# eles seguram a conexão viva durante as transferências demoradas.
-CONN="postgresql://postgres.SEU-PROJETO:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require&keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=6"
-
-# 1) Estrutura completa + dados das tabelas leves
-pg_dump "$CONN" --schema=public --format=custom --no-owner --no-privileges \
-  --exclude-table-data=public.documentos \
-  --exclude-table-data=public.processos \
-  --exclude-table-data=public.notificacoes \
-  --exclude-table-data=public.autos_infracao \
-  --exclude-table-data=public.chats_interface_juridica \
-  -f antes_migracao_leve.dump
-
-# 2) Uma tabela pesada por vez. Se alguma falhar, rode de novo só aquela linha.
-for tabela in documentos processos notificacoes autos_infracao chats_interface_juridica; do
-  echo "== $tabela =="
-  pg_dump "$CONN" --schema=public --format=custom --no-owner --no-privileges \
-    --data-only --table=public.$tabela -f "antes_migracao_$tabela.dump" && echo "   ok"
+for f in antes_migracao_*.dump; do
+  printf '%-45s %6s  ' "$f" "$(du -h "$f" | cut -f1)"
+  pg_restore -f /dev/null "$f" >/dev/null 2>&1 && echo "ÍNTEGRO" || echo "QUEBRADO"
 done
 ```
 
-Confirme que cada arquivo tem conteúdo (nenhum pode estar com poucos bytes):
+**Apague os arquivos QUEBRADOS.** Um `pg_dump` interrompido deixa o arquivo escrito pela
+metade e ele não restaura nada — guardá-lo só cria a falsa impressão de ter backup.
+Ao final têm que estar ÍNTEGROS: `estrutura`, `documentos`, `historico_etapas`,
+`processos`, `notificacoes`, `autos_infracao` e `chats_interface_juridica`.
+
+#### Se mesmo assim ficar caindo
+
+O gargalo é o link, não o Supabase. Vale conferir a velocidade real:
 
 ```bash
-ls -lh ~/backups_fluxograma/antes_migracao_*.dump
-pg_restore --list ~/backups_fluxograma/antes_migracao_documentos.dump | grep "TABLE DATA"
+curl -4 -s -o /dev/null -w 'velocidade: %{speed_download} B/s\n' \
+  "https://speed.cloudflare.com/__down?bytes=20000000" --max-time 60
 ```
 
-#### Se o `pg_dump` cair com "a conexão SSL foi fechada inesperadamente"
+Abaixo de uns 500 kB/s, o backup leva muitos minutos e cada travada vira uma tentativa
+perdida. Nessa situação: cabo de rede em vez de Wi-Fi, ou mais perto do roteador, ou
+fora do horário de pico da rede compartilhada. O script repete sozinho, então o pior
+caso é demorar — ele não perde o que já conseguiu.
 
-É a tabela pesada sendo cortada no meio da transferência pelo pooler. Em ordem:
+> **A conexão direta (sem pooler) não é alternativa:** ela só atende em IPv6, e esta
+> rede não tem. Por isso o caminho é o Session pooler.
 
-1. **Repita só a tabela que falhou** — na maioria das vezes passa na segunda tentativa.
-2. **Confira os parâmetros `keepalives`** na string de conexão (eles estão no exemplo acima).
-3. **Rede com fio ou Wi-Fi estável**, sem VPN. A transferência leva alguns minutos.
-4. Se insistir em cair, baixe a tabela **em pedaços**, por data:
-
-```bash
-pg_dump "$CONN" --schema=public --format=custom --no-owner --no-privileges \
-  --data-only --table=public.autos_infracao -f antes_autos_parte1.dump   # tente de novo
-# alternativa, em partes por período:
-psql "$CONN" -c "\copy (SELECT * FROM autos_infracao WHERE created_at < '2026-01-01') TO 'autos_ate_2025.csv' WITH CSV HEADER"
-psql "$CONN" -c "\copy (SELECT * FROM autos_infracao WHERE created_at >= '2026-01-01') TO 'autos_2026.csv' WITH CSV HEADER"
-```
-
-> **A conexão direta (sem pooler) não resolve aqui:** ela só aceita IPv6, e esta rede
-> não tem. Por isso o caminho é o Session pooler com `keepalives`.
-
-Vale lembrar que o próprio script guarda, em `migracao/backup/`, **duas cópias de cada
-arquivo** antes de trocar qualquer coisa — o `pg_dump` é a rede de segurança a mais,
-para o caso de algo fora dos anexos dar errado.
+Vale lembrar que o próprio script de migração guarda, em `migracao/backup/`, **duas cópias
+de cada arquivo** antes de trocar qualquer coisa — o `pg_dump` é a rede de segurança a
+mais, para o caso de algo fora dos anexos dar errado.
 
 ### 2. Preparar o banco
 

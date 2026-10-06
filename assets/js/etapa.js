@@ -358,7 +358,99 @@ async function criarNotificacoesDoProcesso(proc) {
 // O prazo de cada notificação (notificacoes.data_inicio / data_vencimento /
 // prazo_dias) é gravado a partir daqui, e prazo_origem diz qual caso valeu.
 // A Etapa 18 e o painel leem esses valores; ninguém mais recalcula.
-function obterDadosARProcesso(proc) {
+//
+// ── Onde ficam os dados do AR, do Edital e da Etapa 30 ────────────────────
+// A Notificação Preliminar tem UM AR para o processo inteiro (todas as
+// notificações saem no mesmo envio): proc.campos.etapa16, etapa17 e etapa30.
+// Cada Auto de Infração de uma notificação é enviado à parte e tem o próprio
+// ciclo 16/17/30, guardado em proc.campos.ciclos_ar_auto[<id da notificação>]
+// com as mesmas chaves. Antes os dois ciclos dividiam proc.campos.etapa16 e o
+// AR do Auto sobrescrevia o da notificação.
+// No nível do processo (NP vinda da Etapa 1, processo de decreto) continua
+// valendo proc.campos.
+function camposDoCicloARDaNotificacao(proc, notif, criar = false) {
+    if (!proc || !notif?.id) return null;
+    proc.campos = proc.campos || {};
+    const mapa = proc.campos.ciclos_ar_auto;
+    if (mapa && mapa[notif.id]) return mapa[notif.id];
+    if (!criar) return null;
+    proc.campos.ciclos_ar_auto = mapa || {};
+    proc.campos.ciclos_ar_auto[notif.id] = {};
+    return proc.campos.ciclos_ar_auto[notif.id];
+}
+
+// Etapas 16, 17 e 30: os campos do ciclo aberto na tela (o do Auto da
+// notificação aberta ou, no nível do processo, proc.campos).
+function camposCicloAR(proc) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    if (!p) return {};
+    p.campos = p.campos || {};
+    return camposDoCicloARDaNotificacao(p, notificacaoDoCicloAR(), true) || p.campos;
+}
+window.camposCicloAR = camposCicloAR;
+
+// Autos que já estavam no ciclo 16/17/30 antes da separação gravaram o AR em
+// proc.campos.etapa16/17/30, no lugar do AR da Notificação Preliminar. Ao abrir
+// a etapa, o que foi gravado depois de a notificação entrar no ciclo passa a
+// ser do Auto (fica salvo no próximo Salvar/Avançar).
+async function adotarCicloARLegadoDoAuto(proc) {
+    const notif = notificacaoDoCicloAR();
+    if (!proc || !notif?.id) return;
+    if (camposDoCicloARDaNotificacao(proc, notif, false)) return;
+    const c = proc.campos || {};
+    if (!c.etapa16 && !c.etapa17 && !c.etapa30) return;
+
+    try {
+        const { data: etapasCiclo } = await supabaseClient
+            .from('etapas')
+            .select('id')
+            .in('numero', ETAPAS_AR_COMPARTILHADAS);
+        const idsCiclo = (etapasCiclo || []).map(e => e.id);
+        if (idsCiclo.length === 0) return;
+
+        const { data: hist } = await supabaseClient
+            .from('historico_etapas')
+            .select('created_at')
+            .eq('notificacao_id', notif.id)
+            .in('etapa_para_id', idsCiclo)
+            .order('created_at', { ascending: true })
+            .limit(1);
+        const inicioCiclo = hist?.[0]?.created_at;
+        if (!inicioCiclo) return;
+
+        const depoisDoInicio = v => !!v && new Date(v) >= new Date(inicioCiclo);
+        const copiar = obj => JSON.parse(JSON.stringify(obj));
+        const doAuto = {};
+        if (depoisDoInicio(c.etapa16?.data_insercao_ar)) {
+            doAuto.etapa16 = copiar(c.etapa16);
+            if (c.etapa30) doAuto.etapa30 = copiar(c.etapa30);
+        }
+        if (depoisDoInicio(c.etapa17?.data_anexo_edital)) doAuto.etapa17 = copiar(c.etapa17);
+        if (Object.keys(doAuto).length === 0) return;
+
+        proc.campos.ciclos_ar_auto = proc.campos.ciclos_ar_auto || {};
+        proc.campos.ciclos_ar_auto[notif.id] = doAuto;
+        console.info('[AR] Dados do AR gravados no lugar da NP foram atribuídos ao Auto da notificação', notif.numero || notif.id);
+    } catch (err) {
+        console.warn('Aviso ao separar o AR antigo do Auto:', err);
+    }
+}
+
+// Fora do ciclo (prazo, PDFs, Etapa 28...): o AR do Auto quando a notificação
+// já teve o próprio ciclo; senão, o da Notificação Preliminar / do processo.
+function camposARParaLeitura(proc, notif) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    if (!p) return {};
+    const n = notif === undefined
+        ? (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null)
+        : notif;
+    return camposDoCicloARDaNotificacao(p, n, false) || p.campos || {};
+}
+window.camposARParaLeitura = camposARParaLeitura;
+
+function obterDadosARProcesso(proc, notif = null) {
+    const doAuto = camposDoCicloARDaNotificacao(proc, notif, false);
+    if (doAuto) return { ...(doAuto.etapa16 || {}) };
     return {
         ...(proc?.dados?.etapa16 || {}),
         ...(proc?.dados?.campos?.etapa16 || {}),
@@ -381,21 +473,23 @@ function dataLocalMeioDiaISO(valor) {
     return new Date(ymd + 'T12:00:00').toISOString();
 }
 
-function obterDataEditalProcesso(proc) {
+function obterDataEditalProcesso(proc, notif = null) {
+    const doAuto = camposDoCicloARDaNotificacao(proc, notif, false);
+    if (doAuto) return doAuto.etapa17?.data_anexo_edital || null;
     return proc?.campos?.etapa17?.data_anexo_edital
         || proc?.dados?.campos?.etapa17?.data_anexo_edital
         || proc?.dados?.etapa17?.data_anexo_edital
         || null;
 }
 
-function obterInicioPrazoAR(proc) {
-    const ar = obterDadosARProcesso(proc);
+function obterInicioPrazoAR(proc, notif = null) {
+    const ar = obterDadosARProcesso(proc, notif);
 
     const recebimento = dataLocalMeioDiaISO(ar.data_recebimento || ar.data_recebimento_proprietario);
     if (recebimento) return { dataISO: recebimento, origem: 'recebimento' };
 
     const cadastroBruto = ar.data_insercao_ar;
-    const editalBruto = obterDataEditalProcesso(proc);
+    const editalBruto = obterDataEditalProcesso(proc, notif);
 
     // Se veio um AR novo depois do edital, é o AR novo que vale
     const editalMaisRecente = editalBruto && (!cadastroBruto || new Date(editalBruto) >= new Date(cadastroBruto));
@@ -450,7 +544,8 @@ function refletirPrazoEmMemoria(proc, notifId, campos) {
 //   sem nenhum dos dois    -> todas as notificações do processo ainda em aberto
 async function aplicarInicioPrazoAR(proc, opcoes = {}) {
     if (!proc) return false;
-    const inicio = obterInicioPrazoAR(proc);
+    // Com a notificação do ciclo (Auto dela), vale o AR desse Auto
+    const inicio = obterInicioPrazoAR(proc, opcoes.notificacao || null);
     const passouEtapa17 = await processoPassouPelaEtapa17(proc);
 
     let notificacoes = [];
@@ -552,11 +647,12 @@ async function moverNotificacoesDoCicloAR(proxEtapaId) {
 // Guarda a data de recebimento informada na Etapa 16 no processo
 function registrarDataRecebimentoAR(proc, dataRecebimento) {
     if (!proc || !dataRecebimento) return;
-    proc.campos = proc.campos || {};
-    proc.campos.etapa16 = proc.campos.etapa16 || {};
-    proc.campos.etapa16.data_recebimento = dataRecebimento;
-    proc.campos.etapa16.data_recebimento_proprietario = dataRecebimento;
-    if (proc.dados) {
+    const ciclo = camposCicloAR(proc);
+    ciclo.etapa16 = ciclo.etapa16 || {};
+    ciclo.etapa16.data_recebimento = dataRecebimento;
+    ciclo.etapa16.data_recebimento_proprietario = dataRecebimento;
+    // O espelho em proc.dados.etapa16 é só do AR do processo, nunca do de um Auto
+    if (proc.dados && ciclo === proc.campos) {
         proc.dados.campos = proc.campos;
         if (!proc.dados.etapa16) proc.dados.etapa16 = {};
         proc.dados.etapa16.data_recebimento = dataRecebimento;
@@ -769,6 +865,10 @@ async function inicializarPaginaEtapa() {
             window.location.href = `etapa.html?processo=${processoAtual.id}`;
             return;
         }
+    }
+
+    if (ETAPAS_AR_COMPARTILHADAS.includes(etapaAtual)) {
+        await adotarCicloARLegadoDoAuto(processoAtual);
     }
 
     if (etapaAtual === 2 && !notificacaoAtual) {
@@ -1477,10 +1577,10 @@ function renderizarFormularioDinamico(etapaNum) {
         const matriculaFiscal = processoAtual?.fiscal_matricula || fiscObj.matricula || perfilAtual?.matricula || '99044459-2';
         const dataHoje = new Date().toLocaleDateString('pt-BR');
 
-        const numAutoInfracao15 = processoAtual?.dados?.numero_auto_infracao
-            || processoAtual?.dados?.etapa14?.numero_auto_infracao
-            || notificacaoAtual?.numero_auto_infracao
+        const numAutoInfracao15 = notificacaoAtual?.numero_auto_infracao
             || notificacaoAtual?.dados?.numero_auto_infracao
+            || processoAtual?.dados?.numero_auto_infracao
+            || processoAtual?.dados?.etapa14?.numero_auto_infracao
             || `${new Date().getFullYear()}/000001`;
 
         const valDefesaProc15 = processoAtual?.dados?.apresentou_defesa
@@ -3486,10 +3586,7 @@ window.gerarZipComTodosDocumentos = async function () {
         }
 
         // 4. Anexo do AR (Aviso de Recebimento)
-        const docAR = docsBanco.find(d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo))
-            || processoAtual?._arAnexosLocais?.[0]
-            || processoAtual?.campos?.etapa16?.anexos_ar?.[0]
-            || notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0];
+        const docAR = window.escolherDocumentoAR(docsBanco);
 
         let urlAR = docAR?.url || docAR?.dataUrl || docAR?.base64;
         if (urlAR) {
@@ -3504,6 +3601,7 @@ window.gerarZipComTodosDocumentos = async function () {
 
         // 6. Edital do Gerente (se houver)
         const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo))
+            || camposARParaLeitura(processoAtual).etapa17?.anexo_edital
             || processoAtual?.campos?.etapa17?.anexo_edital
             || processoAtual?.dados?.campos?.etapa17?.anexo_edital
             || notificacaoAtual?.dados?.etapa17?.anexo_edital;
@@ -3776,12 +3874,9 @@ window.carregarArquivosEtapa29 = async function () {
     }
 
     // 4. Anexo do AR (Aviso de Recebimento)
-    const docAR = docsBanco.find(d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo))
-        || processoAtual?._arAnexosLocais?.[0]
-        || processoAtual?.campos?.etapa16?.anexos_ar?.[0]
-        || notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0];
+    const docAR = window.escolherDocumentoAR(docsBanco);
 
-    if (docAR || processoAtual?.campos?.etapa16 || notificacaoAtual?.dados?.etapa16) {
+    if (docAR || camposARParaLeitura(processoAtual).etapa16 || notificacaoAtual?.dados?.etapa16) {
         listaCards.push({
             tipoKey: 'ar',
             titulo: 'Anexo do AR (Aviso de Recebimento)',
@@ -3817,6 +3912,7 @@ window.carregarArquivosEtapa29 = async function () {
 
     // 6. Edital do Gerente (Etapa 17 - quando houver)
     const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo))
+        || camposARParaLeitura(processoAtual).etapa17?.anexo_edital
         || processoAtual?.campos?.etapa17?.anexo_edital
         || processoAtual?.dados?.campos?.etapa17?.anexo_edital
         || notificacaoAtual?.dados?.etapa17?.anexo_edital;
@@ -4019,6 +4115,7 @@ window.baixarDocUnico = async function (tipo) {
             }
         } else if (tipo === 'edital_gerente' || tipo === 'edital') {
             const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo))
+                || camposARParaLeitura(processoAtual).etapa17?.anexo_edital
                 || processoAtual?.campos?.etapa17?.anexo_edital
                 || processoAtual?.dados?.campos?.etapa17?.anexo_edital
                 || notificacaoAtual?.dados?.etapa17?.anexo_edital;
@@ -4080,10 +4177,7 @@ window.baixarDocUnico = async function (tipo) {
             ocultarCarregamento();
             alert('Arquivo BIC (Espelho Cadastral) não encontrado.');
         } else if (tipo === 'ar') {
-            const docAR = docsBanco.find(d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo))
-                || processoAtual?._arAnexosLocais?.[0]
-                || processoAtual?.campos?.etapa16?.anexos_ar?.[0]
-                || notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0];
+            const docAR = window.escolherDocumentoAR(docsBanco);
 
             let urlAR = docAR?.url || docAR?.dataUrl || docAR?.base64;
             if (!urlAR && docAR?.documento_id) {
@@ -5876,10 +5970,13 @@ window.configurarEventosReplicaAssinada = function () {
             mostrarCarregamento('Validando Réplica Assinada...');
 
             try {
+                // Declarados fora do if: a validação da numeração (passo 2) também usa
+                const nomeNorm = (file.name || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                let textoNorm = '';
+
                 if (!isImagem) {
                     const textoExtraido = await extrairTextoDoArquivo(file);
-                    const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-                    const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 
                     // 1. Validação da Nomenclatura "RÉPLICA"
                     if (!textoNorm.includes('REPLICA') && !nomeNorm.includes('REPLICA')) {
@@ -5896,7 +5993,8 @@ window.configurarEventosReplicaAssinada = function () {
                 const numProc = (processoAtual?.numero_processo || processoAtual?.numero || '').trim();
 
                 let bateuNumero = false;
-                if (!numReplica && !numNotif && !numProc) {
+                // Imagem (foto da réplica assinada) não tem texto para conferir
+                if (isImagem || (!numReplica && !numNotif && !numProc)) {
                     bateuNumero = true;
                 } else {
                     const candidatos = [];
@@ -8682,7 +8780,8 @@ function determinarPrazoAutoInfracao(descricao) {
 
 async function obterAutosEtapa18(proc) {
     // Mesma regra da Etapa 16: recebimento pelo proprietário; sem ele, cadastro do AR
-    const dataArEnviado = obterInicioPrazoAR(proc)?.dataISO;
+    const notifAberta = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
+    const dataArEnviado = obterInicioPrazoAR(proc, notifAberta)?.dataISO;
 
     console.log('[DEBUG Etapa 18] Obter Autos — Processo ID:', proc.id, '| Data AR Enviado/Gravado:', dataArEnviado);
 
@@ -9237,8 +9336,7 @@ async function renderizarEtapa16(proc) {
 
     ajustarRotulosEtapa16AoFluxo(proc);
 
-    const campos = proc.campos || {};
-    const dadosAR = campos.etapa16 || {};
+    const dadosAR = camposCicloAR(proc).etapa16 || {};
 
     setVal('arNumero', dadosAR.numero_ar);
     setVal('arDataRecebimento', dadosAR.data_recebimento);
@@ -9320,16 +9418,26 @@ async function carregarEExibirAnexosAR(proc) {
     if (!proc) return;
     proc._arAnexosLocais = [];
 
+    // Cada ciclo tem os seus anexos: o AR do Auto de uma notificação fica ligado
+    // a ela (notificacao_id); o da Notificação Preliminar, ao processo.
+    const notifCiclo = notificacaoDoCicloAR();
+    const ciclo = camposCicloAR(proc);
+    const idsDoCiclo = (ciclo.etapa16?.anexos_ar || []).map(a => a.documento_id).filter(Boolean);
+
     try {
         const { data: docsDB } = await supabaseClient
             .from('documentos')
-            .select('id, nome_arquivo, url')
+            .select('id, nome_arquivo, url, notificacao_id')
             .eq('processo_id', proc.id)
             .eq('tipo', 'Anexo AR')
             .order('created_at', { ascending: true });
 
-        if (docsDB && docsDB.length > 0) {
-            proc._arAnexosLocais = docsDB.map(d => ({
+        const doCiclo = (docsDB || []).filter(d => idsDoCiclo.includes(d.id) || (notifCiclo
+            ? String(d.notificacao_id) === String(notifCiclo.id)
+            : !d.notificacao_id && !idsDeAnexosARDeAutos(proc).has(d.id)));
+
+        if (doCiclo.length > 0) {
+            proc._arAnexosLocais = doCiclo.map(d => ({
                 documento_id: d.id,
                 nome: d.nome_arquivo,
                 url: d.url
@@ -9340,7 +9448,7 @@ async function carregarEExibirAnexosAR(proc) {
     }
 
     if (proc._arAnexosLocais.length === 0) {
-        const dadosAR = proc.campos?.etapa16 || proc.dados?.etapa16 || {};
+        const dadosAR = notifCiclo ? (ciclo.etapa16 || {}) : (proc.campos?.etapa16 || proc.dados?.etapa16 || {});
         if (Array.isArray(dadosAR.anexos_ar)) {
             proc._arAnexosLocais = [...dadosAR.anexos_ar];
         } else if (dadosAR.anexo_ar) {
@@ -9350,6 +9458,33 @@ async function carregarEExibirAnexosAR(proc) {
 
     renderizarListaAnexosAR();
 }
+
+// Anexos que já pertencem ao AR de algum Auto (para não aparecerem no da NP)
+function idsDeAnexosARDeAutos(proc) {
+    const ids = new Set();
+    Object.values(proc?.campos?.ciclos_ar_auto || {}).forEach(c => {
+        (c?.etapa16?.anexos_ar || []).forEach(a => { if (a.documento_id) ids.add(a.documento_id); });
+    });
+    return ids;
+}
+
+// Documento do AR que vale para a tela aberta: o do Auto, quando a notificação
+// aberta teve o próprio ciclo do AR; senão, o da Notificação Preliminar.
+window.escolherDocumentoAR = function (docsBanco) {
+    const ehAR = d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo);
+    const refs = camposARParaLeitura(processoAtual).etapa16?.anexos_ar || [];
+    const idsRefs = new Set(refs.map(a => a.documento_id).filter(Boolean));
+    const docsAR = (docsBanco || []).filter(ehAR);
+    const idsAutos = idsDeAnexosARDeAutos(processoAtual);
+    const temCicloProprio = !!camposDoCicloARDaNotificacao(processoAtual, notificacaoAtual, false);
+    // Anexo do AR com notificacao_id é sempre do AR de um Auto
+    return docsAR.find(d => idsRefs.has(d.id))
+        || (temCicloProprio ? null : (docsAR.find(d => !idsAutos.has(d.id) && !d.notificacao_id) || docsAR[0]))
+        || refs[0]
+        || (temCicloProprio ? null : processoAtual?._arAnexosLocais?.[0])
+        || notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0]
+        || null;
+};
 
 // Etapas 16 e 30 mostram a mesma lista de anexos do AR, cada uma no seu
 // container. Quem renderiza a tela diz qual usar.
@@ -9468,7 +9603,7 @@ function verificarPrazoAR(proc, dadosAR) {
 }
 
 async function verificarPrazo15DiasEtapa16(proc) {
-    const dadosAR = proc.campos?.etapa16 || {};
+    const dadosAR = camposCicloAR(proc).etapa16 || {};
     if (!dadosAR.numero_ar || dadosAR.data_recebimento) return false;
 
     const params = new URLSearchParams(window.location.search);
@@ -9510,6 +9645,7 @@ async function verificarPrazo15DiasEtapa16(proc) {
                 .from('historico_etapas')
                 .insert([{
                     processo_id: proc.id,
+                    notificacao_id: notif?.id || null,
                     etapa_de_id: proc.etapa_atual_id,
                     etapa_para_id: etapa30Id,
                     usuario_id: perfilAtual?.id,
@@ -9654,6 +9790,8 @@ async function persistirAnexosAR(exigirObrigatorio = false) {
                         .from('documentos')
                         .insert([{
                             processo_id: processoAtual.id,
+                            // AR do Auto de uma notificação: fica ligado a ela
+                            notificacao_id: notificacaoDoCicloAR()?.id || null,
                             etapa_id: etapa16Id,
                             tipo: 'Anexo AR',
                             nome_arquivo: item.nome,
@@ -9687,10 +9825,10 @@ async function persistirAnexosAR(exigirObrigatorio = false) {
         if (pendentes.length > 0) ocultarCarregamento();
     }
 
-    processoAtual.campos = processoAtual.campos || {};
-    processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
-    processoAtual.campos.etapa16.anexos_ar = refsAnexos;
-    delete processoAtual.campos.etapa16.anexo_ar;
+    const ciclo = camposCicloAR(processoAtual);
+    ciclo.etapa16 = ciclo.etapa16 || {};
+    ciclo.etapa16.anexos_ar = refsAnexos;
+    delete ciclo.etapa16.anexo_ar;
 
     renderizarListaAnexosAR();
     return true;
@@ -9711,7 +9849,7 @@ function limiteTentativasAR(proc) {
 window.limiteTentativasAR = limiteTentativasAR;
 
 function obterRetornosARSemSucesso(proc) {
-    const lista = proc?.campos?.etapa16?.retornos_sem_sucesso;
+    const lista = proc ? camposCicloAR(proc).etapa16?.retornos_sem_sucesso : null;
     return Array.isArray(lista) ? lista : [];
 }
 
@@ -9719,12 +9857,12 @@ function obterRetornosARSemSucesso(proc) {
 // os mesmos dados. Devolve o total de tentativas sem sucesso já registradas.
 function registrarRetornoARSemSucesso(proc) {
     if (!proc) return 0;
-    proc.campos = proc.campos || {};
-    proc.campos.etapa16 = proc.campos.etapa16 || {};
+    const ciclo = camposCicloAR(proc);
+    ciclo.etapa16 = ciclo.etapa16 || {};
 
     const lista = obterRetornosARSemSucesso(proc);
-    const dataAtual = proc.campos.etapa16.data_ultima_tentativa || '';
-    const motivoAtual = proc.campos.etapa16.motivo_correios || '';
+    const dataAtual = ciclo.etapa16.data_ultima_tentativa || '';
+    const motivoAtual = ciclo.etapa16.motivo_correios || '';
     const ultimo = lista[lista.length - 1];
     const jaRegistrado = ultimo && ultimo.data === dataAtual && ultimo.motivo === motivoAtual;
 
@@ -9735,7 +9873,7 @@ function registrarRetornoARSemSucesso(proc) {
             registrado_em: new Date().toISOString()
         });
     }
-    proc.campos.etapa16.retornos_sem_sucesso = lista;
+    ciclo.etapa16.retornos_sem_sucesso = lista;
     return lista.length;
 }
 
@@ -9769,29 +9907,30 @@ async function salvarEtapa16() {
     const anexosOK = await persistirAnexosAR(false);
     if (!anexosOK) return;
 
-    processoAtual.campos = processoAtual.campos || {};
-    processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
+    const ciclo = camposCicloAR(processoAtual);
+    ciclo.etapa16 = ciclo.etapa16 || {};
+    const dadosAR = ciclo.etapa16;
 
     const getVal = id => document.getElementById(id)?.value?.trim() || '';
-    const numeroARAnterior = processoAtual.campos.etapa16.numero_ar;
+    const numeroARAnterior = dadosAR.numero_ar;
     const notificacaoEfetivada = getVal('arRetornoSemSucesso') || 'sim';
 
-    processoAtual.campos.etapa16.numero_ar = getVal('arNumero');
-    processoAtual.campos.etapa16.data_recebimento = getVal('arDataRecebimento');
-    processoAtual.campos.etapa16.notificacao_efetivada = notificacaoEfetivada;
-    processoAtual.campos.etapa16.retorno_sem_sucesso = (notificacaoEfetivada === 'nao') ? 'sim' : 'nao';
-    processoAtual.campos.etapa16.data_ultima_tentativa = getVal('arDataUltimaTentativa');
-    processoAtual.campos.etapa16.motivo_correios = getVal('arMotivoCorreios');
+    dadosAR.numero_ar = getVal('arNumero');
+    dadosAR.data_recebimento = getVal('arDataRecebimento');
+    dadosAR.notificacao_efetivada = notificacaoEfetivada;
+    dadosAR.retorno_sem_sucesso = (notificacaoEfetivada === 'nao') ? 'sim' : 'nao';
+    dadosAR.data_ultima_tentativa = getVal('arDataUltimaTentativa');
+    dadosAR.motivo_correios = getVal('arMotivoCorreios');
 
     if (notificacaoEfetivada === 'nao') {
         registrarRetornoARSemSucesso(processoAtual);
     }
 
-    registrarDataInsercaoAR(processoAtual.campos.etapa16, numeroARAnterior);
+    registrarDataInsercaoAR(dadosAR, numeroARAnterior);
 
     // AR efetivado: o prazo começa (recebimento; sem ele, data de cadastro do AR)
     if (notificacaoEfetivada === 'sim') {
-        registrarDataRecebimentoAR(processoAtual, processoAtual.campos.etapa16.data_recebimento);
+        registrarDataRecebimentoAR(processoAtual, dadosAR.data_recebimento);
         await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(16, cicloDoAREhAuto()));
     }
 
@@ -9831,9 +9970,10 @@ async function salvarTentativaARNaEtapa16(tentativas, limite) {
                 etapa_para_id: processoAtual.etapa_atual_id,
                 usuario_id: perfilAtual?.id,
                 condicao_aplicada: `Tentativa ${tentativas} de ${limite} do AR sem sucesso — permanece na Etapa 1.2`,
-                observacao: `Nº AR: ${processoAtual.campos?.etapa16?.numero_ar || 'N/A'} | `
-                    + `Motivo: ${processoAtual.campos?.etapa16?.motivo_correios || 'N/A'}`,
-                dados_etapa: { etapa16: processoAtual.campos?.etapa16 || {} }
+                notificacao_id: notificacaoDoCicloAR()?.id || null,
+                observacao: `Nº AR: ${camposCicloAR(processoAtual).etapa16?.numero_ar || 'N/A'} | `
+                    + `Motivo: ${camposCicloAR(processoAtual).etapa16?.motivo_correios || 'N/A'}`,
+                dados_etapa: { etapa16: camposCicloAR(processoAtual).etapa16 || {} }
             }]);
 
         return true;
@@ -9855,9 +9995,9 @@ async function avancarEtapa16() {
     const dataRecebimento = getVal('arDataRecebimento');
 
     // Grava o que está no formulário antes de decidir o destino
-    processoAtual.campos = processoAtual.campos || {};
-    processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
-    const dadosAR = processoAtual.campos.etapa16;
+    const ciclo = camposCicloAR(processoAtual);
+    ciclo.etapa16 = ciclo.etapa16 || {};
+    const dadosAR = ciclo.etapa16;
     const numeroARAnterior = dadosAR.numero_ar;
     dadosAR.numero_ar = getVal('arNumero');
     dadosAR.data_recebimento = dataRecebimento;
@@ -9947,6 +10087,7 @@ async function avancarEtapa16() {
                 etapa_de_id: processoAtual.etapa_atual_id,
                 etapa_para_id: proxEtapaId,
                 usuario_id: perfilAtual?.id,
+                notificacao_id: notificacaoDoCicloAR()?.id || null,
                 condicao_aplicada: condicao,
                 observacao: `Nº AR: ${dadosAR.numero_ar || 'N/A'} | Data recebimento: ${dataRecebimento || 'N/A'}`,
                 dados_etapa: { etapa16: dadosAR }
@@ -10003,7 +10144,7 @@ function renderizarEtapa17(proc) {
 
     renderizarOrigemFluxoCompartilhada(proc, 'origemFluxoEtapa17');
 
-    const dadosEtapa17 = proc.campos?.etapa17 || {};
+    const dadosEtapa17 = camposCicloAR(proc).etapa17 || {};
     renderizarAnexoEdital(dadosEtapa17.anexo_edital);
 
     if (modo !== MODO_ACESSO.NORMAL && formulario17) {
@@ -10039,9 +10180,9 @@ function configurarEventosEtapa17() {
     if (btnRemover) {
         btnRemover.addEventListener('click', () => {
             if (processoAtual) {
-                processoAtual.campos = processoAtual.campos || {};
-                processoAtual.campos.etapa17 = processoAtual.campos.etapa17 || {};
-                delete processoAtual.campos.etapa17.anexo_edital;
+                const ciclo = camposCicloAR(processoAtual);
+                ciclo.etapa17 = ciclo.etapa17 || {};
+                delete ciclo.etapa17.anexo_edital;
                 renderizarAnexoEdital(null);
             }
         });
@@ -10064,11 +10205,11 @@ function processarArquivoEdital(file) {
             dataUrl: e.target.result
         };
         if (processoAtual) {
-            processoAtual.campos = processoAtual.campos || {};
-            processoAtual.campos.etapa17 = processoAtual.campos.etapa17 || {};
-            processoAtual.campos.etapa17.anexo_edital = anexo;
+            const ciclo = camposCicloAR(processoAtual);
+            ciclo.etapa17 = ciclo.etapa17 || {};
+            ciclo.etapa17.anexo_edital = anexo;
             // O prazo de defesa conta desta data quando o AR não encontrou o proprietário
-            processoAtual.campos.etapa17.data_anexo_edital = new Date().toISOString();
+            ciclo.etapa17.data_anexo_edital = new Date().toISOString();
         }
         renderizarAnexoEdital(anexo);
     };
@@ -10109,12 +10250,12 @@ function renderizarAnexoEdital(anexo) {
 
 async function salvarEtapa17() {
     if (!processoAtual) return;
-    processoAtual.campos = processoAtual.campos || {};
-    processoAtual.campos.etapa17 = processoAtual.campos.etapa17 || {};
+    const ciclo = camposCicloAR(processoAtual);
+    ciclo.etapa17 = ciclo.etapa17 || {};
 
-    const anexo = processoAtual.campos.etapa17.anexo_edital;
+    const anexo = ciclo.etapa17.anexo_edital;
     if (anexo) {
-        processoAtual.campos.etapa17.data_anexo_edital = new Date().toISOString();
+        ciclo.etapa17.data_anexo_edital = new Date().toISOString();
     }
 
     try {
@@ -10135,15 +10276,16 @@ async function salvarEtapa17() {
 async function avancarEtapa17() {
     if (!processoAtual) return;
 
-    const anexo = processoAtual.campos?.etapa17?.anexo_edital;
+    const ciclo = camposCicloAR(processoAtual);
+    const anexo = ciclo.etapa17?.anexo_edital;
     if (!anexo) {
         alert('Anexe o edital gerado para avançar.');
         return;
     }
 
     // Garante a data do edital mesmo se o fiscal não clicou em "Salvar Edital"
-    if (!processoAtual.campos.etapa17.data_anexo_edital) {
-        processoAtual.campos.etapa17.data_anexo_edital = new Date().toISOString();
+    if (!ciclo.etapa17.data_anexo_edital) {
+        ciclo.etapa17.data_anexo_edital = new Date().toISOString();
     }
 
     mostrarCarregamento('Avançando etapa...');
@@ -10198,9 +10340,10 @@ async function avancarEtapa17() {
                 etapa_de_id: processoAtual.etapa_atual_id,
                 etapa_para_id: proxEtapaId,
                 usuario_id: perfilAtual?.id,
+                notificacao_id: notificacaoDoCicloAR()?.id || null,
                 condicao_aplicada: 'Edital gerado e anexado',
                 observacao: `Destino: Etapa ${proxEtapaNumero} (${passouEtapa14 ? 'passou pela Etapa 14' : 'não passou pela Etapa 14'}).`,
-                dados_etapa: { etapa17: processoAtual.campos?.etapa17 || {} }
+                dados_etapa: { etapa17: ciclo.etapa17 || {} }
             }]);
 
         window.location.href = `etapa.html?processo=${processoAtual.id}`;
@@ -10239,10 +10382,11 @@ function renderizarEtapa30(proc) {
 
     renderizarOrigemFluxoCompartilhada(proc, 'origemFluxoEtapa30');
 
-    const dadosAR = proc.campos?.etapa16 || {};
+    const ciclo = camposCicloAR(proc);
+    const dadosAR = ciclo.etapa16 || {};
     setVal('ar30Numero', dadosAR.numero_ar);
 
-    const dadosEtapa30 = proc.campos?.etapa30 || {};
+    const dadosEtapa30 = ciclo.etapa30 || {};
     setVal('ar30Efetivado', dadosEtapa30.efetivado || '');
     setVal('ar30Observacao', dadosEtapa30.observacao || '');
 
@@ -10297,19 +10441,19 @@ function configurarEventosEtapa30() {
 
 async function salvarEtapa30() {
     if (!processoAtual) return;
-    processoAtual.campos = processoAtual.campos || {};
-    processoAtual.campos.etapa30 = processoAtual.campos.etapa30 || {};
+    const ciclo = camposCicloAR(processoAtual);
+    ciclo.etapa30 = ciclo.etapa30 || {};
 
-    processoAtual.campos.etapa30.efetivado = document.getElementById('ar30Efetivado')?.value || '';
-    processoAtual.campos.etapa30.observacao = document.getElementById('ar30Observacao')?.value?.trim() || '';
+    ciclo.etapa30.efetivado = document.getElementById('ar30Efetivado')?.value || '';
+    ciclo.etapa30.observacao = document.getElementById('ar30Observacao')?.value?.trim() || '';
 
     // AR efetivado nesta etapa: guarda a data de recebimento junto com os dados
     // do AR (Etapa 16), inicia a contagem do prazo e envia os anexos.
-    if (processoAtual.campos.etapa30.efetivado === 'sim') {
+    if (ciclo.etapa30.efetivado === 'sim') {
         const dataRecebimento = document.getElementById('ar30DataRecebimento')?.value || '';
-        processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
-        processoAtual.campos.etapa16.data_recebimento = dataRecebimento;
-        processoAtual.campos.etapa16.notificacao_efetivada = 'sim';
+        ciclo.etapa16 = ciclo.etapa16 || {};
+        ciclo.etapa16.data_recebimento = dataRecebimento;
+        ciclo.etapa16.notificacao_efetivada = 'sim';
 
         if (dataRecebimento) {
             registrarDataRecebimentoAR(processoAtual, dataRecebimento);
@@ -10343,10 +10487,10 @@ async function avancarEtapa30() {
     }
 
     // Guarda a escolha e a observação mesmo sem passar pelo botão Salvar.
-    processoAtual.campos = processoAtual.campos || {};
-    processoAtual.campos.etapa30 = processoAtual.campos.etapa30 || {};
-    processoAtual.campos.etapa30.efetivado = efetivado;
-    processoAtual.campos.etapa30.observacao = document.getElementById('ar30Observacao')?.value?.trim() || '';
+    const ciclo = camposCicloAR(processoAtual);
+    ciclo.etapa30 = ciclo.etapa30 || {};
+    ciclo.etapa30.efetivado = efetivado;
+    ciclo.etapa30.observacao = document.getElementById('ar30Observacao')?.value?.trim() || '';
 
     if (efetivado === 'sim') {
         const dataRecebimento = document.getElementById('ar30DataRecebimento')?.value || '';
@@ -10356,10 +10500,9 @@ async function avancarEtapa30() {
             return;
         }
 
-        processoAtual.campos = processoAtual.campos || {};
-        processoAtual.campos.etapa16 = processoAtual.campos.etapa16 || {};
-        processoAtual.campos.etapa16.data_recebimento = dataRecebimento;
-        processoAtual.campos.etapa16.notificacao_efetivada = 'sim';
+        ciclo.etapa16 = ciclo.etapa16 || {};
+        ciclo.etapa16.data_recebimento = dataRecebimento;
+        ciclo.etapa16.notificacao_efetivada = 'sim';
 
         // persistirAnexosAR(true) avisa e devolve false quando não há anexo.
         if (!(await persistirAnexosAR(true))) return;
@@ -10433,8 +10576,9 @@ async function avancarEtapa30() {
                 etapa_para_id: proxEtapaId,
                 usuario_id: perfilAtual?.id,
                 condicao_aplicada: condicao,
+                notificacao_id: notificacaoDoCicloAR()?.id || null,
                 observacao: document.getElementById('ar30Observacao')?.value?.trim() || '',
-                dados_etapa: { etapa30: processoAtual.campos?.etapa30 || {} }
+                dados_etapa: { etapa30: ciclo.etapa30 || {} }
             }]);
 
         window.location.href = `etapa.html?processo=${processoAtual.id}`;
@@ -11892,9 +12036,8 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
     const fiscAutor = window.obterFiscalAutorDoProcesso(proc, notificacaoAtual);
     const fisc = { ...d.fiscal, nome: fiscAutor.nome, matricula: fiscAutor.matricula, cargo: fiscAutor.cargo };
 
-    const dataFmt = fisc.data_vistoria
-        ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR')
-        : new Date().toLocaleDateString('pt-BR');
+    const dataFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || proc?.data_vistoria)
+        || new Date().toLocaleDateString('pt-BR');
 
     let setor = 'XX', zona = 'XXX', quadra = 'XXXX', lote = 'XXXXX';
     if (imv.inscricao) {
@@ -12295,10 +12438,15 @@ async function garantirNumeroCertidaoDaNotificacao() {
                 }
 
                 // Persiste na tabela notificacoes para que recargas não gerem outro número
-                await supabaseClient
+                const { error: errPersistCert } = await supabaseClient
                     .from('notificacoes')
                     .update({ numero_certidao: numCertidao })
                     .eq('id', notificacaoAtual.id);
+                if (errPersistCert) {
+                    // Sem gravar, a próxima abertura reservaria outro e este pularia
+                    await supabaseClient.rpc('devolver_numero', { p_numero: numCertidao, p_categoria: 'Certidão Sem Defesa' });
+                    throw new Error(errPersistCert.message);
+                }
                 notificacaoAtual.numero_certidao = numCertidao;
 
                 // Também cria/atualiza o registro padronizado na tabela 'documentos'
@@ -12620,10 +12768,10 @@ window.gerarCertidaoSemDefesa = async function (auto = false) {
 
     const inscricao = imv.inscricao || '';
 
-    // Data de vistoria
-    const dataVistoriaFmt = fisc.data_vistoria
-        ? new Date(fisc.data_vistoria + 'T12:00:00').toLocaleDateString('pt-BR')
-        : new Date().toLocaleDateString('pt-BR');
+    // Data de vistoria: aceita AAAA-MM-DD, com horário ou DD/MM/AAAA; sem ela no
+    // JSON, vale a coluna processos.data_vistoria
+    const dataVistoriaFmt = window.formatarDataVistoriaRobusta(fisc.data_vistoria || processoAtual.data_vistoria)
+        || new Date().toLocaleDateString('pt-BR');
 
     // Data Ciencia
     const dataRecebimento = processoAtual?.campos?.etapa16?.data_recebimento || processoAtual?.campos?.etapa16?.data_recebimento_proprietario || processoAtual?.dados?.etapa16?.data_recebimento || processoAtual?.dados?.etapa16?.data_recebimento_proprietario || notificacaoAtual?.dados?.etapa16?.data_recebimento_proprietario || notificacaoAtual?.dados?.etapa16?.data_recebimento || (notificacaoAtual?.data_inicio ? notificacaoAtual.data_inicio.split('T')[0] : null);
@@ -12999,6 +13147,53 @@ window.obterFundamentoLegalDecreto = function (infracaoDesc) {
     return 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
 };
 
+// ── Valor da multa de um Auto de Infração ──────────────────────────────────
+// Uma conta só para o documento do Auto, para autos_infracao.valor_multa e para
+// o preenchimento dos Autos antigos (preencherValoresMultasAntigos). O valor
+// digitado pelo fiscal no card de multas (multas_customizadas, na posição da
+// notificação dentro do processo) vale sobre o cálculo.
+//   upfmd: sem ela, vale a UPFMD atual e, na falta, a gravada no processo.
+window.calcularMultaDoAuto = function ({ proc, notif = null, dispItem = '', upfmd = null }) {
+    const p = proc || {};
+    const dispLow = String(dispItem || '').toLowerCase();
+    const upfmdVal = (upfmd !== null && upfmd !== undefined)
+        ? parseNumberSafe(upfmd, 0)
+        : (window.valorUpfmdAtual || valorUpfmdAtual || parseNumberSafe(p?.campos?.upfmd_utilizado, 0));
+
+    const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = obterDadosImovelParaCalculo(p);
+
+    let idxNotif = 0;
+    if (notif && Array.isArray(p.notificacoes)) {
+        const achado = p.notificacoes.findIndex(n => String(n.id) === String(notif.id));
+        if (achado >= 0) idxNotif = achado;
+    }
+
+    const calculado = calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmdVal, baseCalculo);
+    const digitado = p?.campos?.multas_customizadas?.[idxNotif]
+        ?? notif?.dados?.multas_customizadas?.[idxNotif]
+        ?? notif?.dados?.multa_customizada;
+    const temDigitado = digitado !== undefined && digitado !== null && digitado !== '';
+    const valorBruto = temDigitado ? parseNumberSafe(digitado, calculado) : calculado;
+    const centavos = v => Math.round((Number(v) || 0) * 100) / 100;
+
+    return {
+        valor: centavos(valorBruto),
+        valorBruto,
+        calculo: {
+            infracao: dispItem || '',
+            codigo: window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispItem) : '',
+            upfmd: upfmdVal,
+            area: areaNum,
+            testada: testadaNum,
+            profundidade: profundidadeNum,
+            esquina: temEsquina,
+            base_calculo: baseCalculo,
+            valor_calculado: centavos(calculado),
+            valor_digitado: temDigitado ? centavos(parseNumberSafe(digitado, calculado)) : null
+        }
+    };
+};
+
 window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     const p = proc || processoAtual || {};
     const dispProcLegais = window.obterDispositivosDoProcesso ? window.obterDispositivosDoProcesso(p) : [];
@@ -13006,30 +13201,15 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     const cod = window.extrairCodigoSubprocesso(dispItem);
     const dispLow = (dispItem || '').toLowerCase();
 
-    const upfmdVal = window.valorUpfmdAtual || valorUpfmdAtual || parseNumberSafe(p?.campos?.upfmd_utilizado, 0);
-
-    const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = window.obterDadosImovelParaCalculo
-        ? window.obterDadosImovelParaCalculo(p)
-        : { areaNum: parseNumberSafe(fisc?.area_lote_m2, 288), testadaNum: parseNumberSafe(fisc?.testada_metros, 12), profundidadeNum: 0, temEsquina: false, baseCalculo: 'testada' };
-
     const numAI = p?.campos?.auto_infracao_anterior_numero || notificacaoAtual?.dados?.etapa14?.numero_auto_infracao || 'XXXX';
     const dataAI = p?.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
 
-    let idxNotif = 0;
-    if (p?.notificacoes && Array.isArray(p.notificacoes) && notificacaoAtual) {
-        const foundIdx = p.notificacoes.findIndex(n => String(n.id) === String(notificacaoAtual.id));
-        if (foundIdx >= 0) idxNotif = foundIdx;
-    }
-
-    // Pega o valor numérico padrão usando a função da Notificação Preliminar
-    const defMulta = window.calcularValorNumDefaultMulta
-        ? window.calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmdVal, baseCalculo)
-        : 10 * upfmdVal;
-
-    const customMulta = p?.campos?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multas_customizadas?.[idxNotif] ?? notificacaoAtual?.dados?.multa_customizada;
-    const valMultaFinal = (customMulta !== undefined && customMulta !== null && customMulta !== '')
-        ? parseNumberSafe(customMulta, defMulta)
-        : defMulta;
+    const multa = window.calcularMultaDoAuto({
+        proc: p,
+        notif: (typeof notificacaoAtual !== 'undefined') ? notificacaoAtual : null,
+        dispItem
+    });
+    const valMultaFinal = multa.valorBruto;
 
     const valFormatado = valMultaFinal.toFixed(2).replace('.', ',');
 
@@ -13144,10 +13324,316 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         textoCompleto,
         valFormatado,
         valMultaFinal,
+        multa,
         leiBase,
         dispositivoTexto,
         multaTextoHeader
     };
+};
+
+// Auto do processo registrado sem notificacao_id (fluxo antigo/decreto) que é o
+// desta notificação. Adota quando o processo tem uma notificação só, ou quando a
+// infração do Auto é a da notificação; liga o Auto a ela e guarda o número na
+// notificação, para a próxima abertura já achar direto.
+async function adotarAutoDoProcessoSemNotificacao(proc, notif) {
+    try {
+        const { data: semNotificacao, error } = await supabaseClient
+            .from('autos_infracao')
+            .select('id, numero, dados')
+            .eq('processo_id', proc.id)
+            .is('notificacao_id', null)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        if (!semNotificacao || semNotificacao.length === 0) return null;
+
+        const descricao = t => window.obterDescricaoInfracao ? window.obterDescricaoInfracao(t || '') : String(t || '');
+        const unicaNotificacao = (proc.notificacoes || []).length <= 1;
+        const doNotif = descricao(notif.descricao);
+        const escolhido = unicaNotificacao
+            ? semNotificacao[0]
+            : semNotificacao.find(a => a.dados?.infracao_descricao && descricao(a.dados.infracao_descricao) === doNotif);
+        if (!escolhido) return null;
+
+        await supabaseClient.from('autos_infracao').update({ notificacao_id: notif.id }).eq('id', escolhido.id).is('notificacao_id', null);
+        notif.dados = notif.dados || {};
+        notif.dados.numero_auto_infracao = escolhido.numero;
+        await atualizarNotificacaoNoBanco(notif.id, { dados: notif.dados });
+        console.info(`[Auto] Auto ${escolhido.numero} do processo ligado à notificação ${notif.numero || notif.id}.`);
+        return escolhido;
+    } catch (err) {
+        console.warn('[Auto] Não foi possível procurar o Auto do processo sem notificação:', err);
+        return null;
+    }
+}
+
+// ── Valor da multa depois do despacho (Etapa 25) ──────────────────────────
+// O desfecho muda o valor cobrado do Auto:
+//   redução de 50%     → metade do valor de emissão
+//   alteração de valor → o valor informado pelo gerente
+//   cancelamento       → zero (o Auto deixa de somar no total do processo)
+//   continuidade       → o valor de emissão
+// O valor de emissão (Etapa 14) fica em autos_infracao.dados.valor_emissao e
+// cada mudança entra em dados.historico_valores, com o valor anterior.
+window.valorMultaPeloDesfecho = function (desfecho, valorEmissao, valorInformado) {
+    const centavos = v => Math.round((Number(v) || 0) * 100) / 100;
+    const temEmissao = valorEmissao !== null && valorEmissao !== undefined && !isNaN(Number(valorEmissao));
+    if (desfecho === 'cancelamento') return 0;
+    if (desfecho === 'alteracao_valor') return Number(valorInformado) > 0 ? centavos(valorInformado) : null;
+    if (!temEmissao) return null;
+    if (desfecho === 'reducao_50') return centavos(Number(valorEmissao) / 2);
+    return centavos(valorEmissao);
+};
+
+window.dadosComNovoValorMulta = function (dadosAtuais, valorAnterior, valorNovo, info = {}) {
+    const dados = { ...(dadosAtuais || {}) };
+    if (dados.valor_emissao === undefined || dados.valor_emissao === null) {
+        dados.valor_emissao = (info.valorEmissao !== undefined && info.valorEmissao !== null) ? info.valorEmissao : valorAnterior;
+        if (info.emissaoEstimada) dados.valor_emissao_estimado = true;
+    }
+    dados.historico_valores = [...(dados.historico_valores || []), {
+        valor_anterior: valorAnterior,
+        valor_novo: valorNovo,
+        desfecho: info.desfecho || '',
+        rotulo: info.rotulo || '',
+        justificativa: info.justificativa || '',
+        etapa: info.etapa || 25,
+        data: info.data || new Date().toISOString(),
+        por: info.por || (typeof perfilAtual !== 'undefined' ? perfilAtual?.nome : '') || ''
+    }];
+    return dados;
+};
+
+// Grava o valor da multa (e a memória do cálculo) no registro do Auto em
+// autos_infracao. Só escreve quando o valor mudou.
+let avisoColunaValorMulta = false;
+async function gravarValorMultaDoAuto(numeroAuto, multa) {
+    if (!processoAtual?.id || !numeroAuto || /X{2,}/.test(numeroAuto) || !multa || !(multa.valor >= 0)) return false;
+    try {
+        const { data: autoReg, error } = await supabaseClient
+            .from('autos_infracao')
+            .select('id, valor_multa, dados')
+            .eq('processo_id', processoAtual.id)
+            .eq('numero', numeroAuto)
+            .maybeSingle();
+        if (error) throw error;
+        if (!autoReg) return false;
+
+        const calculoAnterior = autoReg.dados?.calculo_multa || {};
+        const mesmoValor = autoReg.valor_multa !== null && Number(autoReg.valor_multa) === multa.valor;
+        const mesmoCalculo = calculoAnterior.valor_calculado === multa.calculo.valor_calculado
+            && calculoAnterior.valor_digitado === multa.calculo.valor_digitado
+            && calculoAnterior.upfmd === multa.calculo.upfmd;
+        if (mesmoValor && mesmoCalculo) return true;
+
+        const { error: errUpd } = await supabaseClient
+            .from('autos_infracao')
+            .update({
+                valor_multa: multa.valor,
+                dados: {
+                    ...(autoReg.dados || {}),
+                    // Valor com que o Auto foi emitido; a Etapa 25 pode mudar valor_multa
+                    valor_emissao: multa.valor,
+                    calculo_multa: {
+                        ...multa.calculo,
+                        gravado_em: new Date().toISOString(),
+                        gravado_por: perfilAtual?.nome || ''
+                    }
+                },
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', autoReg.id);
+        if (errUpd) throw errUpd;
+        return true;
+    } catch (err) {
+        if (String(err?.message || '').includes('valor_multa')) {
+            if (!avisoColunaValorMulta) {
+                avisoColunaValorMulta = true;
+                console.warn('[Multa] Coluna autos_infracao.valor_multa não existe: rode migracao/valor_multas.sql.');
+            }
+        } else {
+            console.warn('[Multa] Não foi possível gravar o valor da multa do Auto:', err);
+        }
+        return false;
+    }
+}
+
+// ── Calcula o valor da multa dos Autos antigos ───────────────────────────
+// Os Autos emitidos antes de migracao/valor_multas.sql não têm valor_multa.
+// Ler processos.dados pela API estoura o tempo limite enquanto houver anexos
+// em base64, então o trabalho é dividido em três passos:
+//   1. migracao/multas_antigas_1_extrair.sql (SQL Editor) copia só os campos
+//      do cálculo para a tabela leve multas_antigas;
+//   2. aqui, no console (F12) de qualquer processo aberto:
+//        await preencherValoresMultasAntigos()                → só mostra
+//        await preencherValoresMultasAntigos({ gravar: true }) → grava o resultado em multas_antigas
+//   3. migracao/multas_antigas_2_aplicar.sql passa os valores para os Autos.
+// A conta é a mesma do documento (calcularMultaDoAuto), com a UPFMD que valia
+// na data de emissão de cada Auto; o valor digitado pelo fiscal vale sobre o
+// cálculo, e o desfecho já cumprido na Etapa 25 é aplicado em seguida.
+window.preencherValoresMultasAntigos = async function ({ gravar = false } = {}) {
+    if (gravar && normalizarCargo(perfilAtual?.cargo) !== 'Dev') {
+        console.error('[Multas antigas] Só um usuário Dev pode gravar. A simulação (sem { gravar: true }) qualquer um pode rodar.');
+        return null;
+    }
+    const buscarTudo = async (montarConsulta) => {
+        const linhas = [];
+        for (let de = 0; ; de += 500) {
+            const { data, error } = await montarConsulta().range(de, de + 499);
+            if (error) throw error;
+            linhas.push(...(data || []));
+            if (!data || data.length < 500) return linhas;
+        }
+    };
+
+    let linhasExtraidas;
+    try {
+        linhasExtraidas = await buscarTudo(() => supabaseClient
+            .from('multas_antigas')
+            .select('auto_id, processo_id, notificacao_id, numero_auto, data_emissao, infracao_descricao, numero_processo, processo_dados, notificacoes')
+            .order('data_emissao', { ascending: true }));
+    } catch (err) {
+        console.error('[Multas antigas] Não achei a tabela multas_antigas. Rode antes migracao/multas_antigas_1_extrair.sql no SQL Editor.', err?.message || err);
+        return null;
+    }
+    console.info(`[Multas antigas] ${linhasExtraidas.length} Auto(s) sem valor na extração.`);
+
+    // UPFMD vigente em cada data (histórico de configuracoes_upfmd)
+    const historicoUpfmd = (await buscarTudo(() => supabaseClient
+        .from('configuracoes_upfmd')
+        .select('valor, created_at')
+        .order('created_at', { ascending: true })))
+        .map(h => ({ valor: parseNumberSafe(h.valor, 0), data: new Date(h.created_at) }))
+        .filter(h => h.valor > 0);
+    const upfmdNaData = (dataISO) => {
+        const d = new Date(dataISO);
+        let vigente = null;
+        for (const h of historicoUpfmd) { if (h.data <= d) vigente = h.valor; else break; }
+        return vigente;
+    };
+    const ROTULOS_DESFECHO = { reducao_50: 'Redução de 50%', alteracao_valor: 'Alteração de valor', cancelamento: 'Cancelamento', continuidade: 'Continuidade na cobrança' };
+
+    const resultado = [];
+    for (const l of linhasExtraidas) {
+        const dados = l.processo_dados || {};
+        const proc = {
+            id: l.processo_id,
+            numero_processo: l.numero_processo,
+            dados,
+            campos: dados.campos || {},
+            imovel: dados.imovel,
+            notificacoes: Array.isArray(l.notificacoes) ? l.notificacoes : []
+        };
+        const notif = l.notificacao_id
+            ? proc.notificacoes.find(n => String(n.id) === String(l.notificacao_id)) || null
+            : null;
+        const dispositivos = obterDispositivosDoProcesso(proc);
+        const dispBruto = notif?.descricao || l.infracao_descricao || dados.fiscal?.infracao || dispositivos[0] || '';
+        const dispItem = window.obterDescricaoInfracao(dispBruto);
+
+        const upfmd = upfmdNaData(l.data_emissao)
+            || parseNumberSafe(proc.campos?.upfmd_utilizado, 0)
+            || historicoUpfmd[0]?.valor
+            || window.valorUpfmdAtual
+            || 0;
+
+        const multa = window.calcularMultaDoAuto({ proc, notif, dispItem, upfmd });
+
+        // Desfecho da Etapa 25 já cumprido (redução, alteração, cancelamento)
+        const e25 = notif ? notif.dados?.etapa25 : proc.campos?.etapa25;
+        const desfecho = (e25?.opcao && e25?.data_cumprimento) ? e25.opcao : '';
+        let valorFinal = multa.valor;
+        let obs = '';
+        if (!(upfmd > 0)) obs = 'sem UPFMD: valor zerado, conferir';
+        if (desfecho) {
+            const novo = window.valorMultaPeloDesfecho(desfecho, multa.valor, parseNumberSafe(e25.novo_valor, 0));
+            if (novo === null) {
+                obs = 'alteração de valor sem o novo valor registrado: ficou o de emissão, corrigir à mão';
+            } else {
+                valorFinal = novo;
+            }
+        }
+
+        let dadosResultado = {
+            valor_emissao: multa.valor,
+            calculo_multa: {
+                ...multa.calculo,
+                gravado_em: new Date().toISOString(),
+                gravado_por: `${perfilAtual?.nome || ''} (preenchimento de Autos antigos)`
+            }
+        };
+        if (desfecho && valorFinal !== multa.valor) {
+            dadosResultado = window.dadosComNovoValorMulta(dadosResultado, multa.valor, valorFinal, {
+                desfecho,
+                rotulo: ROTULOS_DESFECHO[desfecho] || '',
+                justificativa: e25.texto_manual || '',
+                data: e25.data_cumprimento,
+                por: e25.atualizado_por || ''
+            });
+        }
+
+        resultado.push({
+            auto_id: l.auto_id,
+            processo: l.numero_processo || '(sem processo)',
+            auto: l.numero_auto,
+            notificacao: notif?.numero || '—',
+            infracao: dispItem,
+            emissao: new Date(l.data_emissao).toLocaleDateString('pt-BR'),
+            upfmd,
+            valor_emissao: multa.valor,
+            origem: multa.calculo.valor_digitado !== null ? 'digitado pelo fiscal' : 'cálculo',
+            desfecho_etapa25: desfecho || '—',
+            valor: valorFinal,
+            obs,
+            _dados: dadosResultado
+        });
+    }
+
+    // Notificações que viraram Auto sem Auto registrado. Um Auto ligado só ao
+    // processo (notificacao_id vazio, fluxo antigo/decreto) conta como registro.
+    const todosAutos = await buscarTudo(() => supabaseClient
+        .from('autos_infracao').select('processo_id, notificacao_id'));
+    const comRegistro = new Set(todosAutos.filter(a => a.notificacao_id).map(a => String(a.notificacao_id)));
+    const processosComAutoSemNotificacao = new Set(todosAutos.filter(a => !a.notificacao_id).map(a => String(a.processo_id)));
+    const candidatas = await buscarTudo(() => supabaseClient
+        .from('notificacoes')
+        .select('id, numero, processo_id, status, numero_auto_usado:dados->>numero_auto_infracao')
+        .or('status.eq.auto_infracao,dados->>numero_auto_infracao.not.is.null'));
+    const orfas = candidatas.filter(n => !comRegistro.has(String(n.id))
+        && !processosComAutoSemNotificacao.has(String(n.processo_id)));
+
+    console.table(resultado.map(({ auto_id, _dados, ...linha }) => linha));
+    if (orfas.length) {
+        console.warn(`[Multas antigas] ${orfas.length} notificação(ões) marcadas como Auto sem nenhum Auto registrado no processo `
+            + '(em geral, paradas na Etapa 14 antes de gerar o Auto, ou que usaram o número de outro Auto). '
+            + 'Não entram na soma; quando o Auto for gerado na Etapa 14, o valor é gravado:');
+        console.table(orfas.map(n => ({ notificacao: n.numero, processo_id: n.processo_id, numero_auto_usado: n.numero_auto_usado || '—' })));
+    }
+    const soma = resultado.reduce((t, l) => t + (l.valor || 0), 0);
+    const somaFmt = soma.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+    if (!gravar) {
+        console.info(`[Multas antigas] Simulação: ${resultado.length} Auto(s), total R$ ${somaFmt}. Nada foi gravado. `
+            + 'Para gravar: await preencherValoresMultasAntigos({ gravar: true })');
+        return { autos: resultado.length, orfas: orfas.length, gravados: 0, soma };
+    }
+
+    // Grava só em multas_antigas (linhas pequenas); quem passa para os Autos é
+    // migracao/multas_antigas_2_aplicar.sql
+    let gravados = 0;
+    for (const l of resultado) {
+        const { error } = await supabaseClient
+            .from('multas_antigas')
+            .update({ resultado_valor: l.valor, resultado_dados: l._dados, resultado_obs: l.obs || null })
+            .eq('auto_id', l.auto_id);
+        if (error) {
+            console.error(`[Multas antigas] Erro ao gravar o resultado do Auto ${l.auto}:`, error);
+        } else {
+            gravados++;
+        }
+    }
+    console.info(`[Multas antigas] ${gravados} de ${resultado.length} resultado(s) gravados em multas_antigas (total R$ ${somaFmt}). `
+        + 'Agora rode migracao/multas_antigas_2_aplicar.sql no SQL Editor.');
+    return { autos: resultado.length, orfas: orfas.length, gravados, soma };
 };
 
 window.gerarAutoDeInfracao = async function (auto = false) {
@@ -13210,19 +13696,32 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         const _anoAtual = new Date().getFullYear();
 
         // Número do Auto de Infração: sequencial atômico próprio da tabela autos_infracao
-        let numAutoInfracao = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || '';
+        // Com uma notificação aberta o Auto é dela: nunca reaproveita o número
+        // gravado no processo, que é o do primeiro Auto. Antes, a segunda
+        // notificação a virar Auto herdava o número do primeiro e ficava sem
+        // registro próprio em autos_infracao.
+        let numAutoInfracao = notificacaoAtual
+            ? (notificacaoAtual.numero_auto_infracao || notificacaoAtual.dados?.numero_auto_infracao || '')
+            : (processoAtual?.dados?.numero_auto_infracao || '');
 
         if (!numAutoInfracao && (notificacaoAtual?.id || processoAtual?.id)) {
             try {
-                // Tenta consultar registro prévio na tabela autos_infracao por processo ou notificação
+                // Tenta consultar registro prévio na tabela autos_infracao (da notificação ou, sem ela, do processo)
                 let queryAuto = supabaseClient.from('autos_infracao').select('*');
                 if (notificacaoAtual?.id) {
-                    queryAuto = queryAuto.or(`notificacao_id.eq.${notificacaoAtual.id},processo_id.eq.${processoAtual.id}`);
+                    queryAuto = queryAuto.eq('notificacao_id', notificacaoAtual.id);
                 } else {
                     queryAuto = queryAuto.eq('processo_id', processoAtual.id);
                 }
                 const { data: autosExistentes } = await queryAuto.order('created_at', { ascending: false });
-                const autoExistente = autosExistentes && autosExistentes.length > 0 ? autosExistentes[0] : null;
+                let autoExistente = autosExistentes && autosExistentes.length > 0 ? autosExistentes[0] : null;
+
+                // Autos antigos (sobretudo de processo por decreto) foram registrados
+                // ligados só ao processo, sem notificacao_id. Sem isto, abrir a
+                // Etapa 14 de um deles reservaria um número novo e duplicaria o Auto.
+                if (!autoExistente && notificacaoAtual?.id) {
+                    autoExistente = await adotarAutoDoProcessoSemNotificacao(processoAtual, notificacaoAtual);
+                }
 
                 if (autoExistente && autoExistente.numero) {
                     numAutoInfracao = autoExistente.numero;
@@ -13275,11 +13774,19 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                             console.warn(`Número ${numAutoInfracao} já existe em autos_infracao, tentando próximo número... (tentativa ${tentativas})`);
                         } else {
                             console.warn('Aviso ao salvar auto na tabela autos_infracao:', errInsertAuto.message);
+                            // Sem registro em autos_infracao o número ficaria sem dono: devolve
+                            // para não pular a sequência; a próxima abertura reserva de novo
+                            await supabaseClient.rpc('devolver_numero', { p_numero: numAutoInfracao, p_categoria: 'Auto de Infração' });
                             break;
                         }
                     }
 
-                    if (notificacaoAtual?.id) {
+                    // Só grava nos dados um número que ficou registrado em autos_infracao;
+                    // o provisório (XXX) ou um que colidiu em todas as tentativas não
+                    if (!inserido && !numAutoInfracao.endsWith('/XXX')) {
+                        numAutoInfracao = `${_anoAtual}/XXX`;
+                    }
+                    if (inserido && notificacaoAtual?.id) {
                         notificacaoAtual.dados = notificacaoAtual.dados || {};
                         notificacaoAtual.dados.numero_auto_infracao = numAutoInfracao;
                         await supabaseClient
@@ -13287,7 +13794,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                             .update({ dados: notificacaoAtual.dados })
                             .eq('id', notificacaoAtual.id);
                     }
-                    if (processoAtual?.id) {
+                    if (inserido && processoAtual?.id) {
                         processoAtual.dados = processoAtual.dados || {};
                         processoAtual.dados.numero_auto_infracao = numAutoInfracao;
                         await supabaseClient
@@ -13311,6 +13818,13 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         const inputNotifNum = document.getElementById('inputNumNotifAutoInfracao')?.value || notificacaoAtual?.numero || processoAtual.numero_processo || 'XXXX';
 
         const dadosLegais = window.obterDadosLegaisEValoresAuto(inputInfracao, fisc, processoAtual);
+
+        // Na Etapa 14 (emissão/edição do Auto) o valor vai para autos_infracao.valor_multa;
+        // o banco soma os Autos em processos.valor_total_multas.
+        window._ultimaMultaAuto = { numero: numAutoInfracao, multa: dadosLegais.multa };
+        if (parseInt(processoAtual?.etapa_atual, 10) === 14 && podeGerenciarEtapaAtual()) {
+            gravarValorMultaDoAuto(numAutoInfracao, dadosLegais.multa);
+        }
 
         const numProc = processoAtual?.numero_processo || 'XXXXX';
         const endContribuinteFmt = (endAutuadoLog && endAutuadoLog !== 'Não informado')
@@ -13921,7 +14435,13 @@ window.avancarEtapa14 = async function () {
     const selDefesaEl = document.getElementById('selectApresentouDefesaEtapa14');
     const valDefesa = selDefesaEl ? selDefesaEl.value : (processoAtual?.dados?.apresentou_defesa || 'não');
 
-    const numAuto = notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao || processoAtual?.dados?.numero_auto_infracao || `${new Date().getFullYear()}/000001`;
+    // Com notificação aberta, o número é o do Auto dela (nunca o do processo,
+    // que é o do primeiro Auto)
+    const numAuto = (notificacaoAtual
+        ? (notificacaoAtual.numero_auto_infracao || notificacaoAtual.dados?.numero_auto_infracao)
+        : processoAtual?.dados?.numero_auto_infracao)
+        || window._ultimaMultaAuto?.numero
+        || `${new Date().getFullYear()}/000001`;
 
     if (notificacaoAtual?.id) {
         notificacaoAtual.status = 'auto_infracao';
@@ -13965,6 +14485,11 @@ window.avancarEtapa14 = async function () {
             .eq('numero', numAuto);
     } catch (e) {
         console.warn('Aviso ao atualizar etapa na tabela autos_infracao:', e);
+    }
+
+    // Garante o valor da multa gravado no Auto antes de sair da Etapa 14
+    if (window._ultimaMultaAuto?.multa) {
+        await gravarValorMultaDoAuto(numAuto, window._ultimaMultaAuto.multa);
     }
 
     await moverProcessoParaEtapa(15, 'Auto de Infração Emitido');
@@ -14129,9 +14654,8 @@ window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
 // Mostra o número do AR e a data de recebimento pelo proprietário. Quando não
 // houve recebimento, mostra a data da última tentativa e o motivo dos Correios.
 window.montarDadosARParaPagina = function (proc) {
-    const ar = (typeof obterDadosARProcesso === 'function')
-        ? obterDadosARProcesso(proc)
-        : (proc?.campos?.etapa16 || {});
+    const notif = (typeof notificacaoAtual !== 'undefined') ? notificacaoAtual : null;
+    const ar = obterDadosARProcesso(proc, notif);
     const fmt = v => (window.formatarDataVistoriaRobusta ? window.formatarDataVistoriaRobusta(v) : v) || '—';
     const recebimento = ar.data_recebimento || ar.data_recebimento_proprietario;
     const tentativas = Array.isArray(ar.retornos_sem_sucesso) ? ar.retornos_sem_sucesso : [];
@@ -14145,7 +14669,7 @@ window.montarDadosARParaPagina = function (proc) {
         dataUltimaTentativa: fmt(ultima?.data || ar.data_ultima_tentativa),
         motivoCorreios: (ultima?.motivo || ar.motivo_correios || '').trim() || 'Não informado',
         totalTentativas: tentativas.length,
-        dataEdital: fmt(proc?.campos?.etapa17?.data_anexo_edital)
+        dataEdital: fmt(obterDataEditalProcesso(proc, notif))
     };
 };
 
@@ -14732,9 +15256,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             if (urlNP) await anexarArquivoAoPdf(urlNP, 'Notificação Preliminar Assinada');
 
             // 4. AR (Aviso de Recebimento)
-            const docAR = docsBanco.find(d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('ar'))
-                || processoAtual?._arAnexosLocais?.[0]
-                || (notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0] ? { url: notificacaoAtual.dados.etapa16.anexos_ar[0].url || notificacaoAtual.dados.etapa16.anexos_ar[0].base64 } : null);
+            const docAR = window.escolherDocumentoAR(docsBanco);
             let urlAR = docAR?.url || docAR?.dataUrl || docAR?.base64;
             // Na Etapa 28 o AR entra depois da multa, junto com as fotos (ver bloco abaixo)
             if (urlAR && !opcoes.etapa28) await anexarArquivoAoPdf(urlAR, 'AR');
@@ -14772,7 +15294,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 if (u) await anexarArquivoAoPdf(u, dAR.nome_arquivo || 'Anexo do AR');
             }
             if (docsAR.length === 0) {
-                const anexosLocais = processoAtual?.campos?.etapa16?.anexos_ar || [];
+                const anexosLocais = camposARParaLeitura(processoAtual).etapa16?.anexos_ar || [];
                 for (const aLocal of anexosLocais) {
                     const u = aLocal.url || aLocal.dataUrl;
                     if (u) await anexarArquivoAoPdf(u, aLocal.nome || 'Anexo do AR');
@@ -14783,7 +15305,8 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
 
             const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo)
                 || (d.nome_arquivo || '').toLowerCase().includes('edital'));
-            const anexoEditalLocal = processoAtual?.campos?.etapa17?.anexo_edital
+            const anexoEditalLocal = camposARParaLeitura(processoAtual).etapa17?.anexo_edital
+                || processoAtual?.campos?.etapa17?.anexo_edital
                 || processoAtual?.dados?.campos?.etapa17?.anexo_edital;
             const urlEdital = docEdital?.url || anexoEditalLocal?.url || anexoEditalLocal?.dataUrl;
             if (docEdital?.id) idsAnexados.add(docEdital.id);
@@ -15436,7 +15959,7 @@ window.gerarReplica = async function () {
 
                 const usuarioId = typeof perfilAtual !== 'undefined' && perfilAtual?.id ? perfilAtual.id : (window.obterPerfilUsuario?.()?.id || null);
 
-                const { data: docIns } = await supabaseClient.from('documentos').insert([{
+                const { data: docIns, error: errDocReplica } = await supabaseClient.from('documentos').insert([{
                     processo_id: processoAtual.id,
                     notificacao_id: notificacaoAtual.id,
                     etapa_id: processoAtual.etapa_atual_id || processoAtual.etapa_atual,
@@ -15446,6 +15969,11 @@ window.gerarReplica = async function () {
                     numero_sequencial: numReplica,
                     usuario_id: usuarioId || undefined
                 }]).select('id').single();
+                if (errDocReplica) {
+                    // Sem a linha em documentos o número ficaria sem dono e pularia na sequência
+                    await supabaseClient.rpc('devolver_numero', { p_numero: numReplica, p_categoria: 'Réplica' });
+                    throw new Error(errDocReplica.message);
+                }
                 docId = docIns?.id;
             }
 
@@ -15968,7 +16496,7 @@ async function reservarNumeroOficioGfp() {
             }
 
             const usuarioId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
-            await supabaseClient.from('documentos').insert([{
+            const { error: errDoc } = await supabaseClient.from('documentos').insert([{
                 processo_id: processoAtual.id,
                 notificacao_id: notificacaoAtual?.id || null,
                 etapa_id: processoAtual.etapa_atual_id || processoAtual.etapa_atual,
@@ -15978,6 +16506,13 @@ async function reservarNumeroOficioGfp() {
                 numero_sequencial: numero,
                 usuario_id: usuarioId || undefined
             }]);
+
+            if (errDoc) {
+                // Sem a linha em documentos o número ficaria sem dono e pularia na sequência
+                console.error('[OFÍCIO GFP] Não foi possível gravar o ofício; número devolvido:', errDoc.message);
+                await supabaseClient.rpc('devolver_numero', { p_numero: numero, p_categoria: CATEGORIA_OFICIO_GFP });
+                return null;
+            }
         }
 
         // Guarda no JSON para não reconsultar a cada abertura da etapa

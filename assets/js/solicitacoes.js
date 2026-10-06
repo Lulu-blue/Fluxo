@@ -1959,7 +1959,7 @@ const AVISOS_PUBLICADOS = [
                 <section class="doc-secao">
                     <span class="doc-eyebrow">III — Medidas para regularização</span>
                     <h2>O processo, do começo ao fim</h2>
-                    <p class="doc-lead">Sete passos. Nenhum deles é difícil, e todos são obrigatórios. O passo a passo
+                    <p class="doc-lead">Oito passos. Nenhum deles é difícil, e todos são obrigatórios. O passo a passo
                         detalhado, com dicas, está na aba <b>Instruções</b>.</p>
 
                     <ol class="doc-passos">
@@ -1984,6 +1984,15 @@ const AVISOS_PUBLICADOS = [
                                 depois de descobrir o erro já assinado.</p>
                             <p class="doc-obs"><b>Não vale</b><span>Pedir para alguém ajustar no banco o que se resolve
                                     em dois cliques na própria tela.</span></p>
+                        </li>
+                        <li class="doc-chave">
+                            <h3>Confira o valor da multa e clique em salvar</h3>
+                            <p>No card <b>Conferir ou Atualizar Valores das Multas</b>: UPFMD, imóvel de esquina e base
+                                de cálculo (testada ou profundidade). Confira o valor de cada infração e clique em
+                                <code>Salvar Valores e Atualizar Documento PDF</code>. Depois, procure o valor
+                                <b>dentro do documento</b> e confirme que é o mesmo.</p>
+                            <p class="doc-obs"><b>Não vale</b><span>Mudar o valor na tela e não salvar: o documento sai
+                                    com o valor antigo.</span></p>
                         </li>
                         <li>
                             <h3>Leia o documento na tela antes de gerar</h3>
@@ -2039,6 +2048,9 @@ const AVISOS_PUBLICADOS = [
                         <label class="doc-item" for="chkDoc3"><input type="checkbox" id="chkDoc3"
                                 data-chk="3"><span>Usei a aba <b>Editar Dados do Processo</b> para corrigir o que estava
                                 errado.</span></label>
+                        <label class="doc-item" for="chkDoc8"><input type="checkbox" id="chkDoc8"
+                                data-chk="8"><span>Conferi o <b>valor da multa</b>, cliquei em salvar e vi o valor
+                                dentro do documento.</span></label>
                         <label class="doc-item" for="chkDoc4"><input type="checkbox" id="chkDoc4" data-chk="4"><span>Li
                                 o documento inteiro na tela antes de clicar em gerar.</span></label>
                         <label class="doc-item" for="chkDoc5"><input type="checkbox" id="chkDoc5"
@@ -2050,7 +2062,7 @@ const AVISOS_PUBLICADOS = [
                                 data-chk="7"><span>Confirmei que o documento anexado é <b>deste contribuinte</b>, e não
                                 de outro processo.</span></label>
 
-                        <p class="doc-placar" data-placar>0 de 7 conferidos — não avance ainda.</p>
+                        <p class="doc-placar" data-placar>0 de 8 conferidos — não avance ainda.</p>
                     </div>
                 </section>
 
@@ -2172,7 +2184,7 @@ function fecharAviso() {
 // As duas telas mostram o mesmo checklist; o estado é identificado por data-chk,
 // então marcar em uma reflete na outra. Persistência local, por navegador.
 const CHAVE_CHECKLIST_INSTRUCOES = 'fluxograma:checklist-instrucoes';
-const TOTAL_ITENS_CHECKLIST = 7;
+const TOTAL_ITENS_CHECKLIST = 8;
 
 function lerChecklistInstrucoes() {
     try {
@@ -2933,10 +2945,36 @@ window.carregarEExibirApuracaoDados = async function () {
         const limitBatch = 100;
         let temMais = true;
 
-        while (temMais) {
-            let query = supabaseClient
-                .from('processos')
-                .select(`
+        // processos.valor_total_multas (migracao/valor_multas.sql): soma dos Autos
+        // gravada pelo banco. Sem a coluna, a apuração usa o cálculo antigo.
+        const { error: errColunaTotal } = await supabaseClient
+            .from('processos')
+            .select('valor_total_multas')
+            .limit(1);
+        const temValorTotalMultas = !errColunaTotal;
+        if (!temValorTotalMultas) {
+            console.warn('[APURAÇÃO] processos.valor_total_multas não existe: rode migracao/valor_multas.sql. Usando o cálculo antigo.');
+        }
+
+        // Com valor_total_multas, só o nome/matrícula do fiscal saem do JSON (e só
+        // como texto): dados->campos e dados->fiscal ainda guardam anexos em base64
+        // e fazem a consulta estourar o tempo limite.
+        const selectApuracao = temValorTotalMultas
+            ? `
+                    id,
+                    numero_processo,
+                    status,
+                    passou_auto_infracao,
+                    etapa_atual_id,
+                    created_at,
+                    fiscal_id,
+                    valor_total_multas,
+                    fiscal_nome:dados->fiscal->>nome,
+                    fiscal_matricula:dados->fiscal->>matricula,
+                    campos_fiscal_nome:dados->campos->fiscal->>nome,
+                    campos_fiscal_matricula:dados->campos->fiscal->>matricula
+                `
+            : `
                     id,
                     numero_processo,
                     status,
@@ -2953,7 +2991,12 @@ window.carregarEExibirApuracaoDados = async function () {
                     multa_valor:dados->multa_valor,
                     valor_multa:dados->valor_multa,
                     multas_customizadas:dados->multas_customizadas
-                `);
+                `;
+
+        while (temMais) {
+            let query = supabaseClient
+                .from('processos')
+                .select(selectApuracao);
 
             if (dInicio) query = query.gte('created_at', dInicio + 'T00:00:00');
             if (dFim) query = query.lte('created_at', dFim + 'T23:59:59');
@@ -2998,6 +3041,27 @@ window.carregarEExibirApuracaoDados = async function () {
         }
 
         const procs = todosProcessos;
+
+        // Quantidade de Autos com valor em cada processo (coluna "Multas Geradas")
+        const autosComValorPorProcesso = {};
+        if (temValorTotalMultas) {
+            const ids = procs.map(p => p.id);
+            for (let i = 0; i < ids.length; i += 100) {
+                const { data: autosLote, error: errAutos } = await supabaseClient
+                    .from('autos_infracao')
+                    .select('processo_id')
+                    .in('processo_id', ids.slice(i, i + 100))
+                    .gt('valor_multa', 0);
+                if (errAutos) {
+                    console.warn('[APURAÇÃO] Erro ao contar os Autos:', errAutos);
+                    break;
+                }
+                (autosLote || []).forEach(a => {
+                    autosComValorPorProcesso[a.processo_id] = (autosComValorPorProcesso[a.processo_id] || 0) + 1;
+                });
+            }
+        }
+
         const fiscaisMap = {};
 
         let globalTotalProcessos = procs.length;
@@ -3006,9 +3070,11 @@ window.carregarEExibirApuracaoDados = async function () {
 
         procs.forEach(p => {
             const profileObj = (p.fiscal_id && apuracaoProfilesMap[p.fiscal_id]) || p.profiles || {};
-            const fiscalNome = profileObj.nome || p.fiscal_dados?.nome || p.campos?.fiscal?.nome || 'Fiscal Não Atribuído';
+            const fiscalNome = profileObj.nome || p.fiscal_dados?.nome || p.campos?.fiscal?.nome
+                || p.fiscal_nome || p.campos_fiscal_nome || 'Fiscal Não Atribuído';
             const fiscalIdKey = p.fiscal_id || profileObj.id || fiscalNome;
-            const matricula = profileObj.matricula || p.fiscal_dados?.matricula || p.campos?.fiscal?.matricula || '---';
+            const matricula = profileObj.matricula || p.fiscal_dados?.matricula || p.campos?.fiscal?.matricula
+                || p.fiscal_matricula || p.campos_fiscal_matricula || '---';
 
             if (!fiscaisMap[fiscalIdKey]) {
                 fiscaisMap[fiscalIdKey] = {
@@ -3021,6 +3087,19 @@ window.carregarEExibirApuracaoDados = async function () {
             }
 
             fiscaisMap[fiscalIdKey].totalProcessos += 1;
+
+            // Valor gravado pelo banco: soma dos Autos de Infração do processo
+            if (temValorTotalMultas) {
+                const valorTotal = Number(p.valor_total_multas) || 0;
+                if (valorTotal > 0) {
+                    const qtdAutos = autosComValorPorProcesso[p.id] || 1;
+                    fiscaisMap[fiscalIdKey].qtdMultas += qtdAutos;
+                    fiscaisMap[fiscalIdKey].valorMultas += valorTotal;
+                    globalTotalMultasValor += valorTotal;
+                    globalQtdMultas += qtdAutos;
+                }
+                return;
+            }
 
             let valMultaProc = 0;
 

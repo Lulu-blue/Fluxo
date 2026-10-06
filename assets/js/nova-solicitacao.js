@@ -93,14 +93,45 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fiscDataVistoria').value = now.toISOString().slice(0, 16);
 });
 
-// Devolve números reservados se a página for recarregada ou fechada sem salvar
-window.addEventListener('beforeunload', () => {
-    if (typeof numerosReservadosEditor !== 'undefined' && (numerosReservadosEditor.processo || numerosReservadosEditor.relatorio)) {
-        if (typeof devolverNumerosReservadosEditor === 'function') {
-            devolverNumerosReservadosEditor();
-        }
-    }
+// Token da sessão guardado aqui porque, ao sair da página, não dá tempo de
+// esperar o getSession() assíncrono
+let tokenSessaoDevolucao = null;
+supabaseClient.auth.getSession().then(({ data }) => {
+    tokenSessaoDevolucao = data?.session?.access_token || null;
 });
+supabaseClient.auth.onAuthStateChange((_evento, sessao) => {
+    tokenSessaoDevolucao = sessao?.access_token || null;
+});
+
+// Devolve números reservados se a página for recarregada ou fechada sem salvar.
+// Usa fetch com keepalive: uma chamada comum do supabaseClient é cancelada pelo
+// navegador ao descarregar a página e o número se perdia (pulava na sequência).
+function devolverNumerosAoSairDaPagina() {
+    const pares = [
+        [numerosReservadosEditor.processo, 'Processo'],
+        [numerosReservadosEditor.relatorio, 'Relatório Fiscal'],
+        [numerosReservadosEditor.certidao, 'Certidão Sem Defesa']
+    ];
+    pares.forEach(([numero, categoria]) => {
+        if (!numero) return;
+        try {
+            fetch(`${SUPABASE_URL}/rest/v1/rpc/devolver_numero`, {
+                method: 'POST',
+                keepalive: true,
+                headers: {
+                    'Content-Type': 'application/json',
+                    apikey: SUPABASE_KEY,
+                    Authorization: `Bearer ${tokenSessaoDevolucao || SUPABASE_KEY}`
+                },
+                body: JSON.stringify({ p_numero: numero, p_categoria: categoria })
+            });
+        } catch (e) { /* página já está saindo */ }
+    });
+    numerosReservadosEditor.processo = null;
+    numerosReservadosEditor.relatorio = null;
+    numerosReservadosEditor.certidao = null;
+}
+window.addEventListener('pagehide', devolverNumerosAoSairDaPagina);
 
 // ── Abrir / Fechar Modal ────────────────────────────────────
 async function abrirModal() {
@@ -117,11 +148,8 @@ async function abrirModal() {
     carregarOpcoesDecreto();
     atualizarWizard();
     carregarDadosFiscal();
-
-    // Reserva imediatamente o número do Processo e do Relatório Fiscal com Row Lock
-    if (typeof garantirNumerosReservados === 'function') {
-        await garantirNumerosReservados();
-    }
+    // Os números de Processo e Relatório só são reservados na etapa do relatório
+    // (prepararEtapaRelatorio); reservar ao abrir gastava números de quem desistia
 }
 
 async function fecharModal() {
@@ -771,6 +799,11 @@ async function finalizarSolicitacao() {
             }
         }
 
+        // A certidão do decreto não é gravada neste envio: devolve para não pular o número
+        if (numerosReservadosEditor.certidao) {
+            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.certidao, p_categoria: 'Certidão Sem Defesa' });
+        }
+
         // Limpa os números reservados para não devolvê-los acidentalmente após o uso
         numerosReservadosEditor.processo = null;
         numerosReservadosEditor.relatorio = null;
@@ -893,8 +926,10 @@ async function finalizarSolicitacao() {
             }
 
             const errMsg = errProc?.message || '';
-            const isDupProc = errMsg.includes('processos_numero_processo_key') || errProc?.code === '23505';
+            // O código 23505 vale para qualquer UNIQUE: só cai no Processo se a colisão não for do relatório,
+            // senão o número do processo (que estava livre) era trocado e ficava perdido
             const isDupRel = errMsg.includes('processos_numero_relatorio_key');
+            const isDupProc = errMsg.includes('processos_numero_processo_key') || (errProc?.code === '23505' && !isDupRel);
 
             if (isDupProc || isDupRel) {
                 console.warn(`[TENTATIVA ${tentativasProc}/${maxTentativasProc}] Colisão de número na inserção do processo. Proc: ${numeroProcesso}, Rel: ${numeroRelatorio}. Solicitando novo número...`);

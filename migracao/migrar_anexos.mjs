@@ -224,9 +224,15 @@ function perguntar(pergunta, { oculto = false } = {}) {
     return new Promise((resolve) => {
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
         if (oculto) {
-            process.stdout.write(pergunta);
+            // O aviso é escrito pelo próprio question; só depois a saída é
+            // silenciada. Antes, o readline redesenhava a linha e apagava o aviso,
+            // e a tela parecia parada.
+            rl.question(`${pergunta}(não aparece enquanto você digita; tecle Enter no fim) `, (resposta) => {
+                rl.close();
+                process.stdout.write('\n');
+                resolve(resposta);
+            });
             rl._writeToOutput = () => {}; // não ecoa a senha
-            rl.question('', (resposta) => { rl.close(); process.stdout.write('\n'); resolve(resposta); });
         } else {
             rl.question(pergunta, (resposta) => { rl.close(); resolve(resposta); });
         }
@@ -602,7 +608,9 @@ async function comandoMigrar(caminhos, { limite }) {
                 item.copias_trocadas = {
                     processos: resultado.copias_processos,
                     notificacoes: resultado.copias_notificacoes,
-                    autos_infracao: resultado.copias_autos_infracao
+                    autos_infracao: resultado.copias_autos_infracao,
+                    chats: resultado.copias_chats,
+                    historico_etapas: resultado.copias_historico
                 };
             }
             delete item.problema;
@@ -825,5 +833,14 @@ async function principal() {
 
 principal().catch((erro) => {
     console.error(`\nERRO: ${erro.message}`);
+    // "fetch failed" esconde o motivo real (tempo esgotado, DNS, certificado...)
+    const causa = erro.cause;
+    if (causa) {
+        const detalhes = [causa.code, causa.message].filter(Boolean).join(' — ');
+        console.error(`Motivo: ${detalhes}`);
+        if (/TIMEOUT|ETIMEDOUT|ENETUNREACH|ECONNREFUSED|EAI_AGAIN|ENOTFOUND/i.test(detalhes)) {
+            console.error('O computador não conseguiu falar com o servidor. Confira a internet (ou rede/VPN/proxy da prefeitura) e tente de novo.');
+        }
+    }
     process.exitCode = 1;
 });

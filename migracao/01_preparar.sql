@@ -10,7 +10,8 @@
 --   2. O banco confere, ele mesmo, que ainda guarda EXATAMENTE o arquivo que
 --      foi copiado para o backup (comparando o hash SHA-256). Se alguém tiver
 --      trocado o arquivo depois do backup, nada é alterado.
---   3. As cópias do mesmo arquivo dentro dos JSONs são trocadas pelo próprio
+--   3. As cópias do mesmo arquivo dentro dos JSONs (processos, notificações,
+--      Autos, chat e histórico de etapas) são trocadas pelo próprio
 --      banco, lendo e gravando na mesma instrução. Um UPDATE vindo do script
 --      precisaria reenviar o JSON inteiro e poderia apagar uma edição feita ao
 --      mesmo tempo por outra pessoa.
@@ -84,6 +85,7 @@ DECLARE
     v_n_notif     INT := 0;
     v_n_autos     INT := 0;
     v_n_chats     INT := 0;
+    v_n_hist      INT := 0;
 BEGIN
     IF auth.uid() IS NULL THEN
         RAISE EXCEPTION 'Acesso negado: é preciso estar autenticado.';
@@ -151,13 +153,23 @@ BEGIN
        AND strpos(mensagens::text, v_url_atual) > 0;
     GET DIAGNOSTICS v_n_chats = ROW_COUNT;
 
+    -- O histórico guarda uma foto dos campos do processo a cada movimentação,
+    -- com as mesmas cópias do arquivo.
+    UPDATE historico_etapas
+       SET dados_etapa = migracao_jsonb_trocar_texto(dados_etapa, v_url_atual, p_url_nova)
+     WHERE processo_id = v_processo_id
+       AND dados_etapa IS NOT NULL
+       AND strpos(dados_etapa::text, v_url_atual) > 0;
+    GET DIAGNOSTICS v_n_hist = ROW_COUNT;
+
     RETURN jsonb_build_object(
         'status', 'migrado',
         'tipo', v_tipo,
         'copias_processos', v_n_processos,
         'copias_notificacoes', v_n_notif,
         'copias_autos_infracao', v_n_autos,
-        'copias_chats', v_n_chats
+        'copias_chats', v_n_chats,
+        'copias_historico', v_n_hist
     );
 END;
 $$;
@@ -184,6 +196,7 @@ DECLARE
     v_n_notif     INT := 0;
     v_n_autos     INT := 0;
     v_n_chats     INT := 0;
+    v_n_hist      INT := 0;
 BEGIN
     IF auth.uid() IS NULL THEN
         RAISE EXCEPTION 'Acesso negado: é preciso estar autenticado.';
@@ -244,12 +257,20 @@ BEGIN
        AND strpos(mensagens::text, p_url_nova) > 0;
     GET DIAGNOSTICS v_n_chats = ROW_COUNT;
 
+    UPDATE historico_etapas
+       SET dados_etapa = migracao_jsonb_trocar_texto(dados_etapa, p_url_nova, p_url_original)
+     WHERE processo_id = v_processo_id
+       AND dados_etapa IS NOT NULL
+       AND strpos(dados_etapa::text, p_url_nova) > 0;
+    GET DIAGNOSTICS v_n_hist = ROW_COUNT;
+
     RETURN jsonb_build_object(
         'status', 'revertido',
         'copias_processos', v_n_processos,
         'copias_notificacoes', v_n_notif,
         'copias_autos_infracao', v_n_autos,
-        'copias_chats', v_n_chats
+        'copias_chats', v_n_chats,
+        'copias_historico', v_n_hist
     );
 END;
 $$;
