@@ -3039,13 +3039,10 @@ window.adicionarCampoImagemLegenda = function () {
                         fileInput.setAttribute('data-url', urlCloud);
                     }
                 } else {
-                    const reader = new FileReader();
-                    reader.onload = function (evt) {
-                        fileInput.setAttribute('data-base64', evt.target.result);
-                        window.relatorioCustomizadoHTML = null;
-                        if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
-                    };
-                    reader.readAsDataURL(file);
+                    // Sem o envio ao Cloudinary a foto iria em base64 para dentro do
+                    // Relatório Fiscal guardado no banco (já houve um de 7,8 MB).
+                    alert('Não foi possível enviar a imagem: o envio ao Cloudinary não carregou. Recarregue a página (Ctrl+F5) e anexe de novo.');
+                    fileInput.value = '';
                     return;
                 }
             } catch (err) {

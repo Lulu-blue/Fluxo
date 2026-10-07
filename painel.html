@@ -654,6 +654,20 @@
                         </div>
                     </div>
 
+                    <!-- Gráfico 3: % da Arrecadação por Fiscal (pizza) -->
+                    <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+                        <div style="margin-bottom: 16px;">
+                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">🥧 % da Arrecadação por Fiscal</h3>
+                            <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Participação de cada fiscal no valor total de multas. Os 5 maiores aparecem separados; os demais, em "Outros" (todos estão na tabela abaixo).</p>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
+                            <div style="position: relative; height: 300px; flex: 1 1 280px; min-width: 0; max-width: 420px; margin: 0 auto;">
+                                <canvas id="chartArrecadacaoPizza" role="img" aria-label="Gráfico de pizza com a porcentagem da arrecadação de multas por fiscal"></canvas>
+                            </div>
+                            <ul id="legendaArrecadacaoPizza" style="list-style: none; margin: 0; padding: 0; flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 10px;"></ul>
+                        </div>
+                    </div>
+
                     <!-- TABELA DETALHADA DE APURAÇÃO POR FISCAL -->
                     <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
@@ -1624,11 +1638,11 @@
     <script src="assets/js/supabase-config.js"></script>
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="assets/js/solicitacoes.js?v=20261006"></script>
-    <script src="assets/js/nova-solicitacao.js"></script>
+    <script src="assets/js/solicitacoes.js?v=20261007b"></script>
+    <script src="assets/js/nova-solicitacao.js?v=20261007"></script>
     <script src="assets/js/oficio-modelo.js"></script>
     <script src="assets/js/oficio-avulso.js"></script>
-    <script src="assets/js/chat_juridico.js"></script>
+    <script src="assets/js/chat_juridico.js?v=20261007"></script>
 </body>
 
 </html>

@@ -3444,6 +3444,48 @@ async function avancarEtapa7() {
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
+// Gera o PDF completo do processo (o mesmo do botão da Etapa 29, com a certidão
+// no final), envia ao Cloudinary e registra em documentos. Devolve a referência
+// { documento_id, nome, url, gerado_em } ou null se não deu certo.
+async function salvarPdfFinalDoEncerramento() {
+    try {
+        const arquivo = await window.gerarPdfProcessoCompletoEtapa15('arquivo', {
+            etapa28: true,
+            certidaoFinal: true,
+            nomeArquivo: `Processo_Encerrado_SEMAC_${String(processoAtual?.numero_processo || 'processo').replace(/[\/\\]/g, '-')}.pdf`
+        });
+        if (!(arquivo instanceof File)) return null;
+
+        mostrarCarregamento('Salvando a cópia final do processo...');
+        const url = await enviarAnexoParaCloudinary(arquivo, 'processos_encerrados');
+        if (!url) return null;
+
+        const { data: docFinal, error } = await supabaseClient
+            .from('documentos')
+            .insert([{
+                processo_id: processoAtual.id,
+                notificacao_id: notificacaoAtual?.id || null,
+                etapa_id: 29,
+                tipo: 'Processo Completo (Encerramento)',
+                nome_arquivo: arquivo.name,
+                url,
+                mime_type: 'application/pdf',
+                tamanho_bytes: arquivo.size,
+                gerado_automaticamente: true,
+                usuario_id: perfilAtual?.id
+            }])
+            .select('id')
+            .single();
+        if (error) throw error;
+        return { documento_id: docFinal.id, nome: arquivo.name, url, gerado_em: new Date().toISOString() };
+    } catch (err) {
+        console.error('Erro ao salvar a cópia final do processo:', err);
+        return null;
+    } finally {
+        ocultarCarregamento();
+    }
+}
+
 async function finalizarEBaixarZipNotificacao() {
     if (!notificacaoAtual) return;
 
@@ -3467,10 +3509,18 @@ async function finalizarEBaixarZipNotificacao() {
         return;
     }
 
+    // Cópia final do processo, congelada no encerramento (antes disso o PDF
+    // completo é sempre gerado na hora)
+    const pdfFinal = await salvarPdfFinalDoEncerramento();
+    if (!pdfFinal && !confirm(`Não foi possível salvar a cópia final do processo em PDF.\n\nEncerrar ${doc.artigo === 'o' ? 'o' : 'a'} ${doc.rotulo.toLowerCase()} mesmo assim?`)) {
+        return;
+    }
+
     mostrarCarregamento(`Encerrando ${doc.rotulo.toLowerCase()}...`);
 
     try {
         const notifDados = { ...(notificacaoAtual.dados || {}) };
+        if (pdfFinal) notifDados.processo_final = pdfFinal;
         notifDados.historico = notifDados.historico || [];
         notifDados.historico.push({
             etapa_de: parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual_id || 29, 10),
@@ -3600,7 +3650,7 @@ window.gerarZipComTodosDocumentos = async function () {
         }
 
         // 6. Edital do Gerente (se houver)
-        const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo))
+        const docEdital = window.escolherDocumentoEdital(docsBanco)
             || camposARParaLeitura(processoAtual).etapa17?.anexo_edital
             || processoAtual?.campos?.etapa17?.anexo_edital
             || processoAtual?.dados?.campos?.etapa17?.anexo_edital
@@ -3911,7 +3961,7 @@ window.carregarArquivosEtapa29 = async function () {
     }
 
     // 6. Edital do Gerente (Etapa 17 - quando houver)
-    const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo))
+    const docEdital = window.escolherDocumentoEdital(docsBanco)
         || camposARParaLeitura(processoAtual).etapa17?.anexo_edital
         || processoAtual?.campos?.etapa17?.anexo_edital
         || processoAtual?.dados?.campos?.etapa17?.anexo_edital
@@ -4114,7 +4164,7 @@ window.baixarDocUnico = async function (tipo) {
                 alert(decretoSim ? 'Documento assinado do Auto de Infração não encontrado.' : 'Documento assinado da Notificação Preliminar não encontrado.');
             }
         } else if (tipo === 'edital_gerente' || tipo === 'edital') {
-            const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo))
+            const docEdital = window.escolherDocumentoEdital(docsBanco)
                 || camposARParaLeitura(processoAtual).etapa17?.anexo_edital
                 || processoAtual?.campos?.etapa17?.anexo_edital
                 || processoAtual?.dados?.campos?.etapa17?.anexo_edital
@@ -7403,15 +7453,9 @@ window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
                         }
                     }
                 } else {
-                    const reader = new FileReader();
-                    reader.onload = function (evt) {
-                        fileInput.setAttribute('data-base64', evt.target.result);
-                        if (previewImg && previewContainer) {
-                            previewImg.src = evt.target.result;
-                            previewContainer.style.display = 'block';
-                        }
-                    };
-                    reader.readAsDataURL(file);
+                    // Sem o envio ao Cloudinary a foto iria em base64 para o banco
+                    alert('Não foi possível enviar a imagem: o envio ao Cloudinary não carregou. Recarregue a página (Ctrl+F5) e anexe de novo.');
+                    fileInput.value = '';
                 }
             } catch (err) {
                 console.warn('Erro ao carregar imagem para o Cloudinary:', err);
@@ -9486,6 +9530,20 @@ window.escolherDocumentoAR = function (docsBanco) {
         || null;
 };
 
+// Edital que vale para a tela aberta: o do ciclo (o do Auto, quando a
+// notificação aberta teve o próprio ciclo; senão, o da Notificação Preliminar).
+window.escolherDocumentoEdital = function (docsBanco) {
+    const ehEdital = d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo)
+        || (d.nome_arquivo || '').toLowerCase().includes('edital');
+    const doCiclo = camposARParaLeitura(processoAtual).etapa17?.anexo_edital || null;
+    const docs = (docsBanco || []).filter(ehEdital);
+    if (doCiclo?.documento_id) {
+        return docs.find(d => d.id === doCiclo.documento_id) || doCiclo;
+    }
+    // Edital antigo (base64 no processo) ou sem referência: o do ciclo vem antes
+    return doCiclo || docs[0] || null;
+};
+
 // Etapas 16 e 30 mostram a mesma lista de anexos do AR, cada uma no seu
 // container. Quem renderiza a tela diz qual usar.
 let idListaAnexosAR = 'listaAnexosARContainer';
@@ -10182,6 +10240,14 @@ function configurarEventosEtapa17() {
             if (processoAtual) {
                 const ciclo = camposCicloAR(processoAtual);
                 ciclo.etapa17 = ciclo.etapa17 || {};
+                const anterior = ciclo.etapa17.anexo_edital;
+                if (anterior?.documento_id) {
+                    supabaseClient.from('documentos').delete().eq('id', anterior.documento_id)
+                        .then(({ error }) => { if (error) console.warn('Erro ao remover o edital de documentos:', error); });
+                    alvoDoEdital()
+                        .then(alvo => gravarEditalNoDocumento(alvo, null))
+                        .catch(err => console.warn('Erro ao retirar o edital do Auto/NP:', err));
+                }
                 delete ciclo.etapa17.anexo_edital;
                 renderizarAnexoEdital(null);
             }
@@ -10195,25 +10261,118 @@ function configurarEventosEtapa17() {
     if (btnAvancar) btnAvancar.addEventListener('click', avancarEtapa17);
 }
 
-function processarArquivoEdital(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const anexo = {
-            nome: file.name,
-            tipo: file.type,
-            dataUrl: e.target.result
-        };
-        if (processoAtual) {
-            const ciclo = camposCicloAR(processoAtual);
-            ciclo.etapa17 = ciclo.etapa17 || {};
-            ciclo.etapa17.anexo_edital = anexo;
-            // O prazo de defesa conta desta data quando o AR não encontrou o proprietário
-            ciclo.etapa17.data_anexo_edital = new Date().toISOString();
+// ── De qual documento é o edital ──────────────────────────────────────────
+// Cada documento tem o seu edital: na situação de Auto de Infração ele fica no
+// registro do Auto (autos_infracao.dados.edital); na de Notificação Preliminar,
+// na(s) notificação(ões) do ciclo (notificacoes.dados.edital_np). Quando a NP
+// vem da Etapa 1, as notificações só nascem na Etapa 2: aí o edital fica no
+// processo (campos.etapa17), que é onde a NP está nesse momento.
+async function alvoDoEdital() {
+    const notifCiclo = notificacaoDoCicloAR();
+    if (cicloDoAREhAuto()) {
+        let consulta = supabaseClient.from('autos_infracao').select('id, numero, notificacao_id, dados').eq('processo_id', processoAtual.id);
+        consulta = notifCiclo ? consulta.eq('notificacao_id', notifCiclo.id) : consulta.is('notificacao_id', null);
+        let { data } = await consulta.order('created_at', { ascending: false }).limit(1);
+        if (!data?.length && !notifCiclo) {
+            ({ data } = await supabaseClient.from('autos_infracao').select('id, numero, notificacao_id, dados')
+                .eq('processo_id', processoAtual.id).order('created_at', { ascending: false }).limit(1));
         }
-        renderizarAnexoEdital(anexo);
-    };
-    reader.readAsDataURL(file);
+        const auto = data?.[0] || null;
+        return { situacao: 'auto', auto, notificacao_id: notifCiclo?.id || auto?.notificacao_id || null };
+    }
+    const etapaDe = n => parseInt(n.etapas?.numero || n.etapa_atual_id || 0, 10);
+    const notificacoes = notifCiclo
+        ? [notifCiclo]
+        : (processoAtual.notificacoes || []).filter(n => etapaDe(n) === 17 && n.status !== 'encerrada');
+    return { situacao: 'np', notificacoes, notificacao_id: notificacoes.length === 1 ? notificacoes[0].id : null };
+}
+
+// Grava (ou, com referencia = null, retira) o edital no documento de destino
+async function gravarEditalNoDocumento(alvo, referencia) {
+    if (alvo.situacao === 'auto') {
+        if (!alvo.auto) {
+            console.warn('[Edital] Auto de Infração do ciclo não encontrado em autos_infracao; o edital fica só no processo.');
+            return;
+        }
+        const dados = { ...(alvo.auto.dados || {}) };
+        if (referencia) dados.edital = referencia; else delete dados.edital;
+        const { error } = await supabaseClient.from('autos_infracao').update({ dados }).eq('id', alvo.auto.id);
+        if (error) throw error;
+        alvo.auto.dados = dados;
+        return;
+    }
+    for (const n of alvo.notificacoes) {
+        n.dados = { ...(n.dados || {}) };
+        if (referencia) n.dados.edital_np = referencia; else delete n.dados.edital_np;
+        await atualizarNotificacaoNoBanco(n.id, { dados: n.dados });
+    }
+}
+
+// O edital vai para o Cloudinary e ganha linha própria em documentos (tipo
+// 'Edital'); no processo fica só a referência (documento_id, nome e link).
+// Antes ele era gravado em base64 dentro de processos.dados.
+async function processarArquivoEdital(file) {
+    if (!file || !processoAtual) return;
+    mostrarCarregamento('Enviando edital...');
+    try {
+        const url = await enviarAnexoParaCloudinary(file, 'editais');
+        if (!url) return; // o uploadParaCloudinary já avisou o usuário
+
+        const alvo = await alvoDoEdital();
+        const { data: doc, error } = await supabaseClient
+            .from('documentos')
+            .insert([{
+                processo_id: processoAtual.id,
+                notificacao_id: alvo.notificacao_id,
+                etapa_id: 17,
+                tipo: 'Edital',
+                nome_arquivo: file.name,
+                url,
+                mime_type: file.type || null,
+                tamanho_bytes: file.size || null,
+                gerado_automaticamente: false,
+                usuario_id: perfilAtual?.id
+            }])
+            .select('id')
+            .single();
+        if (error) throw error;
+
+        const ciclo = camposCicloAR(processoAtual);
+        ciclo.etapa17 = ciclo.etapa17 || {};
+        // Edital trocado: o registro anterior sai de documentos
+        const anterior = ciclo.etapa17.anexo_edital;
+        if (anterior?.documento_id && anterior.documento_id !== doc.id) {
+            await supabaseClient.from('documentos').delete().eq('id', anterior.documento_id);
+        }
+        ciclo.etapa17.anexo_edital = { documento_id: doc.id, nome: file.name, tipo: file.type, url };
+        // O prazo de defesa conta desta data quando o AR não encontrou o proprietário
+        ciclo.etapa17.data_anexo_edital = new Date().toISOString();
+
+        // No Auto, quando a situação é de Auto; na(s) NP(s), quando é de NP
+        await gravarEditalNoDocumento(alvo, {
+            documento_id: doc.id,
+            nome: file.name,
+            url,
+            data_anexo: ciclo.etapa17.data_anexo_edital,
+            situacao: alvo.situacao === 'auto' ? 'Auto de Infração' : 'Notificação Preliminar',
+            numero_auto: alvo.auto?.numero || null
+        });
+
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.campos = processoAtual.campos;
+        const { error: errProc } = await supabaseClient
+            .from('processos')
+            .update({ dados: processoAtual.dados })
+            .eq('id', processoAtual.id);
+        if (errProc) throw errProc;
+
+        renderizarAnexoEdital(ciclo.etapa17.anexo_edital);
+    } catch (err) {
+        console.error('Erro ao salvar o edital:', err);
+        alert('Erro ao salvar o edital: ' + (err?.message || err));
+    } finally {
+        ocultarCarregamento();
+    }
 }
 
 function renderizarAnexoEdital(anexo) {
@@ -14957,7 +15116,8 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 queryDocs = queryDocs.eq('notificacao_id', notifId);
             }
             const { data } = await queryDocs.order('created_at', { ascending: true });
-            docsBanco = data || [];
+            // A cópia final de um encerramento anterior não entra no PDF novo
+            docsBanco = (data || []).filter(d => d.tipo !== 'Processo Completo (Encerramento)');
         }
 
         const converterParaArrayBuffer = async (inputStr) => {
@@ -15303,8 +15463,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
 
             await anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64);
 
-            const docEdital = docsBanco.find(d => ['Edital', 'Edital do Gerente', 'Anexo Edital', 'Edital de Notificação'].includes(d.tipo)
-                || (d.nome_arquivo || '').toLowerCase().includes('edital'));
+            const docEdital = window.escolherDocumentoEdital(docsBanco);
             const anexoEditalLocal = camposARParaLeitura(processoAtual).etapa17?.anexo_edital
                 || processoAtual?.campos?.etapa17?.anexo_edital
                 || processoAtual?.dados?.campos?.etapa17?.anexo_edital;
@@ -15368,13 +15527,19 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
         const pdfBytes = await mergedPdf.save();
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
         const blobUrl = URL.createObjectURL(blob);
-        const nomeArquivoPdf = opcoes.nomeArquivo || opcoes.paginaDividaAtiva
+        const nomeArquivoPdf = opcoes.nomeArquivo || (opcoes.paginaDividaAtiva
             ? `Processo_Arquivado_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`
             : opcoes.etapa28
             ? `Processo_Completo_Vencimento_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`
-            : `Processo_Completo_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`;
+            : `Processo_Completo_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`);
 
         ocultarCarregamento();
+
+        // 'arquivo': devolve o PDF sem abrir nem baixar (cópia final do encerramento)
+        if (acao === 'arquivo') {
+            URL.revokeObjectURL(blobUrl);
+            return new File([blob], nomeArquivoPdf, { type: 'application/pdf' });
+        }
 
         if (acao === 'abrir') {
             window.open(blobUrl, '_blank');
@@ -15874,6 +16039,16 @@ window.adicionarCampoImagemReplica = function () {
     });
 };
 
+// Link da foto anexada à Réplica: envia ao Cloudinary na primeira vez e
+// reaproveita o link nas regerações (o mesmo File não é enviado de novo).
+const linksImagensReplica = new WeakMap();
+async function linkDaImagemDaReplica(file) {
+    if (linksImagensReplica.has(file)) return linksImagensReplica.get(file);
+    const url = await enviarAnexoParaCloudinary(file, 'semac_replicas');
+    if (url) linksImagensReplica.set(file, url);
+    return url; // null: o uploadParaCloudinary já avisou, e a foto fica de fora
+}
+
 window.gerarReplica = async function () {
     if (!processoAtual) return;
 
@@ -16037,18 +16212,17 @@ window.gerarReplica = async function () {
         const file = fileInput?.files[0];
 
         if (file) {
-            const prom = new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const legendaTexto = legendaInput?.value?.trim() || '';
-                    resolve(`
+            // A foto vai para o Cloudinary uma vez (a Réplica é regerada várias
+            // vezes) e o HTML guardado em notificacoes.dados leva só o link.
+            const prom = linkDaImagemDaReplica(file).then((urlImagem) => {
+                if (!urlImagem) return '';
+                const legendaTexto = legendaInput?.value?.trim() || '';
+                return `
                         <div style="margin:20px auto; text-align:center; padding:10px; display:inline-block; resize:both; overflow:hidden; max-width:100%; min-width:150px; min-height:150px; border:1px dashed #ccc;">
-                            <img src="${e.target.result}" style="max-width:100%; max-height:400px; display:block; margin:0 auto; border-radius:8px;">
+                            <img src="${urlImagem}" style="max-width:100%; max-height:400px; display:block; margin:0 auto; border-radius:8px;">
                             ${legendaTexto ? `<div style="margin-top:10px; font-size:11pt; color:#334155;">${legendaTexto}</div>` : ''}
                         </div>
-                    `);
-                };
-                reader.readAsDataURL(file);
+                    `;
             });
             filesPromises.push(prom);
         }

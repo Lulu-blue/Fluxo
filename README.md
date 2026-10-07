@@ -493,6 +493,12 @@ aviso mostra "x de 3"). **1 no fluxo do Auto**, que vai direto ao Edital.
 **Quem:** Gerente ou Administrativo. Mostra de qual fluxo o processo veio. Anexa o
 **edital** (obrigatório); a data do anexo vira o início do prazo.
 
+O edital vai para o Cloudinary e ganha linha própria em `documentos` (tipo `Edital`).
+Cada documento tem o seu edital:
+- **Situação de Auto:** fica no registro do Auto (`autos_infracao.dados.edital`).
+- **Situação de NP:** fica na(s) notificação(ões) do ciclo (`notificacoes.dados.edital_np`).
+- **NP vinda da Etapa 1:** como as notificações só nascem na Etapa 2, o edital fica no processo.
+
 **Avanço:** fluxo NP → **2**, com prazo de **20 dias** a partir do edital. Fluxo Auto → **18**.
 
 ### Etapa 18 — Solicitar Defesa ou Recurso (painel dos Autos)
@@ -595,7 +601,10 @@ negrito. Sem a migração, a tela usa uma cópia embutida dos textos e mostra um
 - **PDF completo** com a **Certidão de Encerramento no final**. Depois de anexada, a certidão assinada entra no lugar da gerada.
 - Baixar Certidão de Encerramento, Relatório de Etapas e pacote **.ZIP** com todos os documentos.
 - Anexo da **Certidão assinada** (obrigatório) e tabela com as etapas percorridas.
-- **"Sim, Encerrar Definitivamente":** a notificação/Auto fica `encerrada`.
+- **"Sim, Encerrar Definitivamente":** a notificação/Auto fica `encerrada`. Antes disso, o
+  PDF completo é gerado e guardado no Cloudinary como cópia final, com linha em `documentos`
+  (tipo `Processo Completo (Encerramento)`) e referência em `notificacoes.dados.processo_final`.
+  Até o encerramento, o PDF completo é sempre gerado na hora.
 
 ### Etapa 30 — Gerente Localiza o AR
 

@@ -2374,20 +2374,29 @@ async function alterarFotoPerfil(input) {
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            const base64Avatar = canvas.toDataURL('image/jpeg', 0.85);
+            // A foto (já reduzida) vai para o Cloudinary; o perfil guarda só o link.
+            // Antes ia em base64 para profiles.avatar_url.
+            const blobAvatar = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+            const urlAvatar = (blobAvatar && typeof window.uploadParaCloudinary === 'function')
+                ? await window.uploadParaCloudinary(new File([blobAvatar], 'avatar.jpg', { type: 'image/jpeg' }), 'avatares')
+                : null;
+            if (typeof urlAvatar !== 'string' || !/^https?:\/\//i.test(urlAvatar)) {
+                alert('Não foi possível enviar a foto de perfil. Tente de novo.');
+                return;
+            }
 
             const profileId = window.currentUserProfile?.id;
             const key = 'user_avatar_' + (profileId || 'default');
-            localStorage.setItem(key, base64Avatar);
+            try { localStorage.setItem(key, urlAvatar); } catch (eLs) { /* sem armazenamento local */ }
 
             if (window.currentUserProfile) {
-                window.currentUserProfile.avatar_url = base64Avatar;
+                window.currentUserProfile.avatar_url = urlAvatar;
                 if (profileId) {
-                    await supabaseClient.from('profiles').update({ avatar_url: base64Avatar }).eq('id', profileId);
+                    await supabaseClient.from('profiles').update({ avatar_url: urlAvatar }).eq('id', profileId);
                 } else if (window.currentUserProfile.auth_id) {
-                    await supabaseClient.from('profiles').update({ avatar_url: base64Avatar }).eq('auth_id', window.currentUserProfile.auth_id);
+                    await supabaseClient.from('profiles').update({ avatar_url: urlAvatar }).eq('auth_id', window.currentUserProfile.auth_id);
                 } else if (window.currentUserProfile.cpf) {
-                    await supabaseClient.from('profiles').update({ avatar_url: base64Avatar }).eq('cpf', window.currentUserProfile.cpf);
+                    await supabaseClient.from('profiles').update({ avatar_url: urlAvatar }).eq('cpf', window.currentUserProfile.cpf);
                 }
             }
             aplicarAvatarUsuario(window.currentUserProfile || {}, document.getElementById('perfilHeaderNome')?.textContent || 'FP');
@@ -2900,6 +2909,14 @@ window.verificarEExibirTabApuracao = verificarEExibirTabApuracao;
 
 let chartProcessosInst = null;
 let chartMultasInst = null;
+let chartPizzaArrecadacaoInst = null;
+
+// Pizza da arrecadação: cores categóricas validadas (contraste e daltonismo)
+// em ordem fixa, uma por fatia; "Outros" em cinza claro, que recua. No máximo
+// 6 fatias: além disso as fatias pequenas não se comparam a olho.
+const CORES_PIZZA_ARRECADACAO = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
+const COR_PIZZA_OUTROS = '#cbd5e1';
+const FATIAS_PIZZA_COM_NOME = 5;
 
 function inicializarDatasApuracao() {
     const elInicio = document.getElementById('apuracaoDataInicio');
@@ -3358,6 +3375,88 @@ function renderizarGraficosApuracao(listaFiscais) {
             }
         });
     }
+
+    renderizarPizzaArrecadacao(listaFiscais);
+}
+
+// % da arrecadação por fiscal: os 5 maiores em fatias próprias e o resto em
+// "Outros". A legenda ao lado repete nome, % e valor em texto, e a tabela
+// abaixo traz todos os fiscais.
+function renderizarPizzaArrecadacao(listaFiscais) {
+    const canvas = document.getElementById('chartArrecadacaoPizza');
+    const legenda = document.getElementById('legendaArrecadacaoPizza');
+    if (!canvas || !legenda) return;
+    if (chartPizzaArrecadacaoInst) {
+        chartPizzaArrecadacaoInst.destroy();
+        chartPizzaArrecadacaoInst = null;
+    }
+
+    const brl = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const pct = v => `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+    const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const comValor = (listaFiscais || [])
+        .filter(f => (f.valorMultas || 0) > 0)
+        .sort((a, b) => b.valorMultas - a.valorMultas);
+    const total = comValor.reduce((s, f) => s + f.valorMultas, 0);
+
+    if (total <= 0) {
+        canvas.style.display = 'none';
+        legenda.innerHTML = '<li style="color:#64748b; font-size:0.9rem;">Nenhuma multa gerada no período selecionado.</li>';
+        return;
+    }
+    canvas.style.display = '';
+
+    const fatias = comValor.slice(0, FATIAS_PIZZA_COM_NOME).map((f, i) => ({
+        nome: f.nome, valor: f.valorMultas, cor: CORES_PIZZA_ARRECADACAO[i]
+    }));
+    const resto = comValor.slice(FATIAS_PIZZA_COM_NOME);
+    if (resto.length > 0) {
+        fatias.push({
+            nome: `Outros (${resto.length} ${resto.length > 1 ? 'fiscais' : 'fiscal'})`,
+            valor: resto.reduce((s, f) => s + f.valorMultas, 0),
+            cor: COR_PIZZA_OUTROS
+        });
+    }
+
+    if (typeof Chart !== 'undefined') {
+        chartPizzaArrecadacaoInst = new Chart(canvas.getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: fatias.map(f => f.nome),
+                datasets: [{
+                    data: fatias.map(f => f.valor),
+                    backgroundColor: fatias.map(f => f.cor),
+                    // 2px da cor do fundo entre as fatias
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` ${ctx.label}: ${brl(ctx.raw || 0)} (${pct(((ctx.raw || 0) / total) * 100)})`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Texto em cor de texto; a cor fica só no marcador ao lado
+    legenda.innerHTML = fatias.map(f => `
+        <li style="display:flex; align-items:center; gap:10px; font-size:0.9rem;">
+            <span aria-hidden="true" style="width:12px; height:12px; border-radius:3px; background:${f.cor}; flex-shrink:0;"></span>
+            <span style="flex:1; min-width:0; color:#0f172a; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(f.nome)}">${esc(f.nome)}</span>
+            <span style="color:#0f172a; font-weight:800; font-variant-numeric:tabular-nums;">${pct((f.valor / total) * 100)}</span>
+            <span style="color:#64748b; font-size:0.8rem; font-variant-numeric:tabular-nums; min-width:92px; text-align:right;">${brl(f.valor)}</span>
+        </li>
+    `).join('');
 }
 
 window.exportarApuracaoCSV = function () {

@@ -962,24 +962,26 @@
         const perfil = await getPerfilAtualAsync();
         let anexos = [];
 
-        // Converte anexo se houver
+        // O anexo vai para o Cloudinary; a mensagem guarda só o link (antes ia
+        // em base64 para dentro de chats_interface_juridica.mensagens).
         if (selectedFileAttachment) {
+            let url = null;
             try {
-                const base64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(selectedFileAttachment);
-                });
-
-                anexos.push({
-                    nome: selectedFileAttachment.name,
-                    url: base64,
-                    tipo: selectedFileAttachment.type
-                });
+                url = typeof window.uploadParaCloudinary === 'function'
+                    ? await window.uploadParaCloudinary(selectedFileAttachment, 'chat_juridico')
+                    : null;
             } catch (e) {
-                console.error('Erro ao ler anexo:', e);
+                console.error('Erro ao enviar o anexo do chat:', e);
             }
+            if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+                alert('Não foi possível enviar o anexo. A mensagem não foi enviada; tente de novo.');
+                return;
+            }
+            anexos.push({
+                nome: selectedFileAttachment.name,
+                url,
+                tipo: selectedFileAttachment.type
+            });
         }
 
         const nomeRemetente = perfil.nome && perfil.nome !== 'Usuário' ? perfil.nome : 'Usuário';
