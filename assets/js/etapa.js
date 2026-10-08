@@ -68,6 +68,27 @@ function setVal(id, val) {
     if (el) el.value = val !== undefined && val !== null ? val : '';
 }
 
+// A data da vistoria é gravada como o input de "Novo Processo" a devolve
+// ("2026-10-07T09:00"), mas processos antigos podem ter só a data ou o formato
+// brasileiro. Um <input type="datetime-local"> rejeita calado tudo que não
+// esteja em YYYY-MM-DDTHH:mm e fica em branco — era por isso que o campo do
+// modal de edição aparecia vazio mesmo com a data gravada.
+window.valorDataVistoriaParaInput = function (val) {
+    if (!val) return '';
+    const txt = String(val).trim();
+
+    let m = txt.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4] || '00'}:${m[5] || '00'}`;
+
+    m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ ,]+(\d{2}):(\d{2}))?/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}T${m[4] || '00'}:${m[5] || '00'}`;
+
+    const d = new Date(txt);
+    if (isNaN(d.getTime())) return '';
+    const p2 = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+};
+
 window.formatarDataVistoriaRobusta = function (val) {
     if (!val) return null;
     if (typeof val === 'string') {
@@ -473,13 +494,42 @@ function dataLocalMeioDiaISO(valor) {
     return new Date(ymd + 'T12:00:00').toISOString();
 }
 
+// Data do edital para a contagem do prazo: vale a data de PUBLICAÇÃO informada na
+// Etapa 17. Os editais antigos, que não têm esse campo, continuam valendo pela data
+// em que o edital foi anexado.
 function obterDataEditalProcesso(proc, notif = null) {
     const doAuto = camposDoCicloARDaNotificacao(proc, notif, false);
-    if (doAuto) return doAuto.etapa17?.data_anexo_edital || null;
-    return proc?.campos?.etapa17?.data_anexo_edital
+    if (doAuto) return doAuto.etapa17?.data_publicacao_edital || doAuto.etapa17?.data_anexo_edital || null;
+    return proc?.campos?.etapa17?.data_publicacao_edital
+        || proc?.dados?.campos?.etapa17?.data_publicacao_edital
+        || proc?.dados?.etapa17?.data_publicacao_edital
+        || proc?.campos?.etapa17?.data_anexo_edital
         || proc?.dados?.campos?.etapa17?.data_anexo_edital
         || proc?.dados?.etapa17?.data_anexo_edital
         || null;
+}
+
+// Só a parte da data (YYYY-MM-DD), para o campo da tela
+function obterDataPublicacaoEditalParaCampo(proc, notif = null) {
+    const bruta = obterDataEditalProcesso(proc, notif);
+    if (!bruta) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(bruta)) return bruta;
+    const d = new Date(bruta);
+    if (isNaN(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Lê o campo da tela e guarda no ciclo do AR
+function registrarDataPublicacaoEdital(ciclo) {
+    const valor = document.getElementById('editalDataPublicacao')?.value || '';
+    ciclo.etapa17 = ciclo.etapa17 || {};
+    if (valor) {
+        ciclo.etapa17.data_publicacao_edital = valor;
+    } else {
+        delete ciclo.etapa17.data_publicacao_edital;
+    }
+    return valor;
 }
 
 function obterInicioPrazoAR(proc, notif = null) {
@@ -508,10 +558,10 @@ function obterInicioPrazoAR(proc, notif = null) {
 }
 window.obterInicioPrazoAR = obterInicioPrazoAR;
 
-// Prazo do ciclo: Auto de Infração tem o prazo de defesa do Auto (20 dias ou 10
-// úteis); Notificação Preliminar mantém o prazo dela (20 dias depois de Edital).
+// Prazo do ciclo: no Auto de Infração vale o prazo de DEFESA do Auto (20 dias
+// úteis); a Notificação Preliminar mantém o prazo dela (20 dias depois de Edital).
 function prazoDoCicloNotificacao(n, ehAuto, passouEtapa17) {
-    if (ehAuto) return determinarPrazoAutoInfracao(n.descricao);
+    if (ehAuto) return determinarPrazoAutoInfracao();
     return passouEtapa17 ? 20 : (n.prazo_dias || obterPrazoNotificacao(n.descricao));
 }
 
@@ -572,7 +622,10 @@ async function aplicarInicioPrazoAR(proc, opcoes = {}) {
         const campos = {
             prazo_dias: prazoDias,
             data_inicio: dataInicio,
-            data_vencimento: calcularDataVencimento(dataInicio, prazoDias),
+            // Defesa do Auto: 20 dias úteis. Prazos da NP seguem a regra de sempre.
+            data_vencimento: opcoes.ehAuto
+                ? calcularVencimentoDefesaAuto(dataInicio)
+                : calcularDataVencimento(dataInicio, prazoDias),
             // Sem AR registrado o prazo não começou: o painel mostra "—"
             prazo_origem: inicio ? inicio.origem : null,
             data_movimentacao: dataMov
@@ -932,7 +985,7 @@ function renderizarFormularioDinamico(etapaNum) {
         if (btnTabDoc) btnTabDoc.textContent = `Ações da Notificação`;
         if (btnTabEdit) btnTabEdit.style.display = 'none';
     } else {
-        if (btnTabDoc) btnTabDoc.textContent = `Notificação Preliminar (Modelo Oficial)`;
+        if (btnTabDoc) btnTabDoc.textContent = `Notificação Preliminar`;
         if (btnTabEdit) btnTabEdit.style.display = 'inline-block';
     }
 
@@ -943,11 +996,11 @@ function renderizarFormularioDinamico(etapaNum) {
     const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
     if (btnBaixar) {
         if (etapaNum === 10) {
-            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Certidão (.pdf)`;
+            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Baixar Certidão (.pdf)`;
         } else if ([5, 8, 13].includes(etapaNum)) {
-            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Réplica (.pdf)`;
+            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Baixar Réplica (.pdf)`;
         } else {
-            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Baixar Relatório de Vistoria (.pdf)`;
+            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Relatório de Vistoria (.pdf)`;
         }
     }
 
@@ -984,7 +1037,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         <div class="header-icon">📄</div>
                         <div style="flex:1;">
                             <h3 class="etapa1-card-title">2º Passo: Anexar Notificação Preliminar e Relatório Fiscal Assinados</h3>
-                            <p class="etapa1-card-subtitle">Após gerar ou imprimir os documentos, anexe a Notificação Preliminar e o Relatório Fiscal assinados para habilitar o avanço do processo.</p>
+                            <p class="etapa1-card-subtitle">Após baixar os documentos, anexe a Notificação Preliminar e o Relatório Fiscal assinados para habilitar o avanço do processo.</p>
                         </div>
                         <span id="badgeAnexoNPStatus" class="badge-status-anexo">Pendente</span>
                     </div>
@@ -1008,7 +1061,7 @@ function renderizarFormularioDinamico(etapaNum) {
                                 </div>
                                 <div style="display:flex; gap:8px;">
                                     <a id="btnVerAnexoNP" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
-                                    <button id="btnRemoverAnexoNP" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                                    <button id="btnRemoverAnexoNP" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>
                                 </div>
                             </div>
                         </div>
@@ -1031,7 +1084,7 @@ function renderizarFormularioDinamico(etapaNum) {
                                 </div>
                                 <div style="display:flex; gap:8px;">
                                     <a id="btnVerAnexoRF" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
-                                    <button id="btnRemoverAnexoRF" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                                    <button id="btnRemoverAnexoRF" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>
                                 </div>
                             </div>
                         </div>
@@ -2931,9 +2984,9 @@ function configurarBotoesDocumentoTopbar() {
     if (btnImprimir) {
         const svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2 2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>`;
         if (ehStatusAutoInfracao(notificacaoAtual, processoAtual) || (!notificacaoAtual && window.etapaIndicaAutoInfracao(processoAtual?.etapa_atual, processoAtual))) {
-            btnImprimir.innerHTML = `${svgIcon} Imprimir / PDF (Auto de Infração)`;
+            btnImprimir.innerHTML = `${svgIcon} Imprimir / Baixar → Auto de Infração (.pdf)`;
         } else {
-            btnImprimir.innerHTML = `${svgIcon} Imprimir / PDF (Notificação)`;
+            btnImprimir.innerHTML = `${svgIcon} Imprimir / Baixar → Notificação (.pdf)`;
         }
         if (!btnImprimir.dataset.listenerAtivo) {
             btnImprimir.addEventListener('click', imprimirDocumentoOficial);
@@ -4795,6 +4848,15 @@ function obterDispositivosDoProcesso(proc) {
 
 window.obterDispositivosDoProcesso = obterDispositivosDoProcesso;
 
+// O rótulo da infração vem quebrado em várias linhas no HTML, então textContent
+// traz a quebra e a indentação no meio do texto (e .trim() só limpa as pontas).
+// Sem isso o "Texto do Relatório" aparecia partido na caixa de digitação.
+function textoDoRotuloInfracao(el) {
+    const rotulo = el?.nextElementSibling?.textContent;
+    const limpo = String(rotulo || '').replace(/\s+/g, ' ').trim();
+    return limpo || el?.value || '';
+}
+
 window.obterTextoInfracoesProcesso = function (procObj) {
     const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
 
@@ -4831,7 +4893,7 @@ window.obterTextoInfracoesProcesso = function (procObj) {
     const checkedEls = document.querySelectorAll('#infracoesList input[name="infracao"]:checked, input[name="infracao"]:checked');
     if (checkedEls && checkedEls.length > 0) {
         const sel = Array.from(checkedEls).map(el => {
-            const txt = el.nextElementSibling ? el.nextElementSibling.textContent.trim() : el.value;
+            const txt = textoDoRotuloInfracao(el);
             return (typeof window.obterDescricaoInfracao === 'function') ? window.obterDescricaoInfracao(txt) : txt;
         }).filter(Boolean);
         if (sel.length > 0) return sel.join(', ');
@@ -5036,7 +5098,7 @@ function obterHtmlCardCalculoMulta(opts) {
     const o = opts || {};
     const sfx = o.suffix || '';
     const titulo = o.titulo || '1º Passo: Conferir ou Atualizar Valores das Multas';
-    const subtitulo = o.subtitulo || 'Confirme ou edite os valores das multas para atualizar em tempo real o documento PDF abaixo.';
+    const subtitulo = o.subtitulo || 'Confirme ou edite os valores das multas para atualizar o documento PDF abaixo.';
     const textoBotao = o.textoBotao || 'Salvar Valores e Atualizar Documento PDF';
     const estilo = o.estilo || '';
 
@@ -5050,14 +5112,14 @@ function obterHtmlCardCalculoMulta(opts) {
                 </div>
             </div>
 
-            <!-- Bloco UPFMD e Parâmetros de Cálculo -->
+            <!-- Bloco UPFMD e parâmetros de cálculo -->
             <div class="upfmd-header-box"
                 style="margin: 16px 0 20px 0; padding: 18px 22px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
                 <div style="flex: 1; min-width: 260px;">
                     <label
                         style="font-weight: 700; color: #5b21b6; font-size: 0.96rem; display: block; margin-bottom: 4px;">Parâmetros
-                        de Cálculo (UPFMD, Imóvel de Esquina e Base de Cálculo)</label>
-                    <span style="font-size: 0.84rem; color: #6d28d9; display: block;">Regra oficial: Imóveis de esquina
+                        de Cálculo (UPFMD, imóvel de esquina e base de cálculo)</label>
+                    <span style="font-size: 0.84rem; color: #6d28d9; display: block;">Regra oficial: imóveis de esquina
                         somam as duas medidas (testada + profundidade) no cálculo das infrações por metro linear.</span>
                     <span style="font-size: 0.84rem; color: #6d28d9; display: block; margin-top: 2px;">A base de cálculo
                         é a testada na maioria dos casos; use a profundidade apenas quando a autuação for por ela.</span>
@@ -5078,7 +5140,7 @@ function obterHtmlCardCalculoMulta(opts) {
                         <select id="selectBaseCalculoMulta${sfx}"
                             style="font-weight: 700; color: #5b21b6; border: none; outline: none; background: transparent; cursor: pointer;"
                             title="Medida linear usada no cálculo da multa por metro linear">
-                            <option value="testada">Testada (padrão)</option>
+                            <option value="testada">Testada</option>
                             <option value="profundidade">Profundidade</option>
                         </select>
                     </div>
@@ -5102,7 +5164,7 @@ function obterHtmlCardCalculoMulta(opts) {
                         <h4 style="font-size: 0.98rem; font-weight: 700; color: #9f1239; margin: 0;">Dados
                             da Reincidência (Auto de Infração Anterior)</h4>
                         <p style="font-size: 0.84rem; color: #be123c; margin: 2px 0 0 0;">Preencha o número
-                            e a data do Auto de Infração anterior para constar na Observação do Fiscal do
+                            e a data do Auto de Infração anterior para constar no
                             documento.</p>
                     </div>
                 </div>
@@ -5691,7 +5753,7 @@ function configurarEventosPainelEtapa1() {
     if (btnRemoverAnexoNP) {
         btnRemoverAnexoNP.addEventListener('click', async () => {
             if (!processoAtual) return;
-            if (!confirm('Deseja substituir ou remover a Notificação Preliminar Assinada?')) return;
+            if (!confirm('Deseja remover a Notificação Preliminar Assinada?')) return;
 
             processoAtual.campos = processoAtual.campos || {};
             delete processoAtual.campos.anexo_np_assinada;
@@ -5917,7 +5979,7 @@ function configurarEventosPainelEtapa1() {
     if (btnRemoverAnexoRF) {
         btnRemoverAnexoRF.addEventListener('click', async () => {
             if (!processoAtual) return;
-            if (!confirm('Deseja substituir ou remover o Relatório Fiscal Assinado?')) return;
+            if (!confirm('Deseja remover o Relatório Fiscal Assinado?')) return;
 
             processoAtual.campos = processoAtual.campos || {};
             delete processoAtual.campos.anexo_rf_assinado;
@@ -5971,7 +6033,7 @@ function gerarHtmlBlocoAnexoReplica() {
                     </div>
                     <div style="display:flex; gap:8px;">
                         <a id="btnVerAnexoReplica" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
-                        <button id="btnRemoverAnexoReplica" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                        <button id="btnRemoverAnexoReplica" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>
                     </div>
                 </div>
             </div>
@@ -6308,7 +6370,7 @@ window.obterHtmlBlocoCertidaoAssinada = function () {
                     </div>
                     <div style="display:flex; gap:8px;">
                         <a id="btnVerAnexoCertidao" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
-                        <button id="btnRemoverAnexoCertidao" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                        <button id="btnRemoverAnexoCertidao" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>
                     </div>
                 </div>
             </div>
@@ -6707,7 +6769,7 @@ window.obterHtmlBlocoRelatorioFiscalAssinado = function () {
                     </div>
                     <div style="display:flex; gap:8px;">
                         <a id="btnVerAnexoRelatorio" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
-                        <button id="btnRemoverAnexoRelatorio" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                        <button id="btnRemoverAnexoRelatorio" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>
                     </div>
                 </div>
             </div>
@@ -7419,7 +7481,7 @@ window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
                 data-url="${initialSrc}" data-docid="${initialDocId}" data-nome="${initialName}">
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Legenda da Imagem</label>
+            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Legenda da Imagem <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
             <input type="text" class="imagem-legenda-edit form-input" value="${initialLeg.replace(/"/g, '&quot;')}" placeholder="Ex: Vista frontal do lote..." style="padding: 8px;">
         </div>
     `;
@@ -7509,7 +7571,7 @@ async function preencherFormularioEdicao(proc) {
     setVal('editImvProfundidade', imv.profundidade || '');
     setVal('editImvArea', imv.area_total || '');
 
-    setVal('editFiscDataVistoria', fisc.data_vistoria);
+    setVal('editFiscDataVistoria', window.valorDataVistoriaParaInput(fisc.data_vistoria || proc?.data_vistoria));
     setVal('editFiscDecreto', fisc.decreto || 'não');
     setVal('editFiscDescricao', fisc.descricao);
     setVal('editObservacoesFiscal', d.relatorio_fiscal?.observacoes_fiscal || '');
@@ -7662,7 +7724,7 @@ function gerarBlocoInfracao(proc, disp, index) {
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas na legislação municipal vigente.`;
     }
 
-    const obsHtml = obsFiscal ? `<p style="margin:8px 0 0 0; font-size:10.5pt; color:#333;"><strong>Observação do Fiscal:</strong> ${obsFiscal}</p>` : '';
+    const obsHtml = obsFiscal ? `<p style="margin:8px 0 0 0; font-size:10.5pt; color:#333;"><strong>Nota do fiscal:</strong> ${obsFiscal}</p>` : '';
 
     return `
         <div class="doc-infracao-bloco" data-notificacao-index="${index}">
@@ -7695,7 +7757,7 @@ function htmlObservacoesFiscal(proc, estiloParagrafo) {
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\n/g, '<br>');
     const estilo = estiloParagrafo ? ` style="${estiloParagrafo}"` : '';
-    return `<p${estilo}><strong>Observações do Fiscal:</strong> ${seguro}</p>`;
+    return `<p${estilo}><strong>Nota do fiscal:</strong> ${seguro}</p>`;
 }
 window.htmlObservacoesFiscal = htmlObservacoesFiscal;
 
@@ -7882,7 +7944,7 @@ function renderizarDocumentoOficial(proc) {
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas na legislação municipal vigente.`;
         }
 
-        const obsHtml = obsFiscal ? `<p style="margin:8px 0 0 0; font-size:10.5pt; color:#333;"><strong>Observação do Fiscal:</strong> ${obsFiscal}</p>` : '';
+        const obsHtml = obsFiscal ? `<p style="margin:8px 0 0 0; font-size:10.5pt; color:#333;"><strong>Nota do fiscal:</strong> ${obsFiscal}</p>` : '';
 
         const bloco = `
             <div class="doc-infracao-bloco">
@@ -7976,7 +8038,7 @@ function renderizarDocumentoOficial(proc) {
                     ${htmlObservacoesFiscal(proc)}
                     <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
                     <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
-                    <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
+                    <p style="text-align: justify;"><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
                 </div>
 
                 <!-- 8. ASSINATURA FISCAL -->
@@ -8138,7 +8200,7 @@ async function obterNotificacoesEtapa2(proc) {
         }
     }
     if (!dataInicio) {
-        dataInicio = proc.campos?.etapa17?.data_anexo_edital || proc.created_at || new Date().toISOString();
+        dataInicio = obterDataEditalProcesso(proc, notificacaoAtual) || proc.created_at || new Date().toISOString();
     }
 
     return dispositivos.map((disp, index) => {
@@ -8187,17 +8249,22 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
     });
 }
 
-function calcularDataVencimento(dataInicio, dias) {
+// emDiasUteis: true conta só dias úteis; false conta corridos. Sem informar,
+// mantém a regra antiga (10 = úteis, demais = corridos), usada pelos prazos de
+// CUMPRIMENTO da Notificação Preliminar.
+// Prazos de DEFESA são sempre em dias úteis: 10 na NP e 20 no Auto de Infração.
+function calcularDataVencimento(dataInicio, dias, emDiasUteis) {
     const data = new Date(dataInicio);
     if (isNaN(data.getTime())) {
         return new Date().toISOString();
     }
     const numDias = parseInt(dias, 10) || 20;
+    const contarUteis = (emDiasUteis === undefined) ? (numDias === 10) : !!emDiasUteis;
 
-    if (numDias === 10) {
-        // 10 DIAS ÚTEIS: desconsidera sábados (6) e domingos (0)
+    if (contarUteis) {
+        // Dias úteis: desconsidera sábados (6) e domingos (0)
         let diasUteisAdicionados = 0;
-        while (diasUteisAdicionados < 10) {
+        while (diasUteisAdicionados < numDias) {
             data.setDate(data.getDate() + 1);
             const diaSemana = data.getDay();
             if (diaSemana !== 0 && diaSemana !== 6) {
@@ -8205,10 +8272,16 @@ function calcularDataVencimento(dataInicio, dias) {
             }
         }
     } else {
-        // 20 DIAS CORRIDOS (ou outros valores)
         data.setDate(data.getDate() + numDias);
     }
     return data.toISOString();
+}
+
+// Prazo de DEFESA do Auto de Infração: 20 dias úteis, para qualquer infração
+const PRAZO_DEFESA_AUTO_DIAS_UTEIS = 20;
+
+function calcularVencimentoDefesaAuto(dataInicio) {
+    return calcularDataVencimento(dataInicio, PRAZO_DEFESA_AUTO_DIAS_UTEIS, true);
 }
 
 function formatarDiasRestantes(dataVencimentoISO) {
@@ -8814,12 +8887,10 @@ async function avancarNotificacaoEtapa2(index) {
 // ETAPA 18 — SOLICITAR DEFESA OU PAGAMENTO DO AUTO DE INFRAÇÃO
 // ============================================================================
 
-function determinarPrazoAutoInfracao(descricao) {
-    if (typeof window.obterPrazoDefesaAutoInfracao === 'function') {
-        const p = window.obterPrazoDefesaAutoInfracao(descricao);
-        if (p && (p.includes('10') || p.toLowerCase().includes('úteis') || p.toLowerCase().includes('uteis'))) return 10;
-    }
-    return 20;
+// O prazo de defesa do Auto de Infração é sempre 20 dias úteis, independente da
+// infração. (O prazo de CUMPRIMENTO, que varia, é outro: obterPrazoNotificacao.)
+function determinarPrazoAutoInfracao() {
+    return PRAZO_DEFESA_AUTO_DIAS_UTEIS;
 }
 
 async function obterAutosEtapa18(proc) {
@@ -8846,8 +8917,8 @@ async function obterAutosEtapa18(proc) {
     return dispositivos.map((disp, index) => {
         const salva = autosSalvos[index] || {};
         const numero = salva.numero || proc.campos?.etapa14?.numero_auto_infracao || proc.dados?.etapa14?.numero_auto_infracao || `${proc.numero_processo || 'S/N'}/${String(index + 1).padStart(2, '0')}`;
-        const prazoDias = (salva.prazo_dias && salva.prazo_dias !== 15) ? salva.prazo_dias : determinarPrazoAutoInfracao(disp);
-        const dataVencimento = calcularDataVencimento(dataInicio, prazoDias);
+        const prazoDias = determinarPrazoAutoInfracao();
+        const dataVencimento = calcularVencimentoDefesaAuto(dataInicio);
         return {
             index,
             numero,
@@ -8917,8 +8988,8 @@ function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
         // Só calcula aqui quando ele ainda não existe (processos anteriores à mudança).
         const prazoGravado = !!(n.prazo_origem && n.data_vencimento);
         const dataInicio = prazoGravado ? n.data_inicio : dataInicioGlobal;
-        const prazoDias = prazoGravado ? (n.prazo_dias || determinarPrazoAutoInfracao(n.descricao)) : determinarPrazoAutoInfracao(n.descricao);
-        const dataVencimento = prazoGravado ? n.data_vencimento : calcularDataVencimento(dataInicio, prazoDias);
+        const prazoDias = prazoGravado ? (n.prazo_dias || determinarPrazoAutoInfracao()) : determinarPrazoAutoInfracao();
+        const dataVencimento = prazoGravado ? n.data_vencimento : calcularVencimentoDefesaAuto(dataInicio);
         const numAuto = n.dados?.etapa14?.numero_auto_infracao || proc.campos?.etapa14?.numero_auto_infracao || proc.dados?.etapa14?.numero_auto_infracao || n.numero || `${proc.numero_processo || 'S/N'}/${String(index + 1).padStart(2, '0')}`;
         return {
             id: n.id,
@@ -9036,7 +9107,7 @@ async function renderizarEtapa18(proc) {
                     console.warn('[DEBUG Etapa 18] Erro ao formatar data_vencimento:', a.data_vencimento, e);
                 }
 
-                const rotuloPrazo = a.prazo_dias === 10 ? '10 dias úteis' : `${a.prazo_dias || 20} dias corridos`;
+                const rotuloPrazo = `${a.prazo_dias || PRAZO_DEFESA_AUTO_DIAS_UTEIS} dias úteis`;
 
                 const prazoHtml = jaAvancou
                     ? ''
@@ -10204,6 +10275,7 @@ function renderizarEtapa17(proc) {
 
     const dadosEtapa17 = camposCicloAR(proc).etapa17 || {};
     renderizarAnexoEdital(dadosEtapa17.anexo_edital);
+    setVal('editalDataPublicacao', obterDataPublicacaoEditalParaCampo(proc, notificacaoAtual));
 
     if (modo !== MODO_ACESSO.NORMAL && formulario17) {
         formulario17.querySelectorAll('input, select, textarea, button').forEach(el => {
@@ -10412,6 +10484,8 @@ async function salvarEtapa17() {
     const ciclo = camposCicloAR(processoAtual);
     ciclo.etapa17 = ciclo.etapa17 || {};
 
+    registrarDataPublicacaoEdital(ciclo);
+
     const anexo = ciclo.etapa17.anexo_edital;
     if (anexo) {
         ciclo.etapa17.data_anexo_edital = new Date().toISOString();
@@ -10441,6 +10515,9 @@ async function avancarEtapa17() {
         alert('Anexe o edital gerado para avançar.');
         return;
     }
+
+    // Guarda a data de publicação digitada, mesmo sem passar pelo "Salvar Edital"
+    registrarDataPublicacaoEdital(ciclo);
 
     // Garante a data do edital mesmo se o fiscal não clicou em "Salvar Edital"
     if (!ciclo.etapa17.data_anexo_edital) {
@@ -11742,7 +11819,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
             } else {
                 // ── Template Comum (denúncia) ──
                 const atendimento = rProc.atendimento || fProc.atendimento || 'campo escrito';
-                const assunto = rProc.assunto || fProc.assunto || 'colocar aqui o título da denúncia';
+                const assunto = rProc.assunto || fProc.assunto || 'colocar aqui o assunto do relatório';
                 const pa = rProc.pa || fProc.pa || '';
                 const logradouroImv = iProc.logradouro || 'XXX';
                 const numeroImv = iProc.numero || 'XXXX';
@@ -12326,7 +12403,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas na legislação municipal vigente.`;
         }
 
-        const obsHtml = obsFiscal ? `<p style="margin:8px 0 0 0; font-size:10.5pt; color:#333;"><strong>Observação do Fiscal:</strong> ${obsFiscal}</p>` : '';
+        const obsHtml = obsFiscal ? `<p style="margin:8px 0 0 0; font-size:10.5pt; color:#333;"><strong>Nota do fiscal:</strong> ${obsFiscal}</p>` : '';
 
         blocosInfracoesHtml += `
             <div style="margin: 24px 0; font-size: 11pt; line-height: 1.45;">
@@ -12419,7 +12496,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             ${htmlObservacoesFiscal(proc)}
             <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
             <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
-            <p><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
+            <p style="text-align: justify;"><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
         </div>
 
         <!-- 8. ASSINATURA FISCAL -->
@@ -13223,7 +13300,12 @@ window.obterDescricaoInfracao = function (disp) {
     }
 };
 
-window.obterPrazoDefesaAutoInfracao = function (infracaoDesc) {
+window.obterPrazoDefesaAutoInfracao = function () {
+    return '20 DIAS ÚTEIS';
+};
+
+// Mantida para consulta: regra anterior, que variava por infração
+window.obterPrazoDefesaAutoInfracaoAntigo = function (infracaoDesc) {
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(infracaoDesc) : '';
     const dispLow = String(infracaoDesc || '').toLowerCase();
 
@@ -13388,14 +13470,14 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: R$ ${valFormatado}.`;
-        obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+        obsFiscal = `Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
         // 5) 120000227 - Reincidência na inexistência de passeio
     } else if (cod === '120000227' || (dispLow.includes('reincidência') && dispLow.includes('passeio'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: R$ ${valFormatado} (valor dobrado em face da reincidência na infração).`;
-        obsFiscal = `Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+        obsFiscal = `Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
 
         // 2) 120000211 - Inexistência de cercamento
     } else if (cod === '120000211' || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
@@ -14030,7 +14112,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         }
 
         const fundamentoLegalDecreto = window.obterFundamentoLegalDecreto ? window.obterFundamentoLegalDecreto(inputInfracao) : 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
-        const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao(inputInfracao) : '20 DIAS';
+        const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao() : '20 DIAS ÚTEIS';
 
         let corpoHtmlAuto = '';
         if (provenienteDecreto) {
@@ -14120,10 +14202,10 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
-                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, , protocolada via protocolo municipal.
+                    O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, protocolada via protocolo municipal.
                 </p>
                 
-                <p>
+                <p style="margin: 0 0 10px 0; text-align: justify;">
                     <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
                 </p>
             </div>
@@ -14240,7 +14322,7 @@ function obterHtmlBlocoAutoInfracaoAssinado() {
                     </div>
                     <div style="display:flex; gap:8px;">
                         <a id="btnVerAnexoAI" href="#" target="_blank" class="btn-sm btn-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; color:#334155; text-decoration:none; font-size:0.82rem; font-weight:600;">Visualizar</a>
-                        <button id="btnRemoverAnexoAI" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Substituir / Remover</button>
+                        <button id="btnRemoverAnexoAI" type="button" class="btn-sm btn-danger-outline" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>
                     </div>
                 </div>
             </div>
@@ -14410,7 +14492,7 @@ window.configurarEventosAIAssinado = function () {
 
     if (btnRemover) {
         btnRemover.addEventListener('click', async () => {
-            if (!confirm('Deseja substituir ou remover o Auto de Infração Assinado?')) return;
+            if (!confirm('Deseja remover o Auto de Infração Assinado?')) return;
             mostrarCarregamento('Removendo anexo...');
 
             try {
@@ -16023,7 +16105,7 @@ window.adicionarCampoImagemReplica = function () {
             <input type="file" class="replica-imagem-arquivo" accept="image/*" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; background:white;">
         </div>
         <div style="flex:2;">
-            <label style="display:block; font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:4px;">Legenda da Imagem</label>
+            <label style="display:block; font-size:0.85rem; font-weight:600; color:#475569; margin-bottom:4px;">Legenda da Imagem <span style="font-weight:400; color:#64748b;">(opcional)</span></label>
             <input type="text" class="replica-imagem-legenda" placeholder="Ex: Foto do local..." style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none;">
         </div>
     `;

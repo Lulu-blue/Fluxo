@@ -145,6 +145,9 @@ async function abrirModal() {
     if (modal) modal.classList.add('open');
     document.body.style.overflow = 'hidden';
     currentWizardStep = 1;
+    limparAnexoBicUI();
+    // Garante que o Nº/Descrição apareça ou não conforme o tipo já selecionado
+    if (typeof window.sincronizarCampoAtendimento === 'function') window.sincronizarCampoAtendimento();
     carregarOpcoesDecreto();
     atualizarWizard();
     carregarDadosFiscal();
@@ -152,12 +155,34 @@ async function abrirModal() {
     // (prepararEtapaRelatorio); reservar ao abrir gastava números de quem desistia
 }
 
+// Devolve o anexo do BIC ao estado inicial. Sem isso, ao fechar e reabrir o
+// "Novo Processo" a tela continuava mostrando o arquivo da vez anterior, mesmo
+// com o anexo já descartado — e a validação reclamava que faltava o BIC.
+function limparAnexoBicUI() {
+    bicArquivoAnexado = null;
+
+    const inputBic = document.getElementById('inputBic');
+    if (inputBic) inputBic.value = '';
+
+    const infoEl = document.getElementById('bicFileInfo');
+    if (infoEl) infoEl.style.display = 'none';
+
+    const nameEl = document.getElementById('bicFileName');
+    if (nameEl) nameEl.textContent = '';
+
+    const dropEl = document.getElementById('uploadAreaBic');
+    if (dropEl) dropEl.style.display = 'flex';
+
+    const feedbackEl = document.getElementById('bicFeedback');
+    if (feedbackEl) { feedbackEl.textContent = ''; feedbackEl.className = 'field-feedback'; }
+}
+window.limparAnexoBicUI = limparAnexoBicUI;
+
 async function fecharModal() {
     const modal = document.getElementById('modalNovaSolicitacao');
     if (modal) modal.classList.remove('open');
     document.body.style.overflow = '';
-    bicArquivoAnexado = null;
-    bicDocumentoReutilizado = null;
+    limparAnexoBicUI();
     if (typeof limparSeletorImoveis === 'function') limparSeletorImoveis();
 
     // Se a pessoa fechar/descartar o modal sem finalizar, libera os números reservados
@@ -360,8 +385,10 @@ function atualizarLabelsUIWizardStep5() {
         if (atendimentoRow) atendimentoRow.style.display = 'none';
         if (textoGroup) textoGroup.style.display = 'none';
     } else {
-        if (atendimentoRow) atendimentoRow.style.display = 'flex';
-        if (textoGroup) textoGroup.style.display = 'block';
+        if (atendimentoRow) atendimentoRow.style.display = '';
+        // '' devolve o display do CSS (.form-group é flex em coluna). Com 'block',
+        // o label e o textarea viravam inline e ficavam lado a lado.
+        if (textoGroup) textoGroup.style.display = '';
     }
 
     if (btnEditorRow) btnEditorRow.style.display = 'flex';
@@ -476,12 +503,22 @@ function voltarStep() {
     }
 }
 
+// Constatação do fiscal in loco não vem de protocolo/denúncia, então não tem
+// número: nesse caso o Nº/Descrição é opcional. Compara sem acento, sem espaço
+// e sem maiúscula para não depender do texto exato da opção.
+function atendimentoDispensaNumero(tipo) {
+    const t = String(tipo || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z]/g, '');
+    return t.includes('inloco');
+}
+
 // ── Validação por step ──────────────────────────────────────
 function validarStep(step) {
     switch (step) {
         case 1: {
-            if (!bicArquivoAnexado && !bicDocumentoReutilizado) {
-                alert('O anexo do Espelho Cadastral (BIC) em PDF é obrigatório.');
+            if (!bicArquivoAnexado) {
+                alert('O anexo do Espelho Cadastral (BIC) é obrigatório. Busque o espelho atualizado no Tributos e anexe o arquivo.');
                 const areaBic = document.getElementById('uploadAreaBic') || document.getElementById('bicFileInfo');
                 if (areaBic) areaBic.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return false;
@@ -636,9 +673,9 @@ function validarStep(step) {
                 document.getElementById('relAtendimentoTipo')?.focus();
                 return false;
             }
-            const semNumero = atendimentoTipo === 'Constatação do Fiscal inloco sem denuncia Formalizada';
+            const semNumero = atendimentoDispensaNumero(atendimentoTipo);
             if (!semNumero && !atendimentoValor) {
-                alert('Informe o Número em "Para atendimento" (Ex: 123/2026).');
+                alert('Informe o Número/Descrição em "Para atendimento" (Ex: 123/2026).');
                 document.getElementById('relAtendimentoValor')?.focus();
                 return false;
             }
@@ -969,8 +1006,9 @@ async function finalizarSolicitacao() {
         // 5.5 Registrar o documento Relatório Fiscal na tabela documentos centralizada
         try {
             let relatorioUrl = construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
-            if (window.relatorioCustomizadoHTML && window.relatorioCustomizadoHTML.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('RELATORIO FISCAL')) {
-                relatorioUrl = garantirImagensVistoriaNoHtml(window.relatorioCustomizadoHTML)
+            const htmlDaTela = obterHtmlRelatorioDaTela();
+            if (htmlDaTela && htmlDaTela.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('RELATORIO FISCAL')) {
+                relatorioUrl = garantirImagensVistoriaNoHtml(htmlDaTela)
                     || construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
             }
             const { data: docRF } = await supabaseClient.from('documentos').insert([{
@@ -1000,27 +1038,8 @@ async function finalizarSolicitacao() {
         }
 
         // Registrar o documento BIC na tabela centralizada documentos.
-        // Se o fiscal selecionou um imóvel que já tinha BIC cadastrado, reaproveita
-        // aquele documento em vez de exigir/registrar um novo arquivo.
+        // O BIC é sempre o arquivo anexado neste processo.
         let bicDocumentoId = null;
-        if (!bicObjetoSalvar && bicDocumentoReutilizado && procCriado) {
-            bicDocumentoId = bicDocumentoReutilizado.id;
-            procCriado.dados = procCriado.dados || {};
-            procCriado.dados.documento_bic = {
-                nome: bicDocumentoReutilizado.nome_arquivo || 'Espelho Cadastral',
-                documento_id: bicDocumentoId
-            };
-            procCriado.dados.anexos = procCriado.dados.anexos || {};
-            procCriado.dados.anexos.bic_espelho_cadastral = procCriado.dados.documento_bic;
-            try {
-                await supabaseClient
-                    .from('processos')
-                    .update({ dados: procCriado.dados })
-                    .eq('id', procCriado.id);
-            } catch (eBicReuso) {
-                console.warn('Erro ao vincular BIC reaproveitado ao processo:', eBicReuso);
-            }
-        }
         if (bicObjetoSalvar && procCriado) {
             try {
                 const { data: docBic } = await supabaseClient.from('documentos').insert([{
@@ -1193,9 +1212,23 @@ async function finalizarSolicitacao() {
                         const inf = infracoesCriadas[i];
                         const descricaoCat = inf.infracoes_catalogo?.descricao || '';
                         const numeroNotif = `${numeroProcesso}/${String(i + 1).padStart(2, '0')}`;
-                        const prazoDias = obterPrazoNotificacaoNovaSolicitacao(descricaoCat);
+                        // Decreto nasce como Auto de Infração: prazo de DEFESA de 20 dias
+                        // úteis. Sem decreto, é Notificação Preliminar com o prazo de
+                        // cumprimento da infração (dias corridos).
+                        const prazoDias = decretoSim
+                            ? PRAZO_DEFESA_AUTO_DIAS_UTEIS_NOVA_SOLICITACAO
+                            : obterPrazoNotificacaoNovaSolicitacao(descricaoCat);
                         const dataVenc = new Date(dataInicio);
-                        dataVenc.setDate(dataVenc.getDate() + prazoDias);
+                        if (decretoSim) {
+                            let uteis = 0;
+                            while (uteis < prazoDias) {
+                                dataVenc.setDate(dataVenc.getDate() + 1);
+                                const dia = dataVenc.getDay();
+                                if (dia !== 0 && dia !== 6) uteis++;
+                            }
+                        } else {
+                            dataVenc.setDate(dataVenc.getDate() + prazoDias);
+                        }
 
                         const { data: notif, error: errNotif } = await supabaseClient
                             .from('notificacoes')
@@ -1413,6 +1446,9 @@ const PRAZOS_NOTIFICACAO = {
     'piso tatil': 10
 };
 
+// Prazo de DEFESA do Auto de Infração: 20 dias úteis, para qualquer infração
+const PRAZO_DEFESA_AUTO_DIAS_UTEIS_NOVA_SOLICITACAO = 20;
+
 function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     if (!descricao) return 15;
     const descStr = String(descricao).toLowerCase();
@@ -1476,8 +1512,8 @@ const MAPA_TEXTOS_NOTIFICACAO = {
     '120000232': `1) Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as Providências:\n- Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.\n- Proibido: queimadas, cortar árvores e movimentação de terra (terraplanagem).`,
     '120000211': `2) Inexistência de cercamento: infração ao artigo 1º da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\n- Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010: muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.\n- Não autorizado: arames lisos e farpados, e cerca viva.`,
     '120000226': `3) Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.`,
-    '120000228': `4) Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\nObservação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
-    '120000227': `5) Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.\nObservação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
+    '120000228': `4) Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\ Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
+    '120000227': `5) Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.\n Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
     '120000229': `6) Reconstrução e/ou reparo de muro: infração ao artigo 2º, II, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as providências:\n- Executar o serviço de reconstrução de muro pela testada do imóvel de sua propriedade.`,
     '120000240': `7) Reconstrução e/ou reparo de passeio: infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as providências:\n- Executar o serviço de reconstrução de passeio/calçada pela testada do imóvel de sua propriedade.`,
     '120000233': `9) Limpeza de quintal: infração aos artigos 14 e 15 da Lei nº 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.\n- Proibido: Queimadas, cortar árvores e movimentação de terra (terraplanagem).`,
@@ -1561,7 +1597,7 @@ function coletarTodosDados() {
             texto_vistoria: document.getElementById('relTextoVistoria').value,
             // Aparece na NP e no AI (etapa.js → htmlObservacoesFiscal), não no Relatório
             observacoes_fiscal: document.getElementById('relObservacoesFiscal')?.value?.trim() || '',
-            html_customizado: window.relatorioCustomizadoHTML || null
+            html_customizado: obterHtmlRelatorioDaTela()
         }
     };
 }
@@ -1601,9 +1637,18 @@ async function garantirNumerosReservados() {
     }
 }
 
+// O rótulo da infração vem quebrado em várias linhas no HTML, então textContent
+// traz a quebra e a indentação no meio do texto (e .trim() só limpa as pontas).
+// Sem isso o "Texto do Relatório" aparecia partido na caixa de digitação.
+function textoDoRotuloInfracao(el) {
+    const rotulo = el?.nextElementSibling?.textContent;
+    const limpo = String(rotulo || '').replace(/\s+/g, ' ').trim();
+    return limpo || el?.value || '';
+}
+
 async function prepararEtapaRelatorio() {
     const infracoesSelecionadas = Array.from(document.querySelectorAll('input[name="infracao"]:checked')).map(el => {
-        return el.nextElementSibling.textContent.trim().toLowerCase();
+        return textoDoRotuloInfracao(el).toLowerCase();
     });
     const listaInfracoesStr = infracoesSelecionadas.join(', ');
 
@@ -1643,6 +1688,21 @@ function renderizarDocumentoRelatorio() {
  * se a foto terminou de subir depois disso, ela não está nele. Insere as imagens
  * que faltam antes do encerramento/assinatura. Retorna null se não achar onde inserir.
  */
+// O tamanho da imagem é gravado no PRÓPRIO elemento quando a pessoa arrasta a alça
+// (o div da imagem usa resize do navegador). Quem tem esse ajuste é o que está na
+// tela, não a cópia guardada em memória quando o editor foi salvo pela última vez.
+// Por isso, ao gerar o processo, o HTML vem da tela.
+function obterHtmlRelatorioDaTela() {
+    const preview = document.getElementById('previewRelatorioContainer');
+    if (preview && preview.innerHTML.trim() !== '') return preview.innerHTML;
+
+    const editor = document.getElementById('editorRelatorio');
+    if (editor && editor.innerHTML.trim() !== '') return editor.innerHTML;
+
+    return window.relatorioCustomizadoHTML || null;
+}
+window.obterHtmlRelatorioDaTela = obterHtmlRelatorioDaTela;
+
 function garantirImagensVistoriaNoHtml(html) {
     const itens = document.querySelectorAll('#lista-imagens-legenda .item-imagem-legenda');
     let blocos = '';
@@ -1689,7 +1749,7 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
     const atendimentoValor = document.getElementById('relAtendimentoValor')?.value || '';
     const atendimento = (atendimentoTipo || atendimentoValor) ? (atendimentoTipo + ' ' + atendimentoValor).trim() : (rProc.atendimento || 'campo escrito');
 
-    const assunto = document.getElementById('relAssunto')?.value || rProc.assunto || 'colocar aqui o título da denúncia';
+    const assunto = document.getElementById('relAssunto')?.value || rProc.assunto || 'colocar aqui o assunto do relatório';
     const pa = document.getElementById('relPA')?.value || rProc.pa || '';
 
     // Imovel info
@@ -2005,7 +2065,7 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
         const checkedEls = document.querySelectorAll('#infracoesList input[name="infracao"]:checked, input[name="infracao"]:checked');
         if (checkedEls && checkedEls.length > 0) {
             const sel = Array.from(checkedEls).map(el => {
-                const txt = el.nextElementSibling ? el.nextElementSibling.textContent.trim() : el.value;
+                const txt = textoDoRotuloInfracao(el);
                 return (typeof window.obterDescricaoInfracao === 'function') ? window.obterDescricaoInfracao(txt) : txt;
             }).filter(Boolean);
             if (sel.length > 0) dispositivosTransgredidosStr = sel.join(', ');
@@ -2706,15 +2766,16 @@ function bindWizardEventos() {
     const elRelVal = document.getElementById('relAtendimentoValor');
     if (elRelTipo && elRelVal) {
         const toggleAtendimentoValor = () => {
-            const semNumero = elRelTipo.value === 'Constatação do Fiscal inloco sem denuncia Formalizada';
-            if (semNumero) {
+            // In loco não tem número: esconde o campo em vez de deixá-lo vazio na tela
+            if (atendimentoDispensaNumero(elRelTipo.value)) {
                 elRelVal.value = '';
                 elRelVal.style.display = 'none';
             } else {
-                elRelVal.style.display = 'block';
+                elRelVal.style.display = '';
             }
         };
         elRelTipo.addEventListener('change', toggleAtendimentoValor);
+        window.sincronizarCampoAtendimento = toggleAtendimentoValor;
         toggleAtendimentoValor();
     }
     const descEl = document.getElementById('fiscDescricao');
@@ -2723,48 +2784,6 @@ function bindWizardEventos() {
             descEl.dataset.auto = 'false';
         });
     }
-
-    // Upload BETHA — Drag & Drop + Seleção de Arquivo
-    const dropArea = document.getElementById('uploadAreaBetha');
-    const fileInput = document.getElementById('inputBetha');
-
-    dropArea.addEventListener('click', (e) => {
-        if (e.target !== fileInput && e.target.tagName !== 'LABEL') {
-            fileInput.click();
-        }
-    });
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropArea.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropArea.classList.add('drag-active');
-        }, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropArea.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropArea.classList.remove('drag-active');
-        }, false);
-    });
-
-    dropArea.addEventListener('drop', (e) => {
-        const file = e.dataTransfer.files[0];
-        if (file) handleArquivoAnexo(file);
-    });
-
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) handleArquivoAnexo(file);
-    });
-
-    document.getElementById('btnRemoveBetha').addEventListener('click', () => {
-        fileInput.value = '';
-        document.getElementById('bethaFileInfo').style.display = 'none';
-        document.getElementById('uploadAreaBetha').style.display = 'flex';
-    });
 
     // Upload BIC (Espelho Cadastral PDF) — Drag & Drop + Seleção de Arquivo
     const dropAreaBic = document.getElementById('uploadAreaBic');
@@ -3005,7 +3024,7 @@ window.adicionarCampoImagemLegenda = function () {
             <input type="file" class="imagem-arquivo form-input" accept="image/*" style="padding: 6px;">
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
-            <label style="font-size: 0.75rem; font-weight: 600;">Legenda da Imagem</label>
+            <label style="font-size: 0.75rem; font-weight: 600;">Legenda da Imagem <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
             <input type="text" class="imagem-legenda form-input" placeholder="Ex: Vista frontal do lote..." style="padding: 8px;">
         </div>
     `;
@@ -3081,8 +3100,8 @@ window.removerCampoImagemLegenda = function (id) {
 
 // ── Buscar imóvel no banco (por Código Reduzido ou Inscrição) ───
 // ── Imóveis do contribuinte (1 contribuinte pode ter vários imóveis) ─────────
-// Guarda o BIC já cadastrado do imóvel escolhido, para não exigir novo upload.
-let bicDocumentoReutilizado = null;
+// Selecionar um imóvel preenche só os dados dele. O BIC não vem do cadastro: o
+// fiscal busca o espelho atualizado no Tributos e anexa o deste processo.
 let imoveisDoContribuinte = [];
 
 function limparSeletorImoveis() {
@@ -3090,11 +3109,6 @@ function limparSeletorImoveis() {
     if (box) {
         box.style.display = 'none';
         box.innerHTML = '';
-    }
-    const aviso = document.getElementById('bicReutilizadoInfo');
-    if (aviso) {
-        aviso.innerHTML = '';
-        aviso.style.display = 'none';
     }
     imoveisDoContribuinte = [];
 }
@@ -3106,7 +3120,7 @@ async function carregarImoveisDoContribuinte(contribuinteId) {
     try {
         const { data } = await supabaseClient
             .from('imoveis')
-            .select('id, codigo_reduzido, inscricao_imovel, logradouro, numero, complemento, bairro, area_total, testada, profundidade, documento_bic_id')
+            .select('id, codigo_reduzido, inscricao_imovel, logradouro, numero, complemento, bairro, area_total, testada, profundidade')
             .eq('contribuinte_id', contribuinteId)
             .order('codigo_reduzido', { ascending: true });
 
@@ -3134,10 +3148,10 @@ function renderizarSeletorImoveis(indiceSelecionado = -1) {
         <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:14px 16px; margin-top:12px;">
             <div style="font-weight:700; color:#0c4a6e; font-size:0.9rem; margin-bottom:4px;">${titulo}</div>
             <div style="color:#0369a1; font-size:0.8rem; margin-bottom:12px;">
-                Se a fiscalização for em um deles, selecione para preencher os dados e reaproveitar o BIC.
-                Se for outro imóvel, é só ignorar e anexar o BIC normalmente.
+                Se a fiscalização for em um deles, selecione para preencher os dados do imóvel.
+                Se for outro imóvel, é só ignorar.
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:8px;">
                 ${imoveisDoContribuinte.map((imv, idx) => {
         const selecionado = idx === indiceSelecionado;
         const endereco = [imv.logradouro, imv.numero].filter(Boolean).join(', ')
@@ -3149,9 +3163,6 @@ function renderizarSeletorImoveis(indiceSelecionado = -1) {
                             ${selecionado ? '<span style="color:#16a34a;">✓ selecionado</span>' : ''}
                             <span>Código reduzido: <strong>${imv.codigo_reduzido || '—'}</strong></span>
                             <span>Inscrição: <strong>${imv.inscricao_imovel || '—'}</strong></span>
-                            ${imv.documento_bic_id
-                ? '<span style="color:#16a34a;">BIC disponível</span>'
-                : '<span style="color:#b45309;">sem BIC cadastrado</span>'}
                         </div>
                         ${endereco ? `<div style="font-size:0.8rem; color:#64748b; margin-top:3px;">${endereco}</div>` : ''}
                     </button>`;
@@ -3168,7 +3179,6 @@ function renderizarSeletorImoveis(indiceSelecionado = -1) {
 }
 
 window.limparSelecaoImovel = function () {
-    window.descartarBicReutilizado();
     renderizarSeletorImoveis(-1);
 };
 
@@ -3197,91 +3207,9 @@ window.selecionarImovelDoContribuinte = async function (indice) {
         decomporInscricao(imv.inscricao_imovel);
     }
 
-    // Reaproveita o BIC já cadastrado deste imóvel (dispensa novo upload)
-    bicDocumentoReutilizado = null;
-    if (imv.documento_bic_id) {
-        try {
-            const { data: docBic } = await supabaseClient
-                .from('documentos')
-                .select('id, nome_arquivo, url')
-                .eq('id', imv.documento_bic_id)
-                .maybeSingle();
-            if (docBic) {
-                bicDocumentoReutilizado = docBic;
-                const infoEl = document.getElementById('bicReutilizadoInfo');
-                if (infoEl) {
-                    infoEl.innerHTML = `
-                        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; margin-top:10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                            <span style="color:#166534; font-weight:600; font-size:0.85rem;">
-                                ✓ BIC já cadastrado para este imóvel: ${docBic.nome_arquivo || 'Espelho Cadastral'}
-                            </span>
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                <button type="button" onclick="visualizarBicReutilizado()"
-                                        style="display:inline-flex; align-items:center; gap:6px; background:white; border:1px solid #16a34a; color:#166534; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:0.8rem; font-weight:600; font-family:inherit;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                                    </svg>
-                                    Visualizar
-                                </button>
-                                <button type="button" onclick="descartarBicReutilizado()"
-                                        style="background:none; border:none; color:#dc2626; cursor:pointer; font-size:0.8rem; text-decoration:underline; padding:0;">
-                                    anexar outro arquivo
-                                </button>
-                            </div>
-                        </div>`;
-                    infoEl.style.display = 'block';
-                }
-            }
-        } catch (eBic) {
-            console.warn('Erro ao carregar BIC do imóvel:', eBic);
-        }
-    }
-
-    const msg = bicDocumentoReutilizado
-        ? '✓ Imóvel selecionado! Dados e BIC preenchidos.'
-        : '✓ Imóvel selecionado! Este imóvel ainda não tem BIC — anexe o Espelho Cadastral.';
-    mostrarFeedback('imvFeedback', msg, 'success');
-    mostrarFeedback('bicFeedback', msg, 'success');
+    mostrarFeedback('imvFeedback', '✓ Imóvel selecionado! Dados do imóvel preenchidos.', 'success');
 };
 
-window.visualizarBicReutilizado = function () {
-    const url = bicDocumentoReutilizado?.url;
-    if (!url) {
-        alert('O arquivo deste BIC não está disponível para visualização.');
-        return;
-    }
-
-    // DataURL (base64) precisa virar blob, senão o navegador bloqueia a abertura
-    if (url.startsWith('data:')) {
-        try {
-            const [meta, base64] = url.split(',');
-            const mime = (meta.match(/data:([^;]+)/) || [])[1] || 'application/pdf';
-            const bin = atob(base64);
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
-            window.open(blobUrl, '_blank');
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
-            return;
-        } catch (err) {
-            console.warn('Falha ao abrir BIC em base64, tentando direto:', err);
-        }
-    }
-
-    window.open(url, '_blank');
-};
-
-window.descartarBicReutilizado = function () {
-    bicDocumentoReutilizado = null;
-    const infoEl = document.getElementById('bicReutilizadoInfo');
-    if (infoEl) {
-        infoEl.innerHTML = '';
-        infoEl.style.display = 'none';
-    }
-    // Reabre a área de upload para anexar outro arquivo
-    const dropEl = document.getElementById('uploadAreaBic');
-    if (dropEl) dropEl.style.display = 'flex';
-};
 
 async function buscarImovelNoBanco(silencioso = false) {
     const codVal = document.getElementById('imvCodigo')?.value?.trim();
@@ -3502,14 +3430,8 @@ async function handleArquivoBic(file) {
 
         const dadosExt = extrairDadosEspelhoCadastral(textoCompleto);
 
-        // Arquivo novo anexado manualmente substitui o BIC reaproveitado do cadastro
         bicArquivoAnexado = file;
-        bicDocumentoReutilizado = null;
-        const avisoBicEl = document.getElementById('bicReutilizadoInfo');
-        if (avisoBicEl) {
-            avisoBicEl.innerHTML = '';
-            avisoBicEl.style.display = 'none';
-        }
+        // O aviso do BIC do cadastro fica na tela para o fiscal poder comparar
 
         // Helper para preencher o campo do formulário apenas se estiver vazio
         function preencherSeVazio(id, valor) {
@@ -3520,8 +3442,6 @@ async function handleArquivoBic(file) {
                 el.value = valor;
             }
         }
-
-        const temPlanilhaBetha = typeof bathaArquivoAnexado !== 'undefined' && bathaArquivoAnexado !== null;
 
         // ── 1. DADOS DO CONTRIBUINTE (Passo 1) ──────────────────────
         preencherSeVazio('contNome', dadosExt.responsavel_nome);
@@ -3610,50 +3530,14 @@ async function handleArquivoBic(file) {
             }
         }
 
-        if (temPlanilhaBetha) {
-            mostrarFeedback('bicFeedback', '✓ BIC (PDF) anexado com sucesso! (Dados da Planilha Betha mantidos)', 'success');
-        } else {
-            mostrarFeedback('bicFeedback', '✓ Dados do contribuinte e imóvel importados do BIC com sucesso!', 'success');
-        }
+        mostrarFeedback('bicFeedback', '✓ Dados do contribuinte e imóvel importados do BIC com sucesso!', 'success');
     } catch (err) {
         console.error('Erro ao ler PDF do BIC:', err);
         mostrarFeedback('bicFeedback', 'Erro ao ler arquivo PDF do BIC: ' + err.message, 'error');
     }
 }
 
-// ── Manipulador de importação de arquivo (Drag & Drop ou Clique) ──
-async function handleArquivoAnexo(file) {
-    document.getElementById('bethaFileName').textContent = file.name;
-    document.getElementById('bethaFileInfo').style.display = 'flex';
-    document.getElementById('uploadAreaBetha').style.display = 'none';
-
-    const ext = file.name.split('.').pop().toLowerCase();
-    let textoExtraido = '';
-
-    try {
-        if (ext === 'docx') {
-            textoExtraido = await extrairTextoDocx(file);
-        } else if (ext === 'doc') {
-            textoExtraido = await extrairTextoDoc(file);
-        } else if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') {
-            textoExtraido = await extrairTextoPlanilha(file);
-        } else {
-            textoExtraido = await file.text();
-        }
-
-        if (!textoExtraido || !textoExtraido.trim()) {
-            alert('Não foi possível ler o conteúdo do arquivo. Tente .docx, .xlsx ou .csv.');
-            return;
-        }
-
-        extrairDadosDoTextoNP(textoExtraido);
-        mostrarFeedbackParseSucesso();
-    } catch (err) {
-        console.error('Erro ao processar arquivo:', err);
-        alert('Erro ao processar o arquivo: ' + (err.message || 'formato não suportado'));
-    }
-}
-
+// Lê o texto de um .docx (usado pelo BIC)
 async function extrairTextoDocx(file) {
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
@@ -3683,13 +3567,6 @@ async function extrairTextoDocx(file) {
         .map(linha => linha.replace(/\s+/g, ' ').trim())
         .filter(linha => linha.length > 0)
         .join('\n');
-}
-
-async function extrairTextoPlanilha(file) {
-    const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    return XLSX.utils.sheet_to_csv(firstSheet);
 }
 
 async function extrairTextoDoc(file) {
@@ -3800,297 +3677,8 @@ function extrairLogradouroSituado(texto) {
     return resultado;
 }
 
-// ── Extrai campos do imóvel pelos rótulos, ignorando valores que são outros rótulos ──
-function extrairCamposImovelPorRotulos(secImovel) {
-    const resultado = { logradouro: '', numero: '', bairro: '', complemento: '' };
-    const rotulos = [
-        { nome: 'codigo', regex: /Código:/i },
-        { nome: 'logradouro', regex: /Logradouro:/i },
-        { nome: 'complemento', regex: /Complemento:/i },
-        { nome: 'matricula', regex: /Matr[íi]cula:/i },
-        { nome: 'numero', regex: /Número:/i },
-        { nome: 'loteamento', regex: /Loteamento:/i },
-        { nome: 'lote', regex: /Lote:/i },
-        { nome: 'quadra', regex: /Quadra:/i },
-        { nome: 'bairro', regex: /Bairro:/i },
-        { nome: 'inscricao', regex: /Inscrição(?:\s+do\s+Imóvel)?:/i }
-    ];
 
-    const posicoes = [];
-    rotulos.forEach(r => {
-        const m = secImovel.match(r.regex);
-        if (m) {
-            posicoes.push({ nome: r.nome, index: m.index, matchLen: m[0].length });
-        }
-    });
 
-    posicoes.sort((a, b) => a.index - b.index);
-
-    for (let i = 0; i < posicoes.length; i++) {
-        const atual = posicoes[i];
-        const inicio = atual.index + atual.matchLen;
-        const fim = (i + 1 < posicoes.length) ? posicoes[i + 1].index : secImovel.length;
-        let valor = secImovel.substring(inicio, fim).trim();
-
-        // Limpa quebras de linha e remove se o valor for outro rótulo
-        valor = valor.split(/[\r\n]/)[0].trim();
-        if (!valor) continue;
-        if (rotulos.some(r => r.regex.test(valor))) continue;
-
-        if (atual.nome === 'logradouro') resultado.logradouro = valor;
-        else if (atual.nome === 'numero') resultado.numero = valor;
-        else if (atual.nome === 'bairro') {
-            // Em alguns modelos o lote/quadra/inscrição gruda no bairro; remove números/pontos do final.
-            const bairroLimpo = valor.replace(/[\s\.\d]+$/g, '').trim();
-            resultado.bairro = bairroLimpo || valor;
-        }
-        else if (atual.nome === 'complemento') resultado.complemento = valor;
-    }
-
-    return resultado;
-}
-
-// ── Extrai logradouro e bairro do imóvel considerando o layout de colunas do BETHA ──
-// No modelo .xls exportado, o rótulo "Bairro:" pode ficar sozinho em uma linha e o valor
-// aparecer na mesma linha do "Logradouro:", deslocado para a direita.
-function extrairLogradouroEBairroImovel(textoOriginal) {
-    const linhas = textoOriginal.split(/\r?\n/);
-    let dentroImovel = false;
-    let bairroVazioNaLinhaAnterior = false;
-    const resultado = { logradouro: '', bairro: '' };
-
-    for (let i = 0; i < linhas.length; i++) {
-        const celulas = linhas[i]
-            .split(',')
-            .map(c => c.trim())
-            .map((val, idx) => ({ idx, val }))
-            .filter(c => c.val !== '');
-
-        const rowText = celulas.map(c => c.val).join(' ');
-
-        if (/INFORMAÇÕES\s+DO\s+IMÓVEL|Informações\s+do\s+imóvel/i.test(rowText)) {
-            dentroImovel = true;
-            continue;
-        }
-        if (dentroImovel && /Verificamos|Usuário:/i.test(rowText)) {
-            dentroImovel = false;
-        }
-        if (!dentroImovel) continue;
-
-        // Linha com o rótulo Bairro: (pode vir vazia no .xls do BETHA)
-        const idxBairro = celulas.findIndex(c => c.val.toLowerCase().startsWith('bairro'));
-        if (idxBairro >= 0) {
-            const valoresDepois = celulas.slice(idxBairro + 1).filter(c => c.val !== '');
-            if (valoresDepois.length > 0) {
-                resultado.bairro = valoresDepois.map(c => c.val).join(' ');
-                bairroVazioNaLinhaAnterior = false;
-            } else {
-                bairroVazioNaLinhaAnterior = true;
-            }
-        }
-
-        // Linha com o rótulo Logradouro:
-        const idxLog = celulas.findIndex(c => c.val.toLowerCase().startsWith('logradouro'));
-        if (idxLog >= 0) {
-            const valoresDepois = celulas.slice(idxLog + 1).filter(c => c.val !== '');
-            if (valoresDepois.length > 0) {
-                resultado.logradouro = valoresDepois[0].val;
-                // Se o bairro estava vazio na linha anterior, o valor extra à direita é o bairro
-                if (bairroVazioNaLinhaAnterior && valoresDepois.length > 1) {
-                    resultado.bairro = valoresDepois.slice(1).map(c => c.val).join(' ');
-                }
-            }
-            break;
-        }
-    }
-
-    return resultado;
-}
-
-// ── Extração inteligente de dados (Modelo NP ou Planilha) ──
-function extrairDadosDoTextoNP(texto) {
-    console.log('Analisando texto bruto do arquivo:', texto);
-
-    // ── LIMPEZA DE CSV COM MUITAS COLUNAS VAZIAS (planilhas exportadas do BETHA) ──
-    // Planilhas .xls/.xlsx do BETHA geram CSVs com dezenas de colunas vazias.
-    // Aqui convertemos cada linha em uma lista de células não-vazias e
-    // montamos um texto limpo com uma informação por linha.
-    const linhas = texto.split(/\r?\n/);
-    const linhasLimpas = [];
-    linhas.forEach(linha => {
-        const celulas = linha.split(/[,;]/).map(c => c.trim()).filter(c => c !== '');
-        if (celulas.length > 0) {
-            linhasLimpas.push(celulas.join(' '));
-        }
-    });
-    const textoLimpo = linhasLimpas.join('\n');
-    console.log('Texto limpo:', textoLimpo);
-
-    const partes = textoLimpo.split(/INFORMAÇÕES\s+DO\s+IMÓVEL|Informações\s+do\s+imóvel/i);
-    const secContribuinte = partes[0] || textoLimpo;
-    const secImovel = partes[1] || textoLimpo;
-
-    // --- 1. CONTRIBUINTE ---
-    // Remove o título da seção para não casar a palavra em "INFORMAÇÕES DO CONTRIBUINTE"
-    const secContribuinteClean = secContribuinte.replace(/INFORMA[ÇC][ÕO]ES\s+DO\s+CONTRIBUINTE/gi, '');
-
-    // Nome do contribuinte (suporta mesmo linha com `:` ou linha seguinte no DOCX)
-    let mContNome = secContribuinteClean.match(/(?:^|\n)\s*Contribuinte[:\s]+(?:ESP[ÓO]LIO\s+DE\s+([^\n\r]+?)|([^\n\r]+?))(?=\s+(?:Nº|CPF|CNPJ|Logradouro|CEP|Município|Bairro)|\n|$)/i);
-    if (!mContNome) {
-        mContNome = secContribuinteClean.match(/(?:^|\n)\s*Contribuinte[:\s]*\n\s*(?:ESP[ÓO]LIO\s+DE\s+([^\n\r]+?)|([^\n\r]+?))(?=\s*(?:\n|Nº|CPF|CNPJ|Logradouro|CEP|Município|Bairro|$))/i);
-    }
-    if (mContNome) {
-        const valRaw = ((mContNome[1] ? 'ESPÓLIO DE ' + mContNome[1] : mContNome[2]) || '').trim();
-        if (valRaw && !/^(?:Contribuinte|INFORMA[ÇC][ÕO]ES|Nº|CPF|CNPJ)$/i.test(valRaw)) {
-            document.getElementById('contNome').value = valRaw;
-        }
-    }
-
-    // CPF/CNPJ (suporta mesma linha ou linha seguinte no DOCX)
-    const mContCpf = secContribuinte.match(/(?:CPF\/CNPJ|CPF\s*\/?\s*CNPJ|Nº\s*CPF\s*\/\s*CNPJ)[:\s]*\n?\s*([\d\.\-\/]{8,20})/i);
-    if (mContCpf) {
-        document.getElementById('contCpfCnpj').value = mContCpf[1].replace(/\s+/g, '').trim();
-    }
-
-    // Logradouro do contribuinte
-    const mContLog = secContribuinte.match(/Logradouro[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:CEP|Município|Número|Nº|CPF|Bairro)|\n|$)/i);
-    if (mContLog && mContLog[1].trim()) {
-        document.getElementById('contLogradouro').value = mContLog[1].trim();
-    }
-
-    // CEP
-    const mContCep = secContribuinte.match(/CEP[:\s]*\n?\s*([\d\-]+)/i);
-    if (mContCep) {
-        document.getElementById('contCep').value = mContCep[1].trim();
-    }
-
-    // Município do contribuinte. Normalmente vem rotulado ("Município: X"), mas
-    // em parte dos BICs ele aparece logo depois do CEP, sem rótulo —
-    // ex.: "CEP: 35500-000 SÃO GONÇALO DO PARÁ - MG". Sem esta segunda leitura,
-    // o município de fora de Divinópolis se perdia.
-    const ROTULOS_BIC = /^(?:Bairro|N[úu]mero|N[ºo]|CPF|CNPJ|Logradouro|Complemento|Observa[çc][ãa]o|Munic[íi]pio|CEP|Informa[çc][õo]es)\b/i;
-
-    const limparMunicipio = (valor) => String(valor || '')
-        .replace(/\s*[-\/]\s*(?:MG|M\.?G\.?|Minas\s+Gerais)\s*$/i, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-
-    let municipioContribuinte = '';
-    const mContMun = secContribuinte.match(/Munic[íi]pio[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:Número|Nº|CPF|Bairro|Observac[ãa]o)|\n|$)/i);
-    if (mContMun) municipioContribuinte = limparMunicipio(mContMun[1]);
-
-    if (!municipioContribuinte) {
-        const mMunAposCep = secContribuinte.match(/CEP[:\s]*[\d][\d.\-]{5,10}[\s]+([^\n\r]+?)(?=\n|$)/i);
-        const candidato = limparMunicipio(mMunAposCep?.[1]);
-        if (candidato && candidato.length >= 3 && !ROTULOS_BIC.test(candidato)) {
-            municipioContribuinte = candidato;
-        }
-    }
-
-    if (municipioContribuinte) {
-        document.getElementById('contMunicipio').value = municipioContribuinte;
-    }
-
-    // Bairro do contribuinte
-    const mContBairro = secContribuinte.match(/Bairro[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:Número|Observac[ãa]o|Informações|INFORMAÇÕES)|\n|$)/i);
-    if (mContBairro && mContBairro[1].trim()) {
-        document.getElementById('contBairro').value = mContBairro[1].trim();
-    }
-
-    // Número do contribuinte
-    const mContNum = secContribuinte.match(/N[úu]mero[:\s]*\n?\s*([^\n\r]+?)(?=\s+Observac[ãa]o|\s+Informações|\s+Bairro|\n|$)/i);
-    if (mContNum && mContNum[1].trim()) {
-        document.getElementById('contNumero').value = mContNum[1].trim();
-    }
-
-    // Observação / Complemento
-    const mContComp = secContribuinte.match(/Observa[çc][ãa]o[:\s]*\n?\s*([^\n\r]+?)(?=\s+(?:INFORMAÇÕES|Informações|Contribuinte|Logradouro|CEP|Nº|CPF|Bairro|Número)|\n|$)/i);
-    if (mContComp) {
-        const val = mContComp[1].trim();
-        if (!val.toLowerCase().startsWith('contribuinte') && !val.toLowerCase().startsWith('informação') && !val.toLowerCase().startsWith('informacoes')) {
-            document.getElementById('contComplemento').value = val;
-        } else {
-            document.getElementById('contComplemento').value = '';
-        }
-    }
-
-    // --- 2. IMÓVEL ---
-    // Inscrição do Imóvel
-    const mImvInsc = secImovel.match(/Inscri[çc][ãa]o(?:\s+do\s+Im[óo]vel)?[:\s]*\n?\s*([\d\.]+)/i);
-    if (mImvInsc) {
-        const insc = mImvInsc[1].trim();
-        document.getElementById('imvInscricao').value = insc;
-        decomporInscricao(insc);
-    }
-
-    // Código Reduzido
-    let codImv = '';
-    const mImvCod = secImovel.match(/C[óo]digo[:\s]*\n?\s*(\d{3,})(?=\s+Quadra|\s+Número|\s+Logradouro|\s+Matrícula|\s+Inscrição|\n|$)/i);
-    if (mImvCod) {
-        codImv = mImvCod[1];
-    } else {
-        const mImvMat = secImovel.match(/Matr[íi]cula[:\s]*\n?\s*(\d+)/i);
-        if (mImvMat) codImv = mImvMat[1];
-    }
-    if (codImv) {
-        document.getElementById('imvCodigo').value = codImv.trim();
-    }
-
-    // Logradouro, Número, Bairro e Complemento do Imóvel
-    // Prioridade 1: frase descritiva "situado à RUA, NÚMERO, - BAIRRO -"
-    const camposSituado = extrairLogradouroSituado(secImovel);
-
-    // Prioridade 2: parser de colunas do BETHA (funciona para CSV/xls)
-    const camposColunas = extrairLogradouroEBairroImovel(texto);
-
-    // Prioridade 3: rótulos explícitos no texto
-    const camposRotulos = extrairCamposImovelPorRotulos(secImovel);
-
-    // Define o logradouro
-    const logradouroFinal = (camposSituado.logradouro || camposColunas.logradouro || camposRotulos.logradouro || '').replace(/\s+/g, ' ').trim();
-    if (logradouroFinal) document.getElementById('imvLogradouro').value = logradouroFinal;
-
-    // Define o número
-    const numeroFinal = (camposSituado.numero || camposRotulos.numero || '').replace(/\s+/g, ' ').trim();
-    if (numeroFinal) document.getElementById('imvNumero').value = numeroFinal;
-
-    // Define o bairro
-    const bairroFinal = (camposSituado.bairro || camposColunas.bairro || camposRotulos.bairro || '').replace(/\s+/g, ' ').trim();
-    if (bairroFinal) document.getElementById('imvBairro').value = bairroFinal;
-
-    // Define o complemento
-    const complementoFinal = (camposRotulos.complemento || '').replace(/\s+/g, ' ').trim();
-    if (complementoFinal) document.getElementById('imvComplemento').value = complementoFinal;
-
-    // Área Total
-    const mImvArea = secImovel.match(/(\d+(?:\.\d+)?)\s*m²/i);
-    if (mImvArea) {
-        document.getElementById('imvAreaTotal').value = mImvArea[1].trim();
-    }
-
-    // Testada
-    const mImvTestada = secImovel.match(/(\d+(?:\.\d+)?)\s*m\s+de\s+(?:Extensao|extensão)/i);
-    if (mImvTestada) {
-        document.getElementById('imvTestada').value = mImvTestada[1].trim();
-    }
-
-    mostrarFeedbackParseSucesso();
-}
-
-function mostrarFeedbackParseSucesso() {
-    let box = document.getElementById('parseFeedbackBox');
-    if (!box) {
-        const bethaFileInfo = document.getElementById('bethaFileInfo');
-        if (!bethaFileInfo || !bethaFileInfo.parentElement) return;
-        box = document.createElement('div');
-        box.id = 'parseFeedbackBox';
-        box.style.cssText = 'margin-top:14px;padding:12px 16px;background:#ecfdf5;border:1px solid #10b981;border-radius:8px;color:#065f46;font-size:0.85rem;display:flex;align-items:center;gap:10px;';
-        bethaFileInfo.parentElement.appendChild(box);
-    }
-    box.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-    <div><strong>Dados extraídos automaticamente com sucesso!</strong><br>Os passos 1 (Contribuinte) e 2 (Imóvel) foram preenchidos com as informações do arquivo.</div>`;
-    box.style.display = 'flex';
-}
 
 // ── Fallback JS de Reserva de Números (Prioriza numeros_descartados com verificação de unicidade) ──
 async function obterNumeroFallbackJS(anoAtual, categoria, tamanhoPad, tabela, coluna) {

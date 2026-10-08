@@ -1,5 +1,5 @@
 /* ============================================================
-   SOLICITAÇÕES — Etapa 0: Listagem, Filtros e Exportação CSV
+   Processos — Etapa 0: Listagem, Filtros e Exportação CSV
    ============================================================ */
 
 // ── Mapa de etapas (para exibição) ──────────────────────────
@@ -617,15 +617,15 @@ function abrirPaginaDoHash() {
     const link = document.querySelector(`.sidebar-nav a[data-page="${pagina}"]`);
     if (!link) return;
 
-    // Aba restrita que o cargo não enxerga: mantém o painel nas Solicitações
+    // Aba restrita que o cargo não enxerga: mantém o painel nas Processos
     if (link.style.display === 'none') return;
 
     hashDaUrlJaAplicado = true;
     link.click();
 }
 
-// ── Carregar solicitações com filtros ────────────────────────
-// ── Carregar solicitações com filtros (com lote dinâmico e resiliência a timeout/redes) ──
+// ── Carregar Processos com filtros ────────────────────────
+// ── Carregar Processos com filtros (com lote dinâmico e resiliência a timeout/redes) ──
 let currentFetchId = 0;
 let dynamicBatchSize = 50;
 
@@ -948,7 +948,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         iniciarSincronizacaoNotificacoesPainel();
 
     } catch (err) {
-        console.error(`Erro ao carregar solicitações (tentativa ${tentativa}):`, err);
+        console.error(`Erro ao carregar processos (tentativa ${tentativa}):`, err);
 
         const isTimeout = err?.code === '57014' || String(err?.message || '').toLowerCase().includes('timeout') || String(err?.details || '').toLowerCase().includes('timeout');
         const isNetworkErr = String(err).includes('Failed to fetch') || String(err?.message || '').includes('Failed to fetch') || String(err).includes('ERR_ADDRESS_UNREACHABLE');
@@ -961,7 +961,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
 
         if (tentativa < 3 && !isNetworkErr) {
             const delay = isTimeout ? 2000 : 1500;
-            console.log(`Re-tentando carregar solicitações em ${delay / 1000}s (tentativa ${tentativa + 1})...`);
+            console.log(`Re-tentando carregar processos em ${delay / 1000}s (tentativa ${tentativa + 1})...`);
             setTimeout(() => carregarSolicitacoes(append, tentativa + 1), delay);
             return;
         }
@@ -1542,9 +1542,9 @@ function bindEventos() {
         }
     });
 
-    // Navegação Menu Lateral (Solicitações / Ofícios / Avisos / Instruções / Apuração / Configurações)
+    // Navegação Menu Lateral (Processos / Ofícios / Avisos / Instruções / Apuração / Configurações)
     const TITULOS_PAGINA = {
-        solicitacoes: 'Solicitações',
+        solicitacoes: 'Painel de Processos',
         oficios: 'Ofícios',
         avisos: 'Avisos',
         instrucoes: 'Instruções',
@@ -1571,7 +1571,7 @@ function bindEventos() {
                 const secao = document.getElementById('secao-' + nome);
                 if (secao) secao.style.display = 'none';
             });
-            if (breadcrumb) breadcrumb.textContent = 'Painel / ' + (TITULOS_PAGINA[page] || 'Solicitações');
+            if (breadcrumb) breadcrumb.textContent = 'Painel / ' + (TITULOS_PAGINA[page] || 'Processos');
 
             if (page === 'avisos' || page === 'instrucoes') {
                 const secao = document.getElementById('secao-' + page);
@@ -1612,7 +1612,7 @@ function bindEventos() {
                 }
             } else {
                 if (secaoSolicitacoes) secaoSolicitacoes.style.display = 'block';
-                if (pageTitle) pageTitle.textContent = 'Solicitações';
+                if (pageTitle) pageTitle.textContent = 'Processos';
                 if (headerActions) headerActions.style.display = 'flex';
             }
         });
@@ -1633,9 +1633,9 @@ const AVISOS_PUBLICADOS = [
         titulo: 'O que cada cor da tabela quer dizer',
         data: '16/09/2026',
         autor: 'Desenvolvimento do Fluxograma',
-        resumo: 'A tabela de solicitações usa cor para contar três coisas ao mesmo tempo: de quem é a vez, como está o processo e quanto tempo falta. Mais um resumo de como usar o chat.',
+        resumo: 'A tabela de processos usa cor para contar três coisas ao mesmo tempo: de quem é a vez, como está o processo e quanto tempo falta. Mais um resumo de como usar o chat.',
         corpo: `
-            <p class="pub-lead">A tabela de Solicitações não é só uma lista. Antes de ler qualquer texto, ela já
+            <p class="pub-lead">A tabela de Processos não é só uma lista. Antes de ler qualquer texto, ela já
             responde três perguntas pela cor: <strong>de quem é a vez</strong>, <strong>como está o processo</strong> e
             <strong>quanto tempo falta</strong>. Vale conhecer o código — depois disso a leitura fica bem mais rápida.</p>
 
@@ -1922,7 +1922,7 @@ const AVISOS_PUBLICADOS = [
                                 errado, seguido de um <code>Avançar Etapa</code> sem que ninguém tenha clicado em
                                 <code>Visualizar</code> uma única vez.</p>
                             <p>E o <code>Visualizar</code> fica ao lado do anexo. No mesmo cartão. Colado no
-                                <code>Substituir / Remover</code>. Abre o PDF em outra aba. É um clique. <b>Um.</b></p>
+                                <code>Remover</code>. Abre o PDF em outra aba. É um clique. <b>Um.</b></p>
                             <p>O resultado é o dado de um cidadão dentro do processo de outro, um documento que não
                                 sustenta o que deveria sustentar, um processo que pode ser questionado — e a tarefa,
                                 para alguém, de varrer processo por processo até achar cada documento trocado.</p>
@@ -2013,8 +2013,9 @@ const AVISOS_PUBLICADOS = [
                             <p>Suba o PDF no campo de anexo da etapa. Depois de subir, clique em
                                 <code>Visualizar</code>, ao lado do anexo, e confirme com os próprios olhos que o nome
                                 do contribuinte e o número da notificação no PDF são <b>os deste processo</b>.</p>
-                            <p class="doc-obs"><b>Errou o arquivo?</b><span>O <code>Substituir / Remover</code> está
-                                    logo ali, do lado. Não custa nada e ninguém fica sabendo.</span></p>
+                            <p class="doc-obs"><b>Errou o arquivo?</b><span>O <code>Remover</code> está
+                                    logo ali, do lado: remova e anexe o certo. Não custa nada e ninguém fica
+                                    sabendo.</span></p>
                         </li>
                         <li class="doc-chave">
                             <h3>Só agora clique em "Avançar Etapa"</h3>

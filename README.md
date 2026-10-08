@@ -314,7 +314,7 @@ flowchart TD
 
 ## 7. Etapas, uma a uma
 
-### Etapa 0 — Solicitações (painel)
+### Etapa 0 — Processos (painel)
 
 Primeira tela depois do login (`painel.html`, `assets/js/solicitacoes.js`).
 
@@ -349,7 +349,7 @@ respeitando os filtros. Sem filtro, exporta tudo.
 1. Card de **cálculo das multas**: UPFMD (vem de `configuracoes_upfmd`), imóvel de esquina e base de cálculo. É o mesmo card da Etapa 14.
 2. **2º Passo:** anexar a **Notificação Preliminar assinada** e o **Relatório Fiscal assinado**. Os dois são obrigatórios.
 
-**Documento gerado:** Notificação Preliminar (PDF/DOC, modelo oficial), com uma notificação por infração marcada, cada uma com número, descrição e multa próprios.
+**Documento gerado:** Notificação Preliminar (PDF/DOC), com uma notificação por infração marcada, cada uma com número, descrição e multa próprios.
 
 **Avanço:** com os dois anexos → **Etapa 16 (1.2)**, status `aguardando_ar`.
 
@@ -398,7 +398,7 @@ comprovante de propriedade **e de renda** (o texto pede no mínimo 2 documentos)
 - **Mandar para o gerente:** motivo obrigatório → **Etapa 11**.
 
 Pode **adicionar imagens com legenda** à réplica. É **obrigatório anexar a Réplica assinada** antes de avançar.
-Botão de topo: "Baixar Réplica (.pdf)". Textos da réplica no [Anexo B](#anexo-b--textos-padrão).
+Botão de topo: "Imprimir / Baixar → Réplica (.pdf)". Textos da réplica no [Anexo B](#anexo-b--textos-padrão).
 
 ### Etapa 7 — Análise da Defesa sem Dilação
 
@@ -681,7 +681,7 @@ documentos descartados voltam para a fila.
 ## 9. Telas do painel
 
 Menu lateral de `painel.html`:
-- **Solicitações:** lista de processos ([Etapa 0](#etapa-0--solicitações-painel)).
+- **Processos:** lista de processos ([Etapa 0](#etapa-0--solicitações-painel)).
 - **Notificações:** sino com avisos ao usuário (ex.: devolução do AR, gerente pediu certidão).
 - **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível para Gerente de Posturas e Dev; gerado por Gerente, Administrativo e Dev. Imagens vão para o Cloudinary.
 - **Avisos** e **Instruções** ("Como fazer um processo, do começo ao fim").
@@ -830,7 +830,7 @@ Mapeamento dos campos da planilha/modelo da NP (BETHA) para o formulário:
 
 ### Observação de reincidência (NP)
 
-> Observação do Fiscal: Na hipótese de reincidência, aplicar-se-á em dobro a multa
+> Atenção: Na hipótese de reincidência, aplicar-se-á em dobro a multa
 > respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido
 > anteriormente: nº [NÚMERO DO AUTO DE INFRAÇÃO] em [DATA DO AUTO DE INFRAÇÃO].
 

@@ -712,7 +712,7 @@
                         <line x1="16" y1="17" x2="8" y2="17" />
                         <polyline points="10 9 9 9 8 9" />
                     </svg>
-                    Solicitações
+                    Painel de Processos
                 </a>
                 <a href="#" id="btnMenuNotificacoes"
                     onclick="event.preventDefault(); window.toggleDropdownNotificacoes();"
@@ -866,7 +866,7 @@
                                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
                                 <rect x="6" y="14" width="12" height="8" />
                             </svg>
-                            Imprimir / PDF (Notificação)
+                            Imprimir / Baixar → Notificação (.pdf)
                         </button>
                         <button id="btnBaixarRelatorioPdfEtapa" class="btn-primary"
                             style="padding:12px 18px; background-color:#F78C26; border-color:#F78C26;">
@@ -877,7 +877,7 @@
                                 </path>
                                 <rect x="6" y="14" width="12" height="8"></rect>
                             </svg>
-                            Baixar Relatório (.pdf)
+                            Imprimir / Baixar → Relatório (.pdf)
                         </button>
                     </div>
                 </div>
@@ -964,7 +964,7 @@
                 <!-- Abas -->
                 <div class="page-tabs">
                     <button class="tab-button active" data-tab="tabDocumentoOficial">
-                        Notificação Preliminar (Modelo Oficial)
+                        Notificação Preliminar 
                     </button>
                     <button class="tab-button" data-tab="tabEditarProcesso">
                         Editar Dados do Processo
@@ -1063,7 +1063,7 @@
                             </div>
                             <div class="form-row">
                                 <div class="form-group fg-small">
-                                    <label>Extensão / Testada (m)</label>
+                                    <label>Testada (m)</label>
                                     <input type="text" id="editImvTestada" class="form-input">
                                 </div>
                                 <div class="form-group fg-small">
@@ -1081,13 +1081,16 @@
                         <div class="step-section" style="margin-bottom:28px;">
                             <h3
                                 style="font-size:1.1rem; color:#1e293b; border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom:18px;">
-                                3. Fiscalização & Vistoria</h3>
+                                3. Fiscalização e Vistoria</h3>
                             <div class="form-row">
                                 <div class="form-group fg-medium">
-                                    <label>Data da Vistoria</label>
-                                    <input type="date" id="editFiscDataVistoria" class="form-input">
+                                    <label>Data e Hora da Vistoria</label>
+                                    <input type="datetime-local" id="editFiscDataVistoria" class="form-input">
                                 </div>
-                                <div class="form-group fg-medium">
+                                <!-- Decorrente de Decreto: não aparece para o usuário (define o fluxo
+                                     do processo, não é dado de cadastro), mas continua sendo carregado e
+                                     salvo com o mesmo valor, para a edição não trocar o fluxo sem querer. -->
+                                <div class="form-group fg-medium" style="display:none;">
                                     <label>Decorrente de Decreto</label>
                                     <select id="editFiscDecreto" class="form-input">
                                         <option value="não">Não</option>
@@ -1095,17 +1098,19 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="form-group" style="margin-top:12px;">
+                            <!-- Descrição / Relato da Fiscalização: escondida do usuário, mas
+                                 continua sendo carregada e salva junto com os outros dados. -->
+                            <div class="form-group" style="display:none;">
                                 <label>Descrição / Relato da Fiscalização</label>
                                 <textarea id="editFiscDescricao" class="form-input" rows="3"></textarea>
                             </div>
                             <div class="form-group" style="margin-top:12px;">
-                                <label for="editObservacoesFiscal">Observações do Fiscal <span class="optional"
+                                <label for="editObservacoesFiscal">Nota do fiscal <span class="optional"
                                         style="font-size:0.8rem; color:#64748b; font-weight:normal;">(opcional)</span></label>
                                 <textarea id="editObservacoesFiscal" class="form-input" rows="3"></textarea>
                                 <small style="display:block; margin-top:6px; color:#64748b;">
-                                    Aparece na <strong>Notificação Preliminar</strong> e no <strong>Auto de Infração</strong>,
-                                    como "Observações do Fiscal:", abaixo do valor da multa e acima do prazo de defesa.
+                                    Aparece na <strong>Notificação Preliminar</strong> e/ou no <strong>Auto de Infração</strong>,
+                                    como "Nota do fiscal:", abaixo do valor da multa e acima do prazo de defesa.
                                     Deixe em branco para não aparecer.
                                 </small>
                             </div>
@@ -1439,6 +1444,17 @@
                         </div>
 
                         <div class="form-row">
+                            <div class="form-group fg-medium">
+                                <label for="editalDataPublicacao">Data de publicação do edital</label>
+                                <input type="date" id="editalDataPublicacao" class="form-input">
+                                <small style="display:block; margin-top:6px; color:#64748b;">
+                                    É desta data que começa a contagem do prazo de defesa. Em branco, vale a data em que
+                                    o edital foi anexado.
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
                             <div class="form-group fg-full">
                                 <label>Anexo do Edital <span style="color:#dc2626;">*</span></label>
                                 <div id="areaDropEdital" class="drop-area-clean">
@@ -1518,15 +1534,15 @@
                     <div class="tab-content-box" id="formularioEtapa2">
                         <div
                             style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
-                            <h2 style="font-size:1.25rem; color:#1e293b; margin:0;">Acompanhamento das Notificações</h2>
+                            <h2 style="font-size:1.25rem; color:#1e293b; margin:0;">Acompanhamento da(s) Notificação(ões)</h2>
                             <span id="badgeStatusEtapa2"
                                 style="background:#fef9c3; color:#854d0e; padding:4px 12px; border-radius:12px; font-size:0.8rem; font-weight:600;">Aguardando</span>
                         </div>
 
                         <div
                             style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:16px 20px; border-radius:12px; margin-bottom:20px;">
-                            <strong>Atenção, Fiscal de Postura!</strong><br>
-                            Cada infração gera uma notificação com prazo próprio. Marque o status de cada uma antes de
+                            <strong>Atenção, Fiscal de Posturas!</strong><br>
+                            Cada infração gera uma notificação com prazo próprio. Marque o status antes de
                             avançar.
                         </div>
 
