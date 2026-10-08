@@ -1213,22 +1213,13 @@ async function finalizarSolicitacao() {
                         const descricaoCat = inf.infracoes_catalogo?.descricao || '';
                         const numeroNotif = `${numeroProcesso}/${String(i + 1).padStart(2, '0')}`;
                         // Decreto nasce como Auto de Infração: prazo de DEFESA de 20 dias
-                        // úteis. Sem decreto, é Notificação Preliminar com o prazo de
-                        // cumprimento da infração (dias corridos).
+                        // corridos. Sem decreto, é Notificação Preliminar com o prazo de
+                        // cumprimento da infração. Os dois contam em dias corridos.
                         const prazoDias = decretoSim
-                            ? PRAZO_DEFESA_AUTO_DIAS_UTEIS_NOVA_SOLICITACAO
+                            ? PRAZO_DEFESA_AUTO_DIAS_NOVA_SOLICITACAO
                             : obterPrazoNotificacaoNovaSolicitacao(descricaoCat);
                         const dataVenc = new Date(dataInicio);
-                        if (decretoSim) {
-                            let uteis = 0;
-                            while (uteis < prazoDias) {
-                                dataVenc.setDate(dataVenc.getDate() + 1);
-                                const dia = dataVenc.getDay();
-                                if (dia !== 0 && dia !== 6) uteis++;
-                            }
-                        } else {
-                            dataVenc.setDate(dataVenc.getDate() + prazoDias);
-                        }
+                        dataVenc.setDate(dataVenc.getDate() + prazoDias);
 
                         const { data: notif, error: errNotif } = await supabaseClient
                             .from('notificacoes')
@@ -1446,8 +1437,8 @@ const PRAZOS_NOTIFICACAO = {
     'piso tatil': 10
 };
 
-// Prazo de DEFESA do Auto de Infração: 20 dias úteis, para qualquer infração
-const PRAZO_DEFESA_AUTO_DIAS_UTEIS_NOVA_SOLICITACAO = 20;
+// Prazo de DEFESA do Auto de Infração: 20 dias corridos, para qualquer infração
+const PRAZO_DEFESA_AUTO_DIAS_NOVA_SOLICITACAO = 20;
 
 function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     if (!descricao) return 15;

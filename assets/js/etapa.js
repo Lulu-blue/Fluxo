@@ -622,7 +622,7 @@ async function aplicarInicioPrazoAR(proc, opcoes = {}) {
         const campos = {
             prazo_dias: prazoDias,
             data_inicio: dataInicio,
-            // Defesa do Auto: 20 dias úteis. Prazos da NP seguem a regra de sempre.
+            // Defesa do Auto: 20 dias corridos. Prazos da NP seguem a regra de sempre.
             data_vencimento: opcoes.ehAuto
                 ? calcularVencimentoDefesaAuto(dataInicio)
                 : calcularDataVencimento(dataInicio, prazoDias),
@@ -8252,7 +8252,8 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
 // emDiasUteis: true conta só dias úteis; false conta corridos. Sem informar,
 // mantém a regra antiga (10 = úteis, demais = corridos), usada pelos prazos de
 // CUMPRIMENTO da Notificação Preliminar.
-// Prazos de DEFESA são sempre em dias úteis: 10 na NP e 20 no Auto de Infração.
+// Prazos de DEFESA: 10 dias ÚTEIS na Notificação Preliminar e 20 dias CORRIDOS
+// no Auto de Infração.
 function calcularDataVencimento(dataInicio, dias, emDiasUteis) {
     const data = new Date(dataInicio);
     if (isNaN(data.getTime())) {
@@ -8277,11 +8278,11 @@ function calcularDataVencimento(dataInicio, dias, emDiasUteis) {
     return data.toISOString();
 }
 
-// Prazo de DEFESA do Auto de Infração: 20 dias úteis, para qualquer infração
-const PRAZO_DEFESA_AUTO_DIAS_UTEIS = 20;
+// Prazo de DEFESA do Auto de Infração: 20 dias corridos, para qualquer infração
+const PRAZO_DEFESA_AUTO_DIAS = 20;
 
 function calcularVencimentoDefesaAuto(dataInicio) {
-    return calcularDataVencimento(dataInicio, PRAZO_DEFESA_AUTO_DIAS_UTEIS, true);
+    return calcularDataVencimento(dataInicio, PRAZO_DEFESA_AUTO_DIAS, false);
 }
 
 function formatarDiasRestantes(dataVencimentoISO) {
@@ -8887,10 +8888,10 @@ async function avancarNotificacaoEtapa2(index) {
 // ETAPA 18 — SOLICITAR DEFESA OU PAGAMENTO DO AUTO DE INFRAÇÃO
 // ============================================================================
 
-// O prazo de defesa do Auto de Infração é sempre 20 dias úteis, independente da
+// O prazo de defesa do Auto de Infração é sempre 20 dias corridos, independente da
 // infração. (O prazo de CUMPRIMENTO, que varia, é outro: obterPrazoNotificacao.)
 function determinarPrazoAutoInfracao() {
-    return PRAZO_DEFESA_AUTO_DIAS_UTEIS;
+    return PRAZO_DEFESA_AUTO_DIAS;
 }
 
 async function obterAutosEtapa18(proc) {
@@ -9107,7 +9108,7 @@ async function renderizarEtapa18(proc) {
                     console.warn('[DEBUG Etapa 18] Erro ao formatar data_vencimento:', a.data_vencimento, e);
                 }
 
-                const rotuloPrazo = `${a.prazo_dias || PRAZO_DEFESA_AUTO_DIAS_UTEIS} dias úteis`;
+                const rotuloPrazo = `${a.prazo_dias || PRAZO_DEFESA_AUTO_DIAS} dias`;
 
                 const prazoHtml = jaAvancou
                     ? ''
@@ -13301,7 +13302,7 @@ window.obterDescricaoInfracao = function (disp) {
 };
 
 window.obterPrazoDefesaAutoInfracao = function () {
-    return '20 DIAS ÚTEIS';
+    return '20 DIAS';
 };
 
 // Mantida para consulta: regra anterior, que variava por infração
@@ -14112,7 +14113,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         }
 
         const fundamentoLegalDecreto = window.obterFundamentoLegalDecreto ? window.obterFundamentoLegalDecreto(inputInfracao) : 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
-        const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao() : '20 DIAS ÚTEIS';
+        const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao() : '20 DIAS';
 
         let corpoHtmlAuto = '';
         if (provenienteDecreto) {
