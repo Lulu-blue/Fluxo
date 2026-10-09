@@ -359,10 +359,10 @@ respeitando os filtros. Sem filtro, exporta tudo.
 
 Um quadro por notificação, com número, descrição, vencimento e dias restantes. O fiscal
 marca uma opção:
-- **Atendida** → Etapa 7
-- **Defesa** → Etapa 4
+- **Atendida** → Etapa 10, já com "O problema foi resolvido?" marcado como **Sim** (segue para a 29)
+- **Defesa** → Etapa 3 (vai direto para o envio da defesa, sem passar pela Etapa 4)
 - **Dilação de prazo** → Etapa 4. Fica desabilitada se a notificação já teve dilação.
-- **Em branco:** fica aguardando. Vencido o prazo, pode avançar como "vencida" → Etapa 7.
+- **Em branco:** fica aguardando. Vencido o prazo, pode avançar como "vencida" → Etapa 10, já com "O problema foi resolvido?" marcado como **Não** (gera o Auto, Etapa 14).
 
 Cada quadro tem o seu **"Avançar Notificação"**. O botão geral só avança quando **todas**
 estão prontas. Se ainda houver notificação no prazo sem opção marcada, ele avisa.
@@ -376,37 +376,53 @@ fiscal"), um alerta mostra o **motivo do Gerente**.
 
 **Avanço:** com anexo → **13**. Sem anexo e vencida → **10**. Sem anexo e ainda no prazo, não avança.
 
-### Etapa 4 — Comprovante de Propriedade
+### Etapa 4 — Documentos da Dilação de Prazo
 
-**Quem:** Fiscal. Anexa o **comprovante de propriedade**. Se veio de dilação, pede
-comprovante de propriedade **e de renda** (o texto pede no mínimo 2 documentos).
+**Quem:** Fiscal. Pela Etapa 2 só chega aqui quem pediu **dilação**. A etapa aceita
+três documentos — **Pedido de Dilação de Prazo** (o que o contribuinte enviou),
+**Comprovante de Renda** e **Comprovante de Propriedade** — e **todos são opcionais**:
+dá para avançar sem anexar nada. Cada um tem o **seu próprio campo de anexo**, e cada
+campo aceita mais de um arquivo e lista só os seus.
 
-**Avanço, conforme a opção marcada na Etapa 2:**
+**Avanço:** sempre → **5**, tenha anexado algum documento ou não. Como os três anexos são
+opcionais, nenhum deles muda o destino.
+
 | Situação | Destino |
 |---|---|
-| Dilação | 5 |
-| Defesa com comprovante | 3 |
-| Defesa sem comprovante (pede confirmação; a defesa é negada) | 7 |
-| Atendida / não atendida e vencida (fallback) | 7 |
+| Dilação (com ou sem anexos) | 5 |
+| Defesa (só processos antigos que ficaram parados aqui) | 3 |
 
 ### Etapa 5 — Análise da Dilação de Prazo
 
 **Quem:** Fiscal. Gera uma **Réplica**.
 
 - **Defere:** informa quantos dias. Soma ao vencimento e volta para a **Etapa 2**, sem a opção de nova dilação.
-- **Indeferimento:** motivo obrigatório ("pois: …") → **Etapa 7**.
-- **Mandar para o gerente:** motivo obrigatório → **Etapa 11**.
+- **Indeferimento:** motivo obrigatório ("pois: …"). O destino depende do prazo da notificação:
+  ainda **no prazo** → volta para a **Etapa 2** (o contribuinte continua tendo o prazo original
+  para cumprir); **vencida** → **Etapa 10**, já com "O problema foi resolvido?" marcado como **Não**.
+
+A opção "Mandar para o gerente" foi removida: para falar com a Gerência ou com o Jurídico,
+use o **chat**. Quando for esperar a resposta do Jurídico, o botão **Paralisar aguardando
+o Jurídico** para a contagem do prazo e avisa os outros no painel.
 
 Pode **adicionar imagens com legenda** à réplica. É **obrigatório anexar a Réplica assinada** antes de avançar.
 Botão de topo: "Imprimir / Baixar → Réplica (.pdf)". Textos da réplica no [Anexo B](#anexo-b--textos-padrão).
 
-### Etapa 7 — Análise da Defesa sem Dilação
+### Etapa 7 — Análise da Defesa sem Dilação (fora do fluxo)
 
-**Quem:** Fiscal. Campos:
-- **Houve cumprimento?** Sim (Atendida) ou Não (Vencida). Já vem marcado conforme a Etapa 2 e o prazo.
-- **Enviar para o Jurídico?** Não / Sim.
+**Não é mais usada.** Ela só repetia uma decisão já tomada antes e mandava tudo para a
+Etapa 10. Agora as etapas vão **direto para a 10**, já com "O problema foi resolvido?"
+marcado — a marcação fica em `notificacoes.dados.certidao_resolvido`:
 
-**Avanço:** Jurídico = Sim → **32**. Senão → **10**. Na Etapa 10, "atendida" já vem como "resolvido = Sim".
+| Veio de | Situação | Marcação na Etapa 10 |
+|---|---|---|
+| Etapa 2 | Atendida | **Sim** → 29 |
+| Etapa 2 | Vencida sem atendimento | **Não** → 14 |
+| Etapa 5 | Dilação negada com prazo vencido | **Não** → 14 |
+| Etapa 4 | Defesa sem comprovante / atendida / vencida | **Não** / **Sim** / **Não** |
+
+A tela da Etapa 7 continua no código para os processos antigos que ficaram parados nela;
+o avanço dela leva à 10, como antes.
 
 ### Etapa 10 — Certidão Sem Defesa / Encerramento
 
@@ -624,16 +640,28 @@ do comprovante (opcional) e **"Realizou o pagamento?"** (obrigatório).
 
 **Avanço:** Sim → **29**. Não → **28**.
 
+### Prévia do documento nas etapas
+
+A prévia do documento (Notificação Preliminar, Auto de Infração, Réplica, Certidão) só
+aparece embaixo do formulário nas etapas que **geram** aquele documento — **1, 5, 10, 13 e
+14** (`ETAPAS_COM_PREVIA_DO_DOCUMENTO` em `etapa.js`) —, para conferir antes de baixar.
+Nas demais ela não é desenhada. Logo **acima** da prévia fica o aviso de que é uma prévia
+do sistema e não substitui a via assinada; ele vive **fora** do `containerDocumentoOficial`,
+porque alguns PDFs são montados a partir do conteúdo desse container.
+
+Os botões de **baixar** e **imprimir** continuam funcionando em qualquer etapa: eles montam
+o documento na hora, com `renderizarDocumentoOficial(proc, { forcar: true })`.
+
 ### Etapa 32 — Consulta no Jurídico
 
-No fluxo oficial, a Etapa 32 funciona **como um chat**. Ele permite mandar o processo
-inteiro para o Jurídico ou **paralisar o processo** por um tempo, à espera da resposta, e
-mostra aos outros usuários que ele aguarda análise do Jurídico. A entrada é possível pelas
-Etapas 7, 11 e 13.
+**Não é usada.** A consulta ao Jurídico acontece pelo **chat** (`chat_juridico.js`), que
+está disponível em qualquer etapa, e nenhuma etapa leva mais para a 32 — a última que
+levava era a 7, e essa opção foi removida.
 
-No código, o chat existe (`chat_juridico.js`), mas a Etapa 32 em si **não tem tela nem
-regra de saída**: só a Etapa 7 leva a ela, e o botão Avançar aplica a regra padrão
-(próximo número). Ver seção 12.
+Quando é preciso esperar a resposta do Jurídico, as Etapas **5** e **13** têm o botão
+**Paralisar aguardando o Jurídico**: ele guarda o vencimento e zera a contagem do prazo,
+mostra um aviso na etapa e o selo "⏸️ Aguardando Jurídico" no painel. A retomada devolve
+o prazo com os dias que faltavam.
 
 ### "Etapa 33" — Encerrada
 
@@ -789,7 +817,7 @@ canvas deve ser completado.
 - **Etapa 16:** 3 tentativas valem só para a NP; no fluxo do Auto, 1 tentativa leva ao Edital.
 
 **Pendências:**
-- **Etapa 32:** falta implementar como chat / paralisação (ver tabela acima). Hoje ela está atribuída ao Fiscal, não ao Jurídico.
+- **Etapa 32:** resolvida de outro jeito — a consulta ao Jurídico virou o chat e a espera virou o botão de paralisar nas Etapas 5 e 13. A etapa em si ficou sem uso e sem entrada.
 - **Etapas 6, 8, 9, 12, 23, 26 e 27** continuam cadastradas, mas nenhuma etapa leva a elas. Decidir se saem do sistema.
 - **Permissões duplicadas:** `ETAPAS_POR_CARGO` de `solicitacoes.js` difere da de `etapa.js` (ex.: lá o Fiscal tem a 19, o Jurídico não tem a 19 e o Gerente de Interface Jurídica tem todas).
 - **Etapa 4 (dilação):** o texto pede "no mínimo 2 documentos", mas o avanço não confere isso.

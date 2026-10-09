@@ -227,7 +227,7 @@ async function anexarSituacoesDasNotificacoes(itens) {
     try {
         const { data, error } = await supabaseClient
             .from('notificacoes')
-            .select('processo_id, situacao')
+            .select('processo_id, situacao, dados')
             .in('processo_id', ids);
 
         if (error) {
@@ -244,7 +244,16 @@ async function anexarSituacoesDasNotificacoes(itens) {
             porProcesso[n.processo_id] = porProcesso[n.processo_id] || {};
             porProcesso[n.processo_id][n.situacao] = (porProcesso[n.processo_id][n.situacao] || 0) + 1;
         });
-        itens.forEach(item => { item.situacoes_notificacoes = porProcesso[item.id] || null; });
+        // Paralisado esperando o Jurídico: o painel avisa, senão só quem abre o processo sabe
+        const aguardandoJuridico = {};
+        (data || []).forEach(n => {
+            if (n.processo_id && n.dados?.aguardando_juridico) aguardandoJuridico[n.processo_id] = true;
+        });
+
+        itens.forEach(item => {
+            item.situacoes_notificacoes = porProcesso[item.id] || null;
+            item.aguardando_juridico = !!aguardandoJuridico[item.id];
+        });
     } catch (e) {
         console.warn('[PAINEL] Erro ao buscar a situação das notificações:', e);
     }
@@ -254,10 +263,17 @@ async function anexarSituacoesDasNotificacoes(itens) {
 // Sem notificações (ou antes da migração), cai no resumo do processo.
 const ORDEM_SITUACOES = ['auto_infracao', 'notificacao_preliminar', 'arquivado', 'encerrado', 'cancelado'];
 
+const BADGE_AGUARDANDO_JURIDICO =
+    '<span style="display:inline-block; padding:2px 10px; border-radius:12px; font-size:0.72rem; font-weight:700; '
+    + 'background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; white-space:nowrap;">⏸️ Aguardando Jurídico</span>';
+
 function montarColunaSituacao(item) {
+    const paralisado = item.aguardando_juridico ? BADGE_AGUARDANDO_JURIDICO : '';
     const porSituacao = item.situacoes_notificacoes;
     if (!porSituacao || Object.keys(porSituacao).length === 0) {
-        return montarBadgeSituacao(item.status);
+        return paralisado
+            ? `<div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">${montarBadgeSituacao(item.status)}${paralisado}</div>`
+            : montarBadgeSituacao(item.status);
     }
     const chaves = Object.keys(porSituacao).sort((a, b) => {
         const ia = ORDEM_SITUACOES.indexOf(a), ib = ORDEM_SITUACOES.indexOf(b);
@@ -265,6 +281,7 @@ function montarColunaSituacao(item) {
     });
     return `<div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">`
         + chaves.map(k => montarBadgeSituacao(k, porSituacao[k])).join('')
+        + paralisado
         + `</div>`;
 }
 

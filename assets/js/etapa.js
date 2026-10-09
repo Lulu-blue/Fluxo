@@ -875,15 +875,41 @@ function aplicarNotificacaoSelecionada(proc, indice) {
     if (notif.etapa_atual_id) proc.etapa_atual_id = notif.etapa_atual_id;
 }
 
+// O aviso de que o documento na tela é só uma prévia. Fica fora do
+// containerDocumentoOficial porque alguns PDFs são montados a partir do
+// innerHTML dele — se estivesse dentro, o aviso entraria no documento.
+// Como o container é preenchido de vários pontos (NP, Auto, Réplica, Certidão),
+// um observador é mais seguro do que chamar isso em cada um deles.
+function atualizarAvisoDocumentoModelo() {
+    const container = document.getElementById('containerDocumentoOficial');
+    const aviso = document.getElementById('avisoDocumentoModelo');
+    if (!container || !aviso) return;
+
+    // innerHTML não serve: o container já nasce com um comentário dentro
+    const temDocumento = container.children.length > 0 || container.textContent.trim() !== '';
+    aviso.style.display = temDocumento ? 'block' : 'none';
+}
+window.atualizarAvisoDocumentoModelo = atualizarAvisoDocumentoModelo;
+
+function observarDocumentoOficialParaAviso() {
+    const container = document.getElementById('containerDocumentoOficial');
+    if (!container || container.dataset.avisoObservado === 'sim') return;
+    container.dataset.avisoObservado = 'sim';
+
+    atualizarAvisoDocumentoModelo();
+    new MutationObserver(atualizarAvisoDocumentoModelo)
+        .observe(container, { childList: true, subtree: true, characterData: true });
+}
+
 async function inicializarPaginaEtapa() {
-    console.log('[DEBUG] inicializarPaginaEtapa — etapa:', processoAtual?.etapa_atual, '| cargo:', perfilAtual?.cargo);
+
+    observarDocumentoOficialParaAviso();
 
     // Descobre a origem do fluxo (Etapa 1 x Etapa 14) antes de qualquer render:
     // as Etapas 16, 17 e 30 dependem disso para saber qual documento exibir.
     await carregarOrigemFluxoProcesso(processoAtual);
 
     const modo = determinarModoAcesso(processoAtual, perfilAtual);
-    console.log('[DEBUG] inicializarPaginaEtapa — modo:', modo);
     aplicarModoAcesso(modo);
 
     // Processos cancelados: visualização somente leitura do documento oficial
@@ -911,7 +937,6 @@ async function inicializarPaginaEtapa() {
 
     // Self-healing: Se o processo foi incorretamente movido para uma etapa de notificação
     if (!notificacaoAtual && [3, 4, 5, 6, 7].includes(etapaAtual)) {
-        console.log('[DEBUG] Processo em etapa de notificação. Restaurando para Etapa 2...');
         const { data: etapaDb } = await supabaseClient.from('etapas').select('id').eq('numero', 2).maybeSingle();
         if (etapaDb) {
             await supabaseClient.from('processos').update({ etapa_atual_id: etapaDb.id }).eq('id', processoAtual.id);
@@ -982,7 +1007,7 @@ function renderizarFormularioDinamico(etapaNum) {
     const btnTabEdit = document.querySelector('.tab-button[data-tab="tabEditarProcesso"]');
 
     if (notificacaoAtual && etapaNum !== 1) {
-        if (btnTabDoc) btnTabDoc.textContent = `Ações da Notificação`;
+        if (btnTabDoc) btnTabDoc.textContent = `Ações`;
         if (btnTabEdit) btnTabEdit.style.display = 'none';
     } else {
         if (btnTabDoc) btnTabDoc.textContent = `Notificação Preliminar`;
@@ -996,17 +1021,17 @@ function renderizarFormularioDinamico(etapaNum) {
     const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
     if (btnBaixar) {
         if (etapaNum === 10) {
-            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Baixar Certidão (.pdf)`;
+            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Certidão (.pdf)`;
         } else if ([5, 8, 13].includes(etapaNum)) {
-            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Baixar Réplica (.pdf)`;
+            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Réplica (.pdf)`;
         } else {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Relatório de Vistoria (.pdf)`;
         }
     }
 
-    const uploadHtml = (textoUpload) => `
+    const uploadHtml = (textoUpload, sufixo = '') => `
         <div class="anexo-upload-wrapper" style="margin-top:15px; margin-bottom:15px;">
-            <div id="areaDropGenerico" class="drop-area-clean" style="border: 2px dashed #8b5cf6; border-radius: 10px; padding: 30px; text-align: center; background: #f5f3ff; cursor: pointer; transition: all 0.2s ease;">
+            <div id="areaDropGenerico${sufixo}" class="drop-area-clean" style="border: 2px dashed #8b5cf6; border-radius: 10px; padding: 30px; text-align: center; background: #f5f3ff; cursor: pointer; transition: all 0.2s ease;">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" style="margin-bottom:12px;">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                     <polyline points="17 8 12 3 7 8" />
@@ -1014,11 +1039,11 @@ function renderizarFormularioDinamico(etapaNum) {
                 </svg>
                 <p style="margin:0; font-weight:600; color:#5b21b6; font-size:0.95rem;">${textoUpload}</p>
                 <p style="margin:4px 0 15px 0; color:#7c3aed; font-size:0.82rem;">Formatos aceitos: PDF, JPG, PNG (Máx. 10MB)</p>
-                <input type="file" id="inputAnexoGenerico" accept=".pdf,.jpg,.jpeg,.png" multiple style="display:none;" />
-                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputAnexoGenerico').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#7c3aed; cursor:pointer; font-weight:600; color:#ffffff; margin-bottom: 10px; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.2);">Escolher Arquivos</button>
+                <input type="file" id="inputAnexoGenerico${sufixo}" accept=".pdf,.jpg,.jpeg,.png" multiple style="display:none;" />
+                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputAnexoGenerico${sufixo}').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#7c3aed; cursor:pointer; font-weight:600; color:#ffffff; margin-bottom: 10px; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.2);">Escolher Arquivos</button>
                 <br/>
             </div>
-            <div id="listaAnexosGenericos" style="margin-top: 15px; display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="listaAnexosGenericos${sufixo}" style="margin-top: 15px; display:flex; flex-direction:column; gap:8px;"></div>
         </div>
     `;
 
@@ -1131,14 +1156,35 @@ function renderizarFormularioDinamico(etapaNum) {
         `;
     } else if (etapaNum === 4) {
         const veioDeDilacao = notificacaoAtual?.status === 'dilacao';
-        const docText = veioDeDilacao ? 'Comprovante de Propriedade e Comprovante de Renda' : 'Comprovante de Propriedade';
-        const pText = veioDeDilacao ? 'Anexe os comprovantes de propriedade e de renda abaixo. É necessário no mínimo 2 documentos.' : 'Anexe o comprovante de propriedade abaixo.';
 
-        conteudo = `
-            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">${docText}</h3>
-            <p style="font-size:0.95rem; color:#475569;">${pText}</p>
+        if (veioDeDilacao) {
+            // Dilação de prazo: um campo de anexo para cada documento, todos opcionais
+            const campos = TIPOS_DOCUMENTO_ETAPA_4.map(t => `
+                <div style="border:1px solid #e2e8f0; border-radius:12px; padding:16px; background:white;">
+                    <h4 style="margin:0; color:#0f172a; font-size:0.98rem; font-weight:700;">
+                        ${t.rotulo} <span style="font-weight:400; color:#64748b; font-size:0.85rem;">(opcional)</span>
+                    </h4>
+                    <p style="margin:4px 0 0 0; font-size:0.85rem; color:#64748b;">${t.ajuda}</p>
+                    ${uploadHtml('Clique para selecionar ou arraste aqui', t.sufixo)}
+                </div>
+            `).join('');
+
+            conteudo = `
+            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Documentos da Dilação de Prazo</h3>
+            <p style="font-size:0.95rem; color:#475569;">
+                <strong>Todos são opcionais</strong> — dá para avançar sem anexar nada.
+            </p>
+            <div style="display:flex; flex-direction:column; gap:16px; margin-top:14px;">${campos}</div>
+        `;
+        } else {
+            // Processos antigos, de quando a defesa ainda passava pela Etapa 4.
+            // Hoje a defesa vai da Etapa 2 direto para a 3 e não chega aqui.
+            conteudo = `
+            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Comprovante de Propriedade</h3>
+            <p style="font-size:0.95rem; color:#475569;">Anexe o comprovante de propriedade abaixo.</p>
             ${uploadHtml('Clique para selecionar ou arraste os documentos aqui')}
         `;
+        }
     } else if (etapaNum === 5) {
         const decisaoAnterior = notificacaoAtual?.dados?.etapa5?.decisao || '';
         const justificativaAnterior = notificacaoAtual?.dados?.etapa5?.justificativa || '';
@@ -1162,9 +1208,11 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                     <div>
                         <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Análise de Dilação de Prazo</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a solicitação de dilação e informe a decisão do fiscal.</p>
+                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a solicitação de dilação e informe a decisão.</p>
                     </div>
                 </div>
+
+                ${htmlAvisoParalisadoJuridico()}
 
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
@@ -1173,12 +1221,11 @@ function renderizarFormularioDinamico(etapaNum) {
                             <option value="">Selecione uma opção...</option>
                             <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
                             <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferimento</option>
-                            <option value="gerente" ${decisaoAnterior === 'gerente' ? 'selected' : ''}>Manda para o gerente</option>
                         </select>
                     </div>
 
                     <div id="blocoDiasDilacao" style="display: ${decisaoAnterior === 'defere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Quantos dias será a dilação?</label>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Prazo de Prorrogação (dias)</label>
                         <input type="number" id="inputDiasDilacao" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white;" value="${notificacaoAtual?.dados?.etapa5?.dias || 0}">
                     </div>
 
@@ -1191,11 +1238,12 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="margin-top:20px;">
                     <div id="containerImagensForm" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
                     <div style="display:flex; gap:16px;">
-                        <button type="button" onclick="window.gerarReplica()" class="btn-primary" style="padding:12px 20px;">Gerar/Atualizar Réplica</button>
+                        <button type="button" onclick="window.gerarReplicaComAviso(this)" class="btn-primary" style="padding:12px 20px; transition:background 0.2s;">Gerar/Atualizar Réplica</button>
                         <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar Imagem</button>
                     </div>
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
+                ${htmlBotaoParalisarJuridico()}
             </div>
         `;
     } else if (etapaNum === 11) {
@@ -1329,9 +1377,11 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                     <div>
                         <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Fiscal Analisa a Defesa (1ª)</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a defesa e informe a decisão do fiscal.</p>
+                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a defesa e informe a decisão.</p>
                     </div>
                 </div>
+
+                ${htmlAvisoParalisadoJuridico()}
 
                 ${anexosEtapa13Html ? `
                 <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px;">
@@ -1347,15 +1397,6 @@ function renderizarFormularioDinamico(etapaNum) {
                             <option value="">Selecione uma opção...</option>
                             <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
                             <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferimento</option>
-                            <option value="gerente" ${decisaoAnterior === 'gerente' ? 'selected' : ''}>Manda para o gerente</option>
-                        </select>
-                    </div>
-
-                    <div id="blocoParecerGerente" style="display: ${decisaoAnterior === 'gerente' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Parecer do Fiscal <span style="color:#ef4444;">*</span></label>
-                        <select id="selectParecerGerente" onchange="window.gerarReplica()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
-                            <option value="nao_favoravel" ${notificacaoAtual?.dados?.etapa13?.parecer !== 'favoravel' ? 'selected' : ''}>Não Favorável</option>
-                            <option value="favoravel" ${notificacaoAtual?.dados?.etapa13?.parecer === 'favoravel' ? 'selected' : ''}>Favorável</option>
                         </select>
                     </div>
 
@@ -1368,11 +1409,12 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="margin-top:20px;">
                     <div id="containerImagensForm" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
                     <div style="display:flex; gap:16px;">
-                        <button type="button" onclick="window.gerarReplica()" class="btn-primary" style="padding:12px 20px;">Gerar/Atualizar Réplica</button>
+                        <button type="button" onclick="window.gerarReplicaComAviso(this)" class="btn-primary" style="padding:12px 20px; transition:background 0.2s;">Gerar/Atualizar Réplica</button>
                         <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar Imagem</button>
                     </div>
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
+                ${htmlBotaoParalisarJuridico()}
             </div>
         `;
     } else if (etapaNum === 7) {
@@ -1395,7 +1437,6 @@ function renderizarFormularioDinamico(etapaNum) {
             defaultCumprimento = decisaoSalva;
         }
 
-        const juridicoSalvo = notificacaoAtual?.dados?.etapa7?.juridico || 'nao';
 
         conteudo = `
             <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
@@ -1407,46 +1448,39 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Análise da Defesa / Cumprimento</h3>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Verificação do Cumprimento</h3>
                         <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie se as exigências da notificação foram atendidas pelo munícipe.</p>
                     </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Houve Cumprimento? <span style="color:#ef4444;">*</span></label>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Houve Cumprimento: <span style="color:#ef4444;">*</span></label>
                         <select id="selectCumprimento" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <option value="">Selecione uma opção...</option>
-                            <option value="atendida" ${defaultCumprimento === 'atendida' ? 'selected="selected"' : ''}>Sim (Atendida)</option>
-                            <option value="vencida" ${defaultCumprimento === 'vencida' ? 'selected="selected"' : ''}>Não Houve Cumprimento (Vencida)</option>
+                            <option value="atendida" ${defaultCumprimento === 'atendida' ? 'selected="selected"' : ''}>Atendida</option>
+                            <option value="vencida" ${defaultCumprimento === 'vencida' ? 'selected="selected"' : ''}>Não Houve Cumprimento</option>
                         </select>
-                    </div>
-
-                    <div style="background:#fef2f2; padding:16px; border-radius:10px; border:1px solid #fca5a5;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#991b1b; margin-bottom:8px;">Enviar notificação para o Jurídico?</label>
-                        <select id="selectJuridico" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #fca5a5; background:white; font-size:0.95rem; color:#7f1d1d; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
-                            <option value="nao" ${juridicoSalvo === 'nao' ? 'selected' : ''}>Não</option>
-                            <option value="sim" ${juridicoSalvo === 'sim' ? 'selected' : ''}>Sim, enviar para análise jurídica</option>
-                        </select>
-                        <p style="margin:6px 0 0 0; font-size:0.8rem; color:#b91c1c;">Se 'Sim' for selecionado, a notificação irá para o Jurídico independentemente do cumprimento.</p>
                     </div>
                 </div>
             </div>
         `;
     } else if (etapaNum === 10) {
-        const numNotificacao = notificacaoAtual ? notificacaoAtual.numero : '';
-        const tipoNotificacao = notificacaoAtual ? notificacaoAtual.descricao : '';
+        // Marcação gravada pela etapa que mandou o processo para cá (2 ou 5).
+        // Os demais testes cobrem processos antigos, de quando passava pela Etapa 7.
+        const resolvidoMarcado = notificacaoAtual?.dados?.certidao_resolvido;
         const decisaoEtapa7 = notificacaoAtual?.dados?.etapa7?.cumprimento;
         const decisaoEtapa13 = notificacaoAtual?.dados?.etapa13?.decisao;
         const decisaoEtapa11 = notificacaoAtual?.dados?.etapa11?.decisao;
         const passarCertidaoEtapa11 = notificacaoAtual?.dados?.etapa11?.passar_certidao;
 
-        let selNao = 'selected';
-        let selSim = '';
-        if (decisaoEtapa7 === 'atendida' || decisaoEtapa13 === 'defere' || (decisaoEtapa11 === 'defere' && passarCertidaoEtapa11 !== false)) {
-            selNao = '';
-            selSim = 'selected';
-        }
+        const marcarSim = resolvidoMarcado
+            ? resolvidoMarcado === 'sim'
+            : (decisaoEtapa7 === 'atendida' || decisaoEtapa13 === 'defere'
+                || (decisaoEtapa11 === 'defere' && passarCertidaoEtapa11 !== false));
+
+        const selNao = marcarSim ? '' : 'selected';
+        const selSim = marcarSim ? 'selected' : '';
 
         let mensagemGerenteHtml = '';
         if (notificacaoAtual?.dados?.etapa11) {
@@ -1522,35 +1556,16 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Certidão Sem Defesa / Encerramento</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Emissão de certidão para notificação com prazo expirado ou encerramento após análise do gerente.</p>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Certidão com a análise do cumprimento</h3>
+                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Emissão de certidão para notificação com prazo expirado ou encerramento por cumprimento.</p>
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
-                    <div>
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Nº da Notificação <span style="color:#ef4444;">*</span></label>
-                        <input type="text" id="inputNumNotificacaoCertidao" class="form-input" value="${numNotificacao}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b;" />
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Tipo da Infração <span style="color:#ef4444;">*</span></label>
-                        <input type="text" id="inputTipoInfracaoCertidao" class="form-input" value="${tipoNotificacao}" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b;" />
-                    </div>
-                </div>
-
-                <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px; display:flex; flex-direction:column; gap:10px;">
-                    <button type="button" onclick="gerarCertidaoSemDefesa()" style="padding:12px 20px; background:#10b981; color:white; border:none; border-radius:8px; font-weight:600; font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 6px -1px rgba(16, 185, 129, 0.2); transition:all 0.2s;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Atualizar Certidão
-                    </button>
-                    <p style="margin:0; font-size:0.8rem; color:#64748b; text-align:center;">O documento puxará automaticamente os dados do Autuado, Imóvel e Vistoria cadastrados.</p>
-                </div>
-                
                 <div style="background:#fef2f2; padding:16px; border-radius:10px; border:1px solid #fca5a5;">
-                    <label style="display:block; font-size:0.9rem; font-weight:600; color:#991b1b; margin-bottom:8px;">O problema foi resolvido?</label>
+                    <label style="display:block; font-size:0.9rem; font-weight:600; color:#991b1b; margin-bottom:8px;">Houve o cumprimento:</label>
                     <select id="selectResolvidoCertidao" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #fca5a5; background:white; font-size:0.95rem; color:#7f1d1d;">
-                        <option value="nao" ${selNao}>Não, gerar Auto de Infração</option>
-                        <option value="sim" ${selSim}>Sim, o problema foi sanado</option>
+                        <option value="nao" ${selNao}>Não cumprido</option>
+                        <option value="sim" ${selSim}>Atendido</option>
                     </select>
                 </div>
 
@@ -2193,273 +2208,296 @@ function renderizarFormularioDinamico(etapaNum) {
             // mostram o Documento Completo do Processo (PDF).
         }, 150);
     }
-
-    const areaDrop = formDiv.querySelector('#areaDropGenerico');
-    const inputAnexo = formDiv.querySelector('#inputAnexoGenerico');
-    if (areaDrop && inputAnexo) {
-        const salvarAnexosGenericosDb = async () => {
-            let error;
-            if (notificacaoAtual) {
-                const res = await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
-                error = res.error;
-            } else {
-                processoAtual.dados = processoAtual.dados || {};
-                processoAtual.dados.campos = processoAtual.campos;
-                const res = await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
-                error = res.error;
-            }
-            if (error) {
-                console.error('Erro ao salvar anexos', error);
-                alert('Erro ao atualizar anexos no banco de dados.');
-            }
-        };
-
-        const renderizarListaAnexos = () => {
-            const listaDiv = formDiv.querySelector('#listaAnexosGenericos');
-            listaDiv.innerHTML = '';
-
-            const etapaKey = `etapa${etapaNum}`;
-            const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
-            targetObj[etapaKey] = targetObj[etapaKey] || {};
-
-            let anexos = targetObj[etapaKey].anexos || [];
-
-            // Migrar anexo legado único para array
-            const anexoAntigo = targetObj[etapaKey].anexo;
-            if (anexoAntigo && anexos.length === 0) {
-                anexoAntigo.id = anexoAntigo.id || Math.random().toString(36).substring(7);
-                anexos.push(anexoAntigo);
-                targetObj[etapaKey].anexos = anexos;
-                delete targetObj[etapaKey].anexo;
-                salvarAnexosGenericosDb();
-            }
-
-            if (anexos.length === 0) {
-                listaDiv.innerHTML = '<span style="font-size:0.9rem; color:#6d28d9; background: #ede9fe; padding: 4px 10px; border-radius: 12px; display: inline-block; width:fit-content; margin:0 auto;">Nenhum arquivo selecionado</span>';
-                return;
-            }
-
-            anexos.forEach((a, i) => {
-                const item = document.createElement('div');
-                item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1;';
-                item.innerHTML = `
-                    <span style="font-size:0.9rem; color:#334155; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:65%;" title="${a.nome}">${a.nome}</span>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <button type="button" class="btn-ver-anexo" data-index="${i}" style="padding:4px 10px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; font-size:0.8rem; cursor:pointer;">Visualizar</button>
-                        <button type="button" class="btn-excluir-anexo" data-index="${i}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:1.2rem; line-height:1; padding:0 5px;" title="Remover anexo">×</button>
-                    </div>
-                `;
-                listaDiv.appendChild(item);
-            });
-
-            listaDiv.querySelectorAll('.btn-ver-anexo').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const idx = e.target.getAttribute('data-index');
-                    const targetAnexo = anexos[idx];
-                    if (!targetAnexo) return;
-
-                    let content = targetAnexo.base64 || targetAnexo.url || targetAnexo.dataUrl;
-
-                    if (!content && (targetAnexo.documento_id || targetAnexo.id)) {
-                        const docId = targetAnexo.documento_id || targetAnexo.id;
-                        try {
-                            const { data } = await supabaseClient
-                                .from('documentos')
-                                .select('url')
-                                .eq('id', docId)
-                                .maybeSingle();
-                            if (data && data.url) {
-                                content = data.url;
-                            }
-                        } catch (errDoc) {
-                            console.error('Erro ao buscar documento em documentos:', errDoc);
-                        }
-                    }
-
-                    if (content) {
-                        window.abrirAnexoEmNovaAba(content, e, targetAnexo.nome);
-                    } else {
-                        alert('Conteúdo do arquivo não disponível.');
-                    }
-                });
-            });
-
-            listaDiv.querySelectorAll('.btn-excluir-anexo').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const idx = e.target.getAttribute('data-index');
-                    const targetAnexo = anexos[idx];
-                    if (confirm('Tem certeza que deseja remover este anexo?')) {
-                        if (targetAnexo && (targetAnexo.documento_id || targetAnexo.id)) {
-                            const docId = targetAnexo.documento_id || targetAnexo.id;
-                            try {
-                                await supabaseClient.from('documentos').delete().eq('id', docId);
-                            } catch (errDel) {
-                                console.error('Erro ao remover registro da tabela documentos:', errDel);
-                            }
-                        }
-                        anexos.splice(idx, 1);
-                        await salvarAnexosGenericosDb();
-                        renderizarListaAnexos();
-                    }
-                });
-            });
-        };
-
-        const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
-            areaDrop.addEventListener(evt, preventDefaults, false);
-        });
-
-        ['dragenter', 'dragover'].forEach(evt => {
-            areaDrop.addEventListener(evt, () => areaDrop.style.background = '#ede9fe', false);
-        });
-
-        ['dragleave', 'drop'].forEach(evt => {
-            areaDrop.addEventListener(evt, () => areaDrop.style.background = '#f5f3ff', false);
-        });
-
-        areaDrop.addEventListener('drop', (e) => {
-            let dt = e.dataTransfer;
-            let files = dt.files;
-            if (files && files.length > 0) {
-                inputAnexo.files = files;
-                inputAnexo.dispatchEvent(new Event('change'));
-            }
-        });
-
-        areaDrop.addEventListener('click', (e) => {
-            if (e.target !== inputAnexo && !e.target.closest('button')) inputAnexo.click();
-        });
-
-        inputAnexo.addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            if (!files.length) return;
-
-            const listaDiv = formDiv.querySelector('#listaAnexosGenericos');
-            listaDiv.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">Carregando arquivo(s)...</div>';
-
-            const readPromises = files.map(file => new Promise(async resolve => {
-                let urlFinal = null;
-                if (typeof window.uploadParaCloudinary === 'function') {
-                    try {
-                        urlFinal = await window.uploadParaCloudinary(file, 'semac_anexos');
-                    } catch (cldErr) {
-                        console.warn('[Cloudinary Warning] Upload de anexo falhou:', cldErr);
-                    }
+    // Liga um campo de anexo genérico. `sufixo` permite mais de um campo na mesma
+    // tela (Etapa 4 da dilação: pedido, renda e propriedade, cada um no seu campo)
+    // e `tipoDocumento` fixa o tipo que aquele campo grava e mostra.
+    const configurarUploadGenerico = (sufixo = '', tipoDocumento = null) => {
+        const areaDrop = formDiv.querySelector(`#areaDropGenerico${sufixo}`);
+        const inputAnexo = formDiv.querySelector(`#inputAnexoGenerico${sufixo}`);
+        if (areaDrop && inputAnexo) {
+            const salvarAnexosGenericosDb = async () => {
+                let error;
+                if (notificacaoAtual) {
+                    const res = await supabaseClient.from('notificacoes').update({ dados: notificacaoAtual.dados }).eq('id', notificacaoAtual.id);
+                    error = res.error;
+                } else {
+                    processoAtual.dados = processoAtual.dados || {};
+                    processoAtual.dados.campos = processoAtual.campos;
+                    const res = await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+                    error = res.error;
                 }
-                if (!urlFinal) {
-                    resolve(null);
+                if (error) {
+                    console.error('Erro ao salvar anexos', error);
+                    alert('Erro ao atualizar anexos no banco de dados.');
+                }
+            };
+
+            const renderizarListaAnexos = () => {
+                const listaDiv = formDiv.querySelector(`#listaAnexosGenericos${sufixo}`);
+                listaDiv.innerHTML = '';
+
+                const etapaKey = `etapa${etapaNum}`;
+                const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
+                targetObj[etapaKey] = targetObj[etapaKey] || {};
+
+                let anexos = targetObj[etapaKey].anexos || [];
+
+                // Migrar anexo legado único para array
+                const anexoAntigo = targetObj[etapaKey].anexo;
+                if (anexoAntigo && anexos.length === 0) {
+                    anexoAntigo.id = anexoAntigo.id || Math.random().toString(36).substring(7);
+                    anexos.push(anexoAntigo);
+                    targetObj[etapaKey].anexos = anexos;
+                    delete targetObj[etapaKey].anexo;
+                    salvarAnexosGenericosDb();
+                }
+
+                // Guarda o índice real: quando há vários campos (Etapa 4), cada um
+                // mostra só os seus anexos, mas todos vivem no mesmo array.
+                const visiveis = anexos
+                    .map((a, i) => ({ a, i }))
+                    .filter(({ a }) => !tipoDocumento || a.tipo_documento === tipoDocumento);
+
+                if (visiveis.length === 0) {
+                    listaDiv.innerHTML = '<span style="font-size:0.9rem; color:#6d28d9; background: #ede9fe; padding: 4px 10px; border-radius: 12px; display: inline-block; width:fit-content; margin:0 auto;">Nenhum arquivo selecionado</span>';
                     return;
                 }
-                resolve({
-                    id: Math.random().toString(36).substring(7),
-                    nome: file.name,
-                    tipo: file.type,
-                    dataUrl: urlFinal,
-                    url: urlFinal,
-                    data_upload: new Date().toISOString()
+
+                visiveis.forEach(({ a, i }) => {
+                    const item = document.createElement('div');
+                    item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1;';
+                    // Campo de um tipo só não precisa repetir a etiqueta em cada arquivo
+                    const etiquetaTipo = (!tipoDocumento && a.tipo_documento)
+                        ? `<span style="font-size:0.72rem; font-weight:700; color:#5b21b6; background:#ede9fe; padding:2px 8px; border-radius:10px; white-space:nowrap;">${a.tipo_documento}</span>`
+                        : '';
+                    item.innerHTML = `
+                        <span style="font-size:0.9rem; color:#334155; font-weight:600; display:flex; align-items:center; gap:8px; overflow:hidden; max-width:65%;" title="${a.nome}">
+                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${a.nome}</span>${etiquetaTipo}
+                        </span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button type="button" class="btn-ver-anexo" data-index="${i}" style="padding:4px 10px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; font-size:0.8rem; cursor:pointer;">Visualizar</button>
+                            <button type="button" class="btn-excluir-anexo" data-index="${i}" style="background:none; border:none; color:#ef4444; cursor:pointer; font-weight:bold; font-size:1.2rem; line-height:1; padding:0 5px;" title="Remover anexo">×</button>
+                        </div>
+                    `;
+                    listaDiv.appendChild(item);
                 });
-            }));
 
-            // Espera todos os uploads. Arquivo que falhou volta como null
-            // (o uploadParaCloudinary já avisou o usuário), então sai da lista.
-            const newAnexos = (await Promise.all(readPromises)).filter(Boolean);
+                listaDiv.querySelectorAll('.btn-ver-anexo').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const idx = e.target.getAttribute('data-index');
+                        const targetAnexo = anexos[idx];
+                        if (!targetAnexo) return;
 
-            if (newAnexos.length === 0) {
-                renderizarListaAnexos();
-                return;
-            }
+                        let content = targetAnexo.base64 || targetAnexo.url || targetAnexo.dataUrl;
 
-            const etapaKey = `etapa${etapaNum}`;
-            const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
-            targetObj[etapaKey] = targetObj[etapaKey] || {};
-            targetObj[etapaKey].anexos = targetObj[etapaKey].anexos || [];
+                        if (!content && (targetAnexo.documento_id || targetAnexo.id)) {
+                            const docId = targetAnexo.documento_id || targetAnexo.id;
+                            try {
+                                const { data } = await supabaseClient
+                                    .from('documentos')
+                                    .select('url')
+                                    .eq('id', docId)
+                                    .maybeSingle();
+                                if (data && data.url) {
+                                    content = data.url;
+                                }
+                            } catch (errDoc) {
+                                console.error('Erro ao buscar documento em documentos:', errDoc);
+                            }
+                        }
 
-            const anexosAtuais = targetObj[etapaKey].anexos;
+                        if (content) {
+                            window.abrirAnexoEmNovaAba(content, e, targetAnexo.nome);
+                        } else {
+                            alert('Conteúdo do arquivo não disponível.');
+                        }
+                    });
+                });
 
-            // Tratamento específico para Etapas 3 e 4: Salva o arquivo na tabela 'documentos'
-            if (etapaNum === 3 || etapaNum === 4) {
-                const rotuloCarregamento = etapaNum === 3 ? 'Salvando defesa(s) em documentos...' : 'Salvando comprovante(s) em documentos...';
-                mostrarCarregamento(rotuloCarregamento);
-                const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
-                const tipoDoc = etapaNum === 3
-                    ? 'Defesa'
-                    : ((notificacaoAtual?.status === 'dilacao') ? 'Comprovante de Renda/Propriedade' : 'Comprovante de Propriedade');
+                listaDiv.querySelectorAll('.btn-excluir-anexo').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const idx = e.target.getAttribute('data-index');
+                        const targetAnexo = anexos[idx];
+                        if (confirm('Tem certeza que deseja remover este anexo?')) {
+                            if (targetAnexo && (targetAnexo.documento_id || targetAnexo.id)) {
+                                const docId = targetAnexo.documento_id || targetAnexo.id;
+                                try {
+                                    await supabaseClient.from('documentos').delete().eq('id', docId);
+                                } catch (errDel) {
+                                    console.error('Erro ao remover registro da tabela documentos:', errDel);
+                                }
+                            }
+                            anexos.splice(idx, 1);
+                            await salvarAnexosGenericosDb();
+                            renderizarListaAnexos();
+                        }
+                    });
+                });
+            };
 
-                const anexosParaSalvar = [];
-
-                for (const itemFile of newAnexos) {
-                    const existe = anexosAtuais.some(a => a.nome === itemFile.nome);
-                    if (existe) {
-                        alert(`O arquivo "${itemFile.nome}" já foi anexado. Ele não será adicionado novamente.`);
-                        continue;
-                    }
-
-                    // Se for etapa 4 e for imagem, salva com tipo 'imagem' conforme pedido
-                    let tipoSalvar = tipoDoc;
-                    if (etapaNum === 3 && itemFile.tipo && itemFile.tipo.startsWith('image/')) {
-                        tipoSalvar = 'imagem';
-                    }
-
-                    try {
-                        const { data: docIns, error: errDoc } = await supabaseClient
-                            .from('documentos')
-                            .insert([{
-                                processo_id: processoAtual.id,
-                                notificacao_id: notificacaoAtual?.id || null,
-                                etapa_id: etapaNum,
-                                tipo: tipoSalvar,
-                                nome_arquivo: itemFile.nome,
-                                url: itemFile.dataUrl,
-                                mime_type: itemFile.tipo,
-                                gerado_automaticamente: false,
-                                usuario_id: perfilId
-                            }])
-                            .select('id')
-                            .single();
-
-                        if (errDoc) throw errDoc;
-
-                        // Guarda apenas a referência (ID do documento) no JSON da notificação
-                        anexosParaSalvar.push({
-                            id: docIns.id,
-                            documento_id: docIns.id,
-                            nome: itemFile.nome,
-                            tipo: itemFile.tipo,
-                            tipo_documento: tipoDoc,
-                            data_upload: itemFile.data_upload
-                        });
-                    } catch (errIns) {
-                        console.error(`Erro ao salvar documento da Etapa ${etapaNum} em documentos:`, errIns);
-                        alert(`Erro ao salvar o arquivo "${itemFile.nome}" na tabela de documentos.`);
-                    }
-                }
-
-                if (anexosParaSalvar.length > 0) {
-                    targetObj[etapaKey].anexos = [...anexosAtuais, ...anexosParaSalvar];
-                    await salvarAnexosGenericosDb();
-                }
-                ocultarCarregamento();
-                renderizarListaAnexos();
-                return;
-            }
-
-            const anexosFiltrados = newAnexos.filter(newAnexo => {
-                const existe = anexosAtuais.some(a => a.nome === newAnexo.nome);
-                if (existe) {
-                    alert(`O arquivo "${newAnexo.nome}" já foi anexado. Ele não será adicionado novamente.`);
-                }
-                return !existe;
+            const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+                areaDrop.addEventListener(evt, preventDefaults, false);
             });
 
-            if (anexosFiltrados.length > 0) {
-                targetObj[etapaKey].anexos = [...anexosAtuais, ...anexosFiltrados];
-                await salvarAnexosGenericosDb();
-            }
-            renderizarListaAnexos();
-        });
+            ['dragenter', 'dragover'].forEach(evt => {
+                areaDrop.addEventListener(evt, () => areaDrop.style.background = '#ede9fe', false);
+            });
 
-        renderizarListaAnexos();
+            ['dragleave', 'drop'].forEach(evt => {
+                areaDrop.addEventListener(evt, () => areaDrop.style.background = '#f5f3ff', false);
+            });
+
+            areaDrop.addEventListener('drop', (e) => {
+                let dt = e.dataTransfer;
+                let files = dt.files;
+                if (files && files.length > 0) {
+                    inputAnexo.files = files;
+                    inputAnexo.dispatchEvent(new Event('change'));
+                }
+            });
+
+            areaDrop.addEventListener('click', (e) => {
+                if (e.target !== inputAnexo && !e.target.closest('button')) inputAnexo.click();
+            });
+
+            inputAnexo.addEventListener('change', async (e) => {
+                const files = Array.from(e.target.files);
+                if (!files.length) return;
+
+                const listaDiv = formDiv.querySelector(`#listaAnexosGenericos${sufixo}`);
+                listaDiv.innerHTML = '<div style="text-align:center; color:#64748b; font-size:0.9rem;">Carregando arquivo(s)...</div>';
+
+                const readPromises = files.map(file => new Promise(async resolve => {
+                    let urlFinal = null;
+                    if (typeof window.uploadParaCloudinary === 'function') {
+                        try {
+                            urlFinal = await window.uploadParaCloudinary(file, 'semac_anexos');
+                        } catch (cldErr) {
+                            console.warn('[Cloudinary Warning] Upload de anexo falhou:', cldErr);
+                        }
+                    }
+                    if (!urlFinal) {
+                        resolve(null);
+                        return;
+                    }
+                    resolve({
+                        id: Math.random().toString(36).substring(7),
+                        nome: file.name,
+                        tipo: file.type,
+                        dataUrl: urlFinal,
+                        url: urlFinal,
+                        data_upload: new Date().toISOString()
+                    });
+                }));
+
+                // Espera todos os uploads. Arquivo que falhou volta como null
+                // (o uploadParaCloudinary já avisou o usuário), então sai da lista.
+                const newAnexos = (await Promise.all(readPromises)).filter(Boolean);
+
+                if (newAnexos.length === 0) {
+                    renderizarListaAnexos();
+                    return;
+                }
+
+                const etapaKey = `etapa${etapaNum}`;
+                const targetObj = notificacaoAtual ? (notificacaoAtual.dados = notificacaoAtual.dados || {}) : (processoAtual.campos = processoAtual.campos || {});
+                targetObj[etapaKey] = targetObj[etapaKey] || {};
+                targetObj[etapaKey].anexos = targetObj[etapaKey].anexos || [];
+
+                const anexosAtuais = targetObj[etapaKey].anexos;
+
+                // Tratamento específico para Etapas 3 e 4: Salva o arquivo na tabela 'documentos'
+                if (etapaNum === 3 || etapaNum === 4) {
+                    const rotuloCarregamento = etapaNum === 3 ? 'Salvando defesa(s) em documentos...' : 'Salvando comprovante(s) em documentos...';
+                    mostrarCarregamento(rotuloCarregamento);
+                    const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
+                    // Na Etapa 4 da dilação cada campo tem o seu tipo fixo (tipoDocumento)
+                    const tipoDoc = tipoDocumento
+                        || (etapaNum === 3 ? 'Defesa' : 'Comprovante de Propriedade');
+
+                    const anexosParaSalvar = [];
+
+                    for (const itemFile of newAnexos) {
+                        const existe = anexosAtuais.some(a => a.nome === itemFile.nome
+                            && (!tipoDocumento || a.tipo_documento === tipoDocumento));
+                        if (existe) {
+                            alert(`O arquivo "${itemFile.nome}" já foi anexado. Ele não será adicionado novamente.`);
+                            continue;
+                        }
+
+                        // Se for etapa 4 e for imagem, salva com tipo 'imagem' conforme pedido
+                        let tipoSalvar = tipoDoc;
+                        if (etapaNum === 3 && itemFile.tipo && itemFile.tipo.startsWith('image/')) {
+                            tipoSalvar = 'imagem';
+                        }
+
+                        try {
+                            const { data: docIns, error: errDoc } = await supabaseClient
+                                .from('documentos')
+                                .insert([{
+                                    processo_id: processoAtual.id,
+                                    notificacao_id: notificacaoAtual?.id || null,
+                                    etapa_id: etapaNum,
+                                    tipo: tipoSalvar,
+                                    nome_arquivo: itemFile.nome,
+                                    url: itemFile.dataUrl,
+                                    mime_type: itemFile.tipo,
+                                    gerado_automaticamente: false,
+                                    usuario_id: perfilId
+                                }])
+                                .select('id')
+                                .single();
+
+                            if (errDoc) throw errDoc;
+
+                            // Guarda apenas a referência (ID do documento) no JSON da notificação
+                            anexosParaSalvar.push({
+                                id: docIns.id,
+                                documento_id: docIns.id,
+                                nome: itemFile.nome,
+                                tipo: itemFile.tipo,
+                                tipo_documento: tipoDoc,
+                                data_upload: itemFile.data_upload
+                            });
+                        } catch (errIns) {
+                            console.error(`Erro ao salvar documento da Etapa ${etapaNum} em documentos:`, errIns);
+                            alert(`Erro ao salvar o arquivo "${itemFile.nome}" na tabela de documentos.`);
+                        }
+                    }
+
+                    if (anexosParaSalvar.length > 0) {
+                        targetObj[etapaKey].anexos = [...anexosAtuais, ...anexosParaSalvar];
+                        await salvarAnexosGenericosDb();
+                    }
+                    ocultarCarregamento();
+                    renderizarListaAnexos();
+                    return;
+                }
+
+                const anexosFiltrados = newAnexos.filter(newAnexo => {
+                    const existe = anexosAtuais.some(a => a.nome === newAnexo.nome);
+                    if (existe) {
+                        alert(`O arquivo "${newAnexo.nome}" já foi anexado. Ele não será adicionado novamente.`);
+                    }
+                    return !existe;
+                });
+
+                if (anexosFiltrados.length > 0) {
+                    targetObj[etapaKey].anexos = [...anexosAtuais, ...anexosFiltrados];
+                    await salvarAnexosGenericosDb();
+                }
+                renderizarListaAnexos();
+            });
+
+            renderizarListaAnexos();
+        }
+    };
+
+    if (etapaNum === 4 && notificacaoAtual?.status === 'dilacao') {
+        TIPOS_DOCUMENTO_ETAPA_4.forEach(t => configurarUploadGenerico(t.sufixo, t.tipo));
+    } else {
+        configurarUploadGenerico();
     }
 
     if (etapaNum === 10) {
@@ -2467,11 +2505,9 @@ function renderizarFormularioDinamico(etapaNum) {
             if (typeof window.gerarCertidaoSemDefesa === 'function') {
                 window.gerarCertidaoSemDefesa(true);
             }
-            const inpNum = formDiv.querySelector('#inputNumNotificacaoCertidao');
-            const inpTipo = formDiv.querySelector('#inputTipoInfracaoCertidao');
+            // O número da notificação e o tipo da infração vêm da própria
+            // notificação; só a seleção do "foi resolvido?" refaz a certidão.
             const selectRes = formDiv.querySelector('#selectResolvidoCertidao');
-            if (inpNum) inpNum.addEventListener('input', () => window.gerarCertidaoSemDefesa(true));
-            if (inpTipo) inpTipo.addEventListener('input', () => window.gerarCertidaoSemDefesa(true));
             if (selectRes) selectRes.addEventListener('change', () => window.gerarCertidaoSemDefesa(true));
         }, 150);
     }
@@ -2539,7 +2575,8 @@ async function renderizarProcessoCancelado(proc) {
 
     // Renderiza documento oficial
     await renderizarPainelEtapa1(proc);
-    renderizarDocumentoOficial(proc);
+    // Processo cancelado: a tela serve para consultar os documentos, então mostra
+    renderizarDocumentoOficial(proc, { forcar: true });
 
     // Mantém imprimir/baixar funcionando: o processo está cancelado, mas os
     // documentos continuam disponíveis para consulta.
@@ -2723,10 +2760,8 @@ async function carregarProcessoCompleto(processoId) {
         if (alterouLida && typeof salvarNotificacoesMenuNoBanco === 'function') {
             salvarNotificacoesMenuNoBanco();
         }
-        console.log('[DEBUG] carregarProcessoCompleto — etapa_atual_id:', proc.etapa_atual_id, '| etapa_atual:', proc.etapa_atual, '| etapas:', proc.etapas);
 
         preencherCabecalhoPagina(proc);
-        console.log('[DEBUG PAINEL] etapaAtual:', etapaAtual, '| vai renderizar painel?', (etapaAtual !== 2 && etapaAtual !== 16 && etapaAtual !== 17 && etapaAtual !== 30));
         if (etapaAtual !== 2 && etapaAtual !== 16 && etapaAtual !== 17 && etapaAtual !== 30) {
             preencherFormularioEdicao(proc);
             renderizarDocumentoOficial(proc);
@@ -2834,7 +2869,6 @@ function aplicarModoAcesso(modo) {
     const stepperPadrao = document.querySelector('.process-stepper-bar:not(#stepperEtapa16)');
 
     if (modo === MODO_ACESSO.LEITURA_NOTIFICACAO) {
-        console.log('[DEBUG PAINEL] aplicarModoAcesso → LEITURA_NOTIFICACAO — painel será ocultado');
         // Sempre oculta abas, painel de ações da etapa 1 e botão salvar no modo leitura
         if (abas) abas.style.display = 'none';
         if (painelAcoes) painelAcoes.style.display = 'none';
@@ -2868,7 +2902,6 @@ function aplicarModoAcesso(modo) {
     }
 
     if (modo === MODO_ACESSO.VISUALIZACAO_COMPLETA) {
-        console.log('[DEBUG PAINEL] aplicarModoAcesso → VISUALIZACAO_COMPLETA — painel será ocultado');
         if (!ehEtapa16) {
             if (painelAcoes) painelAcoes.style.display = 'none';
             if (btnSalvar) btnSalvar.style.display = 'none';
@@ -3197,35 +3230,188 @@ async function avancarEtapa3() {
 async function avancarEtapa4() {
     if (!processoAtual || !notificacaoAtual) return;
 
-    const anexos = notificacaoAtual.dados?.etapa4?.anexos || [];
-    let proxEtapa = 7;
-    let motivo = 'Comprovante verificado';
+    // A Etapa 4 é só dos documentos da dilação e os três são opcionais: ela sempre
+    // segue para a análise da dilação (Etapa 5), tenha anexado algo ou não.
+    let proxEtapa = 5;
+    let motivo = 'Documentos da dilação conferidos';
 
-    if (notificacaoAtual.status === 'dilacao') {
-        proxEtapa = 5;
-        motivo = 'Avançando para análise de dilação';
-    } else if (notificacaoAtual.status === 'defesa') {
-        if (anexos.length < 1) {
-            if (!confirm('Você não anexou o Comprovante de Propriedade. Sem ele, a defesa será negada. Deseja avançar sem o documento e ir direto para a Etapa 7?')) {
-                return;
-            }
-            proxEtapa = 7;
-            motivo = 'Defesa negada automaticamente por falta de documento';
-        } else {
-            proxEtapa = 3;
-            motivo = 'Comprovante verificado, enviar defesa';
-        }
-    } else if (notificacaoAtual.status === 'atendida') {
-        proxEtapa = 7;
-        motivo = 'Notificação atendida';
-    } else {
-        proxEtapa = 7;
-        motivo = 'Não atendida e vencida';
+    // Defesa não passa mais por aqui (a Etapa 2 manda direto para a 3). Isto cobre
+    // só os processos antigos que ficaram parados nesta etapa com status de defesa.
+    if (notificacaoAtual.status === 'defesa') {
+        proxEtapa = 3;
+        motivo = 'Defesa: seguindo para o envio da defesa';
     }
 
     mostrarCarregamento('Avançando etapa...');
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
+
+
+
+// O botão "Gerar/Atualizar Réplica" chamava gerarReplica() direto e nada mudava
+// na tela: o fiscal clicava e não sabia se tinha funcionado. A gerarReplica()
+// também roda sozinha (ao abrir a etapa e ao trocar a decisão), e aí não deve
+// aparecer nada — por isso o aviso fica aqui, só no caminho do clique.
+window.gerarReplicaComAviso = async function (botao) {
+    if (!botao || botao.disabled) return;
+
+    const htmlOriginal = botao.dataset.htmlOriginal || botao.innerHTML;
+    botao.dataset.htmlOriginal = htmlOriginal;
+    botao.disabled = true;
+    botao.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin-right:8px; display:inline-block; border:2px solid transparent; border-top-color:currentColor; border-radius:50%; animation:spin 1s linear infinite;"></div> Gerando...';
+
+    try {
+        await window.gerarReplica();
+        botao.innerHTML = '✓ Réplica atualizada';
+        botao.style.background = '#16a34a';
+        botao.style.borderColor = '#16a34a';
+    } catch (err) {
+        console.error('Erro ao gerar a réplica:', err);
+        botao.innerHTML = '⚠️ Não deu para gerar';
+        botao.style.background = '#dc2626';
+        botao.style.borderColor = '#dc2626';
+    } finally {
+        setTimeout(() => {
+            botao.innerHTML = htmlOriginal;
+            botao.style.background = '';
+            botao.style.borderColor = '';
+            botao.disabled = false;
+        }, 2000);
+    }
+};
+
+// Processo aberto como reincidência (Novo Processo, "A infração é reincidente?").
+// Ele nasce no Auto de Infração sem ter Notificação Preliminar própria: o que
+// deu origem ao Auto é o descumprimento do Auto ANTERIOR, não de uma notificação.
+function processoEhReincidencia(proc) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    if (!p) return false;
+    const campos = p.campos || p.dados?.campos || {};
+    return p.dados?.infracoes?.reincidente === 'sim' || !!campos.reincidencia;
+}
+window.processoEhReincidencia = processoEhReincidencia;
+
+function dadosDaReincidencia(proc) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    const campos = p?.campos || p?.dados?.campos || {};
+    return {
+        numeroAuto: campos.auto_infracao_anterior_numero || '',
+        dataAuto: campos.auto_infracao_anterior_data || '',
+        numeroProcesso: campos.reincidencia?.processo_anterior_numero || ''
+    };
+}
+window.dadosDaReincidencia = dadosDaReincidencia;
+
+// ── Paralisação aguardando o Jurídico ──────────────────────────────────────
+// A conversa com o Jurídico acontece no chat. Enquanto ela não volta, o fiscal
+// pode paralisar o processo: o prazo para de correr e todo mundo vê o aviso.
+// O vencimento é guardado e devolvido na retomada com o tempo que faltava, para
+// a paralisação não comer dias do contribuinte.
+function obterParalisacaoJuridico(notif) {
+    const n = notif || (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null);
+    return n?.dados?.aguardando_juridico || null;
+}
+window.obterParalisacaoJuridico = obterParalisacaoJuridico;
+
+function htmlAvisoParalisadoJuridico(notif) {
+    const info = obterParalisacaoJuridico(notif);
+    if (!info) return '';
+
+    const desde = info.em ? new Date(info.em).toLocaleDateString('pt-BR') : '';
+    const quem = info.nome ? ` por <strong>${info.nome}</strong>` : '';
+    return `
+        <div style="background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:14px 16px; margin-bottom:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <span style="font-size:1.4rem;">⏸️</span>
+            <div style="flex:1; min-width:220px;">
+                <div style="font-weight:700; color:#3730a3; font-size:0.95rem;">Processo paralisado — aguardando análise do Jurídico</div>
+                <div style="font-size:0.85rem; color:#4338ca;">
+                    Paralisado em ${desde}${quem}. O prazo de vencimento está parado e volta a contar na retomada.
+                </div>
+            </div>
+            <button type="button" onclick="window.retomarProcessoJuridico()"
+                    style="padding:8px 16px; border-radius:8px; border:1px solid #4f46e5; background:white; color:#3730a3; font-weight:700; font-size:0.85rem; cursor:pointer;">
+                Retomar processo
+            </button>
+        </div>`;
+}
+window.htmlAvisoParalisadoJuridico = htmlAvisoParalisadoJuridico;
+
+function htmlBotaoParalisarJuridico() {
+    if (obterParalisacaoJuridico()) return '';
+    return `
+        <div style="margin-top:16px; padding:14px 16px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px;">
+            <div style="font-weight:700; color:#334155; font-size:0.9rem;">Precisa da análise do Jurídico?</div>
+            <div style="font-size:0.84rem; color:#64748b; margin:2px 0 10px 0;">
+                Converse pelo chat. Se for esperar a resposta, paralise o processo: o prazo para de correr
+                e os outros veem que ele está aguardando o Jurídico.
+            </div>
+            <button type="button" onclick="window.paralisarProcessoJuridico()"
+                    style="padding:9px 16px; border-radius:8px; border:1px solid #6366f1; background:#eef2ff; color:#3730a3; font-weight:700; font-size:0.85rem; cursor:pointer;">
+                ⏸️ Paralisar aguardando o Jurídico
+            </button>
+        </div>`;
+}
+window.htmlBotaoParalisarJuridico = htmlBotaoParalisarJuridico;
+
+window.paralisarProcessoJuridico = async function () {
+    if (!notificacaoAtual) return;
+    if (obterParalisacaoJuridico()) return;
+    if (!confirm('Paralisar o processo enquanto aguarda o Jurídico?\n\nO prazo de vencimento para de contar e volta de onde parou quando você retomar.')) return;
+
+    mostrarCarregamento('Paralisando o processo...');
+    try {
+        notificacaoAtual.dados = notificacaoAtual.dados || {};
+        notificacaoAtual.dados.aguardando_juridico = {
+            em: new Date().toISOString(),
+            por: perfilAtual?.id || null,
+            nome: perfilAtual?.nome || '',
+            vencimento_pausado: notificacaoAtual.data_vencimento || null
+        };
+
+        // Sem data_vencimento o painel para de contar (e volta a mostrar "—")
+        await atualizarNotificacaoNoBanco(notificacaoAtual.id, {
+            dados: notificacaoAtual.dados,
+            data_vencimento: null
+        });
+        notificacaoAtual.data_vencimento = null;
+        location.reload();
+    } catch (err) {
+        console.error('Erro ao paralisar o processo:', err);
+        alert('Não foi possível paralisar o processo.');
+        ocultarCarregamento();
+    }
+};
+
+window.retomarProcessoJuridico = async function () {
+    if (!notificacaoAtual) return;
+    const info = obterParalisacaoJuridico();
+    if (!info) return;
+    if (!confirm('Retomar o processo?\n\nO prazo volta a contar com os dias que faltavam quando ele foi paralisado.')) return;
+
+    mostrarCarregamento('Retomando o processo...');
+    try {
+        // Devolve o tempo que faltava: vencimento = agora + (vencimento - início da pausa)
+        let novoVencimento = info.vencimento_pausado || null;
+        if (info.vencimento_pausado && info.em) {
+            const restanteMs = new Date(info.vencimento_pausado).getTime() - new Date(info.em).getTime();
+            if (!isNaN(restanteMs)) novoVencimento = new Date(Date.now() + Math.max(restanteMs, 0)).toISOString();
+        }
+
+        notificacaoAtual.dados = notificacaoAtual.dados || {};
+        delete notificacaoAtual.dados.aguardando_juridico;
+
+        await atualizarNotificacaoNoBanco(notificacaoAtual.id, {
+            dados: notificacaoAtual.dados,
+            data_vencimento: novoVencimento
+        });
+        notificacaoAtual.data_vencimento = novoVencimento;
+        location.reload();
+    } catch (err) {
+        console.error('Erro ao retomar o processo:', err);
+        alert('Não foi possível retomar o processo.');
+        ocultarCarregamento();
+    }
+};
 
 async function avancarEtapa5() {
     if (!processoAtual || !notificacaoAtual) return;
@@ -3239,7 +3425,7 @@ async function avancarEtapa5() {
     const dias = inputDias ? parseInt(inputDias.value, 10) : 0;
 
     if (!decisao) {
-        alert('Por favor, selecione a decisão da dilação (Defere, Indefere, Manda para gerente).');
+        alert('Por favor, selecione a decisão da dilação (Defere ou Indefere).');
         return;
     }
 
@@ -3248,7 +3434,7 @@ async function avancarEtapa5() {
         return;
     }
 
-    if ((decisao === 'indefere' || decisao === 'gerente') && !justificativa) {
+    if (decisao === 'indefere' && !justificativa) {
         alert('Por favor, preencha o motivo (justificativa).');
         return;
     }
@@ -3292,11 +3478,25 @@ async function avancarEtapa5() {
         proxEtapa = 2;
         motivo = 'Dilação Deferida';
     } else if (decisao === 'indefere') {
-        proxEtapa = 7;
-        motivo = 'Dilação Indeferida';
-    } else if (decisao === 'gerente') {
-        proxEtapa = 11;
-        motivo = 'Análise do Gerente';
+        // Indeferir não encerra o prazo do contribuinte: se ainda falta prazo, ele
+        // volta para a Etapa 2 para cumprir a notificação. Só vai para a análise
+        // da Etapa 7 quando o prazo já venceu. Sem vencimento (prazo ainda não
+        // começou ou processo paralisado), trata como dentro do prazo.
+        const prazo = notificacaoAtual.data_vencimento
+            ? formatarDiasRestantes(notificacaoAtual.data_vencimento)
+            : { vencido: false };
+
+        if (prazo.vencido) {
+            // Prazo acabou: vai direto para a certidão, já marcada como não resolvido
+            marcarResolvidoParaCertidao(notificacaoAtual, 'nao');
+            proxEtapa = 10;
+            motivo = 'Dilação Indeferida (prazo vencido)';
+        } else {
+            notificacaoAtual.status = 'pendente';
+            notificacaoAtual.dados.etapa2_ja_pediu_dilacao = true;
+            proxEtapa = 2;
+            motivo = 'Dilação Indeferida (ainda no prazo)';
+        }
     }
 
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, data_vencimento: notificacaoAtual.data_vencimento, status: notificacaoAtual.status });
@@ -3308,18 +3508,16 @@ async function avancarEtapa13() {
 
     const select = document.getElementById('selectDecisaoDilacao');
     const txtJustificativa = document.getElementById('txtJustificativaDilacao');
-    const selectParecer = document.getElementById('selectParecerGerente');
 
     const decisao = select ? select.value : '';
     const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
-    const parecer = (decisao === 'gerente' && selectParecer) ? selectParecer.value : '';
 
     if (!decisao) {
-        alert('Por favor, selecione a decisão da defesa (Defere, Indefere, Manda para gerente).');
+        alert('Por favor, selecione a decisão da defesa (Defere ou Indefere).');
         return;
     }
 
-    if ((decisao === 'indefere' || decisao === 'gerente') && !justificativa) {
+    if (decisao === 'indefere' && !justificativa) {
         alert('Por favor, preencha o motivo (justificativa).');
         return;
     }
@@ -3344,7 +3542,7 @@ async function avancarEtapa13() {
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
-    notificacaoAtual.dados.etapa13 = { decisao, justificativa, parecer, data_decisao: new Date().toISOString() };
+    notificacaoAtual.dados.etapa13 = { decisao, justificativa, data_decisao: new Date().toISOString() };
 
     // Atualiza/Gera e salva a Réplica HTML no banco antes de mover de etapa
     if (typeof window.gerarReplica === 'function') {
@@ -3360,9 +3558,6 @@ async function avancarEtapa13() {
     } else if (decisao === 'indefere') {
         proxEtapa = 10;
         motivo = 'Defesa Indeferida pelo Fiscal';
-    } else if (decisao === 'gerente') {
-        proxEtapa = 11;
-        motivo = 'Análise do Gerente';
     }
 
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, status: notificacaoAtual.status });
@@ -3461,10 +3656,8 @@ async function avancarEtapa7() {
     if (!processoAtual || !notificacaoAtual) return;
 
     const select = document.getElementById('selectCumprimento');
-    const selectJuridico = document.getElementById('selectJuridico');
 
     const decisao = select ? select.value : '';
-    const vaiParaJuridico = selectJuridico ? selectJuridico.value : 'nao';
 
     if (!decisao) {
         alert('Por favor, selecione uma opção de cumprimento.');
@@ -3476,23 +3669,14 @@ async function avancarEtapa7() {
     notificacaoAtual.dados = notificacaoAtual.dados || {};
     notificacaoAtual.dados.etapa7 = {
         cumprimento: decisao,
-        juridico: vaiParaJuridico,
         data_analise: new Date().toISOString()
     };
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
 
+    // Aqui o caso já está decidido: ou cumpriu, ou venceu. Falar com o Jurídico
+    // é conversa de chat, não muda a etapa — por isso os dois destinos são a 10.
     let proxEtapa = 10;
-    let motivo = 'Não Cumprido (Vencida)';
-
-    if (vaiParaJuridico === 'sim') {
-        proxEtapa = 32;
-        motivo = 'Enviar para o Jurídico';
-    } else {
-        if (decisao === 'atendida') {
-            proxEtapa = 10;
-            motivo = 'Cumprido (Atendida)';
-        }
-    }
+    let motivo = decisao === 'atendida' ? 'Cumprido (Atendida)' : 'Não Cumprido (Vencida)';
 
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
@@ -3725,7 +3909,7 @@ window.gerarZipComTodosDocumentos = async function () {
 
         // 8. Comprovante de Propriedade (se houver)
         const docProp = docsBanco.find(d => ['Comprovante de Propriedade', 'Propriedade', 'Matrícula', 'Escritura', 'Comprovante de Renda/Propriedade'].includes(d.tipo))
-            || (notificacaoAtual.dados?.etapa4?.anexos ? notificacaoAtual.dados.etapa4.anexos.find(a => (a.nome || '').toLowerCase().includes('propriedade')) || notificacaoAtual.dados.etapa4.anexos[0] : null);
+            || anexoEtapa4Por('propriedade');
 
         let urlProp = docProp?.url || docProp?.dataUrl || docProp?.base64;
         if (urlProp) {
@@ -3734,7 +3918,7 @@ window.gerarZipComTodosDocumentos = async function () {
 
         // 9. Comprovante de Renda (se houver)
         const docRenda = docsBanco.find(d => ['Comprovante de Renda', 'Renda', 'Comprovante Renda'].includes(d.tipo))
-            || (notificacaoAtual.dados?.etapa4?.anexos ? notificacaoAtual.dados.etapa4.anexos.find(a => (a.nome || '').toLowerCase().includes('renda')) || (notificacaoAtual.dados.etapa4.anexos.length > 1 ? notificacaoAtual.dados.etapa4.anexos[1] : null) : null);
+            || anexoEtapa4Por('renda');
 
         let urlRenda = docRenda?.url || docRenda?.dataUrl || docRenda?.base64;
         if (urlRenda) {
@@ -4053,7 +4237,7 @@ window.carregarArquivosEtapa29 = async function () {
     // 7. Comprovante de Propriedade (se houver)
     const docProp = docsBanco.find(d => ['Comprovante de Propriedade', 'Propriedade', 'Matrícula', 'Escritura'].includes(d.tipo))
         || docsBanco.find(d => d.tipo === 'Comprovante de Renda/Propriedade')
-        || (notificacaoAtual.dados?.etapa4?.anexos ? notificacaoAtual.dados.etapa4.anexos.find(a => (a.nome || '').toLowerCase().includes('propriedade') || (a.tipo || '').toLowerCase().includes('propriedade')) || notificacaoAtual.dados.etapa4.anexos[0] : null);
+        || anexoEtapa4Por('propriedade');
 
     if (docProp || notificacaoAtual.dados?.etapa4) {
         listaCards.push({
@@ -4070,7 +4254,7 @@ window.carregarArquivosEtapa29 = async function () {
 
     // 8. Comprovante de Renda (se houver)
     const docRenda = docsBanco.find(d => ['Comprovante de Renda', 'Renda', 'Comprovante Renda'].includes(d.tipo))
-        || (notificacaoAtual.dados?.etapa4?.anexos ? notificacaoAtual.dados.etapa4.anexos.find(a => (a.nome || '').toLowerCase().includes('renda') || (a.tipo || '').toLowerCase().includes('renda')) || (notificacaoAtual.dados.etapa4.anexos.length > 1 ? notificacaoAtual.dados.etapa4.anexos[1] : null) : null);
+        || anexoEtapa4Por('renda');
 
     if (docRenda) {
         listaCards.push({
@@ -4310,7 +4494,7 @@ window.baixarDocUnico = async function (tipo) {
             alert(`Processo regido pelo Decreto Municipal Nº ${numDec}. O arquivo PDF anexado do Decreto não foi localizado no banco.`);
         } else if (tipo === 'comprovante_renda') {
             const docRenda = docsBanco.find(d => ['Comprovante de Renda', 'Renda', 'Comprovante Renda'].includes(d.tipo))
-                || (notificacaoAtual.dados?.etapa4?.anexos ? notificacaoAtual.dados.etapa4.anexos.find(a => (a.nome || '').toLowerCase().includes('renda')) || notificacaoAtual.dados.etapa4.anexos[1] : null);
+                || anexoEtapa4Por('renda');
 
             let urlRenda = docRenda?.url || docRenda?.dataUrl || docRenda?.base64;
             if (!urlRenda && docRenda?.documento_id) {
@@ -4327,7 +4511,7 @@ window.baixarDocUnico = async function (tipo) {
             alert('Comprovante de Renda não encontrado.');
         } else if (tipo === 'comprovante_propriedade') {
             const docProp = docsBanco.find(d => ['Comprovante de Propriedade', 'Propriedade', 'Matrícula', 'Escritura', 'Comprovante de Renda/Propriedade'].includes(d.tipo))
-                || (notificacaoAtual.dados?.etapa4?.anexos ? notificacaoAtual.dados.etapa4.anexos.find(a => (a.nome || '').toLowerCase().includes('propriedade')) || notificacaoAtual.dados.etapa4.anexos[0] : null);
+                || anexoEtapa4Por('propriedade');
 
             let urlProp = docProp?.url || docProp?.dataUrl || docProp?.base64;
             if (!urlProp && docProp?.documento_id) {
@@ -5508,7 +5692,6 @@ async function renderizarStepperPadrao(proc) {
 }
 
 async function renderizarPainelEtapa1(proc) {
-    console.log('[DEBUG PAINEL] renderizarPainelEtapa1 chamada — etapa_atual:', proc?.etapa_atual, '| proc.id:', proc?.id);
 
     // 1. Atualizar Stepper Visual no Topo
     await renderizarStepperPadrao(proc);
@@ -7761,9 +7944,23 @@ function htmlObservacoesFiscal(proc, estiloParagrafo) {
 }
 window.htmlObservacoesFiscal = htmlObservacoesFiscal;
 
+// Etapas que GERAM documento: só nelas a prévia aparece embaixo do formulário,
+// para a pessoa conferir antes de baixar. Nas outras o documento continuava
+// sendo redesenhado sem necessidade, repetindo a NP/Auto em tela após tela.
+//   1  Notificação Preliminar (ou Auto, quando é decreto)
+//   5  e 13  Réplica
+//   10 Certidão Sem Defesa
+//   14 Auto de Infração
+// A Etapa 15 fica de fora de propósito: o Auto já está no PDF unificado e a
+// etapa tem o documento dela (Ofício GFP). As Etapas 29 e 33 também, porque
+// montam o próprio documento sem passar por aqui.
+const ETAPAS_COM_PREVIA_DO_DOCUMENTO = [1, 5, 10, 13, 14];
+window.ETAPAS_COM_PREVIA_DO_DOCUMENTO = ETAPAS_COM_PREVIA_DO_DOCUMENTO;
+
 // ── Renderizar Documento Oficial IDÊNTICO ao Modelo .docx ─────────────────
-function renderizarDocumentoOficial(proc) {
-    console.log('[DEBUG] renderizarDocumentoOficial — container:', !!document.getElementById('containerDocumentoOficial'));
+// opcoes.forcar: gera mesmo fora dessas etapas. Usado por quem precisa do
+// documento montado para baixar ou imprimir, que funciona em qualquer etapa.
+function renderizarDocumentoOficial(proc, opcoes = {}) {
     const container = document.getElementById('containerDocumentoOficial');
     if (!container) return;
 
@@ -7771,10 +7968,7 @@ function renderizarDocumentoOficial(proc) {
         ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || proc?.etapa_atual || proc?.etapa_atual_id || 1, 10)
         : parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 1, 10);
 
-    // Etapa 15 não exibe documento abaixo do formulário: o Auto de Infração já está
-    // dentro do PDF unificado, e a etapa tem o seu próprio documento (Ofício GFP).
-    // Os botões de imprimir/baixar da barra superior regeneram o AI por conta própria.
-    if (etapaAtual === 15) {
+    if (!opcoes.forcar && !ETAPAS_COM_PREVIA_DO_DOCUMENTO.includes(etapaAtual)) {
         container.innerHTML = '';
         return;
     }
@@ -8439,6 +8633,9 @@ async function renderizarEtapa2(proc) {
         }
     }
 
+    atualizarAvisoStatusEtapa2();
+    atualizarTituloAcompanhamentoEtapa2(notificacoes, proc);
+
     const badge = document.getElementById('badgeStatusEtapa2');
     if (badge) {
         const todasAtendidas = notificacoes.every(n => n.status === 'atendida');
@@ -8506,6 +8703,10 @@ function configurarEventosEtapa2() {
 
     const lista = document.getElementById('listaNotificacoesEtapa2');
     if (lista) {
+        lista.addEventListener('change', (e) => {
+            if (e.target.matches('input[type="radio"]')) atualizarAvisoStatusEtapa2();
+        });
+
         lista.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-avancar-notif');
             if (btn) {
@@ -8525,6 +8726,51 @@ function configurarEventosEtapa2() {
         });
     }
 }
+
+// O aviso "Marque o status antes de avançar" só faz sentido enquanto falta
+// marcar alguma. Notificação que já saiu da Etapa 2 também não conta.
+// Título da Etapa 2. O processo pode ter só notificações, só autos (quando todas
+// já viraram) ou os dois ao mesmo tempo — e o texto segue o que realmente existe,
+// no singular ou no plural. Antes era fixo em "Notificação(ões)" e chamava de
+// notificação o que já era Auto.
+function tituloAcompanhamentoEtapa2(notificacoes, proc) {
+    const lista = notificacoes || [];
+    if (lista.length === 0) return 'Acompanhamento da(s) Notificação(ões)';
+
+    const autos = lista.filter(n => ehStatusAutoInfracao(n, proc)).length;
+    const nps = lista.length - autos;
+
+    if (autos > 0 && nps === 0) return autos === 1 ? 'Acompanhamento do Auto de Infração' : 'Acompanhamento dos Autos de Infração';
+    if (nps > 0 && autos === 0) return nps === 1 ? 'Acompanhamento da Notificação' : 'Acompanhamento das Notificações';
+    return 'Acompanhamento das Notificações e Autos de Infração';
+}
+window.tituloAcompanhamentoEtapa2 = tituloAcompanhamentoEtapa2;
+
+function atualizarTituloAcompanhamentoEtapa2(notificacoes, proc) {
+    const el = document.getElementById('tituloAcompanhamentoEtapa2');
+    if (el) el.textContent = tituloAcompanhamentoEtapa2(notificacoes, proc);
+}
+
+function atualizarAvisoStatusEtapa2() {
+    const aviso = document.getElementById('avisoMarcarStatusEtapa2');
+    const lista = document.getElementById('listaNotificacoesEtapa2');
+    if (!aviso || !lista) return;
+
+    const cards = lista.querySelectorAll('.card-notificacao-etapa2');
+    if (cards.length === 0) {
+        aviso.style.display = 'none';
+        return;
+    }
+
+    const faltaMarcar = [...cards].some(card => {
+        const radios = card.querySelectorAll('input[type="radio"]');
+        if (radios.length === 0) return false;   // já avançou: não tem o que marcar
+        return ![...radios].some(r => r.checked);
+    });
+
+    aviso.style.display = faltaMarcar ? 'block' : 'none';
+}
+window.atualizarAvisoStatusEtapa2 = atualizarAvisoStatusEtapa2;
 
 function coletarStatusNotificacoesEtapa2() {
     const notificacoes = [];
@@ -8580,6 +8826,79 @@ async function salvarEtapa2() {
     }
 }
 
+// Etapa 4 (dilação de prazo): os três documentos que podem ser anexados.
+// Todos opcionais — o avanço não exige nenhum deles.
+const TIPOS_DOCUMENTO_ETAPA_4 = [
+    {
+        tipo: 'Pedido de Dilação de Prazo',
+        rotulo: 'Pedido de Dilação de Prazo',
+        ajuda: 'O pedido que o contribuinte enviou.',
+        sufixo: 'Pedido'
+    },
+    {
+        tipo: 'Comprovante de Renda',
+        rotulo: 'Comprovante de Renda',
+        ajuda: 'Holerite, declaração de renda ou equivalente.',
+        sufixo: 'Renda'
+    },
+    {
+        tipo: 'Comprovante de Propriedade',
+        rotulo: 'Comprovante de Propriedade',
+        ajuda: 'Comprovante de pagamento do IPTU, escritura ou equivalente.',
+        sufixo: 'Propriedade'
+    }
+];
+window.TIPOS_DOCUMENTO_ETAPA_4 = TIPOS_DOCUMENTO_ETAPA_4;
+
+// Acha um anexo da Etapa 4 pelo tipo ('propriedade', 'renda' ou 'pedido').
+// Primeiro pelo tipo escolhido no seletor; se não houver (anexos antigos, de
+// quando a etapa aceitava tudo junto), tenta pelo nome do arquivo. Não usa a
+// posição na lista: com três tipos possíveis, o primeiro anexo pode ser
+// qualquer um deles.
+function anexoEtapa4Por(chave, notif) {
+    const n = notif || (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null);
+    const anexos = n?.dados?.etapa4?.anexos || [];
+    if (anexos.length === 0) return null;
+
+    const alvo = String(chave || '').toLowerCase();
+    const casa = (txt) => String(txt || '').toLowerCase().includes(alvo);
+
+    return anexos.find(a => casa(a.tipo_documento))
+        || anexos.find(a => casa(a.nome) || casa(a.tipo))
+        || null;
+}
+window.anexoEtapa4Por = anexoEtapa4Por;
+
+// Para onde cada notificação vai ao sair da Etapa 2:
+//   defesa   -> Etapa 3 (Envio da 1ª Defesa). Não passa mais pela Etapa 4.
+//   dilação  -> Etapa 4 (Documentos da Dilação de Prazo)
+//   atendida ou vencida sem atendimento -> Etapa 7
+const ETAPA_DESTINO_SAIDA_ETAPA_2 = {
+    defesa: 3,
+    dilacao: 4,
+    atendida: 10,
+    pendente_vencida: 10
+};
+
+// A Etapa 10 abre com "O problema foi resolvido?" já marcado conforme o que
+// aconteceu antes: atendida -> Sim (segue para a 29); vencida -> Não (gera o
+// Auto, Etapa 14). Fica gravado na notificação para a tela não ter que adivinhar.
+const RESOLVIDO_PARA_CERTIDAO = { atendida: 'sim', pendente_vencida: 'nao' };
+
+function marcarResolvidoParaCertidao(notif, valor) {
+    if (!notif || !valor) return;
+    notif.dados = notif.dados || {};
+    notif.dados.certidao_resolvido = valor;
+}
+
+function etapaDestinoDaNotificacaoEtapa2(n) {
+    const st = String(n?.status || '').toLowerCase();
+    if (st === 'pendente' || st === '') {
+        return formatarDiasRestantes(n?.data_vencimento).vencido ? ETAPA_DESTINO_SAIDA_ETAPA_2.pendente_vencida : null;
+    }
+    return ETAPA_DESTINO_SAIDA_ETAPA_2[st] || null;
+}
+
 async function avancarEtapa2() {
     if (!processoAtual) return;
     mostrarCarregamento('Avançando etapa...');
@@ -8603,19 +8922,19 @@ async function avancarEtapa2() {
         let condicao;
 
         if (temDefesa) {
-            proxEtapaNumero = 4;
+            proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.defesa;
             status = 'defesa';
             condicao = 'Defesa apresentada';
         } else if (temDilacao) {
-            proxEtapaNumero = 4;
+            proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.dilacao;
             status = 'dilacao_prazo';
             condicao = 'Dilação de prazo solicitada';
         } else if (temVencidaNaoAtendida) {
-            proxEtapaNumero = 7;
+            proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.pendente_vencida;
             status = 'em_andamento';
             condicao = 'Notificação(ões) vencida(s) sem atendimento';
         } else if (todasAtendidas) {
-            proxEtapaNumero = 7;
+            proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.atendida;
             status = 'em_andamento';
             condicao = 'Todas as notificações atendidas';
         } else {
@@ -8626,57 +8945,64 @@ async function avancarEtapa2() {
 
         // Atualiza todas as notificações relevantes no banco
         const dataMov = new Date().toISOString();
-        const { data: proxEtapa } = await supabaseClient
-            .from('etapas')
-            .select('id')
-            .eq('numero', proxEtapaNumero || 2)
-            .maybeSingle();
-        const proxEtapaId = proxEtapa ? proxEtapa.id : (proxEtapaNumero || 2);
 
-        const etapaDb2 = await supabaseClient.from('etapas').select('id').eq('numero', 2).maybeSingle();
-        const etapa2Id = etapaDb2.data?.id || 2;
+        // Cada notificação vai para o destino do próprio status: num processo com
+        // defesa e dilação juntas, uma vai para a Etapa 3 e a outra para a Etapa 4.
+        const idDaEtapa = {};
+        const buscarIdEtapa = async (numero) => {
+            if (idDaEtapa[numero] !== undefined) return idDaEtapa[numero];
+            const { data } = await supabaseClient.from('etapas').select('id').eq('numero', numero).maybeSingle();
+            idDaEtapa[numero] = data ? data.id : numero;
+            return idDaEtapa[numero];
+        };
+
+        const proxEtapaId = await buscarIdEtapa(proxEtapaNumero || 2);
+        const etapa2Id = await buscarIdEtapa(2);
 
         for (const n of notificacoes) {
-            const deveMover =
-                (proxEtapaNumero === 7 && n.status === 'pendente' && formatarDiasRestantes(n.data_vencimento).vencido) ||
-                (proxEtapaNumero === 4 && n.status === 'defesa') ||
-                (proxEtapaNumero === 4 && n.status === 'dilacao') ||
-                (proxEtapaNumero === 7 && n.status === 'atendida');
+            const destinoNumero = etapaDestinoDaNotificacaoEtapa2(n);
+            if (!destinoNumero || !n.id) continue;
 
-            if (deveMover && n.id) {
-                const etapaDeId = n.etapa_atual_id || etapa2Id;
+            const destinoId = await buscarIdEtapa(destinoNumero);
+            const etapaDeId = n.etapa_atual_id || etapa2Id;
 
-                const notifDados = { ...(n.dados || {}) };
-                notifDados.historico = notifDados.historico || [];
-                notifDados.historico.push({
-                    etapa_de: parseInt(n.etapas?.numero || n.etapa_atual_id || 2, 10),
-                    etapa_para: proxEtapaNumero,
-                    status: n.status,
-                    condicao: condicao || 'Movimentação em lote',
-                    data: dataMov,
-                    usuario: perfilAtual?.nome || 'Sistema'
-                });
+            const notifDados = { ...(n.dados || {}) };
 
-                await atualizarNotificacaoNoBanco(n.id, {
-                    status: n.status,
-                    etapa_atual_id: proxEtapaId,
-                    data_movimentacao: dataMov,
-                    dados: notifDados
-                });
-
-                await supabaseClient
-                    .from('historico_etapas')
-                    .insert([{
-                        processo_id: processoAtual.id,
-                        notificacao_id: n.id,
-                        etapa_de_id: etapaDeId,
-                        etapa_para_id: proxEtapaId,
-                        usuario_id: perfilAtual?.id,
-                        condicao_aplicada: condicao,
-                        observacao: `Notificação ${n.numero} avançou da Etapa 2 para a Etapa ${proxEtapaNumero}.`,
-                        dados_etapa: { status: n.status }
-                    }]);
+            // Indo para a Etapa 10, já deixa marcado "O problema foi resolvido?"
+            if (destinoNumero === 10) {
+                const chave = (String(n.status || '').toLowerCase() === 'atendida') ? 'atendida' : 'pendente_vencida';
+                notifDados.certidao_resolvido = RESOLVIDO_PARA_CERTIDAO[chave];
             }
+
+            notifDados.historico = notifDados.historico || [];
+            notifDados.historico.push({
+                etapa_de: parseInt(n.etapas?.numero || n.etapa_atual_id || 2, 10),
+                etapa_para: destinoNumero,
+                status: n.status,
+                condicao: condicao || 'Movimentação em lote',
+                data: dataMov,
+                usuario: perfilAtual?.nome || 'Sistema'
+            });
+
+            await atualizarNotificacaoNoBanco(n.id, {
+                status: n.status,
+                etapa_atual_id: destinoId,
+                data_movimentacao: dataMov,
+                dados: notifDados
+            });
+
+            await supabaseClient
+                .from('historico_etapas')
+                .insert([{
+                    processo_id: processoAtual.id,
+                    notificacao_id: n.id,
+                    etapa_de_id: etapaDeId,
+                    etapa_para_id: destinoId,
+                    usuario_id: perfilAtual?.id,
+                    condicao_aplicada: condicao,
+                    observacao: `Notificação ${n.numero} avançou da Etapa 2 para a Etapa ${destinoNumero}.`,
+                    dados_etapa: { status: n.status }
+                }]);
         }
 
         processoAtual.notificacoes = await carregarNotificacoesDoBanco(processoAtual.id);
@@ -8765,19 +9091,19 @@ async function avancarNotificacaoEtapa2(index) {
     let condicao;
 
     if (statusSelecionado === 'atendida') {
-        proxEtapaNumero = 7;
+        proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.atendida;
         statusProcesso = 'notificacao_atendida';
         condicao = 'Notificação atendida';
     } else if (statusSelecionado === 'pendente_vencida') {
-        proxEtapaNumero = 7;
+        proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.pendente_vencida;
         statusProcesso = 'em_andamento';
         condicao = 'Notificação vencida (Pendente)';
     } else if (statusSelecionado === 'defesa') {
-        proxEtapaNumero = 4;
+        proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.defesa;
         statusProcesso = 'defesa';
         condicao = 'Defesa apresentada';
     } else if (statusSelecionado === 'dilacao') {
-        proxEtapaNumero = 4;
+        proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.dilacao;
         statusProcesso = 'dilacao_prazo';
         condicao = 'Dilação de prazo solicitada';
     } else {
@@ -8801,6 +9127,12 @@ async function avancarNotificacaoEtapa2(index) {
         // Atualiza a notificação no banco com histórico em JSON
         if (notif.id) {
             const notifDados = { ...(notif.dados || {}) };
+
+            // Indo para a Etapa 10, já deixa marcado "O problema foi resolvido?"
+            if (proxEtapaNumero === 10 && RESOLVIDO_PARA_CERTIDAO[statusSelecionado]) {
+                notifDados.certidao_resolvido = RESOLVIDO_PARA_CERTIDAO[statusSelecionado];
+            }
+
             notifDados.historico = notifDados.historico || [];
             notifDados.historico.push({
                 etapa_de: parseInt(notif.etapas?.numero || notif.etapa_atual_id || 2, 10),
@@ -8899,7 +9231,6 @@ async function obterAutosEtapa18(proc) {
     const notifAberta = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
     const dataArEnviado = obterInicioPrazoAR(proc, notifAberta)?.dataISO;
 
-    console.log('[DEBUG Etapa 18] Obter Autos — Processo ID:', proc.id, '| Data AR Enviado/Gravado:', dataArEnviado);
 
     if (proc.notificacoes && Array.isArray(proc.notificacoes) && proc.notificacoes.length > 0) {
         const notif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
@@ -9009,7 +9340,6 @@ function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
 }
 
 async function renderizarEtapa18(proc) {
-    console.log('[DEBUG Etapa 18] Renderizando Etapa 18 para processo:', proc.numero_processo || proc.id);
     const modo = determinarModoAcesso(proc, perfilAtual);
 
     const topbarPadrao = document.querySelector('.etapa-topbar:not(#topbarEtapa18)');
@@ -9033,7 +9363,6 @@ async function renderizarEtapa18(proc) {
     if (elProcNum) elProcNum.textContent = proc.numero_processo || proc.id;
 
     const autos = await obterAutosEtapa18(proc);
-    console.log('[DEBUG Etapa 18] Autos para exibição:', autos);
 
     // Bypass Etapa 18 se o Auto (ou todos os autos) já avançaram além da Etapa 18
     if (autos.length > 0 && autos.every(a => a.etapa_atual > 18)) {
@@ -9041,7 +9370,6 @@ async function renderizarEtapa18(proc) {
             ? autos.find(a => a.id === notificacaoAtual.id) || autos[0]
             : autos[0];
         const destEtapa = autoAlvo.etapa_atual || 19;
-        console.log(`[DEBUG Etapa 18] Auto já avançou para a Etapa ${destEtapa}. Bypass da Etapa 18 executado.`);
 
         const container18 = document.getElementById('etapa18Container');
         if (container18) container18.style.display = 'none';
@@ -9210,7 +9538,6 @@ async function salvarEtapa18() {
     }
 
     try {
-        console.log('[DEBUG Etapa 18] Salvando opções do formulário...');
         const autos = await obterAutosEtapa18(processoAtual);
 
         processoAtual.campos = processoAtual.campos || {};
@@ -9239,7 +9566,6 @@ async function salvarEtapa18() {
                 .from('processos')
                 .update({ dados: processoAtual.dados })
                 .eq('id', processoAtual.id);
-            console.log('[DEBUG Etapa 18] Opções salvas com sucesso no banco!');
             alert('Opções salvas com sucesso.');
         } catch (err) {
             console.error('[DEBUG Etapa 18] Erro ao salvar Etapa 18:', err);
@@ -9266,7 +9592,6 @@ async function avancarAutoEtapa18(index) {
     }
 
     const opcao = selectedRadio.value;
-    console.log('[DEBUG Etapa 18] Avançando Auto de Infração no index:', index, 'Opção:', opcao);
     const autos = await obterAutosEtapa18(processoAtual);
     const item = autos[index];
 
@@ -9339,7 +9664,6 @@ async function avancarAutoEtapa18(index) {
         // dele (Etapa 2 no fluxo com notificação, Etapa 18 no de decreto), que mostra
         // o Auto como "avançou e está na Etapa X". Sem notificação, o processo anda.
         const moverProcesso = !item.id;
-        console.log('[DEBUG Etapa 18] Auto vai para a Etapa:', proxEtapaNumero, '| processo anda junto?', moverProcesso);
 
         await supabaseClient
             .from('processos')
@@ -9375,7 +9699,6 @@ async function avancarAutoEtapa18(index) {
 // ============================================================================
 
 async function renderizarEtapa16(proc) {
-    console.log('[DEBUG] renderizarEtapa16 — etapa:', proc?.etapa_atual, '| modo:', determinarModoAcesso(proc, perfilAtual));
     // Verifica prazo do AR; se expirado, move para Etapa 30 e interrompe a renderização
     const moveuEtapa30 = await verificarPrazo15DiasEtapa16(proc);
     if (moveuEtapa30) return;
@@ -9428,7 +9751,8 @@ async function renderizarEtapa16(proc) {
         if (elBadgeNum) elBadgeNum.textContent = window.processoVeioDaEtapa14(proc) ? 'Etapa 16' : 'Etapa 1.2';
         if (elBadgeSt) elBadgeSt.textContent = 'Retorno do AR';
 
-        // Renderiza a Notificação Preliminar
+        // A Etapa 16 não gera documento: a prévia some sozinha (ver
+        // ETAPAS_COM_PREVIA_DO_DOCUMENTO). A chamada fica para limpar o container.
         renderizarDocumentoOficial(proc);
 
         // O aviso geral da página já foi inserido por aplicarModoAcesso
@@ -10529,7 +10853,6 @@ async function avancarEtapa17() {
 
     try {
         const passouEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
-        console.log('[DEBUG] avancarEtapa17 — passouEtapa14:', passouEtapa14);
         const proxEtapaNumero = passouEtapa14 ? 18 : 2;
         const status = passouEtapa14 ? 'edital_gerado_defesa' : 'edital_gerado_prazo';
 
@@ -10875,7 +11198,6 @@ async function carregarOrigemFluxoProcesso(proc) {
     } else {
         proc._veioDaEtapa14 = await processoPassouPorEtapa(proc, 14);
     }
-    console.log('[FLUXO] Processo veio da Etapa 14 (Auto de Infração)?', proc._veioDaEtapa14);
     return proc._veioDaEtapa14;
 }
 window.carregarOrigemFluxoProcesso = carregarOrigemFluxoProcesso;
@@ -11350,7 +11672,7 @@ async function salvarEdicoesProcesso() {
         if (numEtapa === 15) {
             // Etapa 15 não exibe documento abaixo do formulário (ver renderizarDocumentoOficial)
             if (typeof renderizarDocumentoOficial === 'function') {
-                renderizarDocumentoOficial(processoAtual);
+                renderizarDocumentoOficial(processoAtual, { forcar: true });
             }
         } else if (ehAuto) {
             if (typeof window.gerarAutoDeInfracao === 'function') {
@@ -11366,7 +11688,7 @@ async function salvarEdicoesProcesso() {
             }
         } else {
             if (typeof renderizarDocumentoOficial === 'function') {
-                renderizarDocumentoOficial(processoAtual);
+                renderizarDocumentoOficial(processoAtual, { forcar: true });
             }
         }
 
@@ -11397,8 +11719,8 @@ async function garantirDocumentoParaExportar() {
     if (!processoAtual) return false;
     try {
         mostrarCarregamento('Preparando documento...');
-        // renderizarDocumentoOficial funciona em qualquer etapa sem depender do painel da Etapa 1
-        renderizarDocumentoOficial(processoAtual);
+        // Para baixar/imprimir o documento é montado em qualquer etapa
+        renderizarDocumentoOficial(processoAtual, { forcar: true });
         ocultarCarregamento();
         return !!container.querySelector('#documentoPronto');
     } catch (e) {
@@ -11702,7 +12024,6 @@ async function baixarRelatorioFiscalPdfEtapa() {
 
         // 4. Se não encontrar salvo em nenhum dos 3 lugares, gera um novo Relatório Fiscal e salva no banco
         if (!relatorioUrl || !ehHtmlRelatorioValido(relatorioUrl)) {
-            console.log('Nenhum Relatório Fiscal válido pré-existente encontrado. Gerando novo relatório inline...');
             const numeroProcesso = processoAtual.numero_processo || 'XXX';
             const dProc = processoAtual.dados || {};
             const iProc = dProc.imovel || {};
@@ -12164,7 +12485,7 @@ async function imprimirDocumentoOficial() {
     try {
         mostrarCarregamento('Preparando Notificação Preliminar para impressão...');
         // Força sempre a renderização da Notificação Preliminar do processo no container
-        renderizarDocumentoOficial(processoAtual);
+        renderizarDocumentoOficial(processoAtual, { forcar: true });
         ocultarCarregamento();
     } catch (e) {
         ocultarCarregamento();
@@ -12985,8 +13306,8 @@ window.autoFoiPagoNaEtapa18 = function () {
 window.gerarCertidaoSemDefesa = async function (auto = false) {
     if (!processoAtual) return;
 
-    const numNotificacao = document.getElementById('inputNumNotificacaoCertidao')?.value || notificacaoAtual?.numero || '';
-    const tipoInfracao = document.getElementById('inputTipoInfracaoCertidao')?.value || notificacaoAtual?.descricao || '';
+    const numNotificacao = notificacaoAtual?.numero || '';
+    const tipoInfracao = notificacaoAtual?.descricao || '';
 
     const d = processoAtual.dados || {};
     const cont = d.contribuinte || {};
@@ -13222,8 +13543,8 @@ window.avancarEtapa10 = async function () {
     notificacaoAtual.dados.etapa10 = {
         resolvido: resolvido,
         data_certidao: new Date().toISOString(),
-        numero_notificacao_ref: document.getElementById('inputNumNotificacaoCertidao')?.value || '',
-        tipo_infracao_ref: document.getElementById('inputTipoInfracaoCertidao')?.value || ''
+        numero_notificacao_ref: notificacaoAtual?.numero || '',
+        tipo_infracao_ref: notificacaoAtual?.descricao || ''
     };
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
 
@@ -14115,6 +14436,15 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         const fundamentoLegalDecreto = window.obterFundamentoLegalDecreto ? window.obterFundamentoLegalDecreto(inputInfracao) : 'artigos 1º e 2º, III, da Lei 7.174/2010. Sob pena do artigo 3º, IV da LEI 7.174/2010.';
         const textoPrazoDefesaAuto = window.obterPrazoDefesaAutoInfracao ? window.obterPrazoDefesaAutoInfracao() : '20 DIAS';
 
+        // Sem decreto o Auto nasce do descumprimento de algo anterior: numa
+        // reincidência é o Auto de Infração anterior; no caminho normal, a
+        // Notificação Preliminar do próprio processo.
+        const ehReincidenciaAuto = processoEhReincidencia(processoAtual);
+        const reinc = dadosDaReincidencia(processoAtual);
+        const textoOrigemDoAuto = ehReincidenciaAuto
+            ? `Até a presente data foi verificado: a <strong>reincidência</strong> da infração <strong>(${inputInfracao})</strong>, objeto do Auto de Infração nº <strong>${reinc.numeroAuto || 'XXXX'}</strong>, expedido em <strong>${reinc.dataAuto || 'XX/XX/20XX'}</strong>${reinc.numeroProcesso ? `, referente ao processo nº <strong>${reinc.numeroProcesso}</strong>` : ''}.`
+            : `Até a presente data foi verificado: o não cumprimento da obrigação da Notificação Preliminar nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.`;
+
         let corpoHtmlAuto = '';
         if (provenienteDecreto) {
             corpoHtmlAuto = `
@@ -14193,7 +14523,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
-                    Até a presente data foi verificado: o não cumprimento da obrigação da Notificação Preliminar nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.
+                    ${textoOrigemDoAuto}
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
@@ -14772,7 +15102,6 @@ async function carregarBibliotecasPDF() {
 }
 
 window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
-    console.log('[DECRETO] Iniciando busca do Decreto para o processo...', { proc, notif });
 
     // 1. PRIORIDADE MÁXIMA: Buscar na tabela 'decretos' pelo decreto_id do processo (coluna arquivo_url)
     const decId = proc?.decreto_id
@@ -14790,7 +15119,6 @@ window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
                 .maybeSingle();
 
             if (!errDec && decDb && decDb.arquivo_url) {
-                console.log('[DECRETO] Decreto localizado na tabela decretos por ID:', decDb);
                 return { docObj: decDb, url: decDb.arquivo_url };
             }
         } catch (e) {
@@ -14814,7 +15142,6 @@ window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
                 .maybeSingle();
 
             if (!errDecNum && decDbNum && decDbNum.arquivo_url) {
-                console.log('[DECRETO] Decreto localizado na tabela decretos por Número:', decDbNum);
                 return { docObj: decDbNum, url: decDbNum.arquivo_url };
             }
 
@@ -14828,7 +15155,6 @@ window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
                     .maybeSingle();
 
                 if (decDbLike && decDbLike.arquivo_url) {
-                    console.log('[DECRETO] Decreto localizado na tabela decretos por ilike:', decDbLike);
                     return { docObj: decDbLike, url: decDbLike.arquivo_url };
                 }
             }
@@ -14850,7 +15176,6 @@ window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
                 .maybeSingle();
 
             if (decRecente && decRecente.arquivo_url) {
-                console.log('[DECRETO] Decreto mais recente da tabela decretos recuperado como fallback:', decRecente);
                 return { docObj: decRecente, url: decRecente.arquivo_url };
             }
         } catch (e) {
@@ -15291,7 +15616,6 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                             width,
                             height
                         });
-                        console.log(`[PDF MERGE] ${identificacaoDoc} anexado como imagem`);
                         return true;
                     } catch (imgDiretoErr) {
                         console.warn(`[PDF MERGE] Falha ao anexar a imagem ${identificacaoDoc}:`, imgDiretoErr);
@@ -15304,7 +15628,6 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                     const pageIndices = srcPdf.getPageIndices();
                     const copiedPages = await mergedPdf.copyPages(srcPdf, pageIndices);
                     copiedPages.forEach(p => mergedPdf.addPage(p));
-                    console.log(`[PDF MERGE] ${identificacaoDoc} mesclado com sucesso via PDFLib`);
                     return true;
                 } catch (pdfErr) {
                     console.warn(`[PDF MERGE] PDFLib falhou ao ler ${identificacaoDoc}, tentando via PDF.js fallback:`, pdfErr);
@@ -15339,7 +15662,6 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                                     height
                                 });
                             }
-                            console.log(`[PDF MERGE] ${identificacaoDoc} renderizado e mesclado com sucesso via PDF.js (${numPages} páginas)`);
                             return true;
                         } catch (pdfjsErr) {
                             console.warn(`[PDF MERGE] PDF.js também falhou para ${identificacaoDoc}:`, pdfjsErr);
@@ -15848,7 +16170,6 @@ window.salvarMultaEtapa15 = async function () {
                             .update({ dados: aiDadosNovos, updated_at: new Date().toISOString() })
                             .eq('id', aiRec.id);
                     }
-                    console.log('[SALVAR MULTA] Tabela autos_infracao vinculada com sucesso ao id da multa:', multaDocId);
                 }
             } catch (eAiUpd) {
                 console.warn('[SALVAR MULTA] Aviso ao vincular multa na tabela autos_infracao:', eAiUpd);
@@ -16080,11 +16401,9 @@ window.toggleOpcoesDilacao = function () {
     const val = document.getElementById('selectDecisaoDilacao')?.value;
     const blocoDias = document.getElementById('blocoDiasDilacao');
     const blocoJustificativa = document.getElementById('blocoJustificativaDilacao');
-    const blocoParecer = document.getElementById('blocoParecerGerente');
 
     if (blocoDias) blocoDias.style.display = (val === 'defere') ? 'block' : 'none';
-    if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere' || val === 'gerente') ? 'block' : 'none';
-    if (blocoParecer) blocoParecer.style.display = (val === 'gerente') ? 'block' : 'none';
+    if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere') ? 'block' : 'none';
 
     window.gerarReplica();
 };
@@ -16254,28 +16573,18 @@ window.gerarReplica = async function () {
     const decisao = selectDecisao ? selectDecisao.value : (d13.decisao || d5.decisao || '');
     const txtJustificativa = document.getElementById('txtJustificativaDilacao') ? document.getElementById('txtJustificativaDilacao').value : (d13.justificativa || d5.justificativa || '');
     const dias = document.getElementById('inputDiasDilacao') ? document.getElementById('inputDiasDilacao').value : (d5.dias || 0);
-    const parecer = document.getElementById('selectParecerGerente') ? document.getElementById('selectParecerGerente').value : (d13.parecer || '');
-
     let textoDecisao = '';
     if (etapaAtual === 5 || d5.decisao) {
         if (decisao === 'defere') {
             textoDecisao = `Após análise da dilação informamos que seu pedido foi deferido. O prazo foi prorrogado por mais ${dias} dias.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
-            textoDecisao = `Após análise da defesa/dilação informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
-        } else if (decisao === 'gerente') {
-            textoDecisao = `Senhora Gerente,<br><br>Após análise da dilação/defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
+            textoDecisao = `Após análise da dilação informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         }
     } else if (etapaAtual === 13 || etapaAtual === 11 || d13.decisao) {
         if (decisao === 'defere') {
             textoDecisao = `Após análise da defesa informamos que seu pedido foi deferido.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
             textoDecisao = `Após análise da defesa informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
-        } else if (decisao === 'gerente') {
-            if (parecer === 'favoravel') {
-                textoDecisao = `Senhor(a) Gerente,<br><br>Após análise da defesa informamos que somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
-            } else {
-                textoDecisao = `Senhor(a) Gerente,<br><br>Após análise da defesa informamos que não somos favoráveis a solicitação apresentada pelo contribuinte, pois ${txtJustificativa}. Encaminhamos o pedido para análise e resposta.<br><br>Respeitosamente,`;
-            }
         }
     }
 
@@ -16336,8 +16645,13 @@ window.gerarReplica = async function () {
                     </tr>
                 </table>
 
-                <div style="text-align: center; margin: 28px 0 24px 0;">
+                <div style="text-align: center; margin: 28px 0 14px 0;">
                     <p style="margin: 0; text-align: center; font-size: 12pt;"><strong>RÉPLICA ${numReplica}</strong></p>
+                </div>
+
+                <!-- Data: logo abaixo do título e antes do autuado, como nos demais documentos -->
+                <div style="text-align: right; font-size: 11pt; margin-bottom: 20px;">
+                    Divinópolis - MG, ${dataAtual}
                 </div>
 
                 <div style="margin-bottom: 20px; font-size: 11pt; line-height: 1.4;">
@@ -16352,10 +16666,6 @@ window.gerarReplica = async function () {
                     <p style="margin-bottom: 12px; text-indent: 40px;">
                         ${textoDecisao}
                     </p>
-                </div>
-
-                <div style="text-align: right; margin-bottom: 40px; font-size: 11pt;">
-                    Divinópolis/MG, ${dataAtual}
                 </div>
 
                 <div style="text-align: center; margin-top: 60px; padding-bottom: 28px; font-size: 12pt;">

@@ -1262,13 +1262,100 @@
                             </div>
                         </div>
 
-                        <div id="processoExistenteAnexo" style="display:none;">
+                        <!-- Reincidência: o processo nasce direto no Auto de Infração (Etapa 14)
+                             e aproveita os dados do processo anterior. -->
+                        <div id="blocoReincidencia" style="display:none; margin-bottom:16px; padding:16px; background:#fff1f2; border:1px solid #fecdd3; border-radius:12px;">
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                                <span style="font-size:1.2rem;">⚠️</span>
+                                <h4 style="margin:0; font-size:0.96rem; font-weight:700; color:#9f1239;">Processo anterior</h4>
+                            </div>
+                            <p style="margin:0 0 12px 0; font-size:0.83rem; color:#be123c;">
+                                Reincidência vai direto para o <strong>Auto de Infração</strong>. Informe o processo
+                                anterior: se ele estiver no sistema, o número do Auto e os documentos vêm sozinhos.
+                            </p>
+
                             <div class="form-row">
-                                <div class="form-group fg-full">
-                                    <label for="infProcessoRef">Número do processo existente</label>
-                                    <input type="text" id="infProcessoRef" placeholder="Ex: 2026/000001">
+                                <div class="form-group fg-medium">
+                                    <label for="reincProcessoAnterior">Nº do processo anterior</label>
+                                    <input type="text" id="reincProcessoAnterior" placeholder="Ex: 2025/000123">
+                                    <div id="reincFeedback" class="field-feedback"></div>
+                                </div>
+                                <div class="form-group fg-small">
+                                    <label for="reincAutoAnteriorNumero">Nº do Auto anterior</label>
+                                    <input type="text" id="reincAutoAnteriorNumero" placeholder="Ex: 2025/456">
+                                </div>
+                                <div class="form-group fg-small">
+                                    <label for="reincAutoAnteriorData">Data do Auto anterior</label>
+                                    <input type="date" id="reincAutoAnteriorData">
                                 </div>
                             </div>
+
+                            <!-- Só aparece quando o processo anterior não está no sistema -->
+                            <div id="reincDocsAnteriores" style="display:none; margin-top:10px; padding-top:12px; border-top:1px dashed #fda4af;">
+                                <div style="font-size:0.86rem; font-weight:700; color:#9f1239;">Documentos do processo anterior</div>
+                                <p style="margin:2px 0 10px 0; font-size:0.82rem; color:#be123c;">
+                                    O processo anterior não está no sistema. Anexe o que tiver para entrar no PDF do processo.
+                                </p>
+                                <div style="display:flex; flex-direction:column; gap:10px;">
+                                    <div>
+                                        <label style="display:block; font-size:0.8rem; font-weight:600; color:#881337;">Notificação Preliminar anterior</label>
+                                        <input type="file" id="reincDocNp" class="form-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="padding:6px; width:100%;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:0.8rem; font-weight:600; color:#881337;">Auto de Infração anterior</label>
+                                        <input type="file" id="reincDocAi" class="form-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="padding:6px; width:100%;">
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:0.8rem; font-weight:600; color:#881337;">Relatório Fiscal anterior <span style="font-weight:400; color:#be123c;">(opcional)</span></label>
+                                        <input type="file" id="reincDocRf" class="form-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="padding:6px; width:100%;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Processo que já existe em papel/sistema antigo: entra no fluxo na
+                             etapa em que ele está, com a numeração e os documentos que já tem. -->
+                        <div id="processoExistenteAnexo" style="display:none;">
+                            <div class="form-row">
+                                <div class="form-group fg-medium">
+                                    <label for="infProcessoRef">Número do processo existente</label>
+                                    <input type="text" id="infProcessoRef" placeholder="Ex: 2026/000001">
+                                    <small style="color:#64748b; font-size:0.78rem;">Em branco, o sistema gera o próximo da sequência.</small>
+                                </div>
+                                <div class="form-group fg-medium">
+                                    <label for="infEtapaExistente">Em qual etapa o processo está? <span
+                                            class="required">*</span></label>
+                                    <select id="infEtapaExistente">
+                                        <option value="">Selecione a etapa...</option>
+                                    </select>
+                                    <small style="color:#64748b; font-size:0.78rem;">O processo entra direto nessa etapa.</small>
+                                </div>
+                            </div>
+
+                            <div class="step-section" style="margin-top:4px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px;">
+                                <h4 style="margin:0 0 4px 0; font-size:0.95rem; color:#0f172a;">Numerações que o processo já tem</h4>
+                                <p style="margin:0 0 10px 0; font-size:0.82rem; color:#64748b;">
+                                    Deixe em branco o que ainda não existe — nesses o sistema gera o próximo da sequência.
+                                </p>
+                                <div class="form-row">
+                                    <div class="form-group fg-medium">
+                                        <label for="infNumRelatorioExistente">Nº do Relatório Fiscal</label>
+                                        <input type="text" id="infNumRelatorioExistente" placeholder="Ex: 2026/890">
+                                    </div>
+                                    <div class="form-group fg-medium" id="grupoNumNpExistente">
+                                        <label for="infNumNpExistente">Nº da Notificação Preliminar</label>
+                                        <input type="text" id="infNumNpExistente" placeholder="Ex: 2026/000001/01">
+                                    </div>
+                                    <div class="form-group fg-medium" id="grupoNumAiExistente" style="display:none;">
+                                        <label for="infNumAiExistente">Nº do Auto de Infração</label>
+                                        <input type="text" id="infNumAiExistente" placeholder="Ex: 2026/123">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Documentos e datas do que já aconteceu. O conteúdo muda conforme
+                                 a etapa escolhida (montado em nova-solicitacao.js). -->
+                            <div id="docsProcessoExistente" style="margin-top:14px;"></div>
                         </div>
 
                         <div class="form-group fg-full" style="margin-top: 16px;">

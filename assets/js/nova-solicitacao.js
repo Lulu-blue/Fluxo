@@ -133,6 +133,26 @@ function devolverNumerosAoSairDaPagina() {
 }
 window.addEventListener('pagehide', devolverNumerosAoSairDaPagina);
 
+// Devolve o bloco de "Processo já existente" ao estado inicial. Sem isso, ao
+// reabrir o modal os anexos e as numerações da vez anterior continuavam na tela.
+function limparBlocoProcessoExistente() {
+    const sel = document.getElementById('infProcessoExistente');
+    if (sel) sel.value = 'nao';
+
+    const bloco = document.getElementById('processoExistenteAnexo');
+    if (bloco) bloco.style.display = 'none';
+
+    ['infProcessoRef', 'infNumRelatorioExistente', 'infNumNpExistente', 'infNumAiExistente']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+    const etapa = document.getElementById('infEtapaExistente');
+    if (etapa) etapa.value = '';
+
+    const docs = document.getElementById('docsProcessoExistente');
+    if (docs) docs.innerHTML = '';
+}
+window.limparBlocoProcessoExistente = limparBlocoProcessoExistente;
+
 // ── Abrir / Fechar Modal ────────────────────────────────────
 async function abrirModal() {
     // O botão já fica oculto para os outros cargos; isto cobre chamadas diretas
@@ -148,6 +168,9 @@ async function abrirModal() {
     limparAnexoBicUI();
     // Garante que o Nº/Descrição apareça ou não conforme o tipo já selecionado
     if (typeof window.sincronizarCampoAtendimento === 'function') window.sincronizarCampoAtendimento();
+    // Os blocos de processo existente e de reincidência voltam fechados e vazios
+    limparBlocoProcessoExistente();
+    limparBlocoReincidencia();
     carregarOpcoesDecreto();
     atualizarWizard();
     carregarDadosFiscal();
@@ -372,13 +395,14 @@ function atualizarLabelsUIWizardStep5() {
 
     const btnFinalizar = document.getElementById('btnWizardFinalizar');
     if (btnFinalizar) {
-        if (decretoSim) {
-            btnFinalizar.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Gerar Auto de Infração`;
-            btnFinalizar.dataset.originalHtml = btnFinalizar.innerHTML;
-        } else {
-            btnFinalizar.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Gerar Notificação`;
-            btnFinalizar.dataset.originalHtml = btnFinalizar.innerHTML;
-        }
+        const check = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+        // Processo que já existe não gera documento nenhum: só entra no sistema
+        const nasceNoAuto = decretoSim || (typeof ehReincidente === 'function' && ehReincidente());
+        const rotulo = (typeof ehProcessoJaExistente === 'function' && ehProcessoJaExistente())
+            ? 'Cadastrar Processo'
+            : (nasceNoAuto ? 'Gerar Auto de Infração' : 'Gerar Notificação');
+        btnFinalizar.innerHTML = `${check} ${rotulo}`;
+        btnFinalizar.dataset.originalHtml = btnFinalizar.innerHTML;
     }
 
     if (decretoSim) {
@@ -411,6 +435,19 @@ function atualizarObrigatoriedadeImagensVistoria() {
 }
 window.atualizarObrigatoriedadeImagensVistoria = atualizarObrigatoriedadeImagensVistoria;
 
+// Processo que já existe não passa pelo passo 5: o relatório dele já foi feito
+// e é anexado no passo 4, então não faz sentido gerar outro. Nesse caso o
+// passo 4 vira o último e o botão dele passa a ser o de gerar.
+function ehProcessoJaExistente() {
+    return document.getElementById('infProcessoExistente')?.value === 'sim';
+}
+
+function ultimoPassoDoWizard() {
+    // Reincidente nasce no Auto de Infração: o Relatório Fiscal do passo 5 é
+    // gerado como nos processos por decreto, sem o fiscal preencher nada ali.
+    return (ehProcessoJaExistente() || ehReincidente()) ? 4 : TOTAL_STEPS;
+}
+
 function atualizarWizard() {
     atualizarLabelsUIWizardStep5();
     atualizarObrigatoriedadeImagensVistoria();
@@ -428,14 +465,25 @@ function atualizarWizard() {
         s.classList.toggle('completed', n < currentWizardStep);
     });
 
+    const ultimoPasso = ultimoPassoDoWizard();
+
+    // O passo 5 some da barra quando o processo já existe
+    document.querySelectorAll('.progress-step').forEach(s => {
+        const n = parseInt(s.dataset.step);
+        const esconder = n > ultimoPasso;
+        s.style.display = esconder ? 'none' : '';
+        const linha = s.previousElementSibling;
+        if (linha && linha.classList.contains('progress-line')) linha.style.display = esconder ? 'none' : '';
+    });
+
     // Label
     document.getElementById('modalStepLabel').textContent =
-        `Passo ${currentWizardStep} de ${TOTAL_STEPS} — ${obterStepLabel(currentWizardStep)}`;
+        `Passo ${currentWizardStep} de ${ultimoPasso} — ${obterStepLabel(currentWizardStep)}`;
 
     // Botões
     document.getElementById('btnWizardVoltar').style.display = currentWizardStep > 1 ? 'flex' : 'none';
-    document.getElementById('btnWizardAvancar').style.display = currentWizardStep < TOTAL_STEPS ? 'flex' : 'none';
-    document.getElementById('btnWizardFinalizar').style.display = currentWizardStep === TOTAL_STEPS ? 'flex' : 'none';
+    document.getElementById('btnWizardAvancar').style.display = currentWizardStep < ultimoPasso ? 'flex' : 'none';
+    document.getElementById('btnWizardFinalizar').style.display = currentWizardStep >= ultimoPasso ? 'flex' : 'none';
 
     // Scroll top do modal body
     document.querySelector('.modal-body').scrollTop = 0;
@@ -453,7 +501,7 @@ async function avancarStep() {
         if (currentWizardStep === 2) {
             await buscarImovelNoBanco(true);
         }
-        if (currentWizardStep < TOTAL_STEPS) {
+        if (currentWizardStep < ultimoPassoDoWizard()) {
             currentWizardStep++;
             if (currentWizardStep === 5) {
                 prepararEtapaRelatorio();
@@ -512,6 +560,294 @@ function atendimentoDispensaNumero(tipo) {
         .toLowerCase().replace(/[^a-z]/g, '');
     return t.includes('inloco');
 }
+
+// O documento escreve a data por extenso curto (10/05/2025); o input date devolve
+// 2025-05-10. Sem converter, o Auto saía com a data ao contrário.
+function formatarDataBrParaDocumento(valor) {
+    if (!valor) return '';
+    const m = String(valor).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : String(valor);
+}
+
+// ── Reincidência: o processo nasce no Auto de Infração ─────────────────────
+// Reincidente vai direto para a Etapa 14, com ou sem decreto. O número e a data
+// do Auto anterior alimentam os textos padrão de reincidência de muro e passeio
+// (campos.auto_infracao_anterior_numero / _data, lidos pelo card de multa da
+// Etapa 14). Se o processo anterior estiver no sistema, tudo vem dele; se não,
+// o fiscal informa os números e anexa os documentos antigos.
+let processoAnteriorEncontrado = null;
+
+function ehReincidente() {
+    return document.getElementById('infReincidente')?.value === 'sim';
+}
+
+function atualizarBlocoReincidencia() {
+    const bloco = document.getElementById('blocoReincidencia');
+    if (bloco) bloco.style.display = ehReincidente() ? 'block' : 'none';
+    // Reincidente pula para a Etapa 14: o passo do Relatório Fiscal deixa de valer
+    if (typeof atualizarWizard === 'function') atualizarWizard();
+}
+
+// Procura o processo anterior e traz dele o número e a data do Auto.
+async function buscarProcessoAnteriorReincidencia(silencioso = false) {
+    const numero = document.getElementById('reincProcessoAnterior')?.value?.trim();
+    const docs = document.getElementById('reincDocsAnteriores');
+    processoAnteriorEncontrado = null;
+
+    if (!numero) {
+        if (docs) docs.style.display = 'none';
+        mostrarFeedback('reincFeedback', '', 'info');
+        return;
+    }
+
+    if (!silencioso) mostrarFeedback('reincFeedback', 'Procurando o processo anterior...', 'info');
+
+    try {
+        // `processos` não tem coluna `campos` (ela vive dentro de `dados`): pedir
+        // por ela devolvia 400 e a busca nunca achava nada.
+        // ilike + limit, igual ao filtro do painel: assim "384" ou "2026/384"
+        // também encontram o processo, não só o número escrito exatamente igual.
+        const { data: achados, error: erroBusca } = await supabaseClient
+            .from('processos')
+            .select('id, numero_processo, dados')
+            .ilike('numero_processo', `%${numero}%`)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+        if (erroBusca) throw erroBusca;
+
+        // Com mais de um resultado, vale o que bate exatamente; senão o mais recente
+        const lista = achados || [];
+        const proc = lista.find(p => p.numero_processo === numero) || lista[0] || null;
+
+        if (!proc) {
+            if (docs) docs.style.display = 'block';
+            mostrarFeedback('reincFeedback',
+                'Processo não encontrado no sistema. Informe os números e anexe os documentos abaixo.', 'info');
+            return;
+        }
+
+        processoAnteriorEncontrado = proc;
+        if (docs) docs.style.display = 'none';
+
+        // Número e data do Auto anterior: primeiro da tabela de autos, depois do JSON
+        const { data: autos } = await supabaseClient
+            .from('autos_infracao')
+            .select('numero, data_emissao')
+            .eq('processo_id', proc.id)
+            .order('data_emissao', { ascending: false })
+            .limit(1);
+
+        const auto = (autos || [])[0];
+        const numeroAuto = auto?.numero
+            || proc.dados?.campos?.etapa14?.numero_auto_infracao
+            || proc.dados?.etapa14?.numero_auto_infracao
+            || '';
+        const dataAuto = auto?.data_emissao || null;
+
+        const elNum = document.getElementById('reincAutoAnteriorNumero');
+        const elData = document.getElementById('reincAutoAnteriorData');
+        if (elNum && numeroAuto && !elNum.value.trim()) elNum.value = numeroAuto;
+        if (elData && dataAuto && !elData.value) elData.value = String(dataAuto).slice(0, 10);
+
+        mostrarFeedback('reincFeedback',
+            numeroAuto
+                ? `✓ Processo ${proc.numero_processo} encontrado. Auto anterior: ${numeroAuto}. Os documentos dele entram no PDF deste processo.`
+                : `✓ Processo ${proc.numero_processo} encontrado, mas sem Auto de Infração registrado. Informe o número ao lado.`,
+            'success');
+    } catch (err) {
+        console.warn('Erro ao buscar o processo anterior:', err);
+        mostrarFeedback('reincFeedback', 'Não deu para consultar agora. Preencha os campos à mão.', 'error');
+        if (docs) docs.style.display = 'block';
+    }
+}
+window.buscarProcessoAnteriorReincidencia = buscarProcessoAnteriorReincidencia;
+
+function coletarDadosReincidencia() {
+    if (!ehReincidente()) return null;
+    const txt = (id) => (document.getElementById(id)?.value || '').trim();
+    const arquivo = (id) => document.getElementById(id)?.files?.[0] || null;
+
+    return {
+        processo_anterior_numero: txt('reincProcessoAnterior'),
+        processo_anterior_id: processoAnteriorEncontrado?.id || null,
+        auto_anterior_numero: txt('reincAutoAnteriorNumero'),
+        auto_anterior_data: txt('reincAutoAnteriorData'),
+        documentos: [
+            { chave: 'np', tipo: 'Notificação Preliminar Anterior', file: arquivo('reincDocNp') },
+            { chave: 'ai', tipo: 'Auto de Infração Anterior', file: arquivo('reincDocAi') },
+            { chave: 'rf', tipo: 'Relatório Fiscal Anterior', file: arquivo('reincDocRf') }
+        ].filter(d => d.file)
+    };
+}
+
+function limparBlocoReincidencia() {
+    processoAnteriorEncontrado = null;
+    const sel = document.getElementById('infReincidente');
+    if (sel) sel.value = '';
+    const bloco = document.getElementById('blocoReincidencia');
+    if (bloco) bloco.style.display = 'none';
+    ['reincProcessoAnterior', 'reincAutoAnteriorNumero', 'reincAutoAnteriorData',
+     'reincDocNp', 'reincDocAi', 'reincDocRf']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const docs = document.getElementById('reincDocsAnteriores');
+    if (docs) docs.style.display = 'none';
+    mostrarFeedback('reincFeedback', '', 'info');
+}
+window.limparBlocoReincidencia = limparBlocoReincidencia;
+
+// ── Processo já existente (entra no fluxo na etapa em que está) ─────────────
+// O fiscal informa a etapa, as numerações que o processo já tem e anexa os
+// documentos de cada fase que já aconteceu. Tudo opcional, menos a etapa: o que
+// não for informado o sistema gera/deixa vazio.
+const ETAPAS_PROCESSO_EXISTENTE = {
+    1: 'Possui Decreto/Notificação',
+    2: 'Defesa ou Dilação de Prazo',
+    3: 'Envio da 1ª Defesa',
+    4: 'Documentos da Dilação de Prazo',
+    5: 'Análise Dilação de Prazo',
+    6: 'Defesa Com Dilação',
+    7: 'Análise da Defesa Sem Dilação',
+    8: 'Fiscal Analisa Defesa (Pós Dilação)',
+    9: 'Envio Defesa Sem Dilação',
+    10: 'Certidão Sem Defesa',
+    11: 'Gerente antes Infração',
+    12: 'Gerente antes Auto Infração',
+    13: 'Fiscal Analisa Defesa (1ª)',
+    14: 'Auto de Infração',
+    15: 'Gerente Gera a Multa',
+    16: 'Retorno do AR',
+    17: 'Gerência Gera o Edital',
+    18: 'Solicitar Defesa ou Recurso',
+    19: 'Envio de Defesa ou Pagamento',
+    20: 'Arquivamento do Processo',
+    21: 'Fiscal Convocado Jurídico',
+    22: 'Gerente Convocado Jurídico',
+    23: 'Parecer Jurídico',
+    24: 'Secretário Despacha',
+    25: 'Gerente Cumpre Decreto',
+    26: 'Fazenda Gera a Multa',
+    27: 'Devolvimento para o Setor',
+    28: 'Certificação do Vencimento',
+    29: 'Fiscal Emite Certidão',
+    30: 'Gerente Localiza o AR',
+    31: 'Comprovante Pagamento',
+    32: 'Consulta no Jurídico'
+};
+
+// Etapas do fluxo do Auto de Infração (a 16/17/30 valem para os dois fluxos)
+const ETAPAS_DEPOIS_DO_AUTO = [14, 15, 18, 19, 20, 26, 28];
+
+function processoExistenteJaPassouPeloAuto(etapa) {
+    return ETAPAS_DEPOIS_DO_AUTO.includes(etapa) || etapa >= 14;
+}
+
+// Cada documento aparece quando a etapa escolhida já passou por ele.
+// `datas: 'ar'` acrescenta número do AR, recebimento e edital.
+const DOCS_PROCESSO_EXISTENTE = [
+    { chave: 'relatorio_fiscal', titulo: 'Relatório Fiscal', tipo: 'Relatório Fiscal',
+      ajuda: 'O relatório que já foi feito, assinado.', aPartirDe: 1 },
+    { chave: 'notificacao_preliminar', titulo: 'Notificação Preliminar', tipo: 'Notificação Preliminar',
+      ajuda: 'A notificação entregue ao contribuinte, assinada.', aPartirDe: 2, soSemDecreto: true },
+    { chave: 'ar_np', titulo: 'AR da Notificação Preliminar', tipo: 'Anexo AR',
+      ajuda: 'O aviso de recebimento da notificação.', aPartirDe: 16, soSemDecreto: true, datas: 'ar' },
+    { chave: 'defesa_np', titulo: 'Defesa da Notificação Preliminar', tipo: 'Defesa',
+      ajuda: 'A defesa que o contribuinte apresentou contra a notificação.', aPartirDe: 3, soSemDecreto: true },
+    { chave: 'replica', titulo: 'Réplica', tipo: 'Réplica',
+      ajuda: 'A réplica do fiscal à defesa ou à dilação.', aPartirDe: 5 },
+    { chave: 'certidao', titulo: 'Certidão', tipo: 'Certidão',
+      ajuda: 'Certidão sem defesa, de arquivamento ou de encerramento.', aPartirDe: 10 },
+    { chave: 'auto_infracao', titulo: 'Auto de Infração', tipo: 'Auto de Infração',
+      ajuda: 'O auto lavrado, assinado.', aPartirDe: 14 },
+    { chave: 'ar_ai', titulo: 'AR do Auto de Infração', tipo: 'Anexo AR',
+      ajuda: 'O aviso de recebimento do auto.', aPartirDe: 16, soComAuto: true, datas: 'ar' },
+    { chave: 'defesa_ai', titulo: 'Defesa do Auto de Infração', tipo: 'Defesa',
+      ajuda: 'A defesa apresentada contra o auto.', aPartirDe: 19, soComAuto: true }
+];
+
+function documentosDaEtapaProcessoExistente(etapa, decretoSim) {
+    if (!etapa) return [];
+    const passouAuto = processoExistenteJaPassouPeloAuto(etapa);
+    return DOCS_PROCESSO_EXISTENTE.filter(d => {
+        if (etapa < d.aPartirDe) return false;
+        if (d.soSemDecreto && decretoSim) return false;   // decreto não tem notificação
+        if (d.soComAuto && !passouAuto) return false;
+        return true;
+    });
+}
+
+function preencherSelectEtapaProcessoExistente() {
+    const sel = document.getElementById('infEtapaExistente');
+    if (!sel || sel.options.length > 1) return;
+    Object.keys(ETAPAS_PROCESSO_EXISTENTE)
+        .map(Number).sort((a, b) => a - b)
+        .forEach(n => {
+            const o = document.createElement('option');
+            o.value = String(n);
+            o.textContent = `Etapa ${n} — ${ETAPAS_PROCESSO_EXISTENTE[n]}`;
+            sel.appendChild(o);
+        });
+}
+
+function renderizarDocumentosProcessoExistente() {
+    const container = document.getElementById('docsProcessoExistente');
+    if (!container) return;
+
+    const etapa = parseInt(document.getElementById('infEtapaExistente')?.value || '0', 10);
+    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
+
+    // Nº do Auto só faz sentido depois da Etapa 14; Nº da NP só sem decreto
+    const grupoAi = document.getElementById('grupoNumAiExistente');
+    if (grupoAi) grupoAi.style.display = processoExistenteJaPassouPeloAuto(etapa) ? '' : 'none';
+    const grupoNp = document.getElementById('grupoNumNpExistente');
+    if (grupoNp) grupoNp.style.display = decretoSim ? 'none' : '';
+
+    const docs = documentosDaEtapaProcessoExistente(etapa, decretoSim);
+    if (docs.length === 0) {
+        container.innerHTML = etapa
+            ? '<p style="font-size:0.85rem; color:#64748b;">Nessa etapa ainda não há documentos anteriores para anexar.</p>'
+            : '<p style="font-size:0.85rem; color:#64748b;">Escolha a etapa para o sistema pedir os documentos que o processo já tem.</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <h4 style="margin:0 0 4px 0; font-size:0.95rem; color:#0f172a;">Documentos que o processo já tem</h4>
+        <p style="margin:0 0 10px 0; font-size:0.82rem; color:#64748b;">
+            Todos opcionais: anexe o que existir. O que faltar pode ser anexado depois, na etapa correspondente.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+            ${docs.map(d => `
+                <div style="border:1px solid #e2e8f0; border-radius:10px; padding:12px; background:white;">
+                    <div style="font-weight:700; font-size:0.9rem; color:#0f172a;">
+                        ${d.titulo} <span style="font-weight:400; color:#64748b; font-size:0.8rem;">(opcional)</span>
+                    </div>
+                    <div style="font-size:0.8rem; color:#64748b; margin-bottom:8px;">${d.ajuda}</div>
+                    <input type="file" class="form-input doc-processo-existente"
+                           data-chave="${d.chave}" data-tipo="${d.tipo}" data-titulo="${d.titulo}"
+                           accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="padding:6px; width:100%;">
+                    ${d.datas === 'ar' ? `
+                        <div class="form-row" style="margin-top:10px;">
+                            <div class="form-group fg-small">
+                                <label style="font-size:0.78rem;">Número do AR</label>
+                                <input type="text" class="form-input" id="arNumero_${d.chave}" placeholder="Ex: JT123456789BR">
+                            </div>
+                            <div class="form-group fg-small">
+                                <label style="font-size:0.78rem;">Recebido pelo proprietário em</label>
+                                <input type="date" class="form-input" id="arRecebimento_${d.chave}">
+                            </div>
+                            <div class="form-group fg-small">
+                                <label style="font-size:0.78rem;">Publicação do edital em</label>
+                                <input type="date" class="form-input" id="arEdital_${d.chave}">
+                            </div>
+                        </div>
+                        <small style="color:#64748b; font-size:0.76rem;">
+                            A data de recebimento começa a contagem do prazo. Sem recebimento, vale a do edital.
+                        </small>` : ''}
+                </div>
+            `).join('')}
+        </div>`;
+}
+window.renderizarDocumentosProcessoExistente = renderizarDocumentosProcessoExistente;
 
 // ── Validação por step ──────────────────────────────────────
 function validarStep(step) {
@@ -648,6 +984,13 @@ function validarStep(step) {
         }
         case 4: {
             const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
+
+            if (document.getElementById('infProcessoExistente')?.value === 'sim'
+                && !document.getElementById('infEtapaExistente')?.value) {
+                alert('Processo já existente: informe em qual etapa ele está.');
+                document.getElementById('infEtapaExistente')?.focus();
+                return false;
+            }
             const checked = document.querySelectorAll('#infracoesList input[name="infracao"]:checked');
             if (checked.length === 0) {
                 alert('Selecione pelo menos um dispositivo legal transgredido.');
@@ -773,9 +1116,156 @@ function mostrarFeedback(elId, msg, type) {
 }
 
 // ── Finalizar solicitação ───────────────────────────────────
+
+
+// Documentos do processo anterior, para entrarem no PDF unificado deste.
+// Achando o processo no sistema, as linhas apontam para os MESMOS arquivos dele
+// (nada é copiado nem reenviado). Não achando, valem os que o fiscal anexou.
+// Os tipos levam "Anterior" no nome para o PDF não confundi-los com os deste
+// processo — eles entram pela parte de "outros documentos".
+const TIPOS_DOCUMENTO_ANTERIOR = {
+    'Notificação Preliminar': 'Notificação Preliminar Anterior',
+    'Notificação Preliminar Assinada': 'Notificação Preliminar Anterior',
+    'Auto de Infração': 'Auto de Infração Anterior',
+    'Auto de Infração Assinado': 'Auto de Infração Anterior',
+    'Relatório Fiscal': 'Relatório Fiscal Anterior',
+    'Relatório Fiscal Assinado': 'Relatório Fiscal Anterior'
+};
+
+async function salvarDocumentosDaReincidencia(proc, reincidencia, etapaId, profileId) {
+    if (!reincidencia || !proc?.id) return;
+
+    // 1. Processo anterior no sistema: reaproveita os arquivos dele
+    if (reincidencia.processo_anterior_id) {
+        try {
+            const { data: docsAnteriores } = await supabaseClient
+                .from('documentos')
+                .select('tipo, nome_arquivo, url')
+                .eq('processo_id', reincidencia.processo_anterior_id)
+                .not('url', 'is', null)
+                .in('tipo', Object.keys(TIPOS_DOCUMENTO_ANTERIOR));
+
+            const porTipo = {};
+            (docsAnteriores || []).forEach(d => {
+                const novoTipo = TIPOS_DOCUMENTO_ANTERIOR[d.tipo];
+                // Assinado ganha do gerado automaticamente quando houver os dois
+                if (!porTipo[novoTipo] || /assinad/i.test(d.tipo)) porTipo[novoTipo] = { ...d, novoTipo };
+            });
+
+            const linhas = Object.values(porTipo).map(d => ({
+                processo_id: proc.id,
+                etapa_id: etapaId,
+                tipo: d.novoTipo,
+                nome_arquivo: `${d.novoTipo} — ${reincidencia.processo_anterior_numero || ''}`.trim(),
+                url: d.url,
+                gerado_automaticamente: false,
+                usuario_id: profileId
+            }));
+
+            if (linhas.length > 0) await supabaseClient.from('documentos').insert(linhas);
+        } catch (err) {
+            console.warn('Erro ao trazer os documentos do processo anterior:', err);
+        }
+        return;
+    }
+
+    // 2. Processo anterior fora do sistema: sobe o que o fiscal anexou
+    for (const item of (reincidencia.documentos || [])) {
+        try {
+            const url = (typeof window.uploadParaCloudinary === 'function')
+                ? await window.uploadParaCloudinary(item.file, 'semac_documentos')
+                : await fileToBase64(item.file);
+            if (!url) continue;
+
+            await supabaseClient.from('documentos').insert([{
+                processo_id: proc.id,
+                etapa_id: etapaId,
+                tipo: item.tipo,
+                nome_arquivo: item.file.name,
+                url,
+                mime_type: item.file.type || null,
+                gerado_automaticamente: false,
+                usuario_id: profileId
+            }]);
+        } catch (err) {
+            console.warn(`Erro ao salvar o documento "${item.tipo}" do processo anterior:`, err);
+        }
+    }
+}
+
+// Sobe os documentos que o processo já tinha e grava o que eles representam:
+// o AR vai para campos.etapa16 (recebimento) e etapa17 (edital), que é de onde
+// o sistema tira o início da contagem do prazo. Nada aqui é obrigatório.
+async function salvarDocumentosProcessoExistente(proc, procExistente, etapaId, profileId, notificacaoId) {
+    if (!procExistente || !proc?.id) return;
+
+    for (const item of (procExistente.arquivos || [])) {
+        try {
+            const url = (typeof window.uploadParaCloudinary === 'function')
+                ? await window.uploadParaCloudinary(item.file, 'semac_documentos')
+                : await fileToBase64(item.file);
+            if (!url) continue;
+
+            await supabaseClient.from('documentos').insert([{
+                processo_id: proc.id,
+                notificacao_id: notificacaoId || null,
+                etapa_id: etapaId,
+                tipo: item.tipo,
+                nome_arquivo: item.file.name,
+                url,
+                mime_type: item.file.type || null,
+                gerado_automaticamente: false,
+                numero_sequencial: numeroSequencialDoDocumentoExistente(item.chave, procExistente),
+                usuario_id: profileId
+            }]);
+        } catch (err) {
+            console.warn(`Erro ao salvar o documento "${item.titulo}" do processo existente:`, err);
+        }
+    }
+
+    // Datas do AR: é o que faz o painel contar o prazo
+    const campos = proc.campos || {};
+    const arNp = procExistente.ar?.ar_np;
+    const arAi = procExistente.ar?.ar_ai;
+    const arPrincipal = arAi || arNp;
+
+    if (arPrincipal) {
+        campos.etapa16 = {
+            ...(campos.etapa16 || {}),
+            numero_ar: arPrincipal.numero || '',
+            data_recebimento_proprietario: arPrincipal.recebimento || null,
+            data_cadastro_ar: new Date().toISOString()
+        };
+        if (arPrincipal.edital) {
+            campos.etapa17 = {
+                ...(campos.etapa17 || {}),
+                data_publicacao_edital: arPrincipal.edital
+            };
+        }
+        if (arNp && arAi) campos.etapa16_np = { numero_ar: arNp.numero || '', data_recebimento_proprietario: arNp.recebimento || null };
+
+        proc.dados = proc.dados || {};
+        proc.dados.campos = campos;
+        proc.campos = campos;
+        try {
+            await supabaseClient.from('processos').update({ dados: proc.dados }).eq('id', proc.id);
+        } catch (err) {
+            console.warn('Erro ao gravar os dados do AR do processo existente:', err);
+        }
+    }
+}
+
+// O número do documento só é gravado quando o fiscal informou aquele número
+function numeroSequencialDoDocumentoExistente(chave, procExistente) {
+    if (chave === 'relatorio_fiscal') return procExistente.numero_relatorio || null;
+    if (chave === 'notificacao_preliminar') return procExistente.numero_notificacao || null;
+    if (chave === 'auto_infracao') return procExistente.numero_auto || null;
+    return null;
+}
+
 async function finalizarSolicitacao() {
     if (isWizardLoading) return;
-    for (let s = 1; s <= 5; s++) {
+    for (let s = 1; s <= ultimoPassoDoWizard(); s++) {
         if (!validarStep(s)) return;
     }
 
@@ -808,7 +1298,20 @@ async function finalizarSolicitacao() {
 
         // 3. Gerar numeração do processo, relatório ou certidão
         const anoAtual = new Date().getFullYear();
-        let numeroProcesso = numerosReservadosEditor.processo;
+        const procExistente = dados.processo_existente;
+
+        // Processo que já existe: vale a numeração que ele já tem. Os números que
+        // o editor tinha reservado voltam para a fila, senão ficariam pulados.
+        if (procExistente?.numero_processo && numerosReservadosEditor.processo) {
+            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.processo, p_categoria: 'Processo' });
+            numerosReservadosEditor.processo = null;
+        }
+        if (procExistente?.numero_relatorio && numerosReservadosEditor.relatorio) {
+            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.relatorio, p_categoria: 'Relatório Fiscal' });
+            numerosReservadosEditor.relatorio = null;
+        }
+
+        let numeroProcesso = procExistente?.numero_processo || numerosReservadosEditor.processo;
         let numeroRelatorio = null;
         let numeroCertidao = null;
         const decretoSim = dados.fiscal.decreto === 'sim';
@@ -824,7 +1327,7 @@ async function finalizarSolicitacao() {
             }
         }
 
-        numeroRelatorio = numerosReservadosEditor.relatorio;
+        numeroRelatorio = procExistente?.numero_relatorio || numerosReservadosEditor.relatorio;
         if (!numeroRelatorio) {
             const { data: nr, error: errNumRel } = await supabaseClient
                 .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
@@ -832,7 +1335,7 @@ async function finalizarSolicitacao() {
                 numeroRelatorio = nr;
             } else {
                 console.warn('RPC reservar_numero para Relatório Fiscal falhou no envio final, buscando fallback:', errNumRel?.message);
-                numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
+                numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', TAMANHO_PAD_RELATORIO, 'processos', 'numero_relatorio');
             }
         }
 
@@ -849,8 +1352,11 @@ async function finalizarSolicitacao() {
         dados.relatorio_fiscal = dados.relatorio_fiscal || {};
         dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
 
-        // 4. Determinar a Etapa Inicial (14 se Decreto, 1 se Padrão)
-        const targetEtapaNumero = decretoSim ? 14 : 1;
+        // 4. Determinar a Etapa Inicial: a escolhida quando o processo já existe;
+        //    senão 14 para Decreto e para Reincidência, 1 no caso padrão.
+        const reincidencia = dados.reincidencia;
+        const nasceNoAuto = decretoSim || !!reincidencia;
+        const targetEtapaNumero = procExistente?.etapa || (nasceNoAuto ? 14 : 1);
         let etapaId = 1;
         const { data: etapaTarget } = await supabaseClient
             .from('etapas')
@@ -935,7 +1441,17 @@ async function finalizarSolicitacao() {
                 infracoes: dados.infracoes,
                 relatorio_fiscal: dados.relatorio_fiscal,
                 certidao: dados.certidao || null,
-                anexos: {}
+                anexos: {},
+                // Reincidência: o card de multa da Etapa 14 lê estes dois campos
+                // para escrever o Auto anterior nos textos de muro e passeio.
+                campos: reincidencia ? {
+                    auto_infracao_anterior_numero: reincidencia.auto_anterior_numero || '',
+                    auto_infracao_anterior_data: formatarDataBrParaDocumento(reincidencia.auto_anterior_data),
+                    reincidencia: {
+                        processo_anterior_numero: reincidencia.processo_anterior_numero || '',
+                        processo_anterior_id: reincidencia.processo_anterior_id || null
+                    }
+                } : {}
             }
         };
 
@@ -985,7 +1501,7 @@ async function finalizarSolicitacao() {
                     if (nr) {
                         numeroRelatorio = nr;
                     } else {
-                        numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
+                        numeroRelatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', TAMANHO_PAD_RELATORIO, 'processos', 'numero_relatorio');
                     }
                     dados.relatorio_fiscal = dados.relatorio_fiscal || {};
                     dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
@@ -1003,8 +1519,10 @@ async function finalizarSolicitacao() {
             throw new Error(errProc?.message || 'Falha ao gravar o processo no banco de dados.');
         }
 
-        // 5.5 Registrar o documento Relatório Fiscal na tabela documentos centralizada
-        try {
+        // 5.5 Registrar o documento Relatório Fiscal na tabela documentos centralizada.
+        // Processo que já existe não passa pelo passo 5: o relatório dele é o que o
+        // fiscal anexou, então o sistema não gera um automático por cima.
+        if (!procExistente) try {
             let relatorioUrl = construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
             const htmlDaTela = obterHtmlRelatorioDaTela();
             if (htmlDaTela && htmlDaTela.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('RELATORIO FISCAL')) {
@@ -1204,18 +1722,27 @@ async function finalizarSolicitacao() {
                     .select('id, infracao_id, infracoes_catalogo(descricao)');
 
                 if (errInfracoes) {
+                    // Sem infração não há notificação, e o processo fica pela metade.
+                    // Antes isso só ia para o console e o fiscal via "criado com sucesso".
                     console.error('Erro ao inserir infrações:', errInfracoes);
+                    throw new Error(
+                        `O processo ${numeroProcesso} foi criado, mas as infrações não foram gravadas`
+                        + ` (${errInfracoes.message || 'falha de conexão'}).`
+                        + '\n\nEle está sem notificação e precisa ser conferido: abra o processo e'
+                        + ' adicione as infrações, ou apague e cadastre de novo.');
                 } else if (infracoesCriadas && infracoesCriadas.length > 0) {
                     const dataInicio = procCriado.created_at || new Date().toISOString();
 
                     for (let i = 0; i < infracoesCriadas.length; i++) {
                         const inf = infracoesCriadas[i];
                         const descricaoCat = inf.infracoes_catalogo?.descricao || '';
-                        const numeroNotif = `${numeroProcesso}/${String(i + 1).padStart(2, '0')}`;
+                        const numeroNotif = (i === 0 && procExistente?.numero_notificacao)
+                            ? procExistente.numero_notificacao
+                            : `${numeroProcesso}/${String(i + 1).padStart(2, '0')}`;
                         // Decreto nasce como Auto de Infração: prazo de DEFESA de 20 dias
                         // corridos. Sem decreto, é Notificação Preliminar com o prazo de
                         // cumprimento da infração. Os dois contam em dias corridos.
-                        const prazoDias = decretoSim
+                        const prazoDias = nasceNoAuto
                             ? PRAZO_DEFESA_AUTO_DIAS_NOVA_SOLICITACAO
                             : obterPrazoNotificacaoNovaSolicitacao(descricaoCat);
                         const dataVenc = new Date(dataInicio);
@@ -1231,7 +1758,8 @@ async function finalizarSolicitacao() {
                                 prazo_dias: prazoDias,
                                 data_inicio: dataInicio,
                                 data_vencimento: dataVenc.toISOString(),
-                                status: decretoSim ? 'auto_infracao' : 'pendente',
+                                status: (nasceNoAuto || processoExistenteJaPassouPeloAuto(procExistente?.etapa || 0))
+                                    ? 'auto_infracao' : 'pendente',
                                 etapa_atual_id: etapaId
                             }])
                             .select()
@@ -1249,6 +1777,18 @@ async function finalizarSolicitacao() {
                     }
                 }
             }
+        }
+
+        // 8.4 Documentos do processo anterior (reincidência)
+        if (reincidencia) {
+            await salvarDocumentosDaReincidencia(procCriado, reincidencia, etapaId, profileId);
+        }
+
+        // 8.5 Documentos e datas que o processo já tinha (processo existente)
+        if (procExistente) {
+            await salvarDocumentosProcessoExistente(
+                procCriado, procExistente, etapaId, profileId,
+                notificacoesCriadas[0]?.id || null);
         }
 
         // 9. Registrar histórico inicial em 'historico_etapas'
@@ -1370,9 +1910,11 @@ async function finalizarSolicitacao() {
         }
         document.body.style.overflow = '';
 
-        const msgSucesso = decretoSim
-            ? `Processo Nº ${numeroProcesso} e Auto de Infração gerados com sucesso!`
-            : `Processo Nº ${numeroProcesso} criado com sucesso!`;
+        const msgSucesso = procExistente
+            ? `Processo Nº ${numeroProcesso} cadastrado na Etapa ${targetEtapaNumero} com sucesso!`
+            : (nasceNoAuto
+                ? `Processo Nº ${numeroProcesso} e Auto de Infração gerados com sucesso!`
+                : `Processo Nº ${numeroProcesso} criado com sucesso!`);
         alert(msgSucesso);
         window.location.href = `etapa.html?processo=${procCriado.id}&etapa=${targetEtapaNumero}`;
     } catch (err) {
@@ -1539,6 +2081,44 @@ function atualizarDescricaoFiscalizacaoPadrao() {
     }
 }
 
+
+// Junta o que o fiscal informou sobre um processo que já existe: etapa, as
+// numerações que ele já tem e os arquivos de cada documento anterior.
+function coletarDadosProcessoExistente() {
+    if (document.getElementById('infProcessoExistente')?.value !== 'sim') return null;
+
+    const txt = (id) => (document.getElementById(id)?.value || '').trim();
+    const arquivos = [];
+    document.querySelectorAll('.doc-processo-existente').forEach(input => {
+        const file = input.files?.[0];
+        if (!file) return;
+        arquivos.push({
+            chave: input.dataset.chave,
+            tipo: input.dataset.tipo,
+            titulo: input.dataset.titulo,
+            file
+        });
+    });
+
+    const ar = {};
+    ['ar_np', 'ar_ai'].forEach(chave => {
+        const numero = txt(`arNumero_${chave}`);
+        const recebimento = txt(`arRecebimento_${chave}`);
+        const edital = txt(`arEdital_${chave}`);
+        if (numero || recebimento || edital) ar[chave] = { numero, recebimento, edital };
+    });
+
+    return {
+        etapa: parseInt(txt('infEtapaExistente') || '0', 10) || null,
+        numero_processo: txt('infProcessoRef'),
+        numero_relatorio: txt('infNumRelatorioExistente'),
+        numero_notificacao: txt('infNumNpExistente'),
+        numero_auto: txt('infNumAiExistente'),
+        arquivos,
+        ar
+    };
+}
+
 function coletarTodosDados() {
     const infracoesSelecionadas = [];
     document.querySelectorAll('input[name="infracao"]:checked').forEach(cb => {
@@ -1581,6 +2161,8 @@ function coletarTodosDados() {
             processo_ref: document.getElementById('infProcessoRef').value,
             dispositivos: infracoesSelecionadas,
         },
+        processo_existente: coletarDadosProcessoExistente(),
+        reincidencia: coletarDadosReincidencia(),
         relatorio_fiscal: {
             atendimento: (document.getElementById('relAtendimentoTipo').value + ' ' + document.getElementById('relAtendimentoValor').value).trim(),
             assunto: document.getElementById('relAssunto').value,
@@ -1619,11 +2201,11 @@ async function garantirNumerosReservados() {
                 numerosReservadosEditor.relatorio = nr;
             } else {
                 console.warn('RPC reservar_numero para Relatório Fiscal falhou, executando fallback local:', errRel?.message);
-                numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
+                numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', TAMANHO_PAD_RELATORIO, 'processos', 'numero_relatorio');
             }
         } catch (e) {
             console.warn('Erro ao reservar número de relatório, executando fallback local:', e);
-            numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', 6, 'processos', 'numero_relatorio');
+            numerosReservadosEditor.relatorio = await obterNumeroFallbackJS(anoAtual, 'Relatório Fiscal', TAMANHO_PAD_RELATORIO, 'processos', 'numero_relatorio');
         }
     }
 }
@@ -2730,10 +3312,31 @@ function bindWizardEventos() {
         });
     }
 
-    // Processo existente — mostrar/esconder campo
+    // Reincidência — mostra o bloco e procura o processo anterior
+    document.getElementById('infReincidente')?.addEventListener('change', atualizarBlocoReincidencia);
+    const elProcAnt = document.getElementById('reincProcessoAnterior');
+    if (elProcAnt) {
+        elProcAnt.addEventListener('blur', () => buscarProcessoAnteriorReincidencia(true));
+        elProcAnt.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); buscarProcessoAnteriorReincidencia(false); }
+        });
+    }
+
+    // Processo existente — mostrar/esconder o bloco e montar os campos da etapa
+    preencherSelectEtapaProcessoExistente();
     document.getElementById('infProcessoExistente').addEventListener('change', (e) => {
-        document.getElementById('processoExistenteAnexo').style.display =
-            e.target.value === 'sim' ? 'block' : 'none';
+        const ehExistente = e.target.value === 'sim';
+        document.getElementById('processoExistenteAnexo').style.display = ehExistente ? 'block' : 'none';
+        if (ehExistente) renderizarDocumentosProcessoExistente();
+        // Muda o último passo do wizard, então os botões e a barra mudam junto
+        atualizarWizard();
+    });
+    document.getElementById('infEtapaExistente')?.addEventListener('change', renderizarDocumentosProcessoExistente);
+    // O decreto muda quais documentos fazem sentido (não existe notificação)
+    document.getElementById('fiscDecreto')?.addEventListener('change', () => {
+        if (document.getElementById('infProcessoExistente')?.value === 'sim') {
+            renderizarDocumentosProcessoExistente();
+        }
     });
 
     // Auto-preenchimento das respostas padrão de infração na Descrição da Fiscalização
@@ -2908,6 +3511,22 @@ function bindWizardEventos() {
 
 
 // ── Buscar contribuinte no banco (por Nome ou CPF/CNPJ) ─────────
+// Campo preenchido pela busca automática (contribuinte/imóvel do banco) fica
+// marcado. Assim um BIC anexado depois pode corrigir esse valor, sem apagar o
+// que a pessoa digitou à mão.
+function marcarPreenchidoAutomaticamente(el) {
+    if (!el) return;
+    el.dataset.preenchidoAuto = 'sim';
+    if (el.dataset.ouvindoDigitacao === 'sim') return;
+    el.dataset.ouvindoDigitacao = 'sim';
+    el.addEventListener('input', () => { delete el.dataset.preenchidoAuto; });
+}
+
+function campoPodeSerSobrescritoPeloBic(el) {
+    if (!el) return false;
+    return !el.value || el.value.trim() === '' || el.dataset.preenchidoAuto === 'sim';
+}
+
 async function buscarContribuinteNoBanco(silencioso = false) {
     const nomeVal = document.getElementById('contNome')?.value?.trim();
     const cpfInput = document.getElementById('contCpfCnpj')?.value?.trim();
@@ -2971,7 +3590,7 @@ async function buscarContribuinteNoBanco(silencioso = false) {
             const setIfEmpty = (id, val) => {
                 const el = document.getElementById(id);
                 if (el && (!el.value || el.value.trim() === '' || el.value === 'Divinópolis')) {
-                    if (val) el.value = val;
+                    if (val) { el.value = val; marcarPreenchidoAutomaticamente(el); }
                 }
             };
             setIfEmpty('contNome', data.nome);
@@ -3239,7 +3858,7 @@ async function buscarImovelNoBanco(silencioso = false) {
             const setIfEmpty = (id, val) => {
                 const el = document.getElementById(id);
                 if (el && (!el.value || el.value.trim() === '')) {
-                    if (val !== undefined && val !== null) el.value = val;
+                    if (val !== undefined && val !== null) { el.value = val; marcarPreenchidoAutomaticamente(el); }
                 }
             };
 
@@ -3301,12 +3920,37 @@ function extrairDadosEspelhoCadastral(textoCompleto) {
     const inscM = textoCompleto.match(/\b\d{2}\.\d{3}\.\d{5}\.\d{5}\.\d{5}\.\d\b/);
     if (inscM) dados.inscricao_imobiliaria = inscM[0];
 
-    // 3. Código do Imóvel (5 dígitos, ex: 58843 — ignora CEP 35... e complementos 00...)
-    const cods = textoCompleto.match(/\b\d{5}\b/g) || [];
-    for (const c of cods) {
-        if (!c.startsWith('35') && !c.startsWith('00')) {
-            dados.codigo_imovel = c;
-            break;
+    // 3. Código Reduzido do Imóvel — o rótulo no BIC é "Código do Imóvel:".
+    // O "primeiro número de 5 dígitos" que havia aqui pegava o prefixo do CEP de
+    // quem não é de Divinópolis: com CEP 38400-376 o código saía 38400.
+    // Tira do texto o que costuma ser confundido com o código antes de procurar.
+    const textoSemRuido = textoCompleto
+        .replace(/\b\d{5}-?\d{3}\b/g, ' ')                            // CEP
+        .replace(/\b\d{2}\.\d{3}\.\d{5}\.\d{5}\.\d{5}\.\d\b/g, ' ')          // inscrição imobiliária
+        .replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g, ' ')              // CNPJ
+        .replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, ' ')                    // CPF
+        .replace(/\b\d{2}\/\d{2}\/\d{4}\b/g, ' ');                         // datas
+
+    const ROTULO_CODIGO_IMOVEL =
+        /(?:c[oó]d(?:igo)?\.?\s*(?:do\s+im[oó]vel|reduzido)|inscri[cç][aã]o\s+reduzida|cadastro)\s*:?/i;
+
+    const posRotulo = textoSemRuido.search(ROTULO_CODIGO_IMOVEL);
+    if (posRotulo >= 0) {
+        // No BIC em PDF os rótulos às vezes vêm agrupados e os valores só depois
+        // ("Zona: Quadra: Lote:" numa linha, os números na seguinte). Por isso
+        // pega o primeiro número depois do rótulo, e não só o colado nele.
+        const depois = textoSemRuido.slice(posRotulo).replace(ROTULO_CODIGO_IMOVEL, '');
+        const numDepois = depois.match(/\b(\d{3,8})\b/);
+        if (numDepois) dados.codigo_imovel = numDepois[1];
+    }
+
+    if (!dados.codigo_imovel) {
+        const cods = textoSemRuido.match(/\b\d{5}\b/g) || [];
+        for (const c of cods) {
+            if (!c.startsWith('35') && !c.startsWith('00')) {
+                dados.codigo_imovel = c;
+                break;
+            }
         }
     }
 
@@ -3425,12 +4069,15 @@ async function handleArquivoBic(file) {
         // O aviso do BIC do cadastro fica na tela para o fiscal poder comparar
 
         // Helper para preencher o campo do formulário apenas se estiver vazio
+        // O BIC recém-anexado é a fonte mais confiável: ele corrige o que a busca
+        // automática tinha posto no campo, mas nunca o que a pessoa digitou.
         function preencherSeVazio(id, valor) {
             if (valor === undefined || valor === null || valor === '') return;
             const el = document.getElementById(id);
             if (!el) return;
-            if (!el.value || el.value.trim() === '') {
+            if (campoPodeSerSobrescritoPeloBic(el)) {
                 el.value = valor;
+                delete el.dataset.preenchidoAuto;
             }
         }
 
@@ -3672,6 +4319,13 @@ function extrairLogradouroSituado(texto) {
 
 
 // ── Fallback JS de Reserva de Números (Prioriza numeros_descartados com verificação de unicidade) ──
+// Tem que ser igual ao reservar_numero do banco: lá o LPAD é 6 só para
+// 'Processo' e 3 para o resto. Com 6 aqui, o mesmo sequencial virava
+// "2026/001402" pelo fallback e "2026/1402" pelo banco — dois textos
+// diferentes para o mesmo número, que as conferências de duplicidade
+// (todas por igualdade de texto) não enxergavam como repetido.
+const TAMANHO_PAD_RELATORIO = 3;
+
 async function obterNumeroFallbackJS(anoAtual, categoria, tamanhoPad, tabela, coluna) {
     try {
         const { data: desc } = await supabaseClient
