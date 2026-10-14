@@ -1520,9 +1520,10 @@ async function finalizarSolicitacao() {
         }
 
         // 5.5 Registrar o documento Relatório Fiscal na tabela documentos centralizada.
-        // Processo que já existe não passa pelo passo 5: o relatório dele é o que o
-        // fiscal anexou, então o sistema não gera um automático por cima.
-        if (!procExistente) try {
+        // Processo que já existe e reincidência não passam pelo passo 5: o relatório
+        // deles é o que o fiscal anexou (ou o do processo anterior). Gerar um aqui
+        // produzia um relatório com os campos em branco — "RELATÓRIO FISCAL XXX/2026".
+        if (!procExistente && !reincidencia) try {
             let relatorioUrl = construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
             const htmlDaTela = obterHtmlRelatorioDaTela();
             if (htmlDaTela && htmlDaTela.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('RELATORIO FISCAL')) {
@@ -2045,7 +2046,7 @@ const MAPA_TEXTOS_NOTIFICACAO = {
     '120000232': `1) Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as Providências:\n- Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.\n- Proibido: queimadas, cortar árvores e movimentação de terra (terraplanagem).`,
     '120000211': `2) Inexistência de cercamento: infração ao artigo 1º da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\n- Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010: muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.\n- Não autorizado: arames lisos e farpados, e cerca viva.`,
     '120000226': `3) Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.`,
-    '120000228': `4) Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\ Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
+    '120000228': `4) Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\n Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
     '120000227': `5) Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.\n Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
     '120000229': `6) Reconstrução e/ou reparo de muro: infração ao artigo 2º, II, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as providências:\n- Executar o serviço de reconstrução de muro pela testada do imóvel de sua propriedade.`,
     '120000240': `7) Reconstrução e/ou reparo de passeio: infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as providências:\n- Executar o serviço de reconstrução de passeio/calçada pela testada do imóvel de sua propriedade.`,

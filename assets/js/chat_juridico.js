@@ -648,6 +648,7 @@
                 if (resTable && resTable.length > 0) {
                     conversas = resTable.map(c => ({
                         processo_id: c.processo_id,
+                        numero_processo: c.numero_processo || null,
                         notificacao_id: c.notificacao_id,
                         solicitante_nome: c.solicitante_nome,
                         solicitante_cargo: c.solicitante_cargo,
@@ -685,23 +686,29 @@
                 });
             }
 
-            // Quem não vê tudo só enxerga as conversas em que participa. Para
-            // saber quem é o fiscal de cada processo, busca os processos da lista.
-            if (!veTudo && conversas.length > 0) {
-                const ids = [...new Set(conversas.map(c => c.processo_id).filter(Boolean))];
-                let fiscalPorProcesso = {};
-                let numeroPorProcesso = {};
-                if (ids.length) {
-                    const { data: procs } = await supabaseClient
-                        .from('processos')
-                        .select('id, numero_processo, fiscal_id')
-                        .in('id', ids);
-                    (procs || []).forEach(p => {
-                        fiscalPorProcesso[p.id] = p.fiscal_id;
-                        numeroPorProcesso[p.id] = p.numero_processo;
-                    });
-                }
+            // Número e fiscal de cada processo da lista. O número vale para todos
+            // (antes só era buscado para quem não vê tudo, e o Jurídico via
+            // "Proc: Processo"); o fiscal serve para filtrar quem não vê tudo.
+            const idsProcessos = [...new Set(conversas.map(c => c.processo_id).filter(Boolean))];
+            const fiscalPorProcesso = {};
+            const numeroPorProcesso = {};
+            if (idsProcessos.length) {
+                const { data: procs } = await supabaseClient
+                    .from('processos')
+                    .select('id, numero_processo, fiscal_id')
+                    .in('id', idsProcessos);
+                (procs || []).forEach(p => {
+                    fiscalPorProcesso[p.id] = p.fiscal_id;
+                    numeroPorProcesso[p.id] = p.numero_processo;
+                });
+            }
+            conversas = conversas.map(conv => ({
+                ...conv,
+                numero_processo: conv.numero_processo || numeroPorProcesso[conv.processo_id] || null
+            }));
 
+            // Quem não vê tudo só enxerga as conversas em que participa
+            if (!veTudo && conversas.length > 0) {
                 conversas = conversas
                     .map(conv => {
                         const contexto = {
@@ -711,7 +718,6 @@
                         };
                         return {
                             ...conv,
-                            numero_processo: conv.numero_processo || numeroPorProcesso[conv.processo_id],
                             mensagens: (conv.mensagens || []).filter(m => mensagemVisivelParaMim(m, perfil, contexto))
                         };
                     })
@@ -733,7 +739,7 @@
 
             const html = conversas.map(conv => {
                 const ultMsg = conv.mensagens[conv.mensagens.length - 1] || {};
-                const numProc = conv.numero_processo || 'Processo';
+                const numProc = conv.numero_processo || '(sem número)';
                 const dataFmt = ultMsg.created_at ? new Date(ultMsg.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
                 const autor = ultMsg.sender_nome || 'Usuário';
 
@@ -741,7 +747,7 @@
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,0.04); display:flex; flex-direction:column; gap:8px; cursor:pointer; transition:all 0.2s;"
                          onclick="window.location.href='etapa.html?processo=${conv.processo_id}&chat=1${conv.notificacao_id ? '&notificacao=' + conv.notificacao_id : ''}'">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:700; font-size:0.88rem; color:#1e1b4b;">Proc: ${numProc}</span>
+                            <span style="font-weight:700; font-size:0.88rem; color:#1e1b4b;">Processo ${numProc}</span>
                             <span style="font-size:0.7rem; color:#94a3b8;">${dataFmt}</span>
                         </div>
                         <div style="font-size:0.82rem; color:#475569; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">

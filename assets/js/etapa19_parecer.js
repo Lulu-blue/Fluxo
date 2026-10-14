@@ -20,23 +20,23 @@
     console.info(`[Etapa 19/21/22] versão ${VERSAO}`);
 
     const DESTINOS = [
-        { etapa: 22, rotulo: 'Encaminhar à Gerência', detalhe: 'Etapa 22 — Gerente convocado pelo Jurídico' },
-        { etapa: 21, rotulo: 'Devolver ao Fiscal', detalhe: 'Etapa 21 — Fiscal convocado pelo Jurídico' },
-        { etapa: 24, rotulo: 'Secretário para Despacho', detalhe: 'Etapa 24 — Secretário despacha' }
+        { etapa: 22, rotulo: 'Encaminhar à Gerência', detalhe: 'Etapa 22 — Gerência solicitada pelo Jurídico' },
+        { etapa: 21, rotulo: 'Encaminhar para o Fiscal', detalhe: 'Etapa 21 — Fiscal solicitado pelo Jurídico' },
+        { etapa: 24, rotulo: 'Despacho do Secretário', detalhe: 'Etapa 24 — Secretário despacha' }
     ];
 
     // Etapas em que alguém é convocado pelo jurídico e devolve o Auto para a 19.
     const CONVOCADOS = {
         21: {
             nome: 'Fiscal',
-            titulo: 'Fiscal convocado pelo Jurídico',
+            titulo: 'Fiscal solicitado pelo Jurídico',
             cor: '#0f766e',
             fundoIcone: '#ecfeff',
             exemplo: 'Ex.: realizada nova vistoria em .../.../...; o imóvel estava limpo.'
         },
         22: {
             nome: 'Gerência',
-            titulo: 'Gerente convocado pelo Jurídico',
+            titulo: 'Gerência solicitada pelo Jurídico',
             cor: '#b45309',
             fundoIcone: '#fffbeb',
             exemplo: 'Ex.: a gerência confirma o valor da multa e o cálculo da testada.'
@@ -47,7 +47,7 @@
         deferimento: { rotulo: 'Deferido', cor: '#16a34a', fundo: '#f0fdf4' },
         indeferimento: { rotulo: 'Indeferido', cor: '#dc2626', fundo: '#fef2f2' },
         reducao_50: { rotulo: 'Redução de 50%', cor: '#2563eb', fundo: '#eff6ff' },
-        deferimento_parcial: { rotulo: 'Deferido parcialmente (afastar reincidência)', cor: '#7c3aed', fundo: '#f5f3ff' },
+        deferimento_parcial: { rotulo: 'Deferido parcialmente', cor: '#7c3aed', fundo: '#f5f3ff' },
         diligencia: { rotulo: 'Solicitar complementação documental', cor: '#b45309', fundo: '#fffbeb' }
     };
 
@@ -121,6 +121,11 @@
         return d.papel || CONVOCADOS[d.destino || 21].nome;
     }
 
+    // papelDiligencia devolve 'Gerência' ou 'Fiscal'; o artigo/preposição vem daqui
+    function daGerenciaOuDoFiscal(d, seGerencia, seFiscal) {
+        return papelDiligencia(d) === 'Gerência' ? seGerencia : seFiscal;
+    }
+
     function dataHora(iso) {
         if (!iso) return '';
         const d = new Date(iso);
@@ -154,17 +159,16 @@
         if (!itens.length) return '';
         const cartoes = itens.map((d, i) => `
             <div style="display:flex; flex-direction:column; gap:10px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                <div style="font-size:0.85rem; font-weight:700; color:#334155;">Diligência ${i + 1}${d.resposta ? '' : ` — aguardando ${papelDiligencia(d) === 'Gerência' ? 'a Gerência' : 'o Fiscal'}`}</div>
-                ${blocoTexto(`Jurídico pediu a${papelDiligencia(d) === 'Gerência' ? '' : 'o'} ${papelDiligencia(d)} · ${escaparHtml(d.enviado_por || '')} · ${dataHora(d.enviado_em)}`, d.mensagem, '#7c3aed')}
+                <div style="font-size:0.85rem; font-weight:700; color:#334155;">Diligência ${i + 1}${d.resposta ? '' : ` — aguardando ${daGerenciaOuDoFiscal(d, 'a Gerência', 'o Fiscal')}`}</div>
+                ${blocoTexto(`Solicitação do Jurídico ${daGerenciaOuDoFiscal(d, 'à Gerência', 'ao Fiscal')} · ${escaparHtml(d.enviado_por || '')} · ${dataHora(d.enviado_em)}`, d.mensagem, '#7c3aed')}
                 ${d.resposta
-                    ? blocoTexto(`${papelDiligencia(d)} respondeu · ${escaparHtml(d.resposta.respondido_por || '')} · ${dataHora(d.resposta.respondido_em)}`, d.resposta.texto, CONVOCADOS[d.destino || 21].cor, d.resposta.anexos)
+                    ? blocoTexto(`Resposta ${daGerenciaOuDoFiscal(d, 'da Gerência', 'do Fiscal')} · ${escaparHtml(d.resposta.respondido_por || '')} · ${dataHora(d.resposta.respondido_em)}`, d.resposta.texto, CONVOCADOS[d.destino || 21].cor, d.resposta.anexos)
                     : ''}
             </div>
         `).join('');
         return `
             <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px;">
-                <h4 style="margin:0 0 4px 0; color:#1e293b; font-size:1rem; font-weight:700;">Idas e vindas com o Fiscal e a Gerência</h4>
-                <p style="margin:0 0 12px 0; color:#64748b; font-size:0.85rem;">O que o jurídico pediu e o que foi respondido.</p>
+                <h4 style="margin:0 0 4px 0; color:#1e293b; font-size:1rem; font-weight:700;">Comunicação interna</h4>
                 <div style="display:flex; flex-direction:column; gap:12px;">${cartoes}</div>
             </div>
         `;
@@ -317,7 +321,6 @@
                     </div>
                     <div>
                         <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Parecer Jurídico</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Anexe ou cole a defesa, escolha a decisão e revise o texto do parecer.</p>
                     </div>
                 </div>
 
@@ -329,7 +332,7 @@
 
                 <div style="${cartao} margin-bottom:20px;">
                     <h4 style="${titulo}">Documentos do processo</h4>
-                    <p style="${sub}">O PDF oficial com capa, o mesmo da Etapa 24: capa, documentos do processo, dados do AR, Auto de Infração e, quando já existirem, a defesa, as movimentações e o parecer.</p>
+                    <p style="${sub}">O PDF oficial com capa</p>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="button" id="e19BtnUnificado" class="btn-primary" style="padding:10px 18px;">Abrir processo unificado (PDF)</button>
                         <button type="button" id="e19BtnBaixarUnificado" style="${botaoSec}">Baixar processo unificado</button>
@@ -378,8 +381,8 @@
                     <div style="${cartao}">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
                             <div>
-                                <h4 style="${titulo}">3. Texto do parecer</h4>
-                                <p style="margin:0; color:#64748b; font-size:0.85rem;">Edite à vontade. Os trechos entre [colchetes] precisam ser preenchidos.</p>
+                                <h4 style="${titulo}">3. Modelo do parecer</h4>
+                                <p style="margin:0; color:#64748b; font-size:0.85rem;">Edite o modelo antes de enviá-lo para o protocolo.</p>
                             </div>
                             <div style="display:flex; gap:8px; flex-wrap:wrap;">
                                 <button type="button" id="e19BtnCopiar" style="padding:8px 16px; border-radius:8px; border:none; background:#7c3aed; color:white; font-weight:600; font-size:0.85rem; cursor:pointer;">Copiar texto</button>
@@ -393,7 +396,6 @@
 
                     <div style="${cartao}">
                         <h4 style="${titulo}">4. Encaminhamento <span style="color:#ef4444;">*</span></h4>
-                        <p style="${sub}">Para onde o processo segue depois do parecer. Depois de escolher, use o botão de avançar etapa.</p>
                         <div id="e19Destinos" style="display:flex; flex-direction:column; gap:8px;">
                             ${DESTINOS.map(d => `
                                 <label style="display:flex; align-items:center; gap:10px; background:white; border:1px solid #cbd5e1; border-radius:8px; padding:10px 14px; cursor:pointer;">
@@ -404,7 +406,7 @@
                         </div>
 
                         <div id="e19BlocoPedidoFiscal" hidden style="margin-top:14px; background:white; border:1px solid #cbd5e1; border-radius:8px; padding:14px;">
-                            <label for="e19PedidoFiscal" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:6px;"><span id="e19RotuloPedido">O que o fiscal precisa fazer ou responder</span> <span style="color:#94a3b8; font-weight:500;">(opcional)</span></label>
+                            <label for="e19PedidoFiscal" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:6px;"><span id="e19RotuloPedido">Solicitação para o Fiscal</span> <span style="color:#94a3b8; font-weight:500;">(opcional)</span></label>
                             <textarea id="e19PedidoFiscal" rows="4" placeholder="Ex.: realizar nova vistoria no imóvel e informar se a limpeza foi concluída." style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
                             <p id="e19AjudaPedido" style="margin:8px 0 0 0; color:#64748b; font-size:0.83rem;"></p>
                         </div>
@@ -457,9 +459,18 @@
 
         const codigo = autoSelecionado?.codigo || '';
         if (info) {
-            info.textContent = codigo
-                ? `Infração identificada pelo código ${codigo}. As opções abaixo seguem os modelos cadastrados para ela.`
-                : 'Não foi possível identificar o código da infração. Os pareceres serão escritos a partir da estrutura básica.';
+            // Mostra a transgressão por extenso ("Limpeza de quintal"), não o código:
+            // o fiscal reconhece a infração pelo nome, não por 120000227.
+            // obterDescricaoInfracao devolve a infração padrão quando não recebe nada,
+            // então só consulta quando existe alguma informação para traduzir.
+            const origem = autoSelecionado?.descricao || codigo || '';
+            const descricaoInfracao = (origem && typeof window.obterDescricaoInfracao === 'function')
+                ? window.obterDescricaoInfracao(origem)
+                : origem;
+
+            info.textContent = descricaoInfracao
+                ? `Infração identificada: ${descricaoInfracao}. As opções abaixo seguem os modelos cadastrados para ela.`
+                : 'Não foi possível identificar a infração. Os pareceres serão escritos a partir da estrutura básica.';
         }
 
         el.innerHTML = opcoesDecisao(codigo).map(op => {
@@ -516,7 +527,7 @@
     }
 
     function aoMudarDecisao(decisao) {
-        if (textoFoiEditado() && !confirm('O texto do parecer foi editado. Trocar a decisão substitui o texto pelo modelo da nova decisão. Deseja continuar?')) {
+        if (textoFoiEditado() && !confirm('O modelo do parecer foi editado. Trocar a decisão substitui o texto pelo modelo da nova decisão. Deseja continuar?')) {
             const anterior = dadosEtapa19().decisao;
             const radioAnterior = document.querySelector(`input[name="e19Decisao"][value="${anterior}"]`);
             if (radioAnterior) radioAnterior.checked = true;
@@ -859,7 +870,7 @@
                 return;
             }
             if (!form.parecer_texto.trim()) {
-                alert('O texto do parecer está vazio (item 3).');
+                alert('O modelo do parecer está vazio (item 3).');
                 return;
             }
             // Colchetes pendentes barram o avanço: o parecer não pode sair
@@ -1028,9 +1039,9 @@
             if (!convocado) return;
 
             const artigo = convocado.nome === 'Gerência' ? 'à Gerência' : 'ao Fiscal';
-            const quem = convocado.nome === 'Gerência' ? 'a gerência' : 'o fiscal';
+            const quem = convocado.nome === 'Gerência' ? 'a Gerência de Posturas' : 'o Fiscal Responsável';
             const rotulo = document.getElementById('e19RotuloPedido');
-            if (rotulo) rotulo.textContent = `O que ${quem} precisa fazer ou responder`;
+            if (rotulo) rotulo.textContent = `Solicitação para ${quem}`;
             const ajuda = document.getElementById('e19AjudaPedido');
             if (ajuda) {
                 ajuda.innerHTML = `Enviar ${artigo} <strong>não exige o parecer pronto</strong>, mas <strong>exige a defesa</strong> (anexo ou texto colado no item 1). `
@@ -1094,7 +1105,6 @@
                         </div>
                         <div>
                             <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">${papel.titulo}</h3>
-                            <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Veja o que o jurídico pediu, responda e devolva o Auto para a Etapa 19.</p>
                         </div>
                     </div>
 
@@ -1103,16 +1113,14 @@
                     <div id="${pre}Pedido" style="margin-bottom:20px;"></div>
 
                     <div style="${cartao} margin-bottom:20px;">
-                        <h4 style="${titulo}">Defesa apresentada</h4>
-                        <p style="${sub}">Texto e anexos que o jurídico recebeu.</p>
+                        <h4 style="${titulo}">Defesa do contribuinte</h4>
                         <div id="${pre}Defesa"></div>
                     </div>
 
                     <div id="${pre}Historico"></div>
 
                     <div style="${cartao}">
-                        <h4 style="${titulo}">Sua resposta ao jurídico <span style="color:#ef4444;">*</span></h4>
-                        <p style="${sub}">Escreva a resposta, anexe documentos, ou faça as duas coisas.</p>
+                        <h4 style="${titulo}">Resposta da Solicitação <span style="color:#ef4444;">*</span></h4>
                         ${uploadHtml('Clique para selecionar ou arraste os documentos da resposta aqui')}
                         <textarea id="${pre}Resposta" rows="7" placeholder="${papel.exemplo}" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
                     </div>
@@ -1232,15 +1240,23 @@
             const elPedido = document.getElementById(`${pre}Pedido`);
             if (elPedido) {
                 elPedido.innerHTML = aberta
-                    ? blocoTexto(`O jurídico pediu · ${escaparHtml(aberta.enviado_por || '')} · ${dataHora(aberta.enviado_em)}`, aberta.mensagem, '#7c3aed')
+                    ? blocoTexto(`Solicitação · ${escaparHtml(aberta.enviado_por || '')} · ${dataHora(aberta.enviado_em)}`, aberta.mensagem, '#7c3aed')
                     : '<div style="background:#fffbeb; border:1px solid #fde68a; color:#78350f; padding:12px 16px; border-radius:10px; font-size:0.9rem;">Não há pedido registrado pelo jurídico para este Auto. Responda mesmo assim, se for o caso.</div>';
             }
 
             const dados19 = dadosEtapa19();
             const elDefesa = document.getElementById(`${pre}Defesa`);
             if (elDefesa) {
-                elDefesa.innerHTML = (dados19.defesa_texto || (dados19.anexos || []).length)
-                    ? blocoTexto('Defesa do autuado', dados19.defesa_texto, '#2563eb', dados19.anexos)
+                // blocoTexto(titulo, corpo, cor, anexos): a lista de anexos estava indo
+                // na posição do título, e por isso aparecia "[object Object]" com o
+                // corpo vazio ("—") e nenhum anexo. Aqui basta a lista de anexos.
+                // Mostra o que houver: os anexos e, quando o jurídico colou, o texto.
+                const anexosDefesa = dados19.anexos || [];
+                const textoDefesa = dados19.defesa_texto
+                    ? `<div style="white-space:pre-wrap; font-size:0.92rem; color:#1e293b; line-height:1.5;">${escaparHtml(dados19.defesa_texto)}</div>`
+                    : '';
+                elDefesa.innerHTML = (anexosDefesa.length || textoDefesa)
+                    ? textoDefesa + htmlAnexos(anexosDefesa)
                     : '<div style="font-size:0.9rem; color:#64748b;">O jurídico não registrou o texto da defesa nem anexos.</div>';
             }
 

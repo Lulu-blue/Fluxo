@@ -359,7 +359,7 @@ respeitando os filtros. Sem filtro, exporta tudo.
 
 Um quadro por notificação, com número, descrição, vencimento e dias restantes. O fiscal
 marca uma opção:
-- **Atendida** → Etapa 10, já com "O problema foi resolvido?" marcado como **Sim** (segue para a 29)
+- **Atendida** → Etapa **29**, direto para a Certidão de Encerramento (não passa pela 10)
 - **Defesa** → Etapa 3 (vai direto para o envio da defesa, sem passar pela Etapa 4)
 - **Dilação de prazo** → Etapa 4. Fica desabilitada se a notificação já teve dilação.
 - **Em branco:** fica aguardando. Vencido o prazo, pode avançar como "vencida" → Etapa 10, já com "O problema foi resolvido?" marcado como **Não** (gera o Auto, Etapa 14).
@@ -414,10 +414,10 @@ Botão de topo: "Imprimir / Baixar → Réplica (.pdf)". Textos da réplica no [
 Etapa 10. Agora as etapas vão **direto para a 10**, já com "O problema foi resolvido?"
 marcado — a marcação fica em `notificacoes.dados.certidao_resolvido`:
 
-| Veio de | Situação | Marcação na Etapa 10 |
+| Veio de | Situação | Destino |
 |---|---|---|
-| Etapa 2 | Atendida | **Sim** → 29 |
-| Etapa 2 | Vencida sem atendimento | **Não** → 14 |
+| Etapa 2 | Atendida | **Etapa 29** (certidão de encerramento) |
+| Etapa 2 | Vencida sem atendimento | Etapa 10, marcada **Não** → 14 |
 | Etapa 5 | Dilação negada com prazo vencido | **Não** → 14 |
 | Etapa 4 | Defesa sem comprovante / atendida / vencida | **Não** / **Sim** / **Não** |
 

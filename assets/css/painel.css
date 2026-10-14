@@ -90,6 +90,48 @@ body {
     pointer-events: none;
 }
 
+/* Ilustração (assets/img/painel.png) cobrindo a sidebar inteira, por cima do
+   degradê. A máscara deixa a imagem bem transparente atrás do que tem texto
+   (título no topo, menu e perfil embaixo) e mais visível na faixa entre o
+   menu e o perfil, que não tem texto. A imagem fica ancorada embaixo. */
+.sidebar::after {
+    /* Quanto a ilustração desce: a camada passa da borda de baixo da sidebar
+       (o excesso é cortado) e continua cobrindo tudo. Para descer mais ou
+       menos, mude só este valor. */
+    --descida-ilustracao: 120px;
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(-1 * var(--descida-ilustracao));
+    background: url('../img/painel.png') center bottom / cover no-repeat;
+    /* As faixas da máscara são medidas na parte visível (sem a descida), para
+       continuarem atrás do mesmo texto */
+    -webkit-mask-image: linear-gradient(to bottom,
+        rgba(0, 0, 0, 0.20) 0%,
+        rgba(0, 0, 0, 0.30) calc((100% - var(--descida-ilustracao)) * 0.58),
+        rgba(0, 0, 0, 0.85) calc((100% - var(--descida-ilustracao)) * 0.70),
+        rgba(0, 0, 0, 0.85) calc((100% - var(--descida-ilustracao)) * 0.82),
+        rgba(0, 0, 0, 0.25) calc((100% - var(--descida-ilustracao)) * 0.90),
+        rgba(0, 0, 0, 0.25) 100%);
+    mask-image: linear-gradient(to bottom,
+        rgba(0, 0, 0, 0.20) 0%,
+        rgba(0, 0, 0, 0.30) calc((100% - var(--descida-ilustracao)) * 0.58),
+        rgba(0, 0, 0, 0.85) calc((100% - var(--descida-ilustracao)) * 0.70),
+        rgba(0, 0, 0, 0.85) calc((100% - var(--descida-ilustracao)) * 0.82),
+        rgba(0, 0, 0, 0.25) calc((100% - var(--descida-ilustracao)) * 0.90),
+        rgba(0, 0, 0, 0.25) 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* O conteúdo da sidebar fica acima da ilustração */
+.sidebar > * {
+    position: relative;
+    z-index: 1;
+}
+
 @keyframes sidebarGlow {
     0% { transform: translate(0, 0); }
     100% { transform: translate(5%, -5%); }
@@ -175,25 +217,6 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     position: relative;
     flex-shrink: 0;
-}
-
-/* Logo entre o menu e a linha divisória do perfil (aparece sempre junto da sidebar) */
-.sidebar-brand {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    flex-shrink: 0;
-    padding: 4px 8px 10px;
-}
-
-.sidebar-brand-img {
-    width: auto;
-    height: 400px;
-    max-height: 31vh;
-    max-width: 100%;
-    object-fit: contain;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
-    pointer-events: none;
 }
 
 /* User Badge */
@@ -494,6 +517,28 @@ body {
 
 .filter-group input::placeholder {
     color: var(--text-muted);
+}
+
+/* A caixa de "Destaque de Multa" é um <label> dentro do grupo de filtros:
+   sem isto ela herda o estilo do título do filtro (maiúsculas, cinza, pequeno)
+   e a caixinha herda o espaçamento dos campos. Fica com a cara de um select. */
+.filter-group .filtro-checkbox {
+    padding: 9px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-offwhite);
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--text-color);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.filter-group .filtro-checkbox input {
+    padding: 0;
+    border: none;
+    background: none;
+    box-shadow: none;
 }
 
 .filtro-dropdown-btn {
@@ -966,10 +1011,6 @@ body {
     .sidebar {
         width: 220px;
         min-width: 220px;
-    }
-
-    .sidebar-brand-img {
-        height: 200px;
     }
 
     .filters-grid {

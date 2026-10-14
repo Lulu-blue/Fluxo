@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
     <!-- Estilos do Painel -->
-    <link rel="stylesheet" href="assets/css/painel.css">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261013d">
     <style>
         .page-container {
             max-width: 1100px;
@@ -734,7 +734,7 @@
                     style="display:none; margin: 4px 12px 10px 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); color: #1e293b; overflow: hidden;">
                     <div
                         style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                        <h4 style="margin: 0; color: #0f172a; font-size: 0.82rem; font-weight: 700;">🔔 Notificações
+                        <h4 style="margin: 0; color: #0f172a; font-size: 0.82rem; font-weight: 700;">Notificações
                         </h4>
                         <div style="display: flex; gap: 6px;">
                             <button type="button" onclick="window.marcarTodasNotificacoesLidas()"
@@ -795,9 +795,6 @@
                     Configurações
                 </a>
             </nav>
-            <div class="sidebar-brand">
-                <img src="assets/img/logo.png" alt="Logo" class="sidebar-brand-img">
-            </div>
             <div class="sidebar-footer">
                 <div class="user-badge" id="userBadgeEtapa">
                     <div class="user-avatar" id="sidebarAvatarEtapa">FP</div>
@@ -1208,8 +1205,8 @@
                     <div class="tab-content-box" id="formularioEtapa16">
                         <div
                             style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                            <h2 style="font-size:1.25rem; color:#1e293b; margin:0;">Registro do Aviso de Recebimento
-                                (AR)</h2>
+                            <h2 id="tituloRegistroAR" style="font-size:1.25rem; color:#1e293b; margin:0;">Registro
+                                do Aviso de Recebimento (AR)</h2>
                             <span id="badgeStatusAR"
                                 style="background:#fef9c3; color:#854d0e; padding:4px 12px; border-radius:12px; font-size:0.8rem; font-weight:600;">Aguardando
                                 AR</span>
@@ -1321,8 +1318,8 @@
                     <div class="tab-content-box" id="formularioEtapa30">
                         <div
                             style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                            <h2 style="font-size:1.25rem; color:#1e293b; margin:0;">Localização do Aviso de Recebimento
-                                (AR)</h2>
+                            <h2 id="tituloLocalizacaoAR" style="font-size:1.25rem; color:#1e293b; margin:0;">
+                                Localização do Aviso de Recebimento (AR)</h2>
                             <span id="badgeStatusAR30"
                                 style="background:#fef9c3; color:#854d0e; padding:4px 12px; border-radius:12px; font-size:0.8rem; font-weight:600;">Pendente</span>
                         </div>
@@ -1617,8 +1614,7 @@
                         <div
                             style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; padding:16px 20px; border-radius:12px; margin-bottom:20px;">
                             <strong>Atenção, Gerente de Posturas e Jurídico!</strong><br>
-                            Informe o Nº do Protocolo e selecione a opção de cada Auto de Infração
-                            ("Defesa", "Não fez o Pagamento" ou "Pagamento") para dar prosseguimento ao processo.
+                            Informe o Nº do Protocolo e selecione a opção de cada.
                         </div>
 
                         <div id="listaAutosEtapa18" style="display:flex; flex-direction:column; gap:16px;">
@@ -1681,13 +1677,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="assets/js/brasao-base64.js"></script>
     <script src="assets/js/oficio-modelo.js"></script>
-    <script src="assets/js/etapa.js?v=20261007b"></script>
+    <script src="assets/js/etapa.js?v=20261013"></script>
     <!-- ?v= evita que o navegador use uma versão antiga em cache -->
     <script src="assets/js/ia_defesa.js?v=20260925"></script>
-    <script src="assets/js/etapa19_parecer.js?v=20260925"></script>
-    <script src="assets/js/etapa24_despacho.js?v=20260925"></script>
+    <script src="assets/js/etapa19_parecer.js?v=20261009"></script>
+    <script src="assets/js/etapa24_despacho.js?v=20261009"></script>
     <script src="assets/js/etapa25_fazenda.js?v=20261005"></script>
-    <script src="assets/js/chat_juridico.js?v=20261007"></script>
+    <script src="assets/js/chat_juridico.js?v=20261013"></script>
 </body>
 
 </html>

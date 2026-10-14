@@ -120,7 +120,7 @@
 
 Infração do auto: ${contexto.infracao || 'não informada'}
 
-Defesa apresentada:
+Defesa do contribuinte:
 """
 ${textoDefesa}
 """

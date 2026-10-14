@@ -8,7 +8,7 @@
     <meta name="description" content="Painel de controle do Sistema Fluxograma de Processos - Fiscalização de Posturas">
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
-    <link rel="stylesheet" href="assets/css/painel.css">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261013d">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Fontes do documento oficial exibido na aba Avisos -->
@@ -57,7 +57,7 @@
                     style="display:none; margin: 4px 12px 10px 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); color: #1e293b; overflow: hidden;">
                     <div
                         style="padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                        <h4 style="margin: 0; color: #0f172a; font-size: 0.82rem; font-weight: 700;">🔔 Notificações
+                        <h4 style="margin: 0; color: #0f172a; font-size: 0.82rem; font-weight: 700;"> Notificações
                         </h4>
                         <div style="display: flex; gap: 6px;">
                             <button type="button" onclick="window.marcarTodasNotificacoesLidasPainel()"
@@ -115,9 +115,6 @@
                     Configurações
                 </a>
             </nav>
-            <div class="sidebar-brand">
-                <img src="assets/img/logo.png" alt="Logo" class="sidebar-brand-img">
-            </div>
             <div class="sidebar-footer">
                 <div class="user-badge" id="userBadge">
                     <div class="user-avatar">FP</div>
@@ -283,9 +280,10 @@
                         </div>
                         <div class="filter-group">
                             <label for="filtroPrazo">Ordenar por</label>
-                            <select id="filtroPrazo">
-                                <option value="">Mais recentes primeiro</option>
-                                <option value="vencimento">Vencimento (vencidos e mais urgentes primeiro)</option>
+                            <!-- Textos curtos: a lista aberta de um select não quebra linha e saía da tela -->
+                            <select id="filtroPrazo" title="Mais urgentes primeiro: os vencidos e os que vencem antes aparecem no topo">
+                                <option value="" title="Os processos criados por último aparecem no topo">Mais recentes primeiro</option>
+                                <option value="vencimento" title="Os vencidos e os que vencem antes aparecem no topo">Mais urgentes primeiro</option>
                             </select>
                         </div>
                         <div class="filter-group" style="position: relative;">
@@ -542,7 +540,7 @@
                                 </div>
                                 <div>
                                     <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;">Apuração de Dados</h2>
-                                    <p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #64748b;">Relatório Gerencial de Desempenho dos Fiscais de Postura e Arrecadação de Multas</p>
+                                    <p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #64748b;">Relatório gerencial de desempenho dos fiscais de posturas e arrecadação de multas</p>
                                 </div>
                             </div>
                         </div>
@@ -631,7 +629,7 @@
                         <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                                 <div>
-                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">📋 Processos por Fiscal de Postura</h3>
+                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;"> Processos por Fiscal de Postura</h3>
                                     <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Quantidade total de processos instaurados/atribuídos a cada fiscal</p>
                                 </div>
                             </div>
@@ -644,7 +642,7 @@
                         <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                                 <div>
-                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">💰 Valor Total de Multas Geradas por Fiscal (R$)</h3>
+                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">$ Valor Total de Multas Geradas por Fiscal (R$)</h3>
                                     <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Soma em Reais das autuações/multas por fiscal de postura</p>
                                 </div>
                             </div>
@@ -657,7 +655,7 @@
                     <!-- Gráfico 3: % da Arrecadação por Fiscal (pizza) -->
                     <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                         <div style="margin-bottom: 16px;">
-                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">🥧 % da Arrecadação por Fiscal</h3>
+                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">% da Arrecadação por Fiscal</h3>
                             <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Participação de cada fiscal no valor total de multas. Os 5 maiores aparecem separados; os demais, em "Outros" (todos estão na tabela abaixo).</p>
                         </div>
                         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
@@ -672,8 +670,8 @@
                     <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
                             <div>
-                                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">👩‍✈️ Detalhamento Individual por Fiscal de Postura</h3>
-                                <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Produtividade acumulada e valores gerados por fiscal no período</p>
+                                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;"> Detalhamento Individual por Fiscal</h3>
+                                <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Produtividade e valores gerados</p>
                             </div>
                             <button type="button" onclick="window.exportarApuracaoCSV()" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -685,10 +683,10 @@
                             <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.88rem; color: #1e293b;">
                                 <thead>
                                     <tr style="background: #f8fafc; color: #475569; text-align: left; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; border-top-left-radius: 8px;">Fiscal de Postura</th>
-                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Total Processos</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; border-top-left-radius: 8px;">Fiscal</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Total de Processos</th>
                                         <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Multas Geradas</th>
-                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">Total Multas (R$)</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">Total da Multas (R$)</th>
                                         <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">% da Arrecadação</th>
                                     </tr>
                                 </thead>
@@ -768,8 +766,8 @@
                 <div class="perfil-card" style="margin-top: 24px;">
                     <div class="perfil-header-banner">
                         <div class="perfil-header-info">
-                            <h2 style="color: #ffffff; font-size: 1.25rem;">Segurança e Alteração de Senha</h2>
-                            <p style="color: #cbd5e1;">Atualize sua senha de acesso ao sistema SEMAC</p>
+                            <h2 style="color: #ffffff; font-size: 1.25rem;">Alteração de Senha</h2>
+                            <p style="color: #cbd5e1;">Atualize sua senha de acesso ao sistema</p>
                         </div>
                     </div>
 
@@ -1703,10 +1701,10 @@
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/solicitacoes.js?v=20261007b"></script>
-    <script src="assets/js/nova-solicitacao.js?v=20261007"></script>
+    <script src="assets/js/nova-solicitacao.js?v=20261009"></script>
     <script src="assets/js/oficio-modelo.js"></script>
     <script src="assets/js/oficio-avulso.js"></script>
-    <script src="assets/js/chat_juridico.js?v=20261007"></script>
+    <script src="assets/js/chat_juridico.js?v=20261013"></script>
 </body>
 
 </html>

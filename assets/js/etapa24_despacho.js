@@ -415,10 +415,10 @@
             return;
         }
         const paginas = [
-            d19.defesa_texto ? paginaTexto('Defesa apresentada (texto)', '', d19.defesa_texto) : '',
-            ...anexos.map(a => paginaArquivo('Defesa apresentada (anexo)', a))
+            d19.defesa_texto ? paginaTexto('Defesa do contribuinte (texto)', '', d19.defesa_texto) : '',
+            ...anexos.map(a => paginaArquivo('Defesa do contribuinte (anexo)', a))
         ].filter(Boolean);
-        abrirJanela('Defesa apresentada', paginas.join(''));
+        abrirJanela('Defesa do contribuinte', paginas.join(''));
     }
 
     // -------------------------------------------------------------------- tela
@@ -440,7 +440,6 @@
                     </div>
                     <div>
                         <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Despacho do Secretário</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Leia o processo, decida e emita o Despacho Administrativo.</p>
                     </div>
                 </div>
 
@@ -450,7 +449,6 @@
 
                 <div style="${cartao} margin-bottom:20px;">
                     <h4 style="${titulo}">1. Documentos do processo</h4>
-                    <p style="${sub}">O processo unificado é o PDF oficial com capa, o mesmo das etapas de encerramento, agora completo: capa, documentos do processo, Auto de Infração, defesa, movimentações com Fiscal e Gerência e, por último, o parecer jurídico.</p>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="button" id="e24BtnUnificado" class="btn-primary" style="padding:10px 18px;">Abrir processo unificado (PDF)</button>
                         <button type="button" id="e24BtnBaixarUnificado" style="${botao}">Baixar processo unificado</button>
@@ -483,7 +481,6 @@
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
                         <div>
                             <h4 style="${titulo}">4. Despacho Administrativo</h4>
-                            <p style="margin:0; color:#64748b; font-size:0.85rem;">Gere o texto padrão da decisão e edite à vontade antes de enviar.</p>
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <button type="button" id="e24BtnGerar" class="btn-primary" style="padding:10px 18px;">Gerar resposta padrão</button>

@@ -34,7 +34,7 @@
             exigeNovaMulta: true,
             destino: 31,
             prazo: 'reiniciar',
-            detalhe: 'Ofício à Fazenda pedindo a guia com desconto. O prazo recomeça com 30 dias na Etapa 31.'
+            detalhe: 'Ofício à Fazenda com o pedido da guia de desconto.'
         },
         alteracao_valor: {
             rotulo: 'Alteração de valor',
@@ -45,7 +45,7 @@
             exigeNovaMulta: true,
             destino: 31,
             prazo: 'reiniciar',
-            detalhe: 'Ofício à Fazenda com a justificativa escrita por você. O prazo recomeça com 30 dias na Etapa 31.'
+            detalhe: 'Ofício à Fazenda com o pedido da guia de desconto.'
         },
         cancelamento: {
             rotulo: 'Cancelamento',
@@ -54,16 +54,16 @@
             temOficio: false,
             destino: 29,
             prazo: 'nenhum',
-            detalhe: 'Sem ofício: só a mensagem para a Fazenda. O processo é encerrado (Etapa 29).'
+            detalhe: 'Envie uma mensagem para a Fazenda pedindo o cancelamento.'
         },
         continuidade: {
-            rotulo: 'Continuidade na cobrança',
+            rotulo: 'Continuidade da cobrança',
             cor: '#b45309',
             fundo: '#fffbeb',
             temOficio: false,
             destino: 31,
             prazo: 'retomar',
-            detalhe: 'Sem ofício. Na Etapa 31 o prazo volta a correr de onde parou.'
+            detalhe:''
         }
     };
 
@@ -173,8 +173,8 @@ Atenciosamente,`
             ? 'Valor do Auto: <strong>não encontrado</strong>'
             : `Valor do Auto na emissão: <strong>${brl(emissao)}</strong>${emissaoEstimada ? ' <span style="color:#b45309;">(calculado agora: o Auto não tinha valor gravado)</span>' : ''}`;
         const linhaNovo = novo === null
-            ? (opcao === 'alteracao_valor' ? 'Informe o novo valor no item 3.' : '')
-            : `Valor cobrado depois deste desfecho: <strong>${brl(novo)}</strong>${opcao === 'cancelamento' ? ' (deixa de somar no total do processo)' : ''}`;
+            ? (opcao === 'alteracao_valor' ? '' : '')
+            : `Valor com a redução: <strong>${brl(novo)}</strong>${opcao === 'cancelamento' ? '' : ''}`;
         el.innerHTML = `${linhaEmissao}${linhaNovo ? `<br>${linhaNovo}` : ''}`;
         el.hidden = false;
     }
@@ -400,7 +400,6 @@ Atenciosamente,`
                     </div>
                     <div>
                         <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Cumprimento do Despacho</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Escolha o desfecho, gere o ofício à Fazenda e copie a mensagem do protocolo.</p>
                     </div>
                 </div>
 
@@ -408,8 +407,7 @@ Atenciosamente,`
 
                 <div style="${cartao} margin-bottom:20px;">
                     <h4 style="${titulo}">1. Documentos do processo</h4>
-                    <p style="${sub}">O mesmo PDF oficial com capa das etapas anteriores, agora com o parecer e o despacho.</p>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="button" id="e25BtnUnificado" class="btn-primary" style="padding:10px 18px;">Abrir processo unificado (PDF)</button>
                         <button type="button" id="e25BtnBaixarUnificado" style="${botao}">Baixar processo unificado</button>
                         <button type="button" id="e25BtnVerParecer" style="${botao}">Ver parecer jurídico</button>
@@ -418,8 +416,7 @@ Atenciosamente,`
                 </div>
 
                 <div style="${cartao} margin-bottom:20px;">
-                    <h4 style="${titulo}">2. Desfecho <span style="color:#ef4444;">*</span></h4>
-                    <p style="${sub}">A escolha define o ofício, a mensagem do protocolo e para onde o Auto segue.</p>
+                    <h4 style="${titulo}">Selecione: <span style="color:#ef4444;">*</span></h4>
                     <div id="e25Opcoes" style="display:flex; flex-direction:column; gap:8px;">
                         ${Object.entries(OPCOES).map(([chave, o]) => `
                             <label class="e25-opcao" data-opcao="${chave}" style="display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:10px; border:2px solid #e2e8f0; background:white; cursor:pointer;">
@@ -434,7 +431,7 @@ Atenciosamente,`
 
                 <div id="e25BlocoTextoManual" hidden style="${cartao} margin-bottom:20px;">
                     <h4 style="${titulo}">3. Alteração de valor <span style="color:#ef4444;">*</span></h4>
-                    <p style="${sub}">Informe o novo valor da multa e a justificativa. A justificativa entra no meio do ofício, no lugar do texto padrão.</p>
+                    <p style="${sub}">Informe o novo valor da multa e a justificativa. A justificativa entra no texto do ofício.</p>
                     <label for="e25NovoValor" style="display:block; font-weight:600; font-size:0.88rem; color:#334155; margin-bottom:6px;">Novo valor da multa (R$) <span style="color:#ef4444;">*</span></label>
                     <input type="text" inputmode="decimal" id="e25NovoValor" placeholder="Ex.: 1.250,00" style="width:220px; max-width:100%; box-sizing:border-box; padding:10px 12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; font-family:inherit; margin-bottom:12px;">
                     <textarea id="e25TextoManual" rows="4" placeholder="Ex.: após nova medição da testada, verificou-se que o valor lançado deve ser retificado para..." style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
@@ -444,7 +441,7 @@ Atenciosamente,`
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
                         <div>
                             <h4 style="${titulo}">4. Ofício para a Fazenda</h4>
-                            <p style="margin:0; color:#64748b; font-size:0.85rem;">Gerado a partir do modelo. <strong>Clique no texto para editar</strong> antes de imprimir; o nome do destinatário também é editável.</p>
+                            <p style="margin:0; color:#64748b; font-size:0.85rem;"><strong>Clique no texto para editar</strong> antes de imprimir.</p>
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap;">
                             <button type="button" id="e25BtnAtualizarOficio" style="${botao}">Restaurar texto do modelo</button>
@@ -459,7 +456,7 @@ Atenciosamente,`
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
                         <div>
                             <h4 style="${titulo}">5. Mensagem para o protocolo</h4>
-                            <p style="margin:0; color:#64748b; font-size:0.85rem;">Copie e cole na resposta do protocolo.</p>
+                            <p style="margin:0; color:#64748b; font-size:0.85rem;">Copie a resposta e cole no protocolo.</p>
                         </div>
                         <button type="button" id="e25BtnCopiarMensagem" style="${botao}">Copiar mensagem</button>
                     </div>
@@ -468,7 +465,7 @@ Atenciosamente,`
 
                 <div id="e25BlocoMulta" hidden style="${cartao}">
                     <h4 style="${titulo}">6. Nova multa emitida pela Fazenda <span style="color:#ef4444;">*</span></h4>
-                    <p style="${sub}">Anexe a nova guia recebida da Fazenda. Sem ela o Auto não avança.</p>
+                    <p style="${sub}">Anexe a nova guia recebida da Fazenda.</p>
                     ${uploadHtml('Clique para selecionar ou arraste a nova multa aqui')}
                 </div>
 
@@ -793,7 +790,6 @@ Atenciosamente,`
                     </div>
                     <div>
                         <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Comprovante de Pagamento</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">O prazo voltou a correr conforme a decisão da Etapa 25.</p>
                     </div>
                 </div>
 
@@ -803,7 +799,6 @@ Atenciosamente,`
 
                 <div style="${cartao} margin-bottom:20px;">
                     <h4 style="${titulo}">Documentos do processo</h4>
-                    <p style="${sub}">PDF oficial com capa, já com o parecer, o despacho do Secretário, o ofício à Fazenda e a resposta dada no protocolo.</p>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="button" id="e31BtnUnificado" class="btn-primary" style="padding:10px 18px;">Abrir processo unificado (PDF)</button>
                         <button type="button" id="e31BtnBaixarUnificado" style="padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#334155; font-weight:600; font-size:0.88rem; cursor:pointer;">Baixar processo unificado</button>
@@ -819,15 +814,13 @@ Atenciosamente,`
                 </div>
 
                 <div style="${cartao}">
-                    <h4 style="${titulo}">Realizou o pagamento? <span style="color:#ef4444;">*</span></h4>
-                    <p style="${sub}">Sim encerra o processo (Etapa 29). Não segue para a certificação do vencimento (Etapa 28).</p>
+                    <h4 style="${titulo}">Veificação de pagamento: <span style="color:#ef4444;">*</span></h4>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <label class="e31-opcao" data-opcao="sim" style="display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:10px; border:2px solid #e2e8f0; background:white; cursor:pointer; font-weight:600; color:#16a34a;">
-                            <input type="radio" name="e31Pagou" value="sim" style="accent-color:#16a34a;"> Sim, pagou
+                            <input type="radio" name="e31Pagou" value="sim" style="accent-color:#16a34a;"> Houve pagamento
                         </label>
                         <label class="e31-opcao" data-opcao="nao" style="display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:10px; border:2px solid #e2e8f0; background:white; cursor:pointer; font-weight:600; color:#dc2626;">
-                            <input type="radio" name="e31Pagou" value="nao" style="accent-color:#dc2626;"> Não pagou
-                        </label>
+                            <input type="radio" name="e31Pagou" value="nao" style="accent-color:#dc2626;"> Não houve pagamento
                     </div>
                 </div>
 
@@ -856,10 +849,10 @@ Atenciosamente,`
 
         // Como o prazo chegou aqui, conforme a escolha da Etapa 25.
         const origemPorPlano = {
-            novo: 'O prazo recomeçou com 30 dias na Etapa 25.',
-            retoma: 'O prazo continuou de onde havia parado, conforme a Etapa 25.',
-            mantem: 'Este Auto já estava vencido na Etapa 25: o prazo não foi reiniciado.',
-            sem: 'A Etapa 25 não encontrou prazo registrado para este Auto.'
+            novo: 'O prazo recomeça com 30 dias de vencimento',
+            retoma: 'Encerrado o período de suspensão, o prazo é retomado a partir da data em que foi suspenso.',
+            mantem: 'Este Auto já estava vencido, o prazo não é reiniciado.',
+            sem: 'Não há prazo registrado para este Auto.'
         };
         const origem = origemPorPlano[dados.prazo_plano]
             || (OPCOES[escolha25]?.prazo === 'reiniciar' ? origemPorPlano.novo : (escolha25 ? origemPorPlano.retoma : ''));

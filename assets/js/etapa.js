@@ -118,17 +118,29 @@ window.processoVeioDaEtapa14 = function (proc) {
     return p?._veioDaEtapa14 === true;
 };
 
-// Substitui o antigo teste "etapa >= 14": nas etapas compartilhadas o número não
-// basta, porque os dois fluxos passam por elas.
+// Etapas em que o número não diz qual é o documento, porque os dois fluxos
+// passam por elas: o ciclo do AR (16, 17, 30) e o encerramento (10, 29, 33).
+// Uma Notificação Preliminar cumprida vai da Etapa 2 direto para a 29 sem nunca
+// ter virado Auto — e o teste "etapa >= 14" a tratava como Auto.
+const ETAPAS_QUE_NAO_DIZEM_O_FLUXO = [10, 16, 17, 29, 30, 33];
+window.ETAPAS_QUE_NAO_DIZEM_O_FLUXO = ETAPAS_QUE_NAO_DIZEM_O_FLUXO;
+
+// Substitui o antigo teste "etapa >= 14": nas etapas acima o número não basta.
 window.etapaIndicaAutoInfracao = function (etapa, proc) {
     const n = parseInt(etapa, 10) || 0;
-    if (ETAPAS_AR_COMPARTILHADAS.includes(n)) return window.processoVeioDaEtapa14(proc);
+    if (ETAPAS_QUE_NAO_DIZEM_O_FLUXO.includes(n)) return window.processoVeioDaEtapa14(proc);
     return n >= 14;
 };
 
 // ── Helper para verificar se Notificação possui status de Auto de Infração ──
+// A `situacao` da notificação é mantida pelo banco e é a resposta definitiva:
+// só quando ela não existe é que vale olhar status e número de etapa.
 window.ehStatusAutoInfracao = function (notif, proc) {
     if (!notif) return false;
+
+    if (notif.situacao === 'auto_infracao' || notif.situacao === 'arquivado') return true;
+    if (notif.situacao === 'notificacao_preliminar') return false;
+
     const st = (notif.status || '').toLowerCase();
     const etapa = parseInt(notif.etapas?.numero || notif.etapa_atual || notif.etapa_atual_id || 0, 10);
     const statusAuto = st === 'auto_infracao' || st === 'auto de infração' || st === 'auto de infracao'
@@ -258,13 +270,22 @@ async function migrarNotificacoesLegadas(proc, notificacoesBanco) {
     return migradas;
 }
 
+// O supabase NÃO acusa erro quando o UPDATE não altera nenhuma linha — seja
+// porque o id não existe, seja porque a RLS bloqueou a escrita: nos dois casos
+// volta { data: null, error: null }. Sem o .select() para conferir, a tela
+// dizia "pronto", recarregava, e tudo aparecia como antes.
 async function atualizarNotificacaoNoBanco(notifId, dados) {
     try {
-        const { error } = await supabaseClient
+        const { data, error } = await supabaseClient
             .from('notificacoes')
             .update(dados)
-            .eq('id', notifId);
+            .eq('id', notifId)
+            .select('id');
         if (error) throw error;
+        if (!data || data.length === 0) {
+            throw new Error('A notificação não foi gravada: nenhuma linha foi alterada. '
+                + 'Pode ser falta de permissão do seu usuário ou a notificação não existe mais.');
+        }
     } catch (err) {
         console.error('Erro ao atualizar notificação no banco:', err);
         throw err;
@@ -381,44 +402,124 @@ async function criarNotificacoesDoProcesso(proc) {
 // A Etapa 18 e o painel leem esses valores; ninguém mais recalcula.
 //
 // ── Onde ficam os dados do AR, do Edital e da Etapa 30 ────────────────────
-// A Notificação Preliminar tem UM AR para o processo inteiro (todas as
-// notificações saem no mesmo envio): proc.campos.etapa16, etapa17 e etapa30.
-// Cada Auto de Infração de uma notificação é enviado à parte e tem o próprio
-// ciclo 16/17/30, guardado em proc.campos.ciclos_ar_auto[<id da notificação>]
-// com as mesmas chaves. Antes os dois ciclos dividiam proc.campos.etapa16 e o
-// AR do Auto sobrescrevia o da notificação.
-// No nível do processo (NP vinda da Etapa 1, processo de decreto) continua
-// valendo proc.campos.
-function camposDoCicloARDaNotificacao(proc, notif, criar = false) {
-    if (!proc || !notif?.id) return null;
-    proc.campos = proc.campos || {};
-    const mapa = proc.campos.ciclos_ar_auto;
-    if (mapa && mapa[notif.id]) return mapa[notif.id];
+// ── Dono do AR ─────────────────────────────────────────────────────────────
+// Todo AR tem um dono: a Notificação Preliminar ou o Auto de Infração. São dois
+// envios diferentes, com números de AR e datas de recebimento diferentes.
+//   Notificação Preliminar  -> UM AR para o processo inteiro (todas as
+//                              notificações saem no mesmo envio):
+//                              proc.campos.etapa16/17/30.
+//   Auto de uma notificação -> AR próprio, enviado à parte:
+//                              proc.campos.ciclos_ar_auto[<id da notificação>],
+//                              com as mesmas chaves.
+//   Processo de decreto     -> nasceu na Etapa 14, nunca teve Notificação
+//                              Preliminar: o AR do Auto fica no nível do
+//                              processo, onde já estava (não há com quem colidir).
+// Antes quem decidia era a ETAPA em que o processo estava: nas Etapas 16, 17 e 30
+// o ciclo era tratado como sendo do processo, e o AR do Auto acabava gravado em
+// cima do AR da Notificação Preliminar. Agora quem decide é o dono do documento
+// aberto na tela, e cada ciclo guarda o dono em dono_ar.
+const DONO_AR_NP = 'np';
+const DONO_AR_AUTO = 'auto';
+
+// Processo que nasceu no Auto de Infração (decreto ou reincidência): nunca teve
+// Notificação Preliminar e tem UM único Auto, logo um único AR, guardado no
+// nível do processo. Diferente de processoVeioDaEtapa14, que é "passou pela
+// Etapa 14" e vale também para o processo que nasceu como Notificação
+// Preliminar e depois virou Auto.
+function processoNasceuNoAuto(proc) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    if (!p) return false;
+    if (window.processoEhReincidencia && window.processoEhReincidencia(p)) return true;
+    if (p.possui_decreto === true) return true;
+    const campos = p.campos || p.dados?.campos || {};
+    return p.dados?.fiscal?.decreto === 'sim' || campos.decorrente_decreto === 'sim';
+}
+window.processoNasceuNoAuto = processoNasceuNoAuto;
+
+// Dono do AR do documento aberto na tela (ou do que foi passado em notif).
+// notif indefinido = a notificação aberta na página; notif null = nenhuma.
+function donoDoCicloAR(proc, notif) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    const n = notif === undefined
+        ? (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null)
+        : notif;
+    // Processo que nasceu no Auto: Auto único, AR único, no nível do processo —
+    // vale também quando a página é aberta pelo link da notificação, senão o
+    // mesmo AR acabaria gravado em dois lugares.
+    if (processoNasceuNoAuto(p)) return { dono: DONO_AR_AUTO, notificacaoId: null };
+    // Notificação que virou Auto: o Auto dela foi enviado à parte e tem AR
+    // próprio, separado do AR da Notificação Preliminar do processo
+    if (n?.id && window.ehStatusAutoInfracao(n, p)) {
+        return { dono: DONO_AR_AUTO, notificacaoId: String(n.id) };
+    }
+    return { dono: DONO_AR_NP, notificacaoId: null };
+}
+window.donoDoCicloAR = donoDoCicloAR;
+
+// Nome do documento dono do AR, para os rótulos da tela.
+function rotuloDonoAR(proc, notif) {
+    const { dono, notificacaoId } = donoDoCicloAR(proc, notif);
+    if (dono !== DONO_AR_AUTO) return 'Notificação Preliminar';
+    const n = notif === undefined
+        ? (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null)
+        : notif;
+    const numero = n ? (n.numero || n.numero_notificacao || '') : '';
+    return numero ? `Auto de Infração nº ${numero}` : 'Auto de Infração';
+}
+window.rotuloDonoAR = rotuloDonoAR;
+
+// Ciclo do AR do Auto de uma notificação. Devolve null quando o AR em questão é
+// o do nível do processo (Notificação Preliminar ou processo de decreto) e,
+// com criar=false, quando esse Auto ainda não tem AR cadastrado.
+function cicloARDoAuto(proc, notif, criar = false) {
+    const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    if (!p) return null;
+    const { dono, notificacaoId } = donoDoCicloAR(p, notif);
+    if (dono !== DONO_AR_AUTO || !notificacaoId) return null;
+    p.campos = p.campos || {};
+    const mapa = p.campos.ciclos_ar_auto;
+    if (mapa && mapa[notificacaoId]) return mapa[notificacaoId];
     if (!criar) return null;
-    proc.campos.ciclos_ar_auto = mapa || {};
-    proc.campos.ciclos_ar_auto[notif.id] = {};
-    return proc.campos.ciclos_ar_auto[notif.id];
+    p.campos.ciclos_ar_auto = mapa || {};
+    p.campos.ciclos_ar_auto[notificacaoId] = { dono_ar: DONO_AR_AUTO };
+    return p.campos.ciclos_ar_auto[notificacaoId];
 }
 
-// Etapas 16, 17 e 30: os campos do ciclo aberto na tela (o do Auto da
-// notificação aberta ou, no nível do processo, proc.campos).
+// Etapas 16, 17 e 30: os campos do ciclo aberto na tela, para gravar.
 function camposCicloAR(proc) {
     const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
     if (!p) return {};
     p.campos = p.campos || {};
-    return camposDoCicloARDaNotificacao(p, notificacaoDoCicloAR(), true) || p.campos;
+    const doAuto = cicloARDoAuto(p, undefined, true);
+    if (doAuto) return doAuto;
+    // Nível do processo: registra de quem é o AR gravado aqui, para as leituras
+    // não confundirem o AR da Notificação Preliminar com o de um Auto
+    p.campos.dono_ar = donoDoCicloAR(p).dono;
+    return p.campos;
 }
 window.camposCicloAR = camposCicloAR;
+
+// O nível do processo guarda o AR da Notificação Preliminar (e não o de um Auto)?
+// Sem a marca dono_ar (processo antigo), é da Notificação Preliminar — salvo nos
+// processos que nasceram no Auto, onde nunca houve Notificação Preliminar.
+function nivelDoProcessoEhDaNP(proc) {
+    const dono = proc?.campos?.dono_ar || proc?.dados?.campos?.dono_ar;
+    if (dono) return dono === DONO_AR_NP;
+    return !processoNasceuNoAuto(proc);
+}
 
 // Autos que já estavam no ciclo 16/17/30 antes da separação gravaram o AR em
 // proc.campos.etapa16/17/30, no lugar do AR da Notificação Preliminar. Ao abrir
 // a etapa, o que foi gravado depois de a notificação entrar no ciclo passa a
 // ser do Auto (fica salvo no próximo Salvar/Avançar).
 async function adotarCicloARLegadoDoAuto(proc) {
-    const notif = notificacaoDoCicloAR();
-    if (!proc || !notif?.id) return;
-    if (camposDoCicloARDaNotificacao(proc, notif, false)) return;
+    const { dono, notificacaoId } = donoDoCicloAR(proc, undefined);
+    const notif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
+    if (!proc || dono !== DONO_AR_AUTO || !notificacaoId || !notif?.id) return;
+    if (cicloARDoAuto(proc, notif, false)) return;
     const c = proc.campos || {};
+    // Já identificado: o que está no nível do processo é da Notificação Preliminar
+    if (nivelDoProcessoEhDaNP(proc)) return;
     if (!c.etapa16 && !c.etapa17 && !c.etapa30) return;
 
     try {
@@ -449,29 +550,37 @@ async function adotarCicloARLegadoDoAuto(proc) {
         if (depoisDoInicio(c.etapa17?.data_anexo_edital)) doAuto.etapa17 = copiar(c.etapa17);
         if (Object.keys(doAuto).length === 0) return;
 
+        doAuto.dono_ar = DONO_AR_AUTO;
         proc.campos.ciclos_ar_auto = proc.campos.ciclos_ar_auto || {};
         proc.campos.ciclos_ar_auto[notif.id] = doAuto;
+        // O AR gravado no nível do processo era deste Auto (o da Notificação
+        // Preliminar foi sobrescrito na época). Marcar isso é o que permite ao
+        // PDF e ao SEMAC acharem o ANEXO do AR, que ficou solto no processo.
+        if (doAuto.etapa16) proc.campos.dono_ar = DONO_AR_AUTO;
         console.info('[AR] Dados do AR gravados no lugar da NP foram atribuídos ao Auto da notificação', notif.numero || notif.id);
     } catch (err) {
         console.warn('Aviso ao separar o AR antigo do Auto:', err);
     }
 }
 
-// Fora do ciclo (prazo, PDFs, Etapa 28...): o AR do Auto quando a notificação
-// já teve o próprio ciclo; senão, o da Notificação Preliminar / do processo.
+// Fora do ciclo (prazo, PDFs, Etapa 28...): o AR do dono do documento. O AR do
+// Auto nunca herda o da Notificação Preliminar — sem AR próprio, o Auto está
+// "aguardando AR". Processos antigos, cujo nível do processo ainda não tem
+// dono_ar, continuam lidos como antes (ver adotarCicloARLegadoDoAuto).
 function camposARParaLeitura(proc, notif) {
     const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
     if (!p) return {};
-    const n = notif === undefined
-        ? (typeof notificacaoAtual !== 'undefined' ? notificacaoAtual : null)
-        : notif;
-    return camposDoCicloARDaNotificacao(p, n, false) || p.campos || {};
+    const doAuto = cicloARDoAuto(p, notif, false);
+    if (doAuto) return doAuto;
+    if (donoDoCicloAR(p, notif).dono === DONO_AR_AUTO && nivelDoProcessoEhDaNP(p)) return {};
+    return p.campos || {};
 }
 window.camposARParaLeitura = camposARParaLeitura;
 
 function obterDadosARProcesso(proc, notif = null) {
-    const doAuto = camposDoCicloARDaNotificacao(proc, notif, false);
+    const doAuto = cicloARDoAuto(proc, notif, false);
     if (doAuto) return { ...(doAuto.etapa16 || {}) };
+    if (donoDoCicloAR(proc, notif).dono === DONO_AR_AUTO && nivelDoProcessoEhDaNP(proc)) return {};
     return {
         ...(proc?.dados?.etapa16 || {}),
         ...(proc?.dados?.campos?.etapa16 || {}),
@@ -498,8 +607,9 @@ function dataLocalMeioDiaISO(valor) {
 // Etapa 17. Os editais antigos, que não têm esse campo, continuam valendo pela data
 // em que o edital foi anexado.
 function obterDataEditalProcesso(proc, notif = null) {
-    const doAuto = camposDoCicloARDaNotificacao(proc, notif, false);
+    const doAuto = cicloARDoAuto(proc, notif, false);
     if (doAuto) return doAuto.etapa17?.data_publicacao_edital || doAuto.etapa17?.data_anexo_edital || null;
+    if (donoDoCicloAR(proc, notif).dono === DONO_AR_AUTO && nivelDoProcessoEhDaNP(proc)) return null;
     return proc?.campos?.etapa17?.data_publicacao_edital
         || proc?.dados?.campos?.etapa17?.data_publicacao_edital
         || proc?.dados?.etapa17?.data_publicacao_edital
@@ -558,8 +668,23 @@ function obterInicioPrazoAR(proc, notif = null) {
 }
 window.obterInicioPrazoAR = obterInicioPrazoAR;
 
+// O prazo de 20 dias por Edital vale para o ciclo DESTE AR, não para o processo
+// inteiro: o Edital do Auto de uma notificação não muda o prazo da Notificação
+// Preliminar, e vice-versa. Devolve null quando o ciclo não tem nada gravado
+// (processo antigo) — aí quem responde é o histórico do processo.
+function cicloPassouPeloEdital(proc, notif) {
+    const ciclo = camposARParaLeitura(proc, notif) || {};
+    const e17 = ciclo.etapa17 || {};
+    if (e17.anexo_edital || e17.data_publicacao_edital || e17.data_anexo_edital) return true;
+
+    const e16 = ciclo.etapa16 || {};
+    const temDadoProprio = !!(e16.numero_ar || e16.data_insercao_ar || e16.data_recebimento
+        || e16.data_recebimento_proprietario || (e16.anexos_ar || []).length > 0);
+    return temDadoProprio ? false : null;
+}
+
 // Prazo do ciclo: no Auto de Infração vale o prazo de DEFESA do Auto (20 dias
-// úteis); a Notificação Preliminar mantém o prazo dela (20 dias depois de Edital).
+// corridos); a Notificação Preliminar mantém o prazo dela (20 dias depois de Edital).
 function prazoDoCicloNotificacao(n, ehAuto, passouEtapa17) {
     if (ehAuto) return determinarPrazoAutoInfracao();
     return passouEtapa17 ? 20 : (n.prazo_dias || obterPrazoNotificacao(n.descricao));
@@ -592,11 +717,18 @@ function refletirPrazoEmMemoria(proc, notifId, campos) {
 //   opcoes.somenteNaEtapa  -> sem notificação aberta, só as que estão nesta etapa
 //                             (ex.: o AR do Auto não pode mexer na NP que ficou na Etapa 2)
 //   sem nenhum dos dois    -> todas as notificações do processo ainda em aberto
+// Cada prazo vem do AR do seu dono: o AR da Notificação Preliminar nunca recalcula
+// o prazo de quem já virou Auto (esse vem do AR do Auto) e o AR de um Auto vale só
+// para a notificação dele. Na prática a ordem é sempre a mesma: primeiro o AR da
+// Notificação Preliminar, depois o do Auto.
 async function aplicarInicioPrazoAR(proc, opcoes = {}) {
     if (!proc) return false;
     // Com a notificação do ciclo (Auto dela), vale o AR desse Auto
     const inicio = obterInicioPrazoAR(proc, opcoes.notificacao || null);
-    const passouEtapa17 = await processoPassouPelaEtapa17(proc);
+    const editalDoCiclo = cicloPassouPeloEdital(proc, opcoes.notificacao || null);
+    const passouEtapa17 = editalDoCiclo === null
+        ? await processoPassouPelaEtapa17(proc)
+        : editalDoCiclo;
 
     let notificacoes = [];
     try {
@@ -614,6 +746,12 @@ async function aplicarInicioPrazoAR(proc, opcoes = {}) {
     // Pagamento: o Auto está em encerramento, só esperando o fiscal — não conta prazo
     const fechadas = ['encerrada', 'atendida', 'pagamento'];
     notificacoes = notificacoes.filter(n => !fechadas.includes(String(n.status || '').toLowerCase()));
+
+    // AR da Notificação Preliminar não mexe no prazo de quem já virou Auto: o
+    // prazo de defesa do Auto conta do recebimento do AR DELE
+    if (!opcoes.ehAuto) {
+        notificacoes = notificacoes.filter(n => !window.ehStatusAutoInfracao(n, proc));
+    }
 
     const dataMov = new Date().toISOString();
     for (const n of notificacoes) {
@@ -642,18 +780,15 @@ async function aplicarInicioPrazoAR(proc, opcoes = {}) {
 }
 window.aplicarInicioPrazoAR = aplicarInicioPrazoAR;
 
-// O ciclo do AR (Etapas 16, 17 e 30) é de UMA notificação só quando o processo
-// está no painel da Etapa 2 e é a notificação aberta que passa pela 16/17/30
-// (o Auto daquela notificação). Se o próprio processo está na 16/17/30 — NP vinda
-// da Etapa 1 ou processo de decreto —, o ciclo é do processo inteiro, mesmo que a
-// página tenha sido aberta por um link de notificação. processoAtual.etapas é a
-// etapa real do processo no banco (a página sobrescreve etapa_atual com a da
-// notificação aberta, mas não essa).
+// O ciclo do AR (Etapas 16, 17 e 30) é de UMA notificação quando o AR aberto é o
+// do Auto dela. É null quando o AR é do nível do processo: o da Notificação
+// Preliminar (um envio só para todas as notificações) ou o de um processo de
+// decreto, que nasceu Auto e nunca teve Notificação Preliminar. Antes isso era
+// decidido pela etapa em que o processo estava — ver donoDoCicloAR.
 function notificacaoDoCicloAR() {
-    const notif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
-    if (!notif) return null;
-    const etapaRealProcesso = parseInt(processoAtual?.etapas?.numero || 0, 10);
-    return ETAPAS_AR_COMPARTILHADAS.includes(etapaRealProcesso) ? null : notif;
+    const { dono, notificacaoId } = donoDoCicloAR(processoAtual, undefined);
+    if (dono !== DONO_AR_AUTO || !notificacaoId) return null;
+    return (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
 }
 
 // Opções do ciclo do AR nas Etapas 16, 17 e 30: a notificação aberta ou, no nível
@@ -668,10 +803,7 @@ function opcoesCicloAR(etapaNumero, ehAuto) {
 // O AR da Etapa 16 é do Auto de Infração quando a notificação aberta virou Auto,
 // ou (no nível do processo) quando o processo veio da Etapa 14.
 function cicloDoAREhAuto() {
-    const notif = notificacaoDoCicloAR();
-    return notif
-        ? ehStatusAutoInfracao(notif, processoAtual)
-        : window.processoVeioDaEtapa14(processoAtual);
+    return donoDoCicloAR(processoAtual, undefined).dono === DONO_AR_AUTO;
 }
 
 // A Etapa 2 é o painel central do processo que tem notificações: o processo fica
@@ -945,9 +1077,10 @@ async function inicializarPaginaEtapa() {
         }
     }
 
-    if (ETAPAS_AR_COMPARTILHADAS.includes(etapaAtual)) {
-        await adotarCicloARLegadoDoAuto(processoAtual);
-    }
+    // Auto de notificação cujo AR ficou gravado no lugar do AR da Notificação
+    // Preliminar (antes da separação): separa agora, em qualquer etapa, senão as
+    // leituras por dono não encontrariam o AR dele.
+    await adotarCicloARLegadoDoAuto(processoAtual);
 
     if (etapaAtual === 2 && !notificacaoAtual) {
         await renderizarEtapa2(processoAtual);
@@ -1148,7 +1281,7 @@ function renderizarFormularioDinamico(etapaNum) {
         }
 
         conteudo = `
-            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Defesa Apresentada</h3>
+            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Defesa do contribuinte</h3>
             ${alertaGerenteHtml}
             ${prazoHtml}
             <p style="font-size:0.95rem; color:#475569;">Por favor, anexe o documento de defesa abaixo. Você pode anexar mais de um arquivo.</p>
@@ -1376,8 +1509,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Fiscal Analisa a Defesa (1ª)</h3>
-                        <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a defesa e informe a decisão.</p>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Analise da Defesa</h3>
                     </div>
                 </div>
 
@@ -1385,7 +1517,7 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 ${anexosEtapa13Html ? `
                 <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px;">
-                    <h4 style="margin:0 0 12px 0; color:#334155; font-size:0.95rem; font-weight:700;">Documentos Apresentados na Defesa:</h4>
+                    <h4 style="margin:0 0 12px 0; color:#334155; font-size:0.95rem; font-weight:700;">Documentos Apresentados</h4>
                     ${anexosEtapa13Html}
                 </div>
                 ` : ''}
@@ -1704,7 +1836,7 @@ function renderizarFormularioDinamico(etapaNum) {
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
                         <h3 style="margin:0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
                             <span>💰 Anexo do Documento da Multa</span>
-                            <span style="color:#ef4444; font-size:0.9rem;">* (Obrigatório para Avançar)</span>
+                            <span style="color:#ef4444; font-size:0.9rem;">*</span>
                         </h3>
                         ${!ehGerente ? '<span style="background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem; padding:4px 12px; border-radius:20px;">🔒 Restrito ao Gerente</span>' : ''}
                     </div>
@@ -1892,10 +2024,10 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                     <div>
                         <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 20 – Arquivamento do Processo</h2>
-                        <p style="margin:4px 0 0 0; color:#64748b; font-size:0.92rem;">Processo ${numProcesso20} — enviado à dívida ativa pelo protocolo ${protocolo20}.</p>
+                        <p style="margin:4px 0 0 0; color:#64748b; font-size:0.92rem;">Enviado à dívida ativa pelo protocolo ${protocolo20}.</p>
                     </div>
                     <span id="badgeArquivadoEtapa20" style="margin-left:auto; padding:6px 14px; border-radius:20px; font-size:0.82rem; font-weight:700; ${arquivado20 ? 'background:#e2e8f0; color:#334155;' : 'background:#fef9c3; color:#854d0e;'}">
-                        ${arquivado20 ? '📦 Arquivado' : 'Aguardando arquivamento'}
+                        ${arquivado20 ? ' Arquivado' : 'Aguardando arquivamento'}
                     </span>
                 </div>
 
@@ -1922,16 +2054,16 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <!-- Arquivar / desfazer -->
                 <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px;">
-                    <h3 style="margin:0 0 6px 0; color:#1e293b; font-size:1.05rem; font-weight:700;">📦 Arquivamento</h3>
-                    <p style="margin:0 0 14px 0; color:#64748b; font-size:0.88rem;">
-                        Arquivar encerra o processo. Se precisar, dá para desfazer: ele volta a ser Auto de Infração e retorna à Etapa 18.
-                    </p>
+                    <h3 style="margin:0 0 6px 0; color:#1e293b; font-size:1.05rem; font-weight:700;"> Arquivamento</h3>
+                    ${arquivado20 ? '' : `<p style="margin:0 0 14px 0; color:#64748b; font-size:0.88rem;">
+                        Essa etapa não encerra o processo. No futuro será possivel reverter essa ação.
+                    </p>`}
                     <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
                         <button type="button" id="btnArquivarEtapa20" style="padding:12px 22px; background:#334155; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.94rem; cursor:pointer; ${arquivado20 ? 'display:none;' : ''}">
-                            📦 Arquivar processo
+                             Arquivar processo
                         </button>
                         <button type="button" id="btnDesarquivarEtapa20" style="padding:12px 20px; background:white; color:#b45309; border:1px solid #fcd34d; border-radius:10px; font-weight:700; font-size:0.94rem; cursor:pointer; ${arquivado20 ? '' : 'display:none;'}">
-                            ↩️ Desfazer arquivamento e voltar para a Etapa 18
+                            ↩ Desarquivar
                         </button>
                     </div>
                 </div>
@@ -1955,7 +2087,6 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                     <div>
                         <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 28 – Certificação do Vencimento</h2>
-                        <p style="margin:4px 0 0 0; color:#64748b; font-size:0.92rem;">Processo ${numProcesso28} — o autuado não fez o pagamento do Auto de Infração.</p>
                     </div>
                 </div>
 
@@ -1966,7 +2097,7 @@ function renderizarFormularioDinamico(etapaNum) {
                             <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
                             <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
                                 Capa ➔ documentos do processo ➔ Auto de Infração ➔ <strong>Multa</strong> ➔ <strong>Fotos do AR</strong>
-                                ➔ <strong>Página com os dados do AR</strong> ➔ <strong>Edital</strong> ➔ demais anexos, na ordem em que entraram.
+                                ➔ <strong>Página com os dados do AR</strong> ➔ <strong>Edital</strong> ➔ demais anexos.
                             </p>
                         </div>
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
@@ -1983,7 +2114,7 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <!-- Resumo do AR (o mesmo que vai na página do PDF) -->
                 <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
-                    <h3 style="margin:0 0 12px 0; color:#1e3a8a; font-size:1.05rem; font-weight:700;">📬 Aviso de Recebimento (AR)</h3>
+                    <h3 style="margin:0 0 12px 0; color:#1e3a8a; font-size:1.05rem; font-weight:700;">Aviso de Recebimento (AR)</h3>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; font-size:0.9rem;">
                         <div><strong style="color:#475569;">Número do AR:</strong><br><span style="color:#0f172a; font-weight:600;">${infoAR28.numeroAR}</span></div>
                         ${infoAR28.entregue
@@ -1996,12 +2127,12 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <!-- Mensagem para o protocolo -->
                 <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:20px;">
-                    <h3 style="margin:0 0 6px 0; color:#1e40af; font-size:1.05rem; font-weight:700;">💬 Mensagem para enviar no protocolo</h3>
-                    <p style="margin:0 0 12px 0; color:#1e40af; font-size:0.86rem;">Pode editar o texto antes de copiar. A edição não é salva no processo.</p>
+                    <h3 style="margin:0 0 6px 0; color:#1e40af; font-size:1.05rem; font-weight:700;"> Envie no protocolo:</h3>
+                    <p style="margin:0 0 12px 0; color:#1e40af; font-size:0.86rem;">Se necessário, edite o texto antes de copiar. Atenção: a edição não é salva no processo.</p>
                     <textarea id="mensagemProtocoloEtapa28" rows="4" style="width:100%; padding:12px 14px; border:1px solid #bfdbfe; border-radius:10px; font-family:inherit; font-size:0.94rem; color:#0f172a; background:white; resize:vertical;">${mensagemProtocolo}</textarea>
                     <div style="display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap;">
                         <button type="button" id="btnCopiarMensagemEtapa28" style="padding:10px 18px; background:#2563eb; color:white; border:none; border-radius:8px; font-weight:600; font-size:0.9rem; cursor:pointer;">
-                            📋 Copiar mensagem
+                            Copiar mensagem
                         </button>
                         <button type="button" id="btnRestaurarMensagemEtapa28" style="padding:10px 16px; background:white; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; font-weight:600; font-size:0.9rem; cursor:pointer;">
                             Restaurar texto padrão
@@ -2094,7 +2225,7 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <!-- Botão Gigante de Encerramento -->
                 <div style="background:#f0fdf4; padding:32px; border:2px dashed #86efac; border-radius:16px; display:flex; flex-direction:column; align-items:center;">
-                    <h3 style="margin:0 0 16px 0; color:#166534; font-size:1.3rem; text-align:center;">Deseja encerrar esta Notificação definitivamente?</h3>
+                    <h3 style="margin:0 0 16px 0; color:#166534; font-size:1.3rem; text-align:center;">Deseja encerrar ${docFluxo.esteEsta.toLowerCase()} ${docFluxo.rotulo} definitivamente?</h3>
                     <div id="avisoCertidaoEncerramento" style="display:none; background:#fffbeb; border:1px solid #fcd34d; color:#92400e; padding:12px 16px; border-radius:10px; margin-bottom:16px; font-size:0.9rem; font-weight:600; text-align:center;">
                         Anexe a <strong>Certidão Assinada</strong> acima para liberar o encerramento d${docFluxo.artigo} ${docFluxo.rotulo.toLowerCase()}.
                     </div>
@@ -2105,7 +2236,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                         Sim, Encerrar ${docFluxo.rotulo} Definitivamente
                     </button>
-                    <p style="margin:14px 0 0 0; color:#15803d; font-size:0.88rem; font-weight:600; text-align:center;">Atenção: Ao clicar acima, a notificação será marcada como encerrada no sistema.</p>
+                    <p style="margin:14px 0 0 0; color:#15803d; font-size:0.88rem; font-weight:600; text-align:center;">Atenção: Ao clicar acima, ${docFluxo.artigo} ${docFluxo.rotulo.toLowerCase()} será marcad${docFluxo.artigo} como ${docFluxo.encerrado.toLowerCase()} no sistema.</p>
                 </div>
             </div>
         `;
@@ -2187,10 +2318,14 @@ function renderizarFormularioDinamico(etapaNum) {
 
     if (etapaNum === 29 || etapaNum === 33 || (notificacaoAtual?.status === 'encerrada' && !notificacaoAtual?.dados?.arquivado)) {
         setTimeout(() => {
-            // Auto pago (opção "Pagamento" na Etapa 18): a Etapa 29 mostra a certidão
-            // de encerramento. Nos demais casos, a área do documento fica vazia.
-            const mostrarCertidaoPagamento = etapaNum === 29
-                && typeof window.autoFoiPagoNaEtapa18 === 'function' && window.autoFoiPagoNaEtapa18();
+            // A Etapa 29 mostra a certidão de encerramento em dois casos: Auto pago
+            // (opção "Pagamento" na Etapa 18) e Notificação Preliminar cumprida,
+            // que chega da Etapa 2 (atendida), da 10 (atendido) ou da 13 (deferida).
+            const mostrarCertidaoPagamento = etapaNum === 29 && (
+                (typeof window.autoFoiPagoNaEtapa18 === 'function' && window.autoFoiPagoNaEtapa18())
+                || (typeof window.certidaoEhDeCumprimentoDeNotificacao === 'function'
+                    && window.certidaoEhDeCumprimentoDeNotificacao())
+            );
 
             if (etapaNum === 29) {
                 if (typeof window.configurarEventosCertidaoAssinada === 'function') window.configurarEventosCertidaoAssinada();
@@ -3763,25 +3898,34 @@ async function finalizarEBaixarZipNotificacao() {
             etapa_de: parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual_id || 29, 10),
             etapa_para: 'encerrada',
             status: 'encerrada',
-            condicao: 'Encerramento de Notificação',
+            condicao: `Encerramento d${doc.artigo} ${doc.rotulo}`,
             data: new Date().toISOString(),
             usuario: perfilAtual?.nome || 'Sistema'
         });
 
-        await supabaseClient
+        // O erro desta gravação não era conferido e o .select() não existia: o
+        // encerramento sempre dizia "com sucesso", mesmo quando nada foi gravado.
+        const { data: encerrada, error: errEncerrar } = await supabaseClient
             .from('notificacoes')
             .update({
                 status: 'encerrada',
                 dados: notifDados
             })
-            .eq('id', notificacaoAtual.id);
+            .eq('id', notificacaoAtual.id)
+            .select('id');
+
+        if (errEncerrar) throw errEncerrar;
+        if (!encerrada || encerrada.length === 0) {
+            throw new Error('Nenhuma linha foi alterada. Pode ser falta de permissão do seu '
+                + 'usuário para encerrar esta notificação.');
+        }
 
         ocultarCarregamento();
         alert(`${doc.rotulo} ${doc.encerrado.toLowerCase()} com sucesso.`);
         window.location.href = `etapa.html?processo=${processoAtual.id}`;
     } catch (err) {
         console.error('Erro ao encerrar notificação no banco:', err);
-        alert('Erro ao atualizar status de encerramento no banco.');
+        alert('Não foi possível encerrar.\n\n' + (err?.message || err));
         ocultarCarregamento();
     }
 }
@@ -4917,13 +5061,20 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
             });
             updates.dados = notifDados;
 
-            // Atualiza apenas a notificação específica
-            const { error: notifErr } = await supabaseClient
+            // Atualiza apenas a notificação específica. O .select() confirma que a
+            // linha foi mesmo alterada: sem ele, um UPDATE que não pega nada passa
+            // como sucesso e a etapa parece ter avançado sem ter avançado.
+            const { data: notifAlterada, error: notifErr } = await supabaseClient
                 .from('notificacoes')
                 .update(updates)
-                .eq('id', notificacaoAtual.id);
+                .eq('id', notificacaoAtual.id)
+                .select('id');
 
             if (notifErr) throw notifErr;
+            if (!notifAlterada || notifAlterada.length === 0) {
+                throw new Error('A etapa não foi gravada: nenhuma linha da notificação foi alterada. '
+                    + 'Pode ser falta de permissão do seu usuário para esta notificação.');
+            }
 
             notificacaoAtual.dados = notifDados;
 
@@ -4968,10 +5119,17 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
             updates.status = 'prazo_ar_expirado';
         }
 
-        await supabaseClient
+        const { data: procAlterado, error: procErr } = await supabaseClient
             .from('processos')
             .update(updates)
-            .eq('id', processoAtual.id);
+            .eq('id', processoAtual.id)
+            .select('id');
+
+        if (procErr) throw procErr;
+        if (!procAlterado || procAlterado.length === 0) {
+            throw new Error('A etapa não foi gravada: nenhuma linha do processo foi alterada. '
+                + 'Pode ser falta de permissão do seu usuário para este processo.');
+        }
 
         await supabaseClient
             .from('historico_etapas')
@@ -4988,7 +5146,9 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
         window.location.href = `etapa.html?processo=${processoAtual.id}`;
     } catch (err) {
         console.error('Erro ao mover processo:', err);
-        alert('Erro ao mover o processo de etapa.');
+        // Mostra o motivo: antes era sempre a mesma frase genérica, e um erro de
+        // permissão ficava indistinguível de um erro de rede.
+        alert('Erro ao mover o processo de etapa.\n\n' + (err?.message || err));
         ocultarCarregamento();
     }
 }
@@ -5347,9 +5507,6 @@ function obterHtmlCardCalculoMulta(opts) {
                     <div>
                         <h4 style="font-size: 0.98rem; font-weight: 700; color: #9f1239; margin: 0;">Dados
                             da Reincidência (Auto de Infração Anterior)</h4>
-                        <p style="font-size: 0.84rem; color: #be123c; margin: 2px 0 0 0;">Preencha o número
-                            e a data do Auto de Infração anterior para constar no
-                            documento.</p>
                     </div>
                 </div>
                 <div style="display: flex; gap: 16px; flex-wrap: wrap;">
@@ -7818,7 +7975,7 @@ function gerarBlocoInfracao(proc, disp, index) {
 
     const numAI = proc.campos?.auto_infracao_anterior_numero || 'XXXX';
     const dataAI = proc.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
-    const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+    const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`;
 
     if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
         titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
@@ -8049,7 +8206,7 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
 
         const numAI = proc.campos?.auto_infracao_anterior_numero || 'XXXX';
         const dataAI = proc.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
-        const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+        const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`;
 
         if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
             titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
@@ -8587,7 +8744,7 @@ async function renderizarEtapa2(proc) {
                 if (n.status === 'atendida') textoMotivo = 'Houve Cumprimento (Atendida)';
                 else if (n.status === 'encerrada') textoMotivo = 'Notificação Encerrada / Finalizada';
                 else if (n.status === 'pendente_vencida') textoMotivo = 'Notificação vencida (Prazo esgotado)';
-                else if (n.status === 'defesa') textoMotivo = 'Defesa Apresentada';
+                else if (n.status === 'defesa') textoMotivo = 'Defesa do contribuinte';
                 else if (n.status === 'dilacao') textoMotivo = 'Dilação de Prazo Solicitada';
                 else textoMotivo = 'Motivo não especificado';
 
@@ -8876,13 +9033,16 @@ window.anexoEtapa4Por = anexoEtapa4Por;
 const ETAPA_DESTINO_SAIDA_ETAPA_2 = {
     defesa: 3,
     dilacao: 4,
-    atendida: 10,
+    // Cumpriu: não há o que certificar na Etapa 10, vai direto para a certidão
+    // de encerramento da Etapa 29.
+    atendida: 29,
     pendente_vencida: 10
 };
 
 // A Etapa 10 abre com "O problema foi resolvido?" já marcado conforme o que
-// aconteceu antes: atendida -> Sim (segue para a 29); vencida -> Não (gera o
-// Auto, Etapa 14). Fica gravado na notificação para a tela não ter que adivinhar.
+// aconteceu antes. Hoje só chega aqui quem venceu sem atender, que abre em Não
+// (gera o Auto, Etapa 14) — quem cumpriu vai da Etapa 2 direto para a 29.
+// Fica gravado na notificação para a tela não ter que adivinhar.
 const RESOLVIDO_PARA_CERTIDAO = { atendida: 'sim', pendente_vencida: 'nao' };
 
 function marcarResolvidoParaCertidao(notif, valor) {
@@ -8924,7 +9084,7 @@ async function avancarEtapa2() {
         if (temDefesa) {
             proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.defesa;
             status = 'defesa';
-            condicao = 'Defesa apresentada';
+            condicao = 'Defesa do contribuinte';
         } else if (temDilacao) {
             proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.dilacao;
             status = 'dilacao_prazo';
@@ -9101,7 +9261,7 @@ async function avancarNotificacaoEtapa2(index) {
     } else if (statusSelecionado === 'defesa') {
         proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.defesa;
         statusProcesso = 'defesa';
-        condicao = 'Defesa apresentada';
+        condicao = 'Defesa do contribuinte';
     } else if (statusSelecionado === 'dilacao') {
         proxEtapaNumero = ETAPA_DESTINO_SAIDA_ETAPA_2.dilacao;
         statusProcesso = 'dilacao_prazo';
@@ -9319,7 +9479,11 @@ function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
         // O prazo gravado pela Etapa 16/17/30 (prazo_origem preenchido) é o oficial.
         // Só calcula aqui quando ele ainda não existe (processos anteriores à mudança).
         const prazoGravado = !!(n.prazo_origem && n.data_vencimento);
-        const dataInicio = prazoGravado ? n.data_inicio : dataInicioGlobal;
+        // Sem prazo gravado, vale o AR do Auto desta notificação; o global é o
+        // último recurso (processo de decreto e processos antigos)
+        const dataInicio = prazoGravado
+            ? n.data_inicio
+            : (obterInicioPrazoAR(proc, n)?.dataISO || dataInicioGlobal);
         const prazoDias = prazoGravado ? (n.prazo_dias || determinarPrazoAutoInfracao()) : determinarPrazoAutoInfracao();
         const dataVencimento = prazoGravado ? n.data_vencimento : calcularVencimentoDefesaAuto(dataInicio);
         const numAuto = n.dados?.etapa14?.numero_auto_infracao || proc.campos?.etapa14?.numero_auto_infracao || proc.dados?.etapa14?.numero_auto_infracao || n.numero || `${proc.numero_processo || 'S/N'}/${String(index + 1).padStart(2, '0')}`;
@@ -9803,13 +9967,18 @@ async function renderizarEtapa16(proc) {
 // Ajusta os textos da Etapa 16 ao fluxo de origem: o documento enviado pelo AR
 // é a Notificação Preliminar (origem Etapa 1) ou o Auto de Infração (origem Etapa 14).
 function ajustarRotulosEtapa16AoFluxo(proc) {
-    const ehAuto = window.processoVeioDaEtapa14(proc);
+    // O AR é do documento aberto na tela: cada um tem o seu (ver donoDoCicloAR)
+    const ehAuto = donoDoCicloAR(proc, undefined).dono === DONO_AR_AUTO;
     const nomeDoc = ehAuto ? 'Auto de Infração' : 'Notificação Preliminar';
     const artigo = ehAuto ? 'o' : 'a';
     const efetivado = ehAuto ? 'efetivado' : 'efetivada';
 
     const labelEl = document.querySelector('label[for="arRetornoSemSucesso"]');
     if (labelEl) labelEl.textContent = `${nomeDoc} ${efetivado}?`;
+
+    // Deixa claro de qual documento é este AR, para não confundir com o outro
+    const titulo = document.getElementById('tituloRegistroAR');
+    if (titulo) titulo.textContent = `Registro do Aviso de Recebimento (AR) — ${rotuloDonoAR(proc, undefined)}`;
 
     const avisoLeitura = document.getElementById('avisoEtapa16Fiscal');
     if (avisoLeitura) {
@@ -9908,20 +10077,37 @@ function idsDeAnexosARDeAutos(proc) {
     return ids;
 }
 
-// Documento do AR que vale para a tela aberta: o do Auto, quando a notificação
-// aberta teve o próprio ciclo do AR; senão, o da Notificação Preliminar.
-window.escolherDocumentoAR = function (docsBanco) {
+// Anexo do AR do dono do documento: o do Auto da notificação (ligado a ela por
+// notificacao_id) ou o do nível do processo (Notificação Preliminar / decreto).
+// notif indefinido = a notificação aberta na tela.
+window.escolherDocumentoAR = function (docsBanco, notif) {
     const ehAR = d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo);
-    const refs = camposARParaLeitura(processoAtual).etapa16?.anexos_ar || [];
+    const { dono, notificacaoId } = donoDoCicloAR(processoAtual, notif);
+    const refs = camposARParaLeitura(processoAtual, notif).etapa16?.anexos_ar || [];
     const idsRefs = new Set(refs.map(a => a.documento_id).filter(Boolean));
     const docsAR = (docsBanco || []).filter(ehAR);
     const idsAutos = idsDeAnexosARDeAutos(processoAtual);
-    const temCicloProprio = !!camposDoCicloARDaNotificacao(processoAtual, notificacaoAtual, false);
-    // Anexo do AR com notificacao_id é sempre do AR de um Auto
-    return docsAR.find(d => idsRefs.has(d.id))
-        || (temCicloProprio ? null : (docsAR.find(d => !idsAutos.has(d.id) && !d.notificacao_id) || docsAR[0]))
+
+    // O anexo referenciado pelo próprio ciclo vale sempre
+    const porReferencia = docsAR.find(d => idsRefs.has(d.id));
+    if (porReferencia) return porReferencia;
+
+    if (dono === DONO_AR_AUTO && notificacaoId) {
+        return docsAR.find(d => String(d.notificacao_id) === String(notificacaoId))
+            || refs[0]
+            // Auto antigo, de antes da separação: o AR dele ficou no nível do processo
+            || (nivelDoProcessoEhDaNP(processoAtual)
+                ? null
+                : docsAR.find(d => !idsAutos.has(d.id) && !d.notificacao_id))
+            || null;
+    }
+
+    // Nível do processo: nada que já pertença ao AR de um Auto
+    return docsAR.find(d => !idsAutos.has(d.id) && !d.notificacao_id)
         || refs[0]
-        || (temCicloProprio ? null : processoAtual?._arAnexosLocais?.[0])
+        || processoAtual?._arAnexosLocais?.[0]
+        // Processo antigo em que nenhum Auto reivindicou anexo de AR
+        || (idsAutos.size === 0 ? docsAR[0] : null)
         || notificacaoAtual?.dados?.etapa16?.anexos_ar?.[0]
         || null;
 };
@@ -9952,7 +10138,7 @@ function renderizarListaAnexosAR() {
     const anexos = processoAtual?._arAnexosLocais || [];
 
     if (anexos.length === 0) {
-        container.innerHTML = `<div style="padding:12px; border:1px dashed #cbd5e1; background:#f8fafc; border-radius:8px; text-align:center; color:#64748b; font-size:0.85rem;">Nenhum anexo do AR inserido ainda. (Obrigatório para avançar)</div>`;
+        container.innerHTML = `<div style="padding:12px; border:1px dashed #cbd5e1; background:#f8fafc; border-radius:8px; text-align:center; color:#64748b; font-size:0.85rem;">Nenhum anexo do AR inserido ainda. (Obrigatório)</div>`;
         return;
     }
 
@@ -10463,14 +10649,17 @@ async function avancarEtapa16() {
     if (notificacaoEfetivada === 'sim') registrarDataRecebimentoAR(processoAtual, dataRecebimento);
 
     // A origem do fluxo define o destino e quantas tentativas de AR existem
-    const veioDaEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
+    // O destino é do documento deste AR: Auto de Infração vai para a Etapa 18
+    // (defesa do Auto), Notificação Preliminar volta para a Etapa 2.
+    await carregarOrigemFluxoProcesso(processoAtual);
+    const veioDaEtapa14 = cicloDoAREhAuto();
 
     let proximaEtapaNumero = null;
     let condicao = '';
 
     if (notificacaoEfetivada === 'sim') {
         proximaEtapaNumero = veioDaEtapa14 ? 18 : 2;
-        condicao = veioDaEtapa14 ? 'AR recebido após Etapa 14' : 'AR recebido após Etapa 1';
+        condicao = veioDaEtapa14 ? 'AR do Auto de Infração recebido' : 'AR da Notificação Preliminar recebido';
     } else {
         const tentativas = registrarRetornoARSemSucesso(processoAtual);
         const limite = limiteTentativasAR(processoAtual);
@@ -10566,11 +10755,11 @@ function renderizarOrigemFluxoCompartilhada(proc, elementoId) {
     const el = document.getElementById(elementoId);
     if (!el) return;
 
-    const ehAuto = window.processoVeioDaEtapa14(proc);
+    const ehAuto = donoDoCicloAR(proc, undefined).dono === DONO_AR_AUTO;
     const origem = ehAuto ? 'Auto de Infração (Etapa 14)' : 'Notificação Preliminar (Etapa 1)';
     const destino = ehAuto ? 'Etapa 18 (Defesa do Auto)' : 'Etapa 2 (Defesa / Prazo)';
 
-    el.innerHTML = `<strong>Documento do processo:</strong> ${origem}. `
+    el.innerHTML = `<strong>AR deste documento:</strong> ${rotuloDonoAR(proc, undefined)} — ${origem}. `
         + `Se o AR for efetivado, o processo segue para a ${destino}.`;
 }
 window.renderizarOrigemFluxoCompartilhada = renderizarOrigemFluxoCompartilhada;
@@ -10852,7 +11041,8 @@ async function avancarEtapa17() {
     mostrarCarregamento('Avançando etapa...');
 
     try {
-        const passouEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
+        await carregarOrigemFluxoProcesso(processoAtual);
+        const passouEtapa14 = cicloDoAREhAuto();
         const proxEtapaNumero = passouEtapa14 ? 18 : 2;
         const status = passouEtapa14 ? 'edital_gerado_defesa' : 'edital_gerado_prazo';
 
@@ -10941,6 +11131,11 @@ function renderizarEtapa30(proc) {
     if (formulario30) formulario30.style.display = '';
 
     renderizarOrigemFluxoCompartilhada(proc, 'origemFluxoEtapa30');
+
+    const tituloAR30 = document.getElementById('tituloLocalizacaoAR');
+    if (tituloAR30) {
+        tituloAR30.textContent = `Localização do Aviso de Recebimento (AR) — ${rotuloDonoAR(proc, undefined)}`;
+    }
 
     const ciclo = camposCicloAR(proc);
     const dadosAR = ciclo.etapa16 || {};
@@ -11081,13 +11276,13 @@ async function avancarEtapa30() {
             proxEtapaNumero = 17;
             condicao = 'AR não efetivado';
         } else {
-            const passouEtapa14 = await carregarOrigemFluxoProcesso(processoAtual);
-            if (passouEtapa14) {
+            await carregarOrigemFluxoProcesso(processoAtual);
+            if (cicloDoAREhAuto()) {
                 proxEtapaNumero = 18;
-                condicao = 'AR efetivado/localizado (já passou pela Etapa 14)';
+                condicao = 'AR do Auto de Infração efetivado/localizado';
             } else {
                 proxEtapaNumero = 2;
-                condicao = 'AR efetivado/localizado (sem Etapa 14 anterior)';
+                condicao = 'AR da Notificação Preliminar efetivado/localizado';
             }
         }
 
@@ -11952,6 +12147,37 @@ async function baixarRelatorioFiscalPdfEtapa() {
 
         let relatorioUrl = null;
 
+        // 0. Reincidência: o relatório do processo é o do processo ANTERIOR. Este
+        //    processo não gera relatório próprio (o passo 5 do cadastro é pulado),
+        //    então sem isto o botão montava um relatório em branco.
+        if (typeof processoEhReincidencia === 'function' && processoEhReincidencia(processoAtual)) {
+            try {
+                const { data: docAnterior } = await supabaseClient
+                    .from('documentos')
+                    .select('url, nome_arquivo')
+                    .eq('processo_id', processoAtual.id)
+                    .eq('tipo', 'Relatório Fiscal Anterior')
+                    .not('url', 'is', null)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (docAnterior?.url) {
+                    const reinc = (typeof dadosDaReincidencia === 'function') ? dadosDaReincidencia(processoAtual) : {};
+                    const nome = docAnterior.nome_arquivo
+                        || `Relatorio_Fiscal_Processo_Anterior_${(reinc.numeroProcesso || '').replace(/[\/\\]/g, '-')}.pdf`;
+                    window.abrirOuBaixarDocumento(docAnterior.url, nome);
+                    return;
+                }
+
+                alert('Este processo é de reincidência e o Relatório Fiscal do processo anterior '
+                    + 'ainda não foi anexado. Anexe-o no cadastro do processo para poder baixá-lo aqui.');
+                return;
+            } catch (errAnterior) {
+                console.warn('Erro ao buscar o Relatório Fiscal do processo anterior:', errAnterior);
+            }
+        }
+
         // 1. Busca na tabela 'documentos' (verificando id do processo e notificação)
         try {
             const procId = processoAtual?.id;
@@ -12628,7 +12854,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         let titulo = '', prazo = '', itens = '', penalidade = '', obsFiscal = proc?.campos?.infracoes_obs?.[index] || '';
         const numAI = proc?.campos?.auto_infracao_anterior_numero || 'XXXX';
         const dataAI = proc?.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
-        const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+        const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`;
 
         if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
             titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
@@ -13141,11 +13367,14 @@ window.rotuloDocumentoDoFluxo = function () {
 
     // A situação da própria notificação é a fonte certa (notificacoes.situacao).
     // Não dá para usar o número da etapa: a NP também chega às etapas 29 e 33.
+    // O número de Auto guardado no JSON não decide sozinho: notificação que
+    // nunca virou Auto pode ter um número reservado por engano, e aí a tela
+    // inteira passava a chamá-la de Auto de Infração.
     const ehAuto = notif
         ? (notif.situacao === 'auto_infracao'
             || notif.situacao === 'arquivado'
-            || String(notif.status || '').toLowerCase() === 'auto_infracao'
-            || !!numeroAutoDaNotificacao)
+            || (notif.situacao !== 'notificacao_preliminar'
+                && (String(notif.status || '').toLowerCase() === 'auto_infracao' || !!numeroAutoDaNotificacao)))
         : window.processoVeioDaEtapa14(processoAtual);
 
     const numeroAuto = numeroAutoDaNotificacao;
@@ -13171,6 +13400,50 @@ window.rotuloDocumentoDoFluxo = function () {
 
 // ── ETAPA 29: certidão de encerramento por pagamento ──────────────────────
 // Gerada quando o Auto é marcado como "Pagamento" na Etapa 18 e chega à Etapa 29.
+// Datas da Notificação Preliminar para a certidão: ciência pelo AR e o fim do
+// prazo de defesa. Mesma origem que a certidão da Etapa 10 usa.
+function datasCienciaEDefesaDaNotificacao() {
+    const dataRecebimento = processoAtual?.campos?.etapa16?.data_recebimento
+        || processoAtual?.campos?.etapa16?.data_recebimento_proprietario
+        || processoAtual?.dados?.etapa16?.data_recebimento
+        || processoAtual?.dados?.etapa16?.data_recebimento_proprietario
+        || notificacaoAtual?.dados?.etapa16?.data_recebimento_proprietario
+        || notificacaoAtual?.dados?.etapa16?.data_recebimento
+        || (notificacaoAtual?.data_inicio ? notificacaoAtual.data_inicio.split('T')[0] : null);
+
+    let ciencia = '___/___/_____';
+    let defesa = '___/___/_____';
+
+    if (dataRecebimento) {
+        const dCiencia = new Date(String(dataRecebimento).includes('T') ? dataRecebimento : dataRecebimento + 'T12:00:00');
+        if (!isNaN(dCiencia.getTime())) {
+            ciencia = dCiencia.toLocaleDateString('pt-BR');
+            // Prazo de defesa da Notificação Preliminar: 10 dias
+            const dDefesa = new Date(dCiencia);
+            dDefesa.setDate(dDefesa.getDate() + 10);
+            defesa = dDefesa.toLocaleDateString('pt-BR');
+        }
+    }
+
+    // Vencimento gravado na notificação vale mais do que a conta
+    if (notificacaoAtual?.data_vencimento) {
+        const dv = new Date(notificacaoAtual.data_vencimento);
+        if (!isNaN(dv.getTime())) defesa = dv.toLocaleDateString('pt-BR');
+    }
+
+    return { ciencia, defesa };
+}
+
+// A certidão de encerramento tem dois textos: o do Auto pago (multa quitada) e
+// o da Notificação Preliminar cumprida, que chega aqui pela Etapa 2 (atendida),
+// pela 10 (atendido) ou pela 13 (defesa deferida).
+function certidaoEhDeCumprimentoDeNotificacao() {
+    if (typeof window.autoFoiPagoNaEtapa18 === 'function' && window.autoFoiPagoNaEtapa18()) return false;
+    if (typeof ehStatusAutoInfracao === 'function' && ehStatusAutoInfracao(notificacaoAtual, processoAtual)) return false;
+    return true;
+}
+window.certidaoEhDeCumprimentoDeNotificacao = certidaoEhDeCumprimentoDeNotificacao;
+
 async function montarHtmlCertidaoEncerramento() {
     if (!processoAtual) return '';
 
@@ -13222,7 +13495,26 @@ async function montarHtmlCertidaoEncerramento() {
 
     const numCertidao = await garantirNumeroCertidaoDaNotificacao();
 
-    const corpo = `
+    const ehCumprimentoDeNotificacao = certidaoEhDeCumprimentoDeNotificacao();
+    const prazos = datasCienciaEDefesaDaNotificacao();
+    const numNotificacao = notificacaoAtual?.numero || processoAtual?.numero_processo || '';
+
+    const corpo = ehCumprimentoDeNotificacao ? `
+        <p style="margin: 0; text-align: justify; line-height: 1.6;">
+            O autuado teve ciência da Notificação Preliminar <strong>${numNotificacao}</strong>
+            no dia <strong>${prazos.ciencia}</strong> pelos correios por meio do aviso de recebimento (AR),
+            com prazo para defesa até <strong>${prazos.defesa}</strong>.
+        </p>
+
+        <p style="margin: 18px 0 0 0; text-align: justify; line-height: 1.6;">
+            Informações do imóvel autuado: lote de Inscrição Imobiliária Municipal nº
+            <strong>${inscricaoImovel}</strong>, situado à ${enderecoImovel}.
+        </p>
+
+        <p style="margin: 18px 0 0 0; text-align: justify; line-height: 1.6;">
+            Certifico o cumprimento da obrigação, dá-se por <strong>encerrado</strong> a Notificação Preliminar.
+        </p>
+    ` : `
         <p style="margin: 0; text-align: justify; line-height: 1.6;">
             Certifico, para os devidos fins, que o autuado <strong>${nomeAutuado}</strong>, inscrito no
             ${ehCnpj ? 'CNPJ' : 'CPF'} sob o nº <strong>${cpfCnpj}</strong>, com endereço de correspondência
@@ -13785,92 +14077,92 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     if (cod === '120000232' || (dispLow.includes('limpeza') && dispLow.includes('não edificado'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 4) 120000228 - Reincidência na inexistência de cercamento
     } else if (cod === '120000228' || (dispLow.includes('reincidência') && dispLow.includes('cercamento'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 2º, I, da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, multiplicado por 2 (dois) atualmente correspondente ao valor de: R$ ${valFormatado}.`;
-        obsFiscal = `Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado por dois: <strong>R$ ${valFormatado}</strong>.`;
+        obsFiscal = `Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`;
 
         // 5) 120000227 - Reincidência na inexistência de passeio
     } else if (cod === '120000227' || (dispLow.includes('reincidência') && dispLow.includes('passeio'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: R$ ${valFormatado} (valor dobrado em face da reincidência na infração).`;
-        obsFiscal = `Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010. Auto de Infração expedido anteriormente: nº ${numAI} em ${dataAI}.`;
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado por dois: <strong>R$ ${valFormatado}</strong>.`;
+        obsFiscal = `Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`;
 
         // 2) 120000211 - Inexistência de cercamento
     } else if (cod === '120000211' || (dispLow.includes('inexistência') && dispLow.includes('cercamento')) || dispLow.includes('cercamento')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 3) 120000226 - Inexistência de passeio
     } else if (cod === '120000226' || (dispLow.includes('inexistência') && dispLow.includes('passeio')) || dispLow.includes('passeio')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 6) 120000229 - Reconstrução de/ou reparo de muro
     } else if (cod === '120000229' || (dispLow.includes('reconstrução') && dispLow.includes('muro')) || (dispLow.includes('reparo') && dispLow.includes('muro'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 2º, II, da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 7) 120000240 - Reconstrução e/ou reparos passeio
     } else if (cod === '120000240' || (dispLow.includes('reconstrução') && dispLow.includes('passeio')) || (dispLow.includes('reparo') && dispLow.includes('passeio'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 8) Muro em má conservação ou danificado
     } else if (dispLow.includes('má conservação') || dispLow.includes('danificado')) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 9) 120000233 - Limpeza de quintal
     } else if (cod === '120000233' || dispLow.includes('limpeza de quintal') || dispLow.includes('quintal')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração aos artigos 14 e 15 da Lei nº 6.907/2008.';
-        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 10) 120000237 - Obstáculos em calçadas
     } else if (cod === '120000237' || dispLow.includes('obstáculo') || dispLow.includes('obstaculo')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
-        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 11) 120000239 - Água servida
     } else if (cod === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
-        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 12) 120000236 - Estabelecimento sem alvará
     } else if (cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 190 da Lei nº 6.907/2008.';
-        multaTextoHeader = `MULTA NO VALOR DE: 50 UPFMD atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR DE: 50 UPFMD atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 13) 120000234 - Reparos por concessionárias
     } else if (cod === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
         leiBase = 'Lei nº 6.907/2008 e Lei nº 7.174/2010';
         dispositivoTexto = 'infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.';
-        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 14) 120000230 - Piso Tátil
     } else if (cod === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 106, IV, da Lei 6.907/2008.';
-        multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // Fallback
     } else {
         dispositivoTexto = `infração à legislação municipal vigente.`;
-        multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: R$ ${valFormatado}.`;
+        multaTextoHeader = `MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     }
 
     const textoCompleto = `
@@ -13880,7 +14172,7 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         <p style="margin: 0 0 10px 0; text-align: justify;">
             ${multaTextoHeader}
         </p>
-        ${obsFiscal ? `<p style="margin: 4px 0 0 0; text-align: justify; font-style: italic; font-size: 10pt;">${obsFiscal}</p>` : ''}
+        ${obsFiscal ? `<p style="margin: 4px 0 16px 0; text-align: justify; font-size: 10pt;">${obsFiscal}</p>` : ''}
     `;
 
     return {
@@ -14526,9 +14818,9 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     ${textoOrigemDoAuto}
                 </p>
 
-                <p style="margin: 0 0 8px 0; text-align: justify;">
+                <div style="margin: 0 0 8px 0; text-align: justify;">
                     ${dadosLegais.textoCompleto}
-                </p>
+                </div>
 
                 ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
 
@@ -15220,9 +15512,13 @@ window.obterUrlOuAnexoDecreto = async function (proc, notif, docsBanco = []) {
 // ── ETAPA 28: página com os dados do AR dentro do PDF ─────────────────────
 // Mostra o número do AR e a data de recebimento pelo proprietário. Quando não
 // houve recebimento, mostra a data da última tentativa e o motivo dos Correios.
-window.montarDadosARParaPagina = function (proc) {
-    const notif = (typeof notificacaoAtual !== 'undefined') ? notificacaoAtual : null;
-    const ar = obterDadosARProcesso(proc, notif);
+// notif indefinido = o documento aberto na tela; notif null = o AR do nível do
+// processo (Notificação Preliminar, ou o AR único do processo de decreto).
+window.montarDadosARParaPagina = function (proc, notif) {
+    const n = notif === undefined
+        ? ((typeof notificacaoAtual !== 'undefined') ? notificacaoAtual : null)
+        : notif;
+    const ar = obterDadosARProcesso(proc, n);
     const fmt = v => (window.formatarDataVistoriaRobusta ? window.formatarDataVistoriaRobusta(v) : v) || '—';
     const recebimento = ar.data_recebimento || ar.data_recebimento_proprietario;
     const tentativas = Array.isArray(ar.retornos_sem_sucesso) ? ar.retornos_sem_sucesso : [];
@@ -15236,12 +15532,15 @@ window.montarDadosARParaPagina = function (proc) {
         dataUltimaTentativa: fmt(ultima?.data || ar.data_ultima_tentativa),
         motivoCorreios: (ultima?.motivo || ar.motivo_correios || '').trim() || 'Não informado',
         totalTentativas: tentativas.length,
-        dataEdital: fmt(obterDataEditalProcesso(proc, notif))
+        dataEdital: fmt(obterDataEditalProcesso(proc, n)),
+        // De qual documento é este AR, para a página não deixar dúvida
+        dono: rotuloDonoAR(proc, n),
+        temDados: !!(ar.numero_ar || recebimento || tentativas.length > 0 || ar.data_insercao_ar)
     };
 };
 
-async function anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64) {
-    const info = window.montarDadosARParaPagina(processoAtual);
+async function anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64, notif) {
+    const info = window.montarDadosARParaPagina(processoAtual, notif);
     const numProc = processoAtual?.numero_processo || '—';
     const cont = processoAtual?.contribuinte || processoAtual?.dados?.contribuinte || {};
     const nomeAutuado = cont.nome || processoAtual?.campos?.contNome || '—';
@@ -15270,6 +15569,7 @@ async function anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64) {
             </div>
         </div>
         <h2 style="text-align:center; font-size:14pt; margin:24px 0 6px 0;">AVISO DE RECEBIMENTO (AR)</h2>
+        <p style="text-align:center; font-size:11pt; margin:0 0 2px 0;">${info.dono}</p>
         <p style="text-align:center; font-size:11pt; margin:0 0 24px 0;">Processo Administrativo SEMAC nº ${numProc}</p>
         <table style="width:100%; border-collapse:collapse;">
             <tr><td class="rot">Autuado(a)</td><td class="val">${nomeAutuado}</td></tr>
@@ -15419,12 +15719,20 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
 
         // Página com os dados do AR (quem recebeu, quando, tentativas). A Etapa 28
         // já a inclui no bloco próprio; outras telas pedem por opcoes.paginaDadosAr.
-        let paginaDadosArIncluida = false;
-        const incluirPaginaDadosAr = async () => {
-            if (!opcoes.paginaDadosAr || opcoes.etapa28 || paginaDadosArIncluida) return;
-            paginaDadosArIncluida = true;
+        // Uma página por dono do AR: a da Notificação Preliminar e a do Auto de
+        // Infração, cada uma logo depois do AR a que se refere.
+        const paginasDadosArIncluidas = new Set();
+        const incluirPaginaDadosAr = async (notif, opcoesPagina = {}) => {
+            if (!opcoes.paginaDadosAr || opcoes.etapa28) return;
+            const { dono, notificacaoId } = donoDoCicloAR(processoAtual, notif);
+            const chave = `${dono}:${notificacaoId || 'processo'}`;
+            if (paginasDadosArIncluidas.has(chave)) return;
+            // Página vazia só quando é a única (mantém o comportamento de antes)
+            if (opcoesPagina.somenteComDados
+                && !window.montarDadosARParaPagina(processoAtual, notif).temDados) return;
+            paginasDadosArIncluidas.add(chave);
             try {
-                await anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64);
+                await anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64, notif);
             } catch (errAr) {
                 console.warn('[PDF Unificado] Falha ao gerar a página com os dados do AR:', errAr);
             }
@@ -15584,9 +15892,32 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             return null;
         };
 
+        // Alguns documentos (Relatório Fiscal, Réplica) são guardados em
+        // documentos.url como HTML puro, não como arquivo nem data URL. Sem
+        // reconhecer isso, o conversor tentava ler o HTML como base64, falhava,
+        // tentava buscá-lo como se fosse um caminho de arquivo e desistia — o
+        // documento simplesmente não entrava no PDF.
+        const pareceHtml = (txt) => {
+            const t = String(txt || '').trim().slice(0, 400).toLowerCase();
+            return t.startsWith('<') || /<(div|table|html|body|p|span)[\s>]/.test(t);
+        };
+
         // Helper para mesclar arquivos (PDF ou imagem) no mergedPdf
         const anexarArquivoAoPdf = async (urlOuDataUrl, identificacaoDoc) => {
             if (!urlOuDataUrl) return false;
+
+            if (pareceHtml(urlOuDataUrl)) {
+                try {
+                    const brasao = await obterBrasaoBase64();
+                    const html = prepararConteudoDocumento(urlOuDataUrl, brasao || '');
+                    await window.anexarHtmlPaginadoAoPdf(mergedPdf, html);
+                    return true;
+                } catch (errHtml) {
+                    console.warn(`[PDF MERGE] Falha ao desenhar o HTML de ${identificacaoDoc}:`, errHtml);
+                    return false;
+                }
+            }
+
             try {
                 const arrayBuffer = await converterParaArrayBuffer(urlOuDataUrl);
                 if (!arrayBuffer) {
@@ -15786,8 +16117,13 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             let urlCertidao = docCertidao?.url || docCertidao?.dataUrl || docCertidao?.base64;
             if (urlCertidao) await anexarArquivoAoPdf(urlCertidao, 'Certidão Assinada');
 
+            // 3.1 O AR do processo de decreto (um Auto só, um AR só) entra logo
+            // abaixo do Auto, no item 5 — fora de "outros documentos".
+            const docARDecreto = window.escolherDocumentoAR(docsBanco);
+            const urlARDecreto = docARDecreto?.url || docARDecreto?.dataUrl || docARDecreto?.base64;
+
             // 4. Outros Documentos Intermediários na Ordem de Criação
-            [docBIC, docDecreto, docCertidao, docAI].forEach(d => { if (d?.id) idsAnexados.add(d.id); });
+            [docBIC, docDecreto, docCertidao, docARDecreto, docAI].forEach(d => { if (d?.id) idsAnexados.add(d.id); });
             if (!opcoes.etapa28) {
                 for (const doc of docsBanco) {
                     if (!idsAnexados.has(doc.id)) {
@@ -15797,14 +16133,33 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 }
             }
 
-            // 5. Auto de Infração Assinado
+            // 5. Auto de Infração Assinado e, logo abaixo, o AR dele
             if (urlAI) await anexarArquivoAoPdf(urlAI, 'Auto de Infração Assinado');
+            if (urlARDecreto && !opcoes.etapa28) {
+                await anexarArquivoAoPdf(urlARDecreto, 'AR do Auto de Infração');
+                await incluirPaginaDadosAr(undefined, { somenteComDados: true });
+            }
 
         } else {
-            // ORDEM SEM DECRETO: Capa, BIC, Relatório Fiscal, Notificação Preliminar, AR, Outros (na ordem de criação), Auto de Infração
+            // ORDEM SEM DECRETO: Capa, BIC, Relatório Fiscal, Notificação Preliminar,
+            // AR da Notificação Preliminar, Outros (na ordem de criação),
+            // Auto de Infração e, por último, o AR do Auto — cada AR logo abaixo
+            // do documento que ele comprova.
 
             // 1. BIC
             if (urlBIC) await anexarArquivoAoPdf(urlBIC, 'BIC');
+
+            // 1.1 Processo anterior (reincidência): primeiro o Relatório Fiscal dele,
+            // depois o Auto de Infração. Sem esta ordem explícita eles caíam em
+            // "outros documentos", que segue a ordem de inserção no banco.
+            for (const tipoAnterior of ['Relatório Fiscal Anterior', 'Auto de Infração Anterior']) {
+                const docAnterior = docsBanco.find(d => d.tipo === tipoAnterior);
+                const urlAnterior = docAnterior?.url || docAnterior?.dataUrl || docAnterior?.base64;
+                if (urlAnterior) {
+                    await anexarArquivoAoPdf(urlAnterior, tipoAnterior);
+                    if (docAnterior.id) idsAnexados.add(docAnterior.id);
+                }
+            }
 
             // 2. Relatório Fiscal Assinado
             const docRF = docsBanco.find(d => ['Relatório Fiscal Assinado', 'Relatório Fiscal'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('relatorio_fiscal'))
@@ -15820,15 +16175,30 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             let urlNP = docNP?.url || docNP?.dataUrl || docNP?.base64;
             if (urlNP) await anexarArquivoAoPdf(urlNP, 'Notificação Preliminar Assinada');
 
-            // 4. AR (Aviso de Recebimento)
-            const docAR = window.escolherDocumentoAR(docsBanco);
+            // 4. AR da Notificação Preliminar, logo abaixo dela. Na reincidência
+            // não existe Notificação Preliminar: o AR do nível do processo é do
+            // Auto e entra junto com ele, no item 6.
+            const docAR = donoDoCicloAR(processoAtual, null).dono === DONO_AR_NP
+                ? window.escolherDocumentoAR(docsBanco, null)
+                : null;
             let urlAR = docAR?.url || docAR?.dataUrl || docAR?.base64;
             // Na Etapa 28 o AR entra depois da multa, junto com as fotos (ver bloco abaixo)
-            if (urlAR && !opcoes.etapa28) await anexarArquivoAoPdf(urlAR, 'AR');
-            await incluirPaginaDadosAr();
+            if (urlAR && !opcoes.etapa28) await anexarArquivoAoPdf(urlAR, 'AR da Notificação Preliminar');
+            if (urlAR && !opcoes.etapa28) await incluirPaginaDadosAr(null, { somenteComDados: true });
+
+            // 4.1 O AR do Auto de Infração é outro envio: ele vai junto com o
+            // Auto, no fim (item 6). Quando o AR é o mesmo documento (processo
+            // com um único AR), não se repete.
+            const docARAuto = window.escolherDocumentoAR(docsBanco, undefined);
+            const mesmoDoc = (a, b) => !!a && !!b && (a.id || b.id
+                ? String(a.id || '') === String(b.id || '')
+                : (a.url || a.dataUrl) === (b.url || b.dataUrl));
+            const urlARAuto = mesmoDoc(docARAuto, docAR)
+                ? null
+                : (docARAuto?.url || docARAuto?.dataUrl || docARAuto?.base64);
 
             // 5. Outros Documentos Intermediários na Ordem de Criação
-            [docBIC, docRF, docNP, docAR, docAI].forEach(d => { if (d?.id) idsAnexados.add(d.id); });
+            [docBIC, docRF, docNP, docAR, docARAuto, docAI].forEach(d => { if (d?.id) idsAnexados.add(d.id); });
             if (!opcoes.etapa28) {
                 for (const doc of docsBanco) {
                     if (!idsAnexados.has(doc.id)) {
@@ -15838,8 +16208,12 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 }
             }
 
-            // 6. Auto de Infração Assinado
+            // 6. Auto de Infração Assinado e, logo abaixo, o AR dele
             if (urlAI) await anexarArquivoAoPdf(urlAI, 'Auto de Infração Assinado');
+            if (urlARAuto && !opcoes.etapa28) {
+                await anexarArquivoAoPdf(urlARAuto, 'AR do Auto de Infração');
+                await incluirPaginaDadosAr(undefined, { somenteComDados: true });
+            }
         }
 
         // 3.1 Etapa 28: multa, fotos do AR, página com os dados do AR, edital e o resto
@@ -15852,21 +16226,52 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             if (docMulta?.id) idsAnexados.add(docMulta.id);
             if (urlMulta) await anexarArquivoAoPdf(urlMulta, 'Documento da Multa');
 
-            const docsAR = docsBanco.filter(d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo));
-            for (const dAR of docsAR) {
-                idsAnexados.add(dAR.id);
-                const u = dAR.url || dAR.dataUrl || dAR.base64;
-                if (u) await anexarArquivoAoPdf(u, dAR.nome_arquivo || 'Anexo do AR');
-            }
-            if (docsAR.length === 0) {
-                const anexosLocais = camposARParaLeitura(processoAtual).etapa16?.anexos_ar || [];
-                for (const aLocal of anexosLocais) {
-                    const u = aLocal.url || aLocal.dataUrl;
-                    if (u) await anexarArquivoAoPdf(u, aLocal.nome || 'Anexo do AR');
+            // Os anexos do AR entram agrupados por dono, cada grupo seguido da
+            // página com os dados daquele AR: primeiro o da Notificação
+            // Preliminar (nível do processo), depois o do Auto de Infração.
+            const ehAnexoAR = d => ['Anexo AR', 'AR', 'Aviso de Recebimento', 'Comprovante AR'].includes(d.tipo);
+            const docsAR = docsBanco.filter(ehAnexoAR);
+            const refsARDoAuto = new Set((cicloARDoAuto(processoAtual, undefined, false)?.etapa16?.anexos_ar || [])
+                .map(a => a.documento_id).filter(Boolean));
+            const notifARDoAuto = notificacaoDoCicloAR();
+            const anexoEhDoAuto = d => refsARDoAuto.has(d.id)
+                || (!!notifARDoAuto?.id && String(d.notificacao_id) === String(notifARDoAuto.id));
+
+            const paginasAR28 = new Set();
+            const incluirPaginaDadosAR28 = async (notif) => {
+                const { dono, notificacaoId } = donoDoCicloAR(processoAtual, notif);
+                const chave = `${dono}:${notificacaoId || 'processo'}`;
+                if (paginasAR28.has(chave)) return;
+                paginasAR28.add(chave);
+                await anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64, notif);
+            };
+
+            const gruposAR = [
+                { notif: null, docs: docsAR.filter(d => !anexoEhDoAuto(d)) },
+                { notif: undefined, docs: docsAR.filter(anexoEhDoAuto) }
+            ];
+            let algumaPaginaAR = false;
+            for (const grupo of gruposAR) {
+                let anexou = false;
+                for (const dAR of grupo.docs) {
+                    idsAnexados.add(dAR.id);
+                    const u = dAR.url || dAR.dataUrl || dAR.base64;
+                    if (u && await anexarArquivoAoPdf(u, dAR.nome_arquivo || 'Anexo do AR')) anexou = true;
+                }
+                if (grupo.docs.length === 0) {
+                    const anexosLocais = camposARParaLeitura(processoAtual, grupo.notif).etapa16?.anexos_ar || [];
+                    for (const aLocal of anexosLocais) {
+                        const u = aLocal.url || aLocal.dataUrl;
+                        if (u && await anexarArquivoAoPdf(u, aLocal.nome || 'Anexo do AR')) anexou = true;
+                    }
+                }
+                if (anexou) {
+                    await incluirPaginaDadosAR28(grupo.notif);
+                    algumaPaginaAR = true;
                 }
             }
-
-            await anexarPaginaDadosARaoPdf(mergedPdf, brasaoBase64);
+            // Sem nenhum anexo de AR, entra a página do documento aberto, como antes
+            if (!algumaPaginaAR) await incluirPaginaDadosAR28(undefined);
 
             const docEdital = window.escolherDocumentoEdital(docsBanco);
             const anexoEditalLocal = camposARParaLeitura(processoAtual).etapa17?.anexo_edital
@@ -15909,9 +16314,9 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             await anexarPaginaProtocoloDividaAtivaAoPdf(mergedPdf, brasaoBase64);
         }
 
-        // Se o caminho acima não passou pelo AR (ex.: processo com decreto),
-        // a página com os dados do AR entra aqui, antes das peças finais.
-        await incluirPaginaDadosAr();
+        // Se o caminho acima não passou pelo AR, a página com os dados do AR
+        // entra aqui, antes das peças finais.
+        await incluirPaginaDadosAr(undefined);
 
         // 3.3 Itens finais enviados pela tela que pediu o PDF.
         // A Etapa 24 usa isso para juntar a defesa, as movimentações com o

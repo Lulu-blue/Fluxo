@@ -1380,7 +1380,7 @@ function atualizarContadorECarregarMais() {
         if (msgFim) msgFim.style.display = 'none';
     } else {
         if (resultsCount) {
-            resultsCount.textContent = `${totalLoaded} solicitação${totalLoaded > 1 ? 'ões' : ''} carregada${totalLoaded > 1 ? 's' : ''}`;
+            resultsCount.textContent = `${totalLoaded} processo${totalLoaded > 1 ? 's' : ''} carregado${totalLoaded > 1 ? 's' : ''}`;
         }
 
         if (hasMoreRecords) {
@@ -2932,7 +2932,7 @@ let chartPizzaArrecadacaoInst = null;
 // Pizza da arrecadação: cores categóricas validadas (contraste e daltonismo)
 // em ordem fixa, uma por fatia; "Outros" em cinza claro, que recua. No máximo
 // 6 fatias: além disso as fatias pequenas não se comparam a olho.
-const CORES_PIZZA_ARRECADACAO = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
+const CORES_PIZZA_ARRECADACAO = ['#79d8b7', '#6cc0da', '#9d87ec', '#df7fe7', '#ec9797'];
 const COR_PIZZA_OUTROS = '#cbd5e1';
 const FATIAS_PIZZA_COM_NOME = 5;
 
@@ -3311,11 +3311,11 @@ function renderizarGraficosApuracao(listaFiscais) {
                 datasets: [{
                     label: 'Qtd. de Processos',
                     data: dataProcessos,
-                    backgroundColor: 'rgba(37, 99, 235, 0.75)',
-                    borderColor: '#1d4ed8',
+                    backgroundColor: 'rgba(89, 132, 224, 0.75)',
+                    borderColor: '#3b63d3',
                     borderWidth: 1.5,
                     borderRadius: 8,
-                    hoverBackgroundColor: '#2563eb'
+                    hoverBackgroundColor: '#497ae4'
                 }]
             },
             options: {
@@ -3357,7 +3357,7 @@ function renderizarGraficosApuracao(listaFiscais) {
                     borderColor: '#047857',
                     borderWidth: 1.5,
                     borderRadius: 8,
-                    hoverBackgroundColor: '#059669'
+                    hoverBackgroundColor: '#1aa174'
                 }]
             },
             options: {
