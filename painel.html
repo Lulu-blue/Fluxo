@@ -8,7 +8,7 @@
     <meta name="description" content="Painel de controle do Sistema Fluxograma de Processos - Fiscalização de Posturas">
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
-    <link rel="stylesheet" href="assets/css/painel.css?v=20261021d">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261021i">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -786,118 +786,12 @@
             <!-- ============================================================ -->
             <main class="painel-content" id="secao-instrucoes" style="display: none;">
                 <div class="quadro-wrapper">
-
                     <div class="instr-boas-vindas">
-                        <h2>Como fazer um processo, do começo ao fim</h2>
-                        <p>Oi! Se você chegou até aqui, você se deu ao trabalho de ler — e isso já faz diferença de
-                            verdade. Então vou ser rápida e direta com você.</p>
-                        <p>São oito passos. Nenhum deles é complicado, e no fim tem um checklist para marcar enquanto
-                            você trabalha, caso ajude a não esquecer nada.</p>
+                        <h2>Instruções</h2>
+                        <p>Escolha a etapa para ver o passo a passo e o checklist correspondente.</p>
                     </div>
-
-                    <ol class="instr-passos">
-                        <li>
-                            <h3>Veja de quem é o processo</h3>
-                            <p>Ao abrir, dê uma olhada no <code>Processo</code>, no
-                                <strong>Nome do contribuinte</strong> e no <code>CPF/CNPJ</code>, ali no topo. Só
-                                confirme que é o processo certo e siga em frente.</p>
-                            <p class="instr-dica"><b>Dica</b><span>São dois segundos aqui que evitam refazer tudo lá na
-                                    frente.</span></p>
-                        </li>
-                        <li>
-                            <h3>Confira os dados antes de gerar o documento</h3>
-                            <p>Endereço, motivo da notificação e dispositivos transgredidos. Esses campos alimentam a
-                                Notificação, a Réplica e o Auto automaticamente — então o que estiver certo aqui vai
-                                estar certo em tudo depois.</p>
-                            <p class="instr-dica"><b>Dica</b><span>Os dados vêm de um PDF. O sistema acerta quase
-                                    sempre, mas a última palavra é sua.</span></p>
-                        </li>
-                        <li>
-                            <h3>Achou algo errado? Você mesmo pode corrigir</h3>
-                            <p>No topo da tela tem a aba <strong>Editar dados do processo</strong>, do lado da aba do
-                                documento oficial. É só clicar, ajustar e salvar. Não precisa pedir para ninguém.</p>
-                            <p class="instr-dica"><b>Dica</b><span>Corrigir antes de gerar é rápido. Depois de assinado,
-                                    o documento precisa ser refeito.</span></p>
-                        </li>
-                        <li class="chave">
-                            <h3>Confira o valor da multa e salve</h3>
-                            <p>No card <strong>Conferir ou atualizar valores das multas</strong>, veja a UPFMD, se o
-                                imóvel é de esquina e a base de cálculo (testada ou profundidade). Confira o valor de
-                                cada infração e clique em
-                                <code>Salvar valores e atualizar documento PDF</code>.</p>
-                            <p>Depois de salvar, <strong>procure o valor no documento</strong>, no trecho da penalidade,
-                                e confirme que é o mesmo da tela.</p>
-                            <p class="instr-dica"><b>Dica</b><span>Sem clicar em salvar, o documento continua com o
-                                    valor antigo. O valor que vale é o que está no documento.</span></p>
-                        </li>
-                        <li>
-                            <h3>Leia o documento na tela</h3>
-                            <p>Ele aparece montadinho, com cabeçalho, numeração e texto final. Passe o olho. Se algo
-                                estiver errado, volte ao passo 3 — e aí sim, pode gerar.</p>
-                            <p class="instr-dica"><b>Dica</b><span>Cada documento gerado usa um número da sequência.
-                                    Ler antes economiza um número.</span></p>
-                        </li>
-                        <li>
-                            <h3>Baixe o PDF e abra o arquivo</h3>
-                            <p>Clique em <code>Imprimir / baixar → relatório (.pdf)</code> e abra o arquivo. Confira o nome, o
-                                endereço e o número da notificação dentro dele. Aí pode imprimir e assinar com
-                                tranquilidade.</p>
-                            <p class="instr-dica"><b>Dica</b><span>Depois de assinado, o documento sai do seu
-                                    controle — vale a conferida.</span></p>
-                        </li>
-                        <li class="chave">
-                            <h3>Anexe o assinado e clique em "Visualizar"</h3>
-                            <p>Suba o PDF no campo de anexo da etapa. Logo ao lado do arquivo aparece o botão
-                                <code>Visualizar</code>: clique nele e confirme que o documento é mesmo o deste
-                                contribuinte.</p>
-                            <p class="instr-dica"><b>Dica</b><span>Se o arquivo estiver errado, o
-                                    <code>Remover</code> está bem do lado: remova e anexe o certo. Acontece com todo
-                                    mundo.</span></p>
-                        </li>
-                        <li class="chave">
-                            <h3>Agora sim: "Avançar etapa"</h3>
-                            <p>Esse é o último passo. Depois dele o processo segue para a próxima mesa com o seu nome
-                                nele — então deixe para clicar quando estiver tudo conferido.</p>
-                            <p class="instr-dica"><b>Dica</b><span>Não tenha pressa: tudo o que você faz fica salvo, e
-                                    a apuração só fecha no fim do mês.</span></p>
-                        </li>
-                    </ol>
-
-                    <section class="instr-checklist">
-                        <div class="instr-checklist-topo">
-                            <h3>Checklist, se ajudar</h3>
-                            <button type="button" class="btn-inline" id="btnLimparChecklist">Limpar para o próximo
-                                processo</button>
-                        </div>
-                        <p class="instr-checklist-nota">Marque conforme for fazendo. É só para você não perder o fio —
-                            fica salvo neste navegador e ninguém mais vê.</p>
-
-                        <label class="instr-item" for="chkInstr1"><input type="checkbox" id="chkInstr1" data-chk="1"><span>Conferi o
-                                nome do contribuinte e o CPF/CNPJ na tela.</span></label>
-                        <label class="instr-item" for="chkInstr2"><input type="checkbox" id="chkInstr2" data-chk="2"><span>Revisei
-                                endereço, motivo e dispositivos antes de gerar.</span></label>
-                        <label class="instr-item" for="chkInstr3"><input type="checkbox" id="chkInstr3" data-chk="3"><span>Corrigi o
-                                que precisava na aba editar dados do processo.</span></label>
-                        <label class="instr-item" for="chkInstr8"><input type="checkbox" id="chkInstr8" data-chk="8"><span>Conferi o
-                                valor da multa, cliquei em salvar e vi o valor no documento.</span></label>
-                        <label class="instr-item" for="chkInstr4"><input type="checkbox" id="chkInstr4" data-chk="4"><span>Li o
-                                documento na tela antes de gerar.</span></label>
-                        <label class="instr-item" for="chkInstr5"><input type="checkbox" id="chkInstr5" data-chk="5"><span>Abri o PDF
-                                baixado e conferi antes de assinar.</span></label>
-                        <label class="instr-item" for="chkInstr6"><input type="checkbox" id="chkInstr6" data-chk="6"><span>Cliquei em
-                                Visualizar depois de anexar.</span></label>
-                        <label class="instr-item" for="chkInstr7"><input type="checkbox" id="chkInstr7" data-chk="7"><span>Confirmei
-                                que o documento é deste contribuinte.</span></label>
-
-                        <p class="instr-placar" id="placarChecklist">0 de 8 conferidos.</p>
-                    </section>
-
-                    <div class="instr-obrigada">
-                        <p>Obrigada por ter lido até aqui. De verdade.</p>
-                        <p>Se alguma tela estiver confusa, travando ou puxando algo errado, me procure — prefiro muito
-                            mais arrumar o sistema do que ver você perdendo tempo com ele.</p>
-                    </div>
-
+                    <!-- Índice e instrução aberta (assets/js/instrucoes.js) -->
+                    <div id="instrucoesConteudo"></div>
                 </div>
             </main>
         </div>
@@ -1684,7 +1578,8 @@
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/meio-ambiente.js?v=20261021b"></script>
-    <script src="assets/js/solicitacoes.js?v=20261021g"></script>
+    <script src="assets/js/solicitacoes.js?v=20261021h"></script>
+    <script src="assets/js/instrucoes.js?v=20261021e"></script>
     <script src="assets/js/nova-solicitacao.js?v=20261021b"></script>
     <script src="assets/js/oficio-modelo.js"></script>
     <script src="assets/js/oficio-avulso.js?v=20261019"></script>

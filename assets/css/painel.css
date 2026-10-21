@@ -2209,27 +2209,343 @@ body {
     color: var(--success-color);
 }
 
-.instr-obrigada {
+/* Índice de instruções (assets/js/instrucoes.js): uma linha por etapa */
+.instr-filtro-cargo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.instr-indice-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.instr-indice-grupo h3 {
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.instr-indice-lista {
+    display: flex;
+    flex-direction: column;
     background-color: var(--bg-white);
-    border: 1px dashed var(--accent-color);
+    border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    padding: 22px 26px;
+    overflow: hidden;
+}
+
+.instr-indice-item {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.instr-indice-item:last-child {
+    border-bottom: none;
+}
+
+.instr-indice-item:hover,
+.instr-indice-item:focus-visible {
+    background-color: var(--accent-light);
+}
+
+.instr-indice-etapa {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--accent-color);
+}
+
+.instr-indice-titulo {
+    font-size: 0.96rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.instr-indice-quem {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.instr-indice-progresso {
+    font-size: 0.78rem;
+    color: #15803d;
+    font-weight: 600;
+}
+
+/* Barra do índice: Lista / Fluxograma e filtro de cargo */
+.instr-barra-indice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.instr-modo {
+    display: inline-flex;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.instr-modo button {
+    padding: 7px 16px;
+    background: var(--bg-white);
+    border: none;
+    font-family: inherit;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.instr-modo button + button {
+    border-left: 1px solid var(--border-color);
+}
+
+.instr-modo button.ativo {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+/* Fluxograma das etapas */
+.instr-fluxo-ajuda {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+.instr-fluxo-legenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.instr-fluxo-legenda-item::before {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: -2px;
+    background: var(--cor-fase, #94a3b8);
+}
+
+.instr-fluxo-rolagem {
+    overflow-x: auto;
+    padding-bottom: 6px;
+}
+
+/* Fluxo da esquerda para a direita: as colunas (grid-template-columns) vêm do
+   script, uma por posição na ordem do processo; as linhas são as 3 faixas */
+.instr-fluxo {
+    position: relative;
+    display: grid;
+    grid-template-rows: repeat(3, auto);
+    align-items: center;
+    gap: 64px 48px;
+    width: max-content;
+    padding: 40px 24px;
+}
+
+.instr-fluxo-linhas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.instr-fluxo-linhas path {
+    fill: none;
+    stroke: #94a3b8;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    transition: opacity 0.15s ease, stroke 0.15s ease;
+}
+
+.instr-fluxo-linhas path.volta {
+    stroke-dasharray: 5 4;
+}
+
+.instr-fluxo-linhas .seta {
+    fill: #94a3b8;
+    stroke: none;
+}
+
+.instr-fluxo-linhas .seta-ativa {
+    fill: var(--accent-color);
+    stroke: none;
+}
+
+.instr-fluxo.com-destaque .instr-fluxo-linhas path:not(.ativo) {
+    opacity: 0.15;
+}
+
+.instr-fluxo-linhas path.ativo {
+    stroke: var(--accent-color);
+    stroke-width: 2.5;
+}
+
+.instr-fluxo-card {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    padding: 10px 12px;
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-top: 4px solid var(--cor-fase, #94a3b8);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.instr-fluxo-card:hover,
+.instr-fluxo-card:focus-visible,
+.instr-fluxo-card.origem {
+    box-shadow: var(--shadow-md);
+    border-color: var(--accent-color);
+    border-top-color: var(--cor-fase, #94a3b8);
+}
+
+.instr-fluxo-card.destino {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+.instr-fluxo-card.apagado {
+    opacity: 0.35;
+}
+
+.instr-fluxo-etapa {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.instr-fluxo-titulo {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-color);
+    line-height: 1.3;
+}
+
+.instr-fluxo-cargo {
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+}
+
+/* Cor de cada fase (cards do fluxograma e legenda) */
+.grupo-abertura { --cor-fase: #2563eb; }
+.grupo-ar { --cor-fase: #0d9488; }
+.grupo-notificacao { --cor-fase: #d97706; }
+.grupo-auto { --cor-fase: #dc2626; }
+.grupo-encerramento { --cor-fase: #16a34a; }
+
+/* Próxima etapa, no fim de cada instrução */
+.instr-proximas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.instr-proximas h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.instr-proximas-lista {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-.instr-obrigada p {
-    color: var(--text-secondary);
-    font-size: 0.96rem;
-    line-height: 1.7;
-    max-width: 64ch;
+.instr-proxima {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    padding: 12px 16px;
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--accent-color);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    cursor: pointer;
+    transition: var(--transition);
 }
 
-.instr-obrigada p:first-child {
-    font-size: 1.05rem;
+.instr-proxima:hover,
+.instr-proxima:focus-visible {
+    background-color: var(--accent-light);
+}
+
+.instr-proxima-quando {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+}
+
+.instr-proxima-destino {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--accent-color);
+}
+
+.instr-proximas-fim {
+    color: var(--text-secondary);
+}
+
+.instr-vazio {
+    color: var(--text-secondary);
+}
+
+.instr-voltar {
+    align-self: flex-start;
+}
+
+.instr-cabecalho {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.instr-cabecalho h2 {
+    font-size: 1.35rem;
     font-weight: 700;
     color: var(--text-color);
+}
+
+.instr-cabecalho p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
 }
 
 @media (max-width: 720px) {
@@ -2246,8 +2562,12 @@ body {
     }
 
     .instr-checklist,
-    .instr-boas-vindas,
-    .instr-obrigada {
+    .instr-boas-vindas {
         padding: 18px;
+    }
+
+    .instr-indice-item {
+        grid-template-columns: 1fr;
+        gap: 2px;
     }
 }

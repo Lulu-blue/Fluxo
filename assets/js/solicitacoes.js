@@ -1637,7 +1637,7 @@ function bindEventos() {
                 if (secao) secao.style.display = 'block';
                 if (pageTitle) pageTitle.textContent = TITULOS_PAGINA[page];
                 if (headerActions) headerActions.style.display = 'none';
-                restaurarChecklistInstrucoes();
+                if (typeof window.renderizarInstrucoes === 'function') window.renderizarInstrucoes();
             } else if (page === 'oficios') {
                 const secaoOficios = document.getElementById('secao-oficios');
                 if (secaoOficios) secaoOficios.style.display = 'block';
@@ -1676,74 +1676,6 @@ function bindEventos() {
         });
     });
 
-    configurarChecklistInstrucoes();
-}
-
-// ── Checklist de conferência (aba Instruções) ──
-// O estado é identificado por data-chk. Persistência local, por navegador.
-const CHAVE_CHECKLIST_INSTRUCOES = 'fluxograma:checklist-instrucoes';
-const TOTAL_ITENS_CHECKLIST = 8;
-
-function lerChecklistInstrucoes() {
-    try {
-        return JSON.parse(localStorage.getItem(CHAVE_CHECKLIST_INSTRUCOES)) || {};
-    } catch (e) {
-        return {};
-    }
-}
-
-function gravarChecklistInstrucoes(estado) {
-    try {
-        localStorage.setItem(CHAVE_CHECKLIST_INSTRUCOES, JSON.stringify(estado));
-    } catch (e) {
-        /* navegador sem storage disponível — segue sem persistir */
-    }
-}
-
-function atualizarPlacarChecklist() {
-    const estado = lerChecklistInstrucoes();
-    const feitos = Object.values(estado).filter(Boolean).length;
-    const completo = feitos === TOTAL_ITENS_CHECKLIST;
-    const texto = completo
-        ? `${TOTAL_ITENS_CHECKLIST} de ${TOTAL_ITENS_CHECKLIST} conferidos — pode avançar a etapa.`
-        : `${feitos} de ${TOTAL_ITENS_CHECKLIST} conferidos.`;
-
-    document.querySelectorAll('#placarChecklist, [data-placar]').forEach(placar => {
-        placar.textContent = texto;
-        placar.classList.toggle('ok', completo);
-    });
-}
-
-function restaurarChecklistInstrucoes() {
-    const salvo = lerChecklistInstrucoes();
-    document.querySelectorAll('input[type="checkbox"][data-chk]').forEach(input => {
-        input.checked = !!salvo[input.dataset.chk];
-    });
-    atualizarPlacarChecklist();
-}
-
-function configurarChecklistInstrucoes() {
-    document.querySelectorAll('input[type="checkbox"][data-chk]').forEach(input => {
-        if (input.dataset.ligado === '1') return;
-        input.dataset.ligado = '1';
-        input.addEventListener('change', () => {
-            const estado = lerChecklistInstrucoes();
-            estado[input.dataset.chk] = input.checked;
-            gravarChecklistInstrucoes(estado);
-            restaurarChecklistInstrucoes();
-        });
-    });
-
-    document.querySelectorAll('#btnLimparChecklist, #btnLimparChecklistDoc').forEach(btn => {
-        if (btn.dataset.ligado === '1') return;
-        btn.dataset.ligado = '1';
-        btn.addEventListener('click', () => {
-            gravarChecklistInstrucoes({});
-            restaurarChecklistInstrucoes();
-        });
-    });
-
-    restaurarChecklistInstrucoes();
 }
 
 // ── Salvar Dados de Perfil / Configurações ──────────────────

@@ -80,6 +80,7 @@ assets/
     solicitacoes.js        painel: lista, filtros, CSV, situação, cores por cargo
     nova-solicitacao.js    Etapa 1: assistente "Novo Processo" (5 passos)
     meio-ambiente.js       Fiscal de Meio Ambiente: infrações, Auto de Fiscalização, fiscal contribuidor
+    instrucoes.js          aba Instruções do painel: índice por etapa e checklists
     etapa.js               página de etapa: todas as etapas "clássicas", PDFs, AR, prazos
     etapa19_parecer.js     Etapas 19, 21 e 22 (Jurídico e diligências)
     etapa24_despacho.js    Etapa 24 (Secretário) + PDF unificado do processo
@@ -803,7 +804,7 @@ Menu lateral de `painel.html`:
   documentos e não entram.
 - **Notificações:** sino com avisos ao usuário (ex.: devolução do AR, gerente pediu certidão).
 - **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível para Gerente de Posturas e Dev; gerado por Gerente, Administrativo e Dev. Imagens vão para o Cloudinary.
-- **Instruções** ("Como fazer um processo, do começo ao fim").
+- **Instruções:** índice com uma instrução por etapa (objetivo, passos, checklist próprio salvo no navegador e "Próxima etapa" com os caminhos possíveis), em **Lista** ou **Fluxograma** (da esquerda para a direita, em 3 faixas; cards com etapa e cargo, setas a partir de `PROXIMAS_ETAPAS`; clicar no card abre a instrução). Filtro "só as etapas do meu cargo". Conteúdo em `assets/js/instrucoes.js`.
 - **Apuração de dados:** gráficos de processos e valor de multas por fiscal. O valor vem de
   `processos.valor_total_multas`, que é a soma dos Autos de Infração do processo. Cada Auto
   grava o próprio valor na Etapa 14 (o calculado ou o digitado pelo fiscal) sempre que é
