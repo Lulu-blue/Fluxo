@@ -138,8 +138,8 @@
             const url = a.url || a.dataUrl || a.base64 || '';
             const nome = escaparHtml(a.nome || 'Anexo');
             return url
-                ? `<a href="${escaparHtml(url)}" target="_blank" rel="noopener" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:0.82rem; font-weight:600; text-decoration:none;">📎 ${nome}</a>`
-                : `<span style="padding:6px 12px; background:#f1f5f9; color:#64748b; border-radius:6px; font-size:0.82rem;">📎 ${nome}</span>`;
+                ? `<a href="${escaparHtml(url)}" target="_blank" rel="noopener" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:0.82rem; font-weight:600; text-decoration:none;">${nome}</a>`
+                : `<span style="padding:6px 12px; background:#f1f5f9; color:#64748b; border-radius:6px; font-size:0.82rem;">${nome}</span>`;
         }).join('')}</div>`;
     }
 
@@ -374,7 +374,7 @@
                         </div>
                         <div id="e19Decisoes" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
                         <div id="e19AvisoLivre" hidden style="margin-top:12px; font-size:0.85rem; color:#475569; background:#f1f5f9; padding:10px 12px; border-radius:8px;">
-                            Não há modelo para esta decisão nesta infração. O texto abre com a estrutura básica para ser escrito à mão.
+                            Não há modelo para esta decisão nesta infração. O texto abre com a estrutura básica a ser preenchida.
                         </div>
                     </div>
 
@@ -1120,7 +1120,7 @@
                     <div id="${pre}Historico"></div>
 
                     <div style="${cartao}">
-                        <h4 style="${titulo}">Resposta da Solicitação <span style="color:#ef4444;">*</span></h4>
+                        <h4 style="${titulo}">Resposta da solicitação <span style="color:#ef4444;">*</span></h4>
                         ${uploadHtml('Clique para selecionar ou arraste os documentos da resposta aqui')}
                         <textarea id="${pre}Resposta" rows="7" placeholder="${papel.exemplo}" style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
                     </div>

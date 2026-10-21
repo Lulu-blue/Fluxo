@@ -54,7 +54,7 @@ python3 -m http.server 8000
 | Página | Para que serve |
 |---|---|
 | `index.html` | Login (CPF + senha). Script: `assets/js/login.js` |
-| `painel.html` | Painel: lista de processos, nova solicitação, ofícios, avisos, instruções, apuração e configurações |
+| `painel.html` | Painel: lista de processos, nova solicitação, ofícios, instruções, apuração e configurações |
 | `etapa.html?processo=<id>[&notificacao=<id>]` | Tela do processo na etapa atual. Com `notificacao`, abre a notificação ou o Auto específico |
 
 Configuração:
@@ -79,6 +79,7 @@ assets/
     cloudinary-config.js   upload de anexos e formatos de imagem aceitos
     solicitacoes.js        painel: lista, filtros, CSV, situação, cores por cargo
     nova-solicitacao.js    Etapa 1: assistente "Novo Processo" (5 passos)
+    meio-ambiente.js       Fiscal de Meio Ambiente: infrações, Auto de Fiscalização, fiscal contribuidor
     etapa.js               página de etapa: todas as etapas "clássicas", PDFs, AR, prazos
     etapa19_parecer.js     Etapas 19, 21 e 22 (Jurídico e diligências)
     etapa24_despacho.js    Etapa 24 (Secretário) + PDF unificado do processo
@@ -153,13 +154,13 @@ Quem pode **editar e avançar** cada etapa (`ETAPAS_POR_CARGO` em `assets/js/eta
 | Cargo | Etapas |
 |---|---|
 | Dev | todas |
-| Fiscal de Postura | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 21, 27, 29, 31, 32 |
+| Fiscal de Postura | 1, 2, 3, 4, 5, 10, 13, 14, 21, 26, 29, 31 |
 | Administrativo de Posturas | 15, 16, 17 |
-| Gerente (de Posturas) | 11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30 |
-| Jurídico | 18, 19, 23 |
+| Gerente (de Posturas) | 15, 17, 18, 20, 22, 25, 28, 29, 30 |
+| Jurídico | 18, 19 |
 | Gerente de Interface Jurídica | 19 |
 | Secretário | 24 |
-| Fazenda | 26 |
+| Fazenda | — (a Etapa 26 virou Análise de Desconto; o perfil ficou sem etapas) |
 
 Regras extras:
 - **Fiscal que não criou o processo** só vê o documento oficial (modo leitura).
@@ -170,6 +171,58 @@ Regras extras:
 
 > O painel (`assets/js/solicitacoes.js`) tem uma cópia própria dessa tabela, usada para
 > filtrar e colorir, que **não é idêntica** à de `etapa.js` (ver seção 12).
+
+### Fiscal de Meio Ambiente
+
+Cargo `Fiscal de Meio Ambiente` (em `profiles.cargo`). Como contém "fiscal", tem as
+mesmas etapas e permissões do Fiscal de Postura. O que muda está em
+`assets/js/meio-ambiente.js`:
+
+- **Infrações:** no Novo Processo aparecem os dispositivos ambientais (códigos `MA-01`
+  a `MA-28`, sem `MA-13` e `MA-14`, em `INFRACOES_MEIO_AMBIENTE`), no lugar dos de Posturas.
+  Precisam estar no `infracoes_catalogo` (`migracao/fiscal_meio_ambiente.sql`). Não há
+  Decreto de notificação.
+- **Auto de Fiscalização:** é o nome do documento da Etapa 1 (no lugar da Notificação
+  Preliminar), com o mesmo cabeçalho. Para cada infração o fiscal escolhe o prazo das
+  providências (de imediato ou X dias úteis/corridos) e pode alterar a multa. As
+  providências são fixas. No `MA-12` (efluentes) o fiscal escolhe o tipo — líquidos,
+  gasosos ou resíduos sólidos — e descrição, dispositivo e providência vêm dele.
+- **Dev:** escolhe no passo 3 do Novo Processo se o processo é de Posturas ou de Meio Ambiente.
+- **Auto de Infração:** segue o "Modelo completo A iNFRAÇÃO" e os textos do "Textos Ai"
+  (`montarCorpoAutoInfracaoMA`; textos em `ai` de cada infração). Com Auto de Fiscalização
+  antes: "Na data X foi verificado: o não cumprimento das providências solicitadas no Auto
+  de Fiscalização nº …"; sem: "Foi verificado na data X, o seguinte fato constitutivo da
+  infração: …". A data é informada na Etapa 14 (`notificacoes.dados.data_verificacao_ai`).
+- **Direto para o Auto de Infração:** `MA-29` a `MA-59` (`semAF`) não têm Auto de
+  Fiscalização: o processo nasce na Etapa 14, como o de decreto. Não podem ser marcadas
+  junto com as que têm AF. As queimadas com REDS pedem o nº do REDS (`config_af.reds`) e
+  o `MA-56` pede a alínea (I ou II).
+- **Protocolo da defesa:** o fiscal informa o nº do protocolo em cada infração
+  (`config_af.protocolo`). Ele sai em "protocolada via protocolo municipal n° …" no
+  Auto de Fiscalização (os números diferentes, juntos) e no Auto de Infração da infração.
+- **Nome nas telas:** em processo de Meio Ambiente, tudo que a tela chama de "Notificação
+  Preliminar" (nomes de etapa, avisos, botões, alerts, situação no painel) aparece como
+  "Auto de Fiscalização", com a concordância ajustada (`ativarTermosAutoFiscalizacaoNaPagina`
+  na página da etapa; `aplicarTermosAutoFiscalizacao` por linha no painel). É só o texto
+  exibido: `documentos.tipo`, `notificacoes.situacao` e o histórico continuam com os
+  nomes de sempre. Campos de digitação (`textarea`, `contenteditable`) não são alterados.
+  A palavra "notificação" sozinha também vira "Auto de Fiscalização" (é o documento de
+  cada infração), menos no chat, na central de notificações (sino) e em "Decreto de
+  notificação" / "Edital de notificação".
+  Defesa em **20 dias úteis** e instruções de protocolo próprias. Configuração em
+  `dados.infracoes.config_af`; multas em `dados.campos.multas_customizadas`.
+- **Fiscais contribuidores:** opcional, um ou mais Fiscais de Meio Ambiente que assinam
+  **só o Relatório Fiscal** (assinaturas de 2 em 2 por linha). Ficam em
+  `processos.dados.fiscais_contribuidores` (lista de `id`, `nome`, `cpf`, `matricula`, `cargo`)
+  para o SEMAC pontuar todos; `dados.fiscal_contribuidor` guarda o primeiro, por
+  compatibilidade. O processo continua sendo de quem criou.
+- **Situação:** enquanto não vira Auto de Infração, a situação de processo e notificação
+  de Meio Ambiente é `auto_fiscalizacao` (não `notificacao_preliminar`), calculada pelo
+  banco (`migracao/situacao_auto_fiscalizacao.sql`, função `processo_eh_meio_ambiente`).
+  O filtro Situação do painel tem a opção "Auto de Fiscalização".
+- O processo é marcado com `dados.setor = 'meio_ambiente'` (`processoEhMeioAmbiente`).
+  O Auto de Infração desses processos usa o dispositivo ambiental, cita o Auto de
+  Fiscalização e assina como Fiscal de Meio Ambiente.
 
 ---
 
@@ -283,32 +336,29 @@ flowchart TD
 
 | Etapa | Nome | Responsável | Saídas |
 |---|---|---|---|
-| 1 | Possui Decreto/Notificação | Fiscal | → 16 |
-| 2 | Defesa ou Dilação de Prazo | Fiscal | por notificação: Defesa/Dilação → 4; Atendida/Vencida → 7 |
-| 3 | Envio da 1ª Defesa | Fiscal | anexou → 13; venceu sem anexo → 10 |
-| 4 | Comprovante Propriedade | Fiscal | dilação → 5; defesa com comprovante → 3; senão → 7 |
-| 5 | Análise Dilação de Prazo | Fiscal | defere → 2; indefere → 7; gerente → 11 |
-| 7 | Análise da Defesa sem Dilação | Fiscal | → 10; jurídico → 32 |
-| 10 | Certidão Sem Defesa | Fiscal | resolvido → 29; não → 14 |
-| 11 | Gerente antes Infração | Gerente | defere → 10 ou 29; indefere → 10; dilatar → 2; devolver → 3 |
-| 13 | Fiscal Analisa Defesa (1ª) | Fiscal | defere/indefere → 10; gerente → 11 |
-| 14 | Auto de Infração | Fiscal | → 15 |
-| 15 | Gerente Gera a Multa | Gerente / Administrativo | → 16 |
-| 16 | Retorno do AR (1.2) | Administrativo | → 2 / 18 / 17 / 30 |
-| 17 | Gerência Gera o Edital | Gerente / Administrativo | → 2 (NP) ou 18 (Auto) |
-| 18 | Solicitar Defesa ou Recurso | Gerente / Jurídico | por Auto: → 19 / 28 / 29 |
+| 1 | Notificação | Fiscal | → 16 |
+| 2 | Andamento | Fiscal | por notificação: Defesa → 3; Dilação → 4; Atendida → 29; Vencida → 10 |
+| 3 | Defesa | Fiscal | anexou → 13; venceu sem anexo → 10 |
+| 4 | Comprovantes | Fiscal | sempre → 5 |
+| 5 | Análise Dilação de Prazo | Fiscal | defere → 2; indefere no prazo → 2; indefere vencido → 10 |
+| 10 | Certidão de Cumprimento | Fiscal | resolvido → 29; não → 14 |
+| 13 | Análise da defesa | Fiscal | defere → 29; indefere → 10 |
+| 14 | Auto de Infração (AI) | Fiscal | → 15 |
+| 15 | Multa do AI | Gerente / Administrativo | → 16 |
+| 16 | Dados do AR (1.2) | Administrativo | → 2 / 18 / 17 / 30 |
+| 17 | Publicação do edital | Gerente / Administrativo | → 2 (NP) ou 18 (Auto) |
+| 18 | Andamento do AI | Gerente / Jurídico | por Auto: → 19 / 28 / 29 / 26 |
 | 19 | Parecer Jurídico | Jurídico / Interface Jurídica | → 21, 22 (voltam à 19) ou 24 |
-| 20 | Arquivamento do Processo | Gerente | arquiva (encerra) ou desfaz → 18 |
-| 21 | Fiscal Convocado pelo Jurídico | Fiscal | → 19 |
-| 22 | Gerente Convocado pelo Jurídico | Gerente | → 19 |
-| 24 | Secretário Despacha | Secretário | → 25 |
-| 25 | Gerente Cumpre o Decreto | Gerente | → 31 ou 29 |
+| 20 | Arquivamento do AI | Gerente | arquiva (encerra) ou desfaz → 18 |
+| 21 | Comunicação Interna (Fiscal) | Fiscal | → 19 |
+| 22 | Comunicação Interna (Gerência) | Gerente | → 19 |
+| 24 | Despacho Administrativo | Secretário | → 25 |
+| 25 | Encaminhamento do Despacho | Gerente | → 31 ou 29 (vem da 24 ou da 26) |
+| 26 | Análise para dar Desconto | Fiscal | defere → 25; indefere → 18 |
 | 28 | Certificação do Vencimento | Gerente | → 20 |
-| 29 | Fiscal Emite Certidão | Fiscal / Gerente | encerra (33) |
-| 30 | Gerente Localiza o AR | Gerente | → 2 / 18 / 17 |
-| 31 | Comprovante de Pagamento | Fiscal | pagou → 29; não → 28 |
-| 32 | Consulta no Jurídico | Fiscal | sem tela própria (ver 12) |
-| 6, 8, 9, 12, 23, 26, 27 | — | — | **sem tela; fora do fluxo atual** (ver 12) |
+| 29 | Certidão de encerramento | Fiscal / Gerente | encerra (33) |
+| 30 | AR pendente | Gerente | → 2 / 18 / 17 |
+| 31 | Comprovante Pagamento | Fiscal | pagou → 29; não → 28 |
 
 ---
 
@@ -517,19 +567,46 @@ Cada documento tem o seu edital:
 
 **Avanço:** fluxo NP → **2**, com prazo de **20 dias** a partir do edital. Fluxo Auto → **18**.
 
-### Etapa 18 — Solicitar Defesa ou Recurso (painel dos Autos)
+### Etapa 18 — Andamento do AI (painel dos Autos)
 
 **Quem:** Gerente de Posturas e Jurídico. Um **card por Auto de Infração**, com prazo de
-defesa, situação, **Nº do protocolo** (Sistema Betha, aparece ao lado da situação no painel) e três opções:
+defesa, situação, **Nº do protocolo** (Sistema Betha, aparece ao lado da situação no painel) e quatro opções:
 
 | Opção | Destino |
 |---|---|
 | Defesa | 19 |
 | Pagamento | 29 (para de contar prazo) |
 | Não fez o pagamento | 28 |
+| Desconto | 26 (Análise de Desconto) |
 
 Cada Auto avança pelo próprio botão; o processo fica no painel da 18. Os Autos que já
 avançaram mostram "avançou e está na Etapa X" e abrem ao clicar.
+
+### Etapa 26 — Análise para dar Desconto
+
+**Quem:** Fiscal de Posturas. **Por Auto.** Chega pela opção **Desconto** da Etapa 18.
+
+A tela é a da Análise de Dilação de Prazo (Etapa 5): decisão (defere / indeferimento),
+motivo obrigatório no indeferimento e a **Réplica** — mesmo modelo e mesma numeração da
+réplica da 5 e da 13, com imagens opcionais. O PDF assinado da réplica é obrigatório
+para avançar.
+
+| Decisão | Destino | O que acontece |
+|---|---|---|
+| Defere | 25 (Gerente Cumpre o Decreto) | O valor da multa é ajustado lá, pelo desfecho escolhido |
+| Indefere | 18 | O Auto volta ao painel com o card em branco, para outra opção |
+
+O texto da réplica é "Após análise do pedido de desconto informamos que seu pedido foi
+deferido / indeferido, pois …".
+
+**Na Etapa 25, quando o Auto chega por aqui** (desconto deferido, sem parecer da 19 e sem
+despacho da 24): o título vira "Cumprimento do Desconto Deferido", os botões *Ver parecer
+jurídico* e *Ver despacho do Secretário* dão lugar a **Ver réplica assinada**, e o resumo
+mostra "Análise de Desconto (Etapa 26) — Deferido" no lugar do despacho. A Etapa 31, que
+vem depois da 25, herda o mesmo comportamento. No **PDF unificado** a réplica assinada
+fecha o corpo do processo (depois do Auto e do AR dele), na lógica do último documento
+inserido — nos fluxos das Etapas 5 e 13 ela continua na ordem de inserção, com os demais
+anexos.
 
 ### Etapa 19 — Parecer Jurídico
 
@@ -552,7 +629,7 @@ passeio e reconstruções, não só para limpeza.
 
 Modelos: tabela `modelos_parecer`, `tipo = 'parecer'` (`migracao/modelos_parecer.sql`).
 
-### Etapas 21 e 22 — Fiscal / Gerente Convocado pelo Jurídico
+### Etapas 21 e 22 — Comunicação Interna (Fiscal / Gerência)
 
 **Quem:** 21 = Fiscal; 22 = Gerente. Mesma tela (`Etapa21`/`Etapa22`), por Auto.
 Mostra o resumo do Auto, o **pedido do jurídico** (ou "(sem pedido escrito — analisar a
@@ -660,7 +737,7 @@ levava era a 7, e essa opção foi removida.
 
 Quando é preciso esperar a resposta do Jurídico, as Etapas **5** e **13** têm o botão
 **Paralisar aguardando o Jurídico**: ele guarda o vencimento e zera a contagem do prazo,
-mostra um aviso na etapa e o selo "⏸️ Aguardando Jurídico" no painel. A retomada devolve
+mostra um aviso na etapa e o selo "Aguardando Jurídico" no painel. A retomada devolve
 o prazo com os dias que faltavam.
 
 ### "Etapa 33" — Encerrada
@@ -669,17 +746,26 @@ Não existe como etapa no banco. É a visão de **notificação/Auto encerrado**
 "Encerrado(a)", quem encerrou e quando, PDF completo com a certidão, documentos avulsos,
 ZIP e o histórico de etapas. Sem botões de avançar, voltar ou cancelar.
 
-### Etapas sem uso no fluxo atual
+### Etapas removidas do sistema (14/10/2026)
 
-| Etapa | Nome antigo | Situação |
+Saíram do código (mapas de nome, permissões por cargo, filtro do painel e lista do
+"processo já existente") e do banco, por `migracao/remover_etapas_sem_uso.sql`:
+
+| Etapa | Nome antigo | Por que saiu |
 |---|---|---|
-| 6 | Defesa com Dilação | Sem tela. Nenhuma etapa leva a ela |
-| 8 | Fiscal Analisa Defesa (Pós Dilação) | Sem tela. Nenhuma etapa leva a ela |
-| 9 | Envio Defesa sem Dilação | Sem tela. Nenhuma etapa leva a ela |
-| 12 | Gerente antes Auto de Infração | Sem tela. Nenhuma etapa leva a ela |
+| 6 | Defesa com Dilação | Sem tela; nada levava a ela |
+| 7 | Análise da Defesa sem Dilação | Saiu do fluxo: tudo passou a ir para a 10 |
+| 8 | Fiscal Analisa Defesa (Pós Dilação) | Sem tela; nada levava a ela |
+| 9 | Envio Defesa sem Dilação | Sem tela; nada levava a ela |
+| 11 | Gerente antes Infração | A opção "enviar para o gerente" saiu das Etapas 5 e 13 |
+| 12 | Gerente antes Auto de Infração | Sem tela; nada levava a ela |
 | 23 | Parecer Jurídico (antigo) | Substituída pela 19 |
-| 26 | Fazenda Gera a Multa | Sem tela. A multa da Fazenda é anexada na 25 |
-| 27 | Devolvimento para o Setor | Sem tela. Nenhuma etapa leva a ela |
+| 27 | Devolvimento para o Setor | Sem tela; nada levava a ela |
+| 32 | Consulta no Jurídico | Virou o chat do Jurídico |
+
+A **Etapa 100** não é tocada (é usada para outra coisa). A etapa que ainda tem histórico
+de processos antigos não pode ser apagada — apagaria a trilha —, então fica no banco com
+o nome prefixado por "(fora de uso)" e fora de toda a interface.
 
 ---
 
@@ -689,7 +775,7 @@ ZIP e o histórico de etapas. Sem botões de avançar, voltar ou cancelar.
 |---|---|---|
 | Notificação Preliminar | 1 | Uma por infração. PDF/DOC no modelo oficial |
 | Relatório Fiscal (de Vistoria) | 1 | Numeração própria; imagens com legenda |
-| Réplica | 5, 13 | Numeração própria; mesmo cabeçalho do relatório |
+| Réplica | 5, 13, 26 | Numeração própria; mesmo cabeçalho do relatório |
 | Certidão (sem defesa / cumprimento) | 10 | Texto muda se o problema foi resolvido |
 | Auto de Infração | 14 | Valores pela UPFMD; prazo de defesa |
 | Ofício SEMAC – GFP | 15 e avulso | Sequência única entre Etapa 15 e ofícios avulsos |
@@ -709,10 +795,15 @@ documentos descartados voltam para a fila.
 ## 9. Telas do painel
 
 Menu lateral de `painel.html`:
-- **Processos:** lista de processos ([Etapa 0](#etapa-0--solicitações-painel)).
+- **Processos:** lista de processos ([Etapa 0](#etapa-0--solicitações-painel)). Ao lado de
+  "Abrir", **Processo unido** abre em outra aba um PDF com capa, índice (em que páginas
+  está cada documento) e todos os documentos do processo e das notificações dele, na ordem
+  em que foram inseridos: `etapa.html?processo=<id>&pdf_unido=1`
+  (`gerarPdfProcessoCompletoEtapa15` com `todosEmOrdem`). As Comunicações Internas não são
+  documentos e não entram.
 - **Notificações:** sino com avisos ao usuário (ex.: devolução do AR, gerente pediu certidão).
 - **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível para Gerente de Posturas e Dev; gerado por Gerente, Administrativo e Dev. Imagens vão para o Cloudinary.
-- **Avisos** e **Instruções** ("Como fazer um processo, do começo ao fim").
+- **Instruções** ("Como fazer um processo, do começo ao fim").
 - **Apuração de dados:** gráficos de processos e valor de multas por fiscal. O valor vem de
   `processos.valor_total_multas`, que é a soma dos Autos de Infração do processo. Cada Auto
   grava o próprio valor na Etapa 14 (o calculado ou o digitado pelo fiscal) sempre que é
@@ -746,7 +837,7 @@ Tabelas principais:
 | `processos` | o processo; JSON `dados` com campos de cada etapa (`dados.campos.etapaN`); `valor_total_multas` = soma dos Autos, mantida por trigger |
 | `notificacoes` | uma por infração: etapa, status, situação, prazo (`data_inicio`, `data_vencimento`, `prazo_dias`, `prazo_origem`), JSON `dados` por etapa |
 | `autos_infracao` | Autos emitidos; `valor_multa` = valor de cada Auto (memória do cálculo em `dados.calculo_multa`) |
-| `etapas`, `transicoes` | cadastro das etapas |
+| `etapas`, `transicoes` | cadastro das etapas (o painel mostra `etapas.nome`; renomear exige `migracao/renomear_etapas.sql`) |
 | `historico_etapas` | todas as movimentações |
 | `documentos` | anexos e documentos gerados (URL do Cloudinary) |
 | `checklist_itens`, `checklist_respostas` | checklists |
@@ -817,8 +908,8 @@ canvas deve ser completado.
 - **Etapa 16:** 3 tentativas valem só para a NP; no fluxo do Auto, 1 tentativa leva ao Edital.
 
 **Pendências:**
-- **Etapa 32:** resolvida de outro jeito — a consulta ao Jurídico virou o chat e a espera virou o botão de paralisar nas Etapas 5 e 13. A etapa em si ficou sem uso e sem entrada.
-- **Etapas 6, 8, 9, 12, 23, 26 e 27** continuam cadastradas, mas nenhuma etapa leva a elas. Decidir se saem do sistema.
+- **Etapas sem uso:** resolvido em 14/10/2026 — 6, 7, 8, 9, 11, 12, 23, 27 e 32 saíram do código e do banco (ver "Etapas removidas do sistema"). A consulta ao Jurídico da antiga 32 virou o chat, com o botão de paralisar nas Etapas 5 e 13. A 26, que era "Fazenda Gera a Multa" sem tela, passou a ser a Análise para dar Desconto.
+- **Perfil Fazenda:** ficou sem etapas quando a 26 virou Análise de Desconto. Definir o que ele faz ou removê-lo.
 - **Permissões duplicadas:** `ETAPAS_POR_CARGO` de `solicitacoes.js` difere da de `etapa.js` (ex.: lá o Fiscal tem a 19, o Jurídico não tem a 19 e o Gerente de Interface Jurídica tem todas).
 - **Etapa 4 (dilação):** o texto pede "no mínimo 2 documentos", mas o avanço não confere isso.
 - **Chave do Supabase** repetida em `login.js` e `supabase-config.js`.

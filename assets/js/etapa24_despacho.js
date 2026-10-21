@@ -1,5 +1,5 @@
 /* ============================================================================
-   etapa24_despacho.js — Etapa 24: Secretário Despacha
+   etapa24_despacho.js — Etapa 24: Despacho Administrativo
    ----------------------------------------------------------------------------
    Exige o parecer da Etapa 19 pronto. Mostra o processo unificado (todos os
    documentos em ordem de chegada, com a defesa, as idas e vindas com Fiscal e
@@ -91,6 +91,13 @@
         }
 
         if (numeroNotificacao) {
+            // Fiscal de Meio Ambiente: o documento de origem é o Auto de Fiscalização
+            if (window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual)) {
+                return {
+                    cabecalho: `Auto de Fiscalização nº: ${numeroNotificacao}`,
+                    corpo: `no Auto de Fiscalização nº ${numeroNotificacao}`
+                };
+            }
             return {
                 cabecalho: `Notificação Preliminar nº: ${numeroNotificacao}`,
                 corpo: `na Notificação Preliminar nº ${numeroNotificacao}`
@@ -251,7 +258,7 @@
                 tipo: 'pagina',
                 nome: 'Defesa (texto)',
                 html: paginaOficial(
-                    'Defesa Administrativa',
+                    'Defesa administrativa',
                     `Auto de Infração nº ${v.AUTO_NUMERO} · texto registrado pelo Jurídico`,
                     corpoTexto(d19.defesa_texto)
                 )
@@ -487,7 +494,7 @@
                             <button type="button" id="e24BtnCopiar" style="${botao}">Copiar texto</button>
                         </div>
                     </div>
-                    <textarea id="e24Despacho" rows="18" placeholder="Escolha a decisão acima e clique em Gerar resposta padrão." style="width:100%; box-sizing:border-box; padding:14px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; line-height:1.55; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
+                    <textarea id="e24Despacho" rows="18" placeholder="Escolha a decisão acima e clique em gerar resposta padrão." style="width:100%; box-sizing:border-box; padding:14px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; line-height:1.55; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
                     <div id="e24Pendencias" hidden style="margin-top:10px; background:#fffbeb; border:1px solid #fde68a; color:#78350f; padding:10px 12px; border-radius:8px; font-size:0.85rem;"></div>
                 </div>
 

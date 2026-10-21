@@ -8,13 +8,9 @@
     <meta name="description" content="Painel de controle do Sistema Fluxograma de Processos - Fiscalização de Posturas">
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
-    <link rel="stylesheet" href="assets/css/painel.css?v=20261013d">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261021d">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Fontes do documento oficial exibido na aba Avisos -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Public+Sans:ital,wght@0,400;0,600;0,800;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap"
-        rel="stylesheet">
 </head>
 
 <body>
@@ -35,7 +31,7 @@
                         <line x1="16" y1="17" x2="8" y2="17" />
                         <polyline points="10 9 9 9 8 9" />
                     </svg>
-                    Painel de Processos
+                    Painel de processos
                 </a>
                 <a href="#" id="btnMenuNotificacoesPainel"
                     onclick="event.preventDefault(); window.toggleDropdownNotificacoesPainel();"
@@ -80,15 +76,6 @@
                         <polyline points="22,6 12,13 2,6" />
                     </svg>
                     Ofícios
-                </a>
-                <a href="#" data-page="avisos">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" y1="9" x2="12" y2="13" />
-                        <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                    Avisos
                 </a>
                 <a href="#" data-page="instrucoes">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -139,11 +126,11 @@
             <!-- Sub-bar / Header -->
             <header class="painel-header">
                 <div class="header-left">
-                    <h1 id="pageTitle">Painel de Processos</h1>
-                    <span class="header-breadcrumb">Painel / Painel de Processos</span>
+                    <h1 id="pageTitle">Painel de processos</h1>
+                    <span class="header-breadcrumb">Painel / Painel de processos</span>
                 </div>
                 <div class="header-actions">
-                    <button class="btn-icon" id="btnToggleFilters" title="Mostrar/Esconder Filtros">
+                    <button class="btn-icon" id="btnToggleFilters" title="Mostrar/esconder filtros">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
                             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
@@ -166,7 +153,7 @@
                             <line x1="12" y1="5" x2="12" y2="19" />
                             <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
-                        Novo Processo
+                        Novo processo
                     </button>
                     <button class="btn-primary" id="btnGerarOficio" style="display: none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -186,9 +173,9 @@
                 <section class="filters-panel" id="filtersPanel">
                     <div class="filters-grid">
                         <div class="filter-group">
-                            <label for="filtroProtocolo">Protocolo</label>
+                            <label for="filtroProtocolo">Processo</label>
                             <input type="text" id="filtroProtocolo" name="filtro_protocolo_search"
-                                placeholder="Nº do protocolo..." autocomplete="new-password" data-lpignore="true">
+                                placeholder="Nº do processo..." autocomplete="new-password" data-lpignore="true">
                         </div>
                         <div class="filter-group">
                             <label for="filtroRelatorio">Nº Relatório Fiscal</label>
@@ -201,70 +188,66 @@
                                 placeholder="Ex: 2026/001..." autocomplete="new-password" data-lpignore="true">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroNotificacao">Nº Notificação</label>
+                            <label for="filtroNotificacao">Nº notificação / Auto de Fiscalização</label>
                             <input type="text" id="filtroNotificacao" name="filtro_notificacao_search"
                                 placeholder="Ex: 2026/001..." autocomplete="new-password" data-lpignore="true">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroNome">Nome do Solicitante</label>
+                            <label for="filtroNome">Nome do solicitante</label>
                             <input type="text" id="filtroNome" name="filtro_nome_search" placeholder="Nome..."
                                 autocomplete="new-password" data-lpignore="true" spellcheck="false">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroCpf">CPF / CNPJ do Contribuinte</label>
+                            <label for="filtroCpf">CPF / CNPJ do contribuinte</label>
                             <input type="text" id="filtroCpf" name="filtro_cpf_search" placeholder="CPF ou CNPJ..."
                                 autocomplete="new-password" data-lpignore="true" spellcheck="false">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroFiscal">Fiscal Responsável</label>
+                            <label for="filtroCodigoReduzido">Código reduzido do imóvel</label>
+                            <input type="text" id="filtroCodigoReduzido" name="filtro_codigo_reduzido_search" placeholder="Código reduzido..."
+                                autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                        </div>
+                        <div class="filter-group">
+                            <label for="filtroFiscal">Fiscal responsável</label>
                             <select id="filtroFiscal">
                                 <option value="">Todos os Fiscais</option>
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label for="filtroDataInicio">Data Início</label>
+                            <label for="filtroDataInicio">Data início</label>
                             <input type="date" id="filtroDataInicio">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroDataFim">Data Final</label>
+                            <label for="filtroDataFim">Data final</label>
                             <input type="date" id="filtroDataFim">
                         </div>
                         <div class="filter-group">
                             <label for="filtroEtapa">Etapa</label>
                             <select id="filtroEtapa">
                                 <option value="">Todas</option>
-                                <option value="1">1 - Possui Decreto/Notificação</option>
-                                <option value="2">2 - Defesa ou Dilação de Prazo</option>
-                                <option value="3">3 - Envio da 1ª Defesa</option>
-                                <option value="4">4 - Comprovante Propriedade</option>
-                                <option value="5">5 - Análise Dilação de Prazo</option>
-                                <option value="6">6 - Defesa Com Dilação</option>
-                                <option value="7">7 - Análise da Defesa Sem Dilação</option>
-                                <option value="8">8 - Fiscal Analisa Defesa (Pós Dilação)</option>
-                                <option value="9">9 - Envio Defesa Sem Dilação</option>
-                                <option value="10">10 - Certidão Sem Defesa</option>
-                                <option value="11">11 - Gerente antes Infração</option>
-                                <option value="12">12 - Gerente antes Auto Infração</option>
-                                <option value="13">13 - Fiscal Analisa Defesa (1ª)</option>
-                                <option value="14">14 - Auto de Infração</option>
-                                <option value="15">15 - Gerente Gera a Multa</option>
-                                <option value="16">16 - Retorno do AR</option>
-                                <option value="17">17 - Gerência Gera o Edital</option>
-                                <option value="18">18 - Solicitar Defesa ou Recurso</option>
-                                <option value="19">19 - Envio de Defesa ou Pagamento</option>
-                                <option value="20">20 - Arquivamento do Processo</option>
-                                <option value="21">21 - Fiscal Convocado Jurídico</option>
-                                <option value="22">22 - Gerente Convocado Jurídico</option>
-                                <option value="23">23 - Parecer Jurídico</option>
-                                <option value="24">24 - Secretário Despacha</option>
-                                <option value="25">25 - Gerente Cumpre Decreto</option>
-                                <option value="26">26 - Fazenda Gera a Multa</option>
-                                <option value="27">27 - Devolvimento para o Setor</option>
-                                <option value="28">28 - Certificação do Vencimento</option>
-                                <option value="29">29 - Fiscal Emite Certidão</option>
-                                <option value="30">30 - Gerente Localiza o AR</option>
-                                <option value="31">31 - Comprovante Pagamento</option>
-                                <option value="32">32 - Consulta no Jurídico</option>
+                                <option value="1">1 - Notificação</option>
+                                <option value="2">2 - Andamento</option>
+                                <option value="3">3 - Defesa</option>
+                                <option value="4">4 - Comprovantes</option>
+                                <option value="5">5 - Análise dilação de prazo</option>
+                                <option value="10">10 - Certidão de cumprimento</option>
+                                <option value="13">13 - Análise da defesa</option>
+                                <option value="14">14 - Auto de Infração (AI)</option>
+                                <option value="15">15 - Multa do AI</option>
+                                <option value="16">16 - Dados do AR</option>
+                                <option value="17">17 - Publicação do edital</option>
+                                <option value="18">18 - Andamento do AI</option>
+                                <option value="19">19 - Parecer Jurídico</option>
+                                <option value="20">20 - Arquivamento do AI</option>
+                                <option value="21">21 - Comunicação interna (Fiscal)</option>
+                                <option value="22">22 - Comunicação interna (Gerência)</option>
+                                <option value="24">24 - Despacho Administrativo</option>
+                                <option value="25">25 - Encaminhamento do despacho</option>
+                                <option value="26">26 - Análise para dar desconto</option>
+                                <option value="28">28 - Certificação do vencimento</option>
+                                <option value="29">29 - Certidão de encerramento</option>
+                                <option value="30">30 - AR pendente</option>
+                                <option value="31">31 - Comprovante pagamento</option>
                             </select>
                         </div>
                         <div class="filter-group">
@@ -272,6 +255,7 @@
                             <select id="filtroSituacao">
                                 <option value="">Todas</option>
                                 <option value="notificacao_preliminar">Notificação Preliminar</option>
+                                <option value="auto_fiscalizacao">Auto de Fiscalização</option>
                                 <option value="auto_infracao">Auto de Infração</option>
                                 <option value="arquivado">Arquivado (dívida ativa)</option>
                                 <option value="encerrado">Encerrado</option>
@@ -287,7 +271,7 @@
                             </select>
                         </div>
                         <div class="filter-group" style="position: relative;">
-                            <label for="btnFiltroInfracao">Tipo de Infração</label>
+                            <label for="btnFiltroInfracao">Tipo de infração</label>
                             <button type="button" id="btnFiltroInfracao" class="filtro-dropdown-btn">
                                 <span id="lblFiltroInfracao">Todas</span>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;">
@@ -296,18 +280,18 @@
                             </button>
                             <div class="filtro-dropdown-panel" id="painelFiltroInfracao" style="display:none;">
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000232"> Falta de limpeza e conservação de imóvel não edificado</label>
-                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000211"> Inexistência de Cercamento</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000211"> Inexistência de cercamento</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000226"> Inexistência de passeio</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000228"> Reincidência na inexistência de cercamento e/ou passeio</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000227"> Reincidência na inexistência de passeio</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000229"> Reconstrução de/ou reparo de muro</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000240"> Reconstrução e/ou reparo de passeio</label>
-                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000233"> Limpeza de Quintal</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000233"> Limpeza de quintal</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000237"> Obstáculos em calçadas</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000239"> Água servida</label>
-                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000236"> Estabelecimento sem Alvará</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000236"> Estabelecimento sem alvará</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000234"> Reparos por concessionárias</label>
-                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000230"> Piso Tátil</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000230"> Piso tátil</label>
                             </div>
                         </div>
                         <div class="filter-group">
@@ -326,9 +310,10 @@
                             <label for="filtroResponsavel">Responsável da Etapa</label>
                             <select id="filtroResponsavel">
                                 <option value="">Todos</option>
-                                <option value="minha_responsabilidade">Minha Responsabilidade (Meu Cargo)</option>
-                                <option value="Dev">Dev (Desenvolvedor)</option>
+                                <option value="minha_responsabilidade">Minha responsabilidade (meu cargo)</option>
+                                <option value="Dev">Dev (desenvolvedor)</option>
                                 <option value="Fiscal de Postura">Fiscal de Posturas</option>
+                                <option value="Fiscal de Meio Ambiente">Fiscal de Meio Ambiente</option>
                                 <option value="Gerente">Gerente de Posturas</option>
                                 <option value="Gerente de Interface Jurídica">Gerente de Interface Jurídica</option>
                                 <option value="Administrativo de Posturas">Administrativo</option>
@@ -339,7 +324,7 @@
                         </div>
                         <!-- Só aparece para Gerente de Posturas, Administrativo de Posturas e Dev -->
                         <div class="filter-group" id="grupoDestaqueMulta" style="display:none;">
-                            <label for="chkDestacarMultaAnexada">Destaque de Multa</label>
+                            <label for="chkDestacarMultaAnexada">Destaque de multa</label>
                             <label class="filtro-checkbox" for="chkDestacarMultaAnexada">
                                 <input type="checkbox" id="chkDestacarMultaAnexada">
                                 <span>Marcar em roxo os processos com multa anexada</span>
@@ -361,7 +346,7 @@
                                 <line x1="18" y1="6" x2="6" y2="18" />
                                 <line x1="6" y1="6" x2="18" y2="18" />
                             </svg>
-                            Limpar Filtros
+                            Limpar filtros
                         </button>
                     </div>
                 </section>
@@ -380,7 +365,7 @@
                                     d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
                                 </path>
                             </svg>
-                            Excluir Selecionados
+                            Excluir selecionados
                         </button>
                     </div>
                 </div>
@@ -392,12 +377,12 @@
                             <tr>
                                 <th class="col-check" style="width: 40px; text-align: center; display: none;"
                                     id="thCheck"><input type="checkbox" id="chkSelectAll" /></th>
-                                <th class="col-protocolo">Protocolo</th>
-                                <th class="col-cpf">CPF/CNPJ</th>
-                                <th class="col-nome">Nome do Solicitante</th>
-                                <th class="col-data">Data Início</th>
-                                <th class="col-data">Data Final</th>
-                                <th class="col-dias">Dias p/ Venc.</th>
+                                <th class="col-protocolo">Processo</th>
+                                <th class="col-codigo-imovel">Código reduzido</th>
+                                <th class="col-nome">Nome do solicitante</th>
+                                <th class="col-data">Data início</th>
+                                <th class="col-data">Data final</th>
+                                <th class="col-dias">Dias p/ venc.</th>
                                 <th class="col-descricao">Fiscal</th>
                                 <th class="col-situacao">Situação</th>
                                 <th class="col-etapa">Etapa</th>
@@ -422,7 +407,7 @@
                     <!-- Loading -->
                     <div class="loading-state" id="loadingState">
                         <div class="spinner"></div>
-                        <p>Carregando Processos...</p>
+                        <p>Carregando processos...</p>
                     </div>
                 </section>
 
@@ -430,10 +415,10 @@
                 <div id="loadMoreContainer" style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 24px 0 32px 0; gap: 12px;">
                     <button type="button" id="btnCarregarMais" style="display: none; padding: 12px 28px; background: #2563eb; color: white; border: none; border-radius: 10px; font-weight: 700; font-size: 0.95rem; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(37,99,235,0.25); align-items: center; gap: 8px;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="7 13 12 18 17 13"></polyline><line x1="12" y1="6" x2="12" y2="18"></line></svg>
-                        Carregar Mais Processos
+                        Carregar mais processos
                     </button>
                     <div id="msgFimRegistros" style="display: none; color: #475569; font-size: 0.9rem; font-weight: 600; background: #f8fafc; padding: 12px 24px; border-radius: 20px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.03);">
-                        ✨ Todos os registros foram carregados! Total: <span id="totalSumCount" style="color: #0f172a; font-weight: 800;">0</span> Processos.
+                        Todos os registros foram carregados! Total: <span id="totalSumCount" style="color: #0f172a; font-weight: 800;">0</span> Processos.
                     </div>
                 </div>
             </main>
@@ -448,11 +433,11 @@
                                 autocomplete="off" spellcheck="false">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroOficioDataInicio">Data Início</label>
+                            <label for="filtroOficioDataInicio">Data início</label>
                             <input type="date" id="filtroOficioDataInicio">
                         </div>
                         <div class="filter-group">
-                            <label for="filtroOficioDataFim">Data Final</label>
+                            <label for="filtroOficioDataFim">Data final</label>
                             <input type="date" id="filtroOficioDataFim">
                         </div>
                         <div class="filter-group">
@@ -477,7 +462,7 @@
                                 <line x1="18" y1="6" x2="6" y2="18" />
                                 <line x1="6" y1="6" x2="18" y2="18" />
                             </svg>
-                            Limpar Filtros
+                            Limpar filtros
                         </button>
                     </div>
                 </section>
@@ -502,7 +487,7 @@
                                 <th>Nº</th>
                                 <th>Data</th>
                                 <th>Origem</th>
-                                <th>Assunto / Processo</th>
+                                <th>Assunto / processo</th>
                                 <th>Gerado por</th>
                                 <th>Situação</th>
                                 <th></th>
@@ -539,7 +524,7 @@
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
                                 </div>
                                 <div>
-                                    <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;">Apuração de Dados</h2>
+                                    <h2 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;">Apuração de dados</h2>
                                     <p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #64748b;">Relatório gerencial de desempenho dos fiscais de posturas e arrecadação de multas</p>
                                 </div>
                             </div>
@@ -557,7 +542,7 @@
                             </div>
                             <button type="button" id="btnFiltrarApuracao" onclick="window.carregarEExibirApuracaoDados()" style="background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 10px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(37,99,235,0.25);">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-                                Filtrar / Atualizar
+                                Filtrar / atualizar
                             </button>
                         </div>
                     </div>
@@ -571,10 +556,10 @@
                                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             </div>
                             <div>
-                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Valor Total de Processos</span>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Valor total de processos</span>
                                 <h3 id="kpiApuracaoTotalProcessos" style="margin: 4px 0 0 0; font-size: 1.8rem; font-weight: 800; color: #0f172a;">--</h3>
                                 <span style="font-size: 0.75rem; color: #16a34a; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;">
-                                    • Total de Processos Registrados
+                                    • Total de processos registrados
                                 </span>
                             </div>
                         </div>
@@ -585,7 +570,7 @@
                                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                             </div>
                             <div>
-                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Total de Multas Geradas</span>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Total de multas geradas</span>
                                 <h3 id="kpiApuracaoTotalMultas" style="margin: 4px 0 0 0; font-size: 1.65rem; font-weight: 800; color: #059669;">R$ 0,00</h3>
                                 <span style="font-size: 0.75rem; color: #059669; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;">
                                     • Soma acumulada de multas
@@ -599,7 +584,7 @@
                                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                             </div>
                             <div>
-                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Fiscais Ativos</span>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Fiscais ativos</span>
                                 <h3 id="kpiApuracaoTotalFiscais" style="margin: 4px 0 0 0; font-size: 1.8rem; font-weight: 800; color: #0f172a;">--</h3>
                                 <span id="subkpiMediaProc" style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">
                                     • Média: 0 proc/fiscal
@@ -613,7 +598,7 @@
                                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6v12"/></svg>
                             </div>
                             <div>
-                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Média Multa / Fiscal</span>
+                                <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Média multa / Fiscal</span>
                                 <h3 id="kpiApuracaoMediaMultaFiscal" style="margin: 4px 0 0 0; font-size: 1.65rem; font-weight: 800; color: #d97706;">R$ 0,00</h3>
                                 <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; margin-top: 2px;">
                                     • Média por Fiscal de Postura
@@ -642,8 +627,8 @@
                         <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                                 <div>
-                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">$ Valor Total de Multas Geradas por Fiscal (R$)</h3>
-                                    <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Soma em Reais das autuações/multas por fiscal de postura</p>
+                                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">$ Valor total de multas geradas por Fiscal (R$)</h3>
+                                    <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Soma em reais das autuações/multas por fiscal de postura</p>
                                 </div>
                             </div>
                             <div style="position: relative; height: 320px; width: 100%;">
@@ -655,7 +640,7 @@
                     <!-- Gráfico 3: % da Arrecadação por Fiscal (pizza) -->
                     <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                         <div style="margin-bottom: 16px;">
-                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">% da Arrecadação por Fiscal</h3>
+                            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">% da arrecadação por Fiscal</h3>
                             <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Participação de cada fiscal no valor total de multas. Os 5 maiores aparecem separados; os demais, em "Outros" (todos estão na tabela abaixo).</p>
                         </div>
                         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px;">
@@ -670,12 +655,12 @@
                     <div style="background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
                             <div>
-                                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;"> Detalhamento Individual por Fiscal</h3>
+                                <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;"> Detalhamento individual por Fiscal</h3>
                                 <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #64748b;">Produtividade e valores gerados</p>
                             </div>
                             <button type="button" onclick="window.exportarApuracaoCSV()" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                Exportar Relatório CSV
+                                Exportar relatório CSV
                             </button>
                         </div>
 
@@ -684,10 +669,10 @@
                                 <thead>
                                     <tr style="background: #f8fafc; color: #475569; text-align: left; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
                                         <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; border-top-left-radius: 8px;">Fiscal</th>
-                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Total de Processos</th>
-                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Multas Geradas</th>
-                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">Total da Multas (R$)</th>
-                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">% da Arrecadação</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Total de processos</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: center;">Multas geradas</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">Total da multas (R$)</th>
+                                        <th style="padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: right;">% da arrecadação</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tabelaApuracaoFiscaisBody">
@@ -722,14 +707,14 @@
                                 onchange="alterarFotoPerfil(this)">
                         </div>
                         <div class="perfil-header-info">
-                            <h2 id="perfilHeaderNome">Meu Perfil</h2>
+                            <h2 id="perfilHeaderNome">Meu perfil</h2>
                             <p id="perfilHeaderCargo">Fiscal de Postura</p>
                         </div>
                     </div>
 
                     <div class="perfil-form-grid">
                         <div class="form-group fg-medium">
-                            <label for="perfil-nome">Nome Completo</label>
+                            <label for="perfil-nome">Nome completo</label>
                             <input type="text" id="perfil-nome" placeholder="Seu nome completo">
                         </div>
                         <div class="form-group fg-medium">
@@ -745,7 +730,7 @@
                             <input type="text" id="perfil-matricula">
                         </div>
                         <div class="form-group fg-medium">
-                            <label for="perfil-cargo">Cargo Atual</label>
+                            <label for="perfil-cargo">Cargo atual</label>
                             <input type="text" id="perfil-cargo" readonly class="input-readonly">
                         </div>
 
@@ -757,7 +742,7 @@
                                     <polyline points="17 21 17 13 7 13 7 21" />
                                     <polyline points="7 3 7 8 15 8" />
                                 </svg>
-                                Salvar Alterações
+                                Salvar alterações
                             </button>
                         </div>
                     </div>
@@ -766,19 +751,19 @@
                 <div class="perfil-card" style="margin-top: 24px;">
                     <div class="perfil-header-banner">
                         <div class="perfil-header-info">
-                            <h2 style="color: #ffffff; font-size: 1.25rem;">Alteração de Senha</h2>
+                            <h2 style="color: #ffffff; font-size: 1.25rem;">Alteração de senha</h2>
                             <p style="color: #cbd5e1;">Atualize sua senha de acesso ao sistema</p>
                         </div>
                     </div>
 
                     <div class="perfil-form-grid">
                         <div class="form-group fg-medium">
-                            <label for="perfilNovaSenha">Nova Senha</label>
+                            <label for="perfilNovaSenha">Nova senha</label>
                             <input type="password" id="perfilNovaSenha"
                                 placeholder="Digite a nova senha (mín. 6 caracteres)">
                         </div>
                         <div class="form-group fg-medium">
-                            <label for="perfilConfirmaSenha">Confirmar Nova Senha</label>
+                            <label for="perfilConfirmaSenha">Confirmar nova senha</label>
                             <input type="password" id="perfilConfirmaSenha" placeholder="Repita a nova senha">
                         </div>
 
@@ -789,32 +774,10 @@
                                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                 </svg>
-                                Atualizar Senha
+                                Atualizar senha
                             </button>
                         </div>
                     </div>
-                </div>
-            </main>
-
-            <!-- ============================================================ -->
-            <!-- SEÇÃO: Avisos — mural de publicações                        -->
-            <!-- ============================================================ -->
-            <main class="painel-content" id="secao-avisos" style="display: none;">
-                <div class="quadro-wrapper">
-
-                    <!-- Lista de publicações -->
-                    <div id="avisosLista">
-                        <div class="quadro-intro">
-                            <h2>Avisos</h2>
-                            <p>Publicações da Fiscalização de Posturas. Clique em uma publicação para ler o conteúdo
-                                completo.</p>
-                        </div>
-                        <div class="avisos-feed" id="avisosFeed"></div>
-                    </div>
-
-                    <!-- Leitura da publicação escolhida -->
-                    <article id="avisosLeitura" style="display: none;"></article>
-
                 </div>
             </main>
 
@@ -835,8 +798,8 @@
                     <ol class="instr-passos">
                         <li>
                             <h3>Veja de quem é o processo</h3>
-                            <p>Ao abrir, dê uma olhada no <code>Protocolo</code>, no
-                                <strong>Nome do Contribuinte</strong> e no <code>CPF/CNPJ</code>, ali no topo. Só
+                            <p>Ao abrir, dê uma olhada no <code>Processo</code>, no
+                                <strong>Nome do contribuinte</strong> e no <code>CPF/CNPJ</code>, ali no topo. Só
                                 confirme que é o processo certo e siga em frente.</p>
                             <p class="instr-dica"><b>Dica</b><span>São dois segundos aqui que evitam refazer tudo lá na
                                     frente.</span></p>
@@ -851,17 +814,17 @@
                         </li>
                         <li>
                             <h3>Achou algo errado? Você mesmo pode corrigir</h3>
-                            <p>No topo da tela tem a aba <strong>Editar Dados do Processo</strong>, do lado da aba do
+                            <p>No topo da tela tem a aba <strong>Editar dados do processo</strong>, do lado da aba do
                                 documento oficial. É só clicar, ajustar e salvar. Não precisa pedir para ninguém.</p>
                             <p class="instr-dica"><b>Dica</b><span>Corrigir antes de gerar é rápido. Depois de assinado,
                                     o documento precisa ser refeito.</span></p>
                         </li>
                         <li class="chave">
                             <h3>Confira o valor da multa e salve</h3>
-                            <p>No card <strong>Conferir ou Atualizar Valores das Multas</strong>, veja a UPFMD, se o
+                            <p>No card <strong>Conferir ou atualizar valores das multas</strong>, veja a UPFMD, se o
                                 imóvel é de esquina e a base de cálculo (testada ou profundidade). Confira o valor de
                                 cada infração e clique em
-                                <code>Salvar Valores e Atualizar Documento PDF</code>.</p>
+                                <code>Salvar valores e atualizar documento PDF</code>.</p>
                             <p>Depois de salvar, <strong>procure o valor no documento</strong>, no trecho da penalidade,
                                 e confirme que é o mesmo da tela.</p>
                             <p class="instr-dica"><b>Dica</b><span>Sem clicar em salvar, o documento continua com o
@@ -876,7 +839,7 @@
                         </li>
                         <li>
                             <h3>Baixe o PDF e abra o arquivo</h3>
-                            <p>Clique em <code>Imprimir / Baixar → Relatório (.pdf)</code> e abra o arquivo. Confira o nome, o
+                            <p>Clique em <code>Imprimir / baixar → relatório (.pdf)</code> e abra o arquivo. Confira o nome, o
                                 endereço e o número da notificação dentro dele. Aí pode imprimir e assinar com
                                 tranquilidade.</p>
                             <p class="instr-dica"><b>Dica</b><span>Depois de assinado, o documento sai do seu
@@ -892,7 +855,7 @@
                                     mundo.</span></p>
                         </li>
                         <li class="chave">
-                            <h3>Agora sim: "Avançar Etapa"</h3>
+                            <h3>Agora sim: "Avançar etapa"</h3>
                             <p>Esse é o último passo. Depois dele o processo segue para a próxima mesa com o seu nome
                                 nele — então deixe para clicar quando estiver tudo conferido.</p>
                             <p class="instr-dica"><b>Dica</b><span>Não tenha pressa: tudo o que você faz fica salvo, e
@@ -914,9 +877,9 @@
                         <label class="instr-item" for="chkInstr2"><input type="checkbox" id="chkInstr2" data-chk="2"><span>Revisei
                                 endereço, motivo e dispositivos antes de gerar.</span></label>
                         <label class="instr-item" for="chkInstr3"><input type="checkbox" id="chkInstr3" data-chk="3"><span>Corrigi o
-                                que precisava na aba Editar Dados do Processo.</span></label>
+                                que precisava na aba editar dados do processo.</span></label>
                         <label class="instr-item" for="chkInstr8"><input type="checkbox" id="chkInstr8" data-chk="8"><span>Conferi o
-                                valor da multa, cliquei em Salvar e vi o valor no documento.</span></label>
+                                valor da multa, cliquei em salvar e vi o valor no documento.</span></label>
                         <label class="instr-item" for="chkInstr4"><input type="checkbox" id="chkInstr4" data-chk="4"><span>Li o
                                 documento na tela antes de gerar.</span></label>
                         <label class="instr-item" for="chkInstr5"><input type="checkbox" id="chkInstr5" data-chk="5"><span>Abri o PDF
@@ -948,7 +911,7 @@
             <!-- Header do Modal -->
             <div class="modal-header">
                 <div class="modal-title-area">
-                    <h2>Novo Processo</h2>
+                    <h2>Novo processo</h2>
                     <span class="modal-subtitle" id="modalStepLabel">Passo 1 de 5 — Contribuinte</span>
                 </div>
                 <button class="modal-close" id="btnFecharModal" title="Fechar">
@@ -979,7 +942,7 @@
                 <div class="wizard-step" id="step1" style="display: block;">
                     <!-- Anexo BIC - Espelho Cadastral (PDF) -->
                     <div class="step-section">
-                        <h3>Anexo - Espelho Cadastral de Imóveis (PDF) <span class="required">*</span></h3>
+                        <h3>Anexo - Espelho Cadastral de imóveis (PDF) <span class="required">*</span></h3>
                         <p class="step-desc">Importe o arquivo PDF do Espelho Cadastral (BIC) para preencher
                             automaticamente os dados do contribuinte e do imóvel. O anexo é obrigatório em todo
                             processo.</p>
@@ -1006,14 +969,14 @@
                         <div id="bicFeedback" class="field-feedback"></div>
                     </div>
                     <div class="step-section">
-                        <h3>Dados do Contribuinte</h3>
+                        <h3>Dados do contribuinte</h3>
                         <div class="form-row">
                             <div class="form-group fg-large">
-                                <label for="contNome">Nome do Contribuinte <span class="required">*</span></label>
+                                <label for="contNome">Nome do contribuinte <span class="required">*</span></label>
                                 <input type="text" id="contNome" placeholder="Nome completo do contribuinte">
                             </div>
                             <div class="form-group fg-medium">
-                                <label for="contCpfCnpj">CPF/CNPJ do Contribuinte</label>
+                                <label for="contCpfCnpj">CPF/CNPJ do contribuinte</label>
                                 <input type="text" id="contCpfCnpj" placeholder="000.000.000-00" maxlength="18">
                                 <div id="contFeedback" class="field-feedback"></div>
                             </div>
@@ -1024,7 +987,7 @@
                         <div class="form-row">
                             <div class="form-group fg-large">
                                 <label for="contLogradouro">Logradouro</label>
-                                <input type="text" id="contLogradouro" placeholder="Rua, Avenida...">
+                                <input type="text" id="contLogradouro" placeholder="Rua, avenida...">
                             </div>
                             <div class="form-group fg-small">
                                 <label for="contNumero">Número</label>
@@ -1034,7 +997,7 @@
                         <div class="form-row">
                             <div class="form-group fg-medium">
                                 <label for="contComplemento">Complemento</label>
-                                <input type="text" id="contComplemento" placeholder="Apto, Bloco...">
+                                <input type="text" id="contComplemento" placeholder="Apto, bloco...">
                             </div>
                             <div class="form-group fg-medium">
                                 <label for="contBairro">Bairro</label>
@@ -1059,20 +1022,20 @@
                 <!-- PASSO 2: Dados do Imóvel -->
                 <div class="wizard-step" id="step2" style="display: none;">
                     <div class="step-section">
-                        <h3>Dados do Imóvel</h3>
+                        <h3>Dados do imóvel</h3>
                         <p class="step-desc">Informações do imóvel fiscalizado. A inscrição será decomposta
-                            automaticamente em Setor, Zona, Quadra e Lote.</p>
+                            automaticamente em setor, zona, quadra e lote.</p>
 
                         <div class="form-row">
                             <div class="form-group fg-small">
-                                <label for="imvCodigo">Código Reduzido</label>
+                                <label for="imvCodigo">Código reduzido</label>
                                 <input type="text" id="imvCodigo" placeholder="Ex: 87361">
                             </div>
                             <div class="form-group fg-large">
-                                <label for="imvInscricao">Inscrição do Imóvel / CNPJ <a href="#"
+                                <label for="imvInscricao">Inscrição do imóvel / CNPJ <a href="#"
                                         onclick="puxarCnpjContribuinte(event)"
                                         style="font-size:0.75rem; color:var(--accent-color); float:right; text-decoration:none; margin-top: 2px;">Puxar
-                                        do Contribuinte</a></label>
+                                        do contribuinte</a></label>
                                 <input type="text" id="imvInscricao" placeholder="01.036.00181.00300.00000.0">
                                 <div id="imvFeedback" class="field-feedback"></div>
                             </div>
@@ -1087,7 +1050,7 @@
                         <div class="form-row">
                             <div class="form-group fg-large">
                                 <label for="imvLogradouro">Logradouro</label>
-                                <input type="text" id="imvLogradouro" placeholder="Rua, Avenida...">
+                                <input type="text" id="imvLogradouro" placeholder="Rua, avenida...">
                             </div>
                             <div class="form-group fg-small">
                                 <label for="imvNumero">Número</label>
@@ -1106,7 +1069,7 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group fg-small">
-                                <label for="imvAreaTotal">Área Total (m²)</label>
+                                <label for="imvAreaTotal">Área total (m²)</label>
                                 <input type="number" id="imvAreaTotal" placeholder="300" step="0.01">
                             </div>
                             <div class="form-group fg-small">
@@ -1137,18 +1100,40 @@
                                 <input type="text" id="fiscMatricula" readonly class="input-readonly">
                             </div>
                         </div>
+                        <!-- Só para Fiscal de Meio Ambiente (meio-ambiente.js / nova-solicitacao.js):
+                             os contribuidores assinam apenas o Relatório Fiscal; o processo segue com
+                             quem criou. Ficam em dados.fiscais_contribuidores para o SEMAC pontuar. -->
+                        <!-- Só para o Dev: escolhe se o processo é de Posturas ou de Meio Ambiente -->
+                        <div class="form-row" id="grupoTipoFiscalizacao" style="display:none;">
+                            <div class="form-group fg-medium">
+                                <label for="fiscTipoFiscalizacao">Tipo de fiscalização</label>
+                                <select id="fiscTipoFiscalizacao">
+                                    <option value="posturas">Posturas</option>
+                                    <option value="meio_ambiente">Meio Ambiente</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row" id="grupoFiscalContribuidor" style="display:none;">
+                            <div class="form-group fg-medium">
+                                <label>Fiscais contribuidores <span class="optional">(opcional; marque quantos forem)</span></label>
+                                <div id="fiscContribuidores" style="display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:8px; background:white;">
+                                    <span style="font-size:0.82rem; color:#64748b;">Carregando...</span>
+                                </div>
+                                <small style="color:#64748b; font-size:0.78rem;">As assinaturas deles aparecem só no Relatório Fiscal. O Auto de Fiscalização e o restante do processo ficam com você.</small>
+                            </div>
+                        </div>
                         <!-- Descrição da Fiscalização: não aparece para o fiscal, mas continua
                              sendo preenchida automaticamente pelas infrações marcadas e salva no
                              processo (atualizarDescricaoFiscalizacaoPadrao). -->
                         <div class="form-row" style="display:none;">
                             <div class="form-group fg-full">
-                                <label for="fiscDescricao">Descrição da Fiscalização</label>
+                                <label for="fiscDescricao">Descrição da fiscalização</label>
                                 <textarea id="fiscDescricao" rows="3"></textarea>
                             </div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group fg-medium">
-                                <label for="fiscDecreto">Decorrente de Decreto de Notificação? <span
+                            <div class="form-group fg-medium" id="grupoFiscDecreto">
+                                <label for="fiscDecreto">Decorrente de Decreto de notificação? <span
                                         class="required">*</span></label>
                                 <select id="fiscDecreto">
                                     <option value="">Selecione...</option>
@@ -1157,7 +1142,7 @@
                                 </select>
                             </div>
                             <div class="form-group fg-medium">
-                                <label for="fiscDataVistoria">Data e Hora da Vistoria <span
+                                <label for="fiscDataVistoria">Data e hora da vistoria <span
                                         class="required">*</span></label>
                                 <input type="datetime-local" id="fiscDataVistoria">
                             </div>
@@ -1177,7 +1162,7 @@
                                 style="display:none; margin-top: 8px; border-top: 1px dashed var(--border-color, #e2e8f0); padding-top: 12px;">
                                 <div class="form-row">
                                     <div class="form-group fg-medium">
-                                        <label for="fiscNumeroDecretoOutro">Número do Novo Decreto <span
+                                        <label for="fiscNumeroDecretoOutro">Número do novo Decreto <span
                                                 class="required">*</span></label>
                                         <input type="text" id="fiscNumeroDecretoOutro" placeholder="Ex: 18.000/2026">
                                     </div>
@@ -1189,7 +1174,7 @@
                                 </div>
                                 <div class="form-row" style="margin-top: 8px;">
                                     <div class="form-group fg-large">
-                                        <label>Anexo do Decreto (PDF/Doc) <span class="required">*</span></label>
+                                        <label>Anexo do Decreto (PDF/doc) <span class="required">*</span></label>
                                         <div class="upload-area" id="uploadAreaDecreto" style="margin-top: 4px;">
                                             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
                                                 stroke-width="1.5">
@@ -1218,7 +1203,7 @@
                              (marcador atualizado por atualizarObrigatoriedadeImagensVistoria) -->
                         <div class="form-row" style="margin-top: 12px;">
                             <div class="form-group fg-full">
-                                <label>Imagens da Vistoria com Legenda
+                                <label>Imagens da vistoria com legenda
                                     <span class="required" id="marcadorImagensObrigatorias" style="display:none;">*</span>
                                     <span class="optional" id="marcadorImagensOpcionais">(obrigatória se for decreto; legenda opcional)</span>
                                 </label>
@@ -1226,7 +1211,7 @@
                                     style="display: flex; flex-direction: column; gap: 10px;">
                                     <button type="button" class="btn-inline"
                                         style="align-self: flex-start; padding: 6px 12px; font-size: 0.8rem;"
-                                        onclick="adicionarCampoImagemLegenda()">+ Adicionar Imagem e Legenda</button>
+                                        onclick="adicionarCampoImagemLegenda()">+ Adicionar imagem e legenda</button>
                                     <div id="lista-imagens-legenda"
                                         style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;"></div>
                                 </div>
@@ -1264,7 +1249,6 @@
                              e aproveita os dados do processo anterior. -->
                         <div id="blocoReincidencia" style="display:none; margin-bottom:16px; padding:16px; background:#fff1f2; border:1px solid #fecdd3; border-radius:12px;">
                             <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                <span style="font-size:1.2rem;">⚠️</span>
                                 <h4 style="margin:0; font-size:0.96rem; font-weight:700; color:#9f1239;">Processo anterior</h4>
                             </div>
                             <p style="margin:0 0 12px 0; font-size:0.83rem; color:#be123c;">
@@ -1296,7 +1280,7 @@
                                 </p>
                                 <div style="display:flex; flex-direction:column; gap:10px;">
                                     <div>
-                                        <label style="display:block; font-size:0.8rem; font-weight:600; color:#881337;">Notificação Preliminar anterior</label>
+                                        <label data-rotulo-etapa1 style="display:block; font-size:0.8rem; font-weight:600; color:#881337;">Notificação Preliminar anterior</label>
                                         <input type="file" id="reincDocNp" class="form-input" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="padding:6px; width:100%;">
                                     </div>
                                     <div>
@@ -1341,7 +1325,7 @@
                                         <input type="text" id="infNumRelatorioExistente" placeholder="Ex: 2026/890">
                                     </div>
                                     <div class="form-group fg-medium" id="grupoNumNpExistente">
-                                        <label for="infNumNpExistente">Nº da Notificação Preliminar</label>
+                                        <label for="infNumNpExistente" data-rotulo-etapa1>Nº da Notificação Preliminar</label>
                                         <input type="text" id="infNumNpExistente" placeholder="Ex: 2026/000001/01">
                                     </div>
                                     <div class="form-group fg-medium" id="grupoNumAiExistente" style="display:none;">
@@ -1400,8 +1384,7 @@
                                         value="120000230"><span class="cb-label">Piso tátil</span><span
                                         class="cb-code">120000230</span></label>
                             </div>
-                        </div>
-                    </div>
+                        </div>                    </div>
                 </div>
 
                 <!-- PASSO 5: Relatório Fiscal -->
@@ -1419,13 +1402,13 @@
                                         <option value="" disabled selected>Selecione...</option>
                                         <option value="Protocolo">Protocolo</option>
                                         <option value="Denúncia">Denúncia</option>
-                                        <option value="Comunicação Interna">Comunicação Interna</option>
+                                        <option value="Comunicação Interna">Comunicação interna</option>
                                         <option value="Ofício">Ofício</option>
                                         <option value="Constatação do fiscal in loco sem denúncia formalizada">
                                             Constatação do fiscal in loco sem denúncia formalizada</option>
                                     </select>
                                     <input type="text" id="relAtendimentoValor" class="form-input"
-                                        placeholder="Nº / Descrição" style="flex: 1; min-width: 0;">
+                                        placeholder="Nº / descrição" style="flex: 1; min-width: 0;">
                                 </div>
                             </div>
                             <div class="form-group fg-large">
@@ -1434,14 +1417,14 @@
                                     placeholder="Ex: Lote vago com mato alto">
                             </div>
                             <div class="form-group fg-medium">
-                                <label for="relPA">PA (Opcional)</label>
+                                <label for="relPA">PA (opcional)</label>
                                 <input type="text" id="relPA" class="form-input" placeholder="Ex: 1234/2026">
                             </div>
                         </div>
 
 
                         <div class="form-group">
-                            <label for="relTextoVistoria">Texto do Relatório (Descreva as transgressões)</label>
+                            <label for="relTextoVistoria">Texto do relatório (descreva as transgressões)</label>
                             <textarea id="relTextoVistoria" class="form-input" rows="4"></textarea>
                         </div>
 
@@ -1452,9 +1435,9 @@
                                     class="optional">(opcional)</span></label>
                             <textarea id="relObservacoesFiscal" class="form-input" rows="3"
                                 placeholder="Ex: Retirar entulho acumulado na lateral esquerda."></textarea>
-                            <small style="display:block; margin-top: 6px; color: #64748b;">
-                                Estas informações vão aparecer na <strong>Notificação Preliminar</strong> e/ou no
-                                <strong>Auto de Infração</strong>, como "Nota do fiscal:", abaixo do valor da multa
+                            <small data-rotulo-etapa1 style="display:block; margin-top: 6px; color: #64748b;">
+                                Estas informações vão aparecer <strong>na Notificação Preliminar</strong> e/ou
+                                <strong>no Auto de Infração</strong>, como "Nota do fiscal:", abaixo do valor da multa
                                 e acima do prazo de defesa. Deixe em branco para não aparecer.
                             </small>
                         </div>
@@ -1478,7 +1461,7 @@
                                     <polyline points="7 10 12 15 17 10" />
                                     <line x1="12" y1="15" x2="12" y2="3" />
                                 </svg>
-                                Imprimir / Baixar → Certidão (PDF)
+                                Imprimir / baixar → Certidão (PDF)
                             </button>
                             <span class="field-feedback" id="feedbackEditorRelatorio"
                                 style="margin-left: 12px; align-self: center;"></span>
@@ -1512,7 +1495,7 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="20 6 9 17 4 12" />
                     </svg>
-                    Gerar Notificação
+                    Gerar notificação
                 </button>
             </div>
         </div>
@@ -1547,7 +1530,7 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="15 18 9 12 15 6" />
                     </svg>
-                    Voltar ao Formulário
+                    Voltar ao formulário
                 </button>
                 <div style="flex:1;"></div>
                 <button class="btn-primary" id="btnSalvarRelatorio" style="margin-right: 8px;">
@@ -1556,7 +1539,7 @@
                         <polyline points="17 21 17 13 7 13 7 21"></polyline>
                         <polyline points="7 3 7 8 15 8"></polyline>
                     </svg>
-                    Salvar Alterações
+                    Salvar alterações
                 </button>
                 <button class="btn-primary btn-success" id="btnBaixarRelatorioPdf">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1564,7 +1547,7 @@
                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
                         <rect x="6" y="14" width="12" height="8"></rect>
                     </svg>
-                    Imprimir / Baixar → Relatório (.pdf)
+                    Imprimir / baixar → relatório (.pdf)
                 </button>
             </div>
         </div>
@@ -1602,7 +1585,7 @@
                 <button type="button" data-comando="insertUnorderedList" title="Lista com marcadores">• Lista</button>
                 <button type="button" data-comando="insertOrderedList" title="Lista numerada">1. Lista</button>
                 <span class="oficio-toolbar-sep"></span>
-                <button type="button" id="btnInserirImagemOficio" title="Inserir imagem (também dá para arrastar ou colar)">🖼 Imagem</button>
+                <button type="button" id="btnInserirImagemOficio" title="Inserir imagem (também pode arrastar ou colar)">Imagem</button>
                 <input type="file" id="inputImagemOficio" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp" multiple hidden>
                 <span class="oficio-toolbar-sep"></span>
                 <button type="button" data-comando="undo" title="Desfazer">↶</button>
@@ -1640,7 +1623,7 @@
                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
                         <rect x="6" y="14" width="12" height="8"></rect>
                     </svg>
-                    Imprimir / Baixar → Ofício (.pdf)
+                    Imprimir / baixar → Ofício (.pdf)
                 </button>
             </div>
         </div>
@@ -1686,7 +1669,7 @@
                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
                         <rect x="6" y="14" width="12" height="8"></rect>
                     </svg>
-                    Imprimir / Baixar → Ofício (.pdf)
+                    Imprimir / baixar → Ofício (.pdf)
                 </button>
             </div>
         </div>
@@ -1700,11 +1683,12 @@
     <script src="assets/js/supabase-config.js"></script>
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="assets/js/solicitacoes.js?v=20261007b"></script>
-    <script src="assets/js/nova-solicitacao.js?v=20261009"></script>
+    <script src="assets/js/meio-ambiente.js?v=20261021b"></script>
+    <script src="assets/js/solicitacoes.js?v=20261021g"></script>
+    <script src="assets/js/nova-solicitacao.js?v=20261021b"></script>
     <script src="assets/js/oficio-modelo.js"></script>
-    <script src="assets/js/oficio-avulso.js"></script>
-    <script src="assets/js/chat_juridico.js?v=20261013"></script>
+    <script src="assets/js/oficio-avulso.js?v=20261019"></script>
+    <script src="assets/js/chat_juridico.js?v=20261019"></script>
 </body>
 
 </html>

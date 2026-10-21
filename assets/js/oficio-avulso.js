@@ -86,7 +86,7 @@ function mostrarErroOficioAvulso(texto, detalhe) {
 
 function podeUsarOficioAvulso() {
     if (typeof window.usuarioPodeGerarOficioAvulso === 'function' && !window.usuarioPodeGerarOficioAvulso()) {
-        alert('⚠️ Apenas o Gerente de Posturas e o Administrativo de Posturas podem gerar ofícios.');
+        alert('Apenas o Gerente de Posturas e o Administrativo de Posturas podem gerar ofícios.');
         return false;
     }
     return !oficioAvulsoOcupado && !oficioAvulsoAtual;
@@ -324,7 +324,7 @@ function aplicarModoEdicaoOficio() {
     const aviso = document.getElementById('oficioAvulsoAviso');
     if (aviso) {
         aviso.style.display = editavel ? 'none' : 'block';
-        aviso.textContent = '🔒 Este ofício já foi baixado e não pode mais ser editado. Aqui dá para consultá-lo e baixar o PDF de novo.';
+        aviso.textContent = 'Este ofício já foi baixado e não pode mais ser editado. Aqui dá para consultá-lo e baixar o PDF de novo.';
     }
 
     const subtitulo = document.getElementById('oficioAvulsoSubtitulo');
@@ -637,7 +637,7 @@ async function gravarOficioAvulso(alteracoes, { silencioso = false, marcarBaixad
         oficioAvulsoAtual.alterado = false;
         if (marcarBaixado) oficioAvulsoAtual.baixado = true;
         recarregarListaOficiosSeVisivel();
-        if (!silencioso) alert(`✅ Ofício Nº ${oficioAvulsoAtual.numero} salvo.`);
+        if (!silencioso) alert(`Ofício Nº ${oficioAvulsoAtual.numero} salvo.`);
         return true;
     } catch (e) {
         console.error('[OFÍCIO AVULSO] Erro ao salvar:', e);
@@ -955,7 +955,7 @@ async function carregarListaOficios() {
 
     carregando.style.display = 'none';
     contador.textContent = `${linhas.length} ${linhas.length === 1 ? 'ofício encontrado' : 'ofícios encontrados'}`
-        + (falhas.length ? ` — ⚠️ não foi possível carregar os ofícios ${falhas.join(' e ')}` : '');
+        + (falhas.length ? ` — não foi possível carregar os ofícios ${falhas.join(' e ')}` : '');
 
     if (!linhas.length) {
         if (!falhas.length) vazio.style.display = 'flex';
@@ -1036,7 +1036,7 @@ async function excluirOficioDaLista({ id, numero, baixado }) {
     if (!confirm(`Excluir ${oQueEh}?\n\nO texto será apagado do sistema.\nEsta ação não pode ser desfeita.`)) return;
 
     const alertaPdf = baixado
-        ? '\n\n⚠️ Este ofício já foi baixado em PDF. Se ele já foi assinado ou enviado, liberar o número faria dois documentos diferentes levarem o mesmo número.'
+        ? '\n\nEste ofício já foi baixado em PDF. Se ele já foi assinado ou enviado, liberar o número faria dois documentos diferentes levarem o mesmo número.'
         : '';
     const liberarNumero = confirm(
         `O número ${numero} pode ser usado em um novo ofício?\n\n` +

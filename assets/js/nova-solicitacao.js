@@ -157,7 +157,7 @@ window.limparBlocoProcessoExistente = limparBlocoProcessoExistente;
 async function abrirModal() {
     // O botão já fica oculto para os outros cargos; isto cobre chamadas diretas
     if (typeof window.usuarioPodeCriarProcesso === 'function' && !window.usuarioPodeCriarProcesso()) {
-        alert('⚠️ Apenas o Fiscal de Postura pode abrir um novo processo.');
+        alert('Apenas o Fiscal de Postura pode abrir um novo processo.');
         return;
     }
 
@@ -349,6 +349,7 @@ async function carregarDadosFiscal() {
             fiscalData = { nome: usuario.nome || '', matricula: usuario.matricula || '', cargo: usuario.cargo || '' };
             document.getElementById('fiscNome').value = fiscalData.nome;
             document.getElementById('fiscMatricula').value = fiscalData.matricula;
+            await configurarWizardMeioAmbiente(usuario);
         } else {
             // Se não encontrar no banco, preencher com o nome do cabeçalho
             const nomeHeader = document.getElementById('userName')?.textContent;
@@ -359,6 +360,393 @@ async function carregarDadosFiscal() {
     } catch (err) {
         console.error('Erro ao carregar dados do fiscal:', err);
     }
+}
+
+// ── Fiscal de Meio Ambiente ─────────────────────────────────
+// Mesmo wizard, com os dispositivos de meio-ambiente.js no lugar dos de
+// Posturas, sem Decreto de notificação e com o fiscal contribuidor no passo 3.
+// Cada infração marcada ganha um cartão no passo 4 com o prazo (imediato ou em
+// dias úteis/corridos), as providências e a multa, que vão para o Auto de
+// Fiscalização.
+let wizardMeioAmbiente = false;
+let fiscaisMeioAmbienteCache = [];
+let usuarioWizard = null;
+// Os dois conjuntos de checkboxes de infração. Trocar os nós (em vez de reescrever
+// o HTML) mantém os eventos que bindWizardEventos ligou nos de Posturas.
+let nosInfracoesPosturas = null;
+let nosInfracoesMeioAmbiente = null;
+
+const TEXTO_PASSO4_POSTURAS = 'Selecione os dispositivos legais transgredidos. Cada seleção gerará uma notificação com número próprio.';
+const TEXTO_PASSO4_MEIO_AMBIENTE = 'Selecione os dispositivos legais transgredidos. Cada seleção gerará um Auto de Fiscalização com número próprio.';
+
+function ehWizardMeioAmbiente() {
+    return wizardMeioAmbiente;
+}
+
+function escaparHtmlWizard(txt) {
+    return String(txt || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function usuarioWizardEhDev() {
+    return !!usuarioWizard && typeof normalizarCargo === 'function' && normalizarCargo(usuarioWizard.cargo) === 'Dev';
+}
+
+// Fiscal de Meio Ambiente abre processo de Meio Ambiente; o Dev escolhe no
+// passo 3 (Posturas ou Meio Ambiente); os demais, Posturas.
+async function configurarWizardMeioAmbiente(usuario) {
+    usuarioWizard = usuario || null;
+    const ehDev = usuarioWizardEhDev();
+    const grupoTipo = document.getElementById('grupoTipoFiscalizacao');
+    const selTipo = document.getElementById('fiscTipoFiscalizacao');
+    if (grupoTipo) grupoTipo.style.display = ehDev ? '' : 'none';
+    if (ehDev && selTipo && !selTipo.dataset.ligado) {
+        selTipo.dataset.ligado = '1';
+        selTipo.addEventListener('change', () => aplicarTipoFiscalizacaoWizard(selTipo.value === 'meio_ambiente'));
+    }
+
+    const meioAmbiente = ehDev
+        ? selTipo?.value === 'meio_ambiente'
+        : !!(usuario && typeof window.ehCargoMeioAmbiente === 'function' && window.ehCargoMeioAmbiente(usuario.cargo));
+    await aplicarTipoFiscalizacaoWizard(meioAmbiente);
+}
+
+async function aplicarTipoFiscalizacaoWizard(meioAmbiente) {
+    wizardMeioAmbiente = !!meioAmbiente;
+
+    trocarListaInfracoesWizard();
+
+    // Decreto de notificação é só de Posturas
+    const grupoDecreto = document.getElementById('grupoFiscDecreto');
+    const selDecreto = document.getElementById('fiscDecreto');
+    if (wizardMeioAmbiente && selDecreto && selDecreto.value !== 'nao') {
+        selDecreto.value = 'nao';
+        selDecreto.dispatchEvent(new Event('change'));
+    }
+    if (grupoDecreto) grupoDecreto.style.display = wizardMeioAmbiente ? 'none' : '';
+
+    const desc = document.querySelector('#step4 .step-desc');
+    if (desc) desc.textContent = wizardMeioAmbiente ? TEXTO_PASSO4_MEIO_AMBIENTE : TEXTO_PASSO4_POSTURAS;
+
+    // Rótulos do wizard que citam a Notificação Preliminar (data-rotulo-etapa1)
+    document.querySelectorAll('[data-rotulo-etapa1]').forEach(el => {
+        if (el.dataset.htmlOriginal === undefined) el.dataset.htmlOriginal = el.innerHTML;
+        el.innerHTML = wizardMeioAmbiente
+            ? window.trocarTermosAutoFiscalizacao(el.dataset.htmlOriginal)
+            : el.dataset.htmlOriginal;
+    });
+    const opcaoEtapa1 = document.querySelector('#infEtapaExistente option[value="1"]');
+    if (opcaoEtapa1) opcaoEtapa1.textContent = `Etapa 1 — ${wizardMeioAmbiente ? 'Auto de Fiscalização' : ETAPAS_PROCESSO_EXISTENTE[1]}`;
+    if (document.getElementById('infProcessoExistente')?.value === 'sim') renderizarDocumentosProcessoExistente();
+
+    const grupoContrib = document.getElementById('grupoFiscalContribuidor');
+    if (grupoContrib) grupoContrib.style.display = wizardMeioAmbiente ? '' : 'none';
+    if (!wizardMeioAmbiente) {
+        document.querySelectorAll('#fiscContribuidores input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+    }
+
+    if (wizardMeioAmbiente) {
+        // A multa do outdoor é em UPFMD; o painel não carrega a UPFMD sozinho
+        if (!window.valorUpfmdAtual) {
+            try {
+                const { data } = await supabaseClient
+                    .from('configuracoes_upfmd')
+                    .select('valor')
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+                if (data && data[0]?.valor) window.valorUpfmdAtual = parseFloat(data[0].valor) || 0;
+            } catch (e) {
+                console.warn('Erro ao carregar a UPFMD:', e);
+            }
+        }
+
+        const lista = document.getElementById('fiscContribuidores');
+        if (lista && !lista.dataset.carregado) {
+            lista.dataset.carregado = '1';
+            fiscaisMeioAmbienteCache = await window.carregarFiscaisMeioAmbiente(usuarioWizard?.id);
+            lista.innerHTML = fiscaisMeioAmbienteCache.length
+                ? fiscaisMeioAmbienteCache.map(f => `
+                    <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#0f172a; cursor:pointer;">
+                        <input type="checkbox" value="${f.id}">
+                        <span>${escaparHtmlWizard(f.nome)}${f.matricula ? ` <span style="color:#64748b;">— ${escaparHtmlWizard(f.matricula)}</span>` : ''}</span>
+                    </label>`).join('')
+                : '<span style="font-size:0.82rem; color:#64748b;">Nenhum outro Fiscal de Meio Ambiente cadastrado.</span>';
+            lista.addEventListener('change', () => {
+                window.relatorioCustomizadoHTML = null;
+                if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+            });
+        }
+    }
+
+    renderizarConfigAutoFiscalizacao();
+    if (typeof atualizarLabelsUIWizardStep5 === 'function') atualizarLabelsUIWizardStep5();
+    window.relatorioCustomizadoHTML = null;
+}
+
+function trocarListaInfracoesWizard() {
+    const lista = document.getElementById('infracoesList');
+    if (!lista) return;
+
+    if (!nosInfracoesPosturas) nosInfracoesPosturas = Array.from(lista.children);
+    if (!nosInfracoesMeioAmbiente) {
+        const tpl = document.createElement('template');
+        const opcao = i =>
+            `<label class="checkbox-card"><input type="checkbox" name="infracao" value="${i.codigo}"><span class="cb-label">${escaparHtmlWizard(i.rotulo)}</span><span class="cb-code">${i.codigo}</span></label>`;
+        const titulo = (texto, ajuda) =>
+            `<div class="grupo-infracoes-ma" style="margin:10px 0 2px 0;"><div style="font-weight:700; font-size:0.9rem; color:#0f172a;">${texto}</div><div style="font-size:0.8rem; color:#64748b;">${ajuda}</div></div>`;
+        const comAF = window.INFRACOES_MEIO_AMBIENTE.filter(i => !i.semAF);
+        const semAF = window.INFRACOES_MEIO_AMBIENTE.filter(i => i.semAF);
+        tpl.innerHTML = titulo('Com Auto de Fiscalização', 'O processo começa no Auto de Fiscalização (Etapa 1).')
+            + comAF.map(opcao).join('')
+            + titulo('Direto para o Auto de Infração', 'Sem Auto de Fiscalização: o processo começa no Auto de Infração (Etapa 14).')
+            + semAF.map(opcao).join('');
+        nosInfracoesMeioAmbiente = Array.from(tpl.content.children);
+        // Os checkboxes de Posturas são ligados um a um em bindWizardEventos;
+        // os de Meio Ambiente são ouvidos pela lista.
+        lista.addEventListener('change', (e) => {
+            if (!wizardMeioAmbiente || e.target?.name !== 'infracao') return;
+            renderizarConfigAutoFiscalizacao();
+            window.relatorioCustomizadoHTML = null;
+            if (typeof renderizarDocumentoRelatorio === 'function') renderizarDocumentoRelatorio();
+        });
+    }
+
+    const alvo = wizardMeioAmbiente ? nosInfracoesMeioAmbiente : nosInfracoesPosturas;
+    if (lista.firstElementChild === alvo[0]) return;
+    // Trocou o tipo: nada marcado do outro conjunto pode ir junto
+    [...nosInfracoesPosturas, ...nosInfracoesMeioAmbiente].forEach(label => {
+        const cb = label.querySelector('input[name="infracao"]');
+        if (cb) cb.checked = false;
+    });
+    lista.replaceChildren(...alvo);
+    if (typeof atualizarDescricaoFiscalizacaoPadrao === 'function') atualizarDescricaoFiscalizacaoPadrao();
+}
+
+// Meio Ambiente com infrações do grupo "Direto para o Auto de Infração": o
+// processo nasce na Etapa 14 (a validação do passo 4 não deixa misturar)
+function meioAmbienteVaiDiretoAoAuto() {
+    if (!wizardMeioAmbiente) return false;
+    const codigos = Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked')).map(cb => cb.value);
+    return codigos.length > 0 && codigos.every(c => window.infracaoMeioAmbienteVaiDiretoAoAuto(c));
+}
+
+// Fiscais contribuidores marcados, na ordem da lista
+function obterFiscaisContribuidoresSelecionados() {
+    if (!wizardMeioAmbiente) return [];
+    const ids = Array.from(document.querySelectorAll('#fiscContribuidores input[type="checkbox"]:checked')).map(cb => String(cb.value));
+    return fiscaisMeioAmbienteCache
+        .filter(f => ids.includes(String(f.id)))
+        // O CPF vai junto: a sincronização com o SEMAC identifica o fiscal por ele
+        .map(f => ({ id: f.id, nome: f.nome || '', cpf: f.cpf || '', matricula: f.matricula || '', cargo: f.cargo || window.CARGO_FISCAL_MEIO_AMBIENTE }));
+}
+
+// Um cartão por infração marcada, logo abaixo dela na lista: prazo, multa e, no
+// MA-12, o tipo de efluente. As providências são fixas e aparecem só para
+// conferência. Ao marcar/desmarcar, os valores já escolhidos nos outros cartões
+// são mantidos.
+function renderizarConfigAutoFiscalizacao() {
+    const lista = document.getElementById('infracoesList');
+    if (!lista) return;
+    const cartoesAtuais = lista.querySelectorAll('.af-config-card');
+    if (!wizardMeioAmbiente) {
+        cartoesAtuais.forEach(card => card.remove());
+        return;
+    }
+
+    const anteriores = {};
+    cartoesAtuais.forEach(card => {
+        anteriores[card.dataset.codigo] = {
+            modo: card.querySelector('.af-modo')?.value,
+            dias: card.querySelector('.af-dias')?.value,
+            uteis: card.querySelector('.af-uteis')?.value,
+            multa: card.querySelector('.af-multa')?.value,
+            variante: card.querySelector('.af-variante')?.value,
+            reds: card.querySelector('.af-reds')?.value,
+            protocolo: card.querySelector('.af-protocolo')?.value
+        };
+    });
+
+    cartoesAtuais.forEach(card => card.remove());
+
+    const marcados = Array.from(lista.querySelectorAll('input[name="infracao"]:checked'))
+        .map(cb => ({ cb, item: window.encontrarInfracaoMeioAmbiente(cb.value) }))
+        .filter(m => m.item);
+
+    const upfmd = window.valorUpfmdAtual || 0;
+    marcados.forEach(({ cb, item }) => {
+        const ant = anteriores[item.codigo] || {};
+        const multaPadrao = window.valorPadraoMultaMeioAmbiente(item, upfmd);
+        const multa = ant.multa !== undefined ? ant.multa : multaPadrao.toFixed(2);
+        const modo = ant.modo || '';
+        const notaUpfmd = item.upfmd
+            ? `<small style="color:#64748b; font-size:0.78rem;">${item.upfmd} UPFMD${upfmd ? ` (UPFMD atual: R$ ${upfmd.toFixed(2).replace('.', ',')})` : ''}</small>`
+            : '';
+        const campoVariante = item.variantes ? `
+                    <div class="form-group fg-medium">
+                        <label>Tipo <span class="required">*</span></label>
+                        <select class="af-variante">
+                            <option value="">Selecione...</option>
+                            ${Object.entries(item.variantes).map(([chave, v]) =>
+                                `<option value="${chave}" ${ant.variante === chave ? 'selected' : ''}>${escaparHtmlWizard(v.nome)}</option>`).join('')}
+                        </select>
+                    </div>` : '';
+        const campoReds = item.reds ? `
+                    <div class="form-group fg-medium">
+                        <label>Nº do REDS <span class="required">*</span></label>
+                        <input type="text" class="af-reds" value="${escaparHtmlWizard(ant.reds || '')}" placeholder="Ex: 2026-012345678-001">
+                    </div>` : '';
+        const instrucao = item.semAF
+            ? 'Auto de Infração: confira o valor da multa.'
+            : 'Auto de Fiscalização: defina o prazo das providências e confira o valor da multa.';
+        const tpl = document.createElement('template');
+        tpl.innerHTML = `
+            <div class="af-config-card" data-codigo="${item.codigo}" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin:0 0 6px 18px;">
+                <div style="font-size:0.82rem; color:#64748b; margin-bottom:8px;">${instrucao}</div>
+                <div class="form-row">
+                    ${campoVariante}
+                    ${campoReds}
+                    <div class="form-group fg-medium">
+                        <label>Nº do protocolo <span class="required">*</span></label>
+                        <input type="text" class="af-protocolo" value="${escaparHtmlWizard(ant.protocolo || '')}" placeholder="Ex: 2026/000915">
+                    </div>
+                    <div class="form-group fg-medium af-prazo-grupo">
+                        <label>Prazo das providências</label>
+                        <select class="af-modo">
+                            <option value="" ${modo === '' ? 'selected' : ''}>Selecione...</option>
+                            <option value="imediato" ${modo === 'imediato' ? 'selected' : ''}>De imediato</option>
+                            <option value="prazo" ${modo === 'prazo' ? 'selected' : ''}>Prazo em dias</option>
+                        </select>
+                    </div>
+                    <div class="form-group fg-small af-dias-grupo">
+                        <label>Dias</label>
+                        <input type="number" min="1" step="1" class="af-dias" value="${escaparHtmlWizard(ant.dias || '')}">
+                    </div>
+                    <div class="form-group fg-small af-dias-grupo">
+                        <label>Contagem</label>
+                        <select class="af-uteis">
+                            <option value="nao" ${ant.uteis === 'sim' ? '' : 'selected'}>Dias corridos</option>
+                            <option value="sim" ${ant.uteis === 'sim' ? 'selected' : ''}>Dias úteis</option>
+                        </select>
+                    </div>
+                    <div class="form-group fg-small">
+                        <label>Multa (R$)</label>
+                        <input type="number" min="0" step="0.01" class="af-multa" value="${escaparHtmlWizard(multa)}">
+                        ${notaUpfmd}
+                    </div>
+                </div>
+                <div class="af-providencias" style="font-size:0.84rem; color:#334155;"></div>
+            </div>
+        `;
+        cb.closest('label').after(tpl.content.firstElementChild);
+    });
+
+    lista.querySelectorAll('.af-config-card').forEach(card => {
+        const item = window.encontrarInfracaoMeioAmbiente(card.dataset.codigo);
+        const selModo = card.querySelector('.af-modo');
+        const selVariante = card.querySelector('.af-variante');
+        const atualizarCartao = () => {
+            const variante = item.variantes ? item.variantes[selVariante?.value] : null;
+            const providencias = (variante && variante.providencias) || item.providencias;
+            // Sem AF não há providência nem prazo: o Auto de Infração é direto
+            const semProvidencia = item.semAF || (!item.variantes && providencias.length === 0);
+            card.querySelector('.af-prazo-grupo').style.display = semProvidencia ? 'none' : '';
+            card.querySelectorAll('.af-dias-grupo').forEach(g => {
+                g.style.display = (!semProvidencia && selModo.value === 'prazo') ? '' : 'none';
+            });
+            const caixa = card.querySelector('.af-providencias');
+            if (item.semAF) {
+                caixa.innerHTML = '';
+            } else if (item.variantes && !variante) {
+                caixa.innerHTML = '<span style="color:#64748b;">Escolha o tipo para ver a providência.</span>';
+            } else if (semProvidencia) {
+                caixa.innerHTML = '<span style="color:#64748b;">Esta infração não tem providências.</span>';
+            } else {
+                caixa.innerHTML = '<strong>Providências:</strong><ul style="margin:4px 0 0 0; padding-left:18px;">'
+                    + providencias.map(p => `<li>${escaparHtmlWizard(p)}</li>`).join('') + '</ul>';
+            }
+        };
+        selModo.addEventListener('change', atualizarCartao);
+        if (selVariante) selVariante.addEventListener('change', atualizarCartao);
+        atualizarCartao();
+    });
+}
+
+// { config_af: { 'MA-01': {...} }, multas: { '0': 6275.5, ... } } — o índice
+// das multas é a posição em dados.infracoes.dispositivos (multas_customizadas).
+function coletarConfigAutoFiscalizacao() {
+    if (!wizardMeioAmbiente) return null;
+    const config_af = {};
+    const multas = {};
+    const codigos = Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked')).map(cb => cb.value);
+    codigos.forEach((codigo, index) => {
+        const card = document.querySelector(`#infracoesList .af-config-card[data-codigo="${codigo}"]`);
+        if (!card) return;
+        config_af[codigo] = {
+            modo: card.querySelector('.af-modo').value === 'prazo' ? 'prazo' : 'imediato',
+            dias: parseInt(card.querySelector('.af-dias').value, 10) || 0,
+            uteis: card.querySelector('.af-uteis').value === 'sim',
+            ...(card.querySelector('.af-variante') ? { variante: card.querySelector('.af-variante').value } : {}),
+            ...(card.querySelector('.af-reds') ? { reds: card.querySelector('.af-reds').value.trim() } : {}),
+            protocolo: card.querySelector('.af-protocolo').value.trim()
+        };
+        multas[index] = parseFloat(card.querySelector('.af-multa').value) || 0;
+    });
+    return { config_af, multas };
+}
+
+function validarConfigAutoFiscalizacao() {
+    if (!wizardMeioAmbiente) return true;
+
+    // Um processo começa ou no Auto de Fiscalização (Etapa 1) ou direto no Auto
+    // de Infração (Etapa 14): não dá para misturar os dois grupos
+    const codigos = Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked')).map(cb => cb.value);
+    const diretas = codigos.filter(c => window.infracaoMeioAmbienteVaiDiretoAoAuto(c));
+    if (diretas.length && diretas.length !== codigos.length) {
+        alert('As infrações "Direto para o Auto de Infração" não podem ser marcadas junto com as que têm Auto de Fiscalização.\n\nAbra um processo para cada grupo.');
+        return false;
+    }
+
+    const cards = document.querySelectorAll('#infracoesList .af-config-card');
+    for (const card of cards) {
+        const codigo = card.dataset.codigo;
+        const variante = card.querySelector('.af-variante');
+        if (variante && !variante.value) {
+            alert(`${codigo}: escolha o tipo.`);
+            variante.focus();
+            return false;
+        }
+        const reds = card.querySelector('.af-reds');
+        if (reds && !reds.value.trim()) {
+            alert(`${codigo}: informe o número do REDS.`);
+            reds.focus();
+            return false;
+        }
+        const protocolo = card.querySelector('.af-protocolo');
+        if (protocolo && !protocolo.value.trim()) {
+            alert(`${codigo}: informe o número do protocolo.`);
+            protocolo.focus();
+            return false;
+        }
+        const modo = card.querySelector('.af-modo');
+        const temPrazo = card.querySelector('.af-prazo-grupo').style.display !== 'none';
+        if (temPrazo && !modo.value) {
+            alert(`${codigo}: informe o prazo das providências (de imediato ou em dias).`);
+            modo.focus();
+            return false;
+        }
+        const dias = card.querySelector('.af-dias');
+        if (temPrazo && modo.value === 'prazo' && !(parseInt(dias.value, 10) > 0)) {
+            alert(`${codigo}: informe a quantidade de dias do prazo.`);
+            dias.focus();
+            return false;
+        }
+        const multa = card.querySelector('.af-multa');
+        if (!(parseFloat(multa.value) > 0)) {
+            alert(`${codigo}: informe o valor da multa.`);
+            multa.focus();
+            return false;
+        }
+    }
+    return true;
 }
 
 function obterStepLabel(stepIndex) {
@@ -397,10 +785,11 @@ function atualizarLabelsUIWizardStep5() {
     if (btnFinalizar) {
         const check = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
         // Processo que já existe não gera documento nenhum: só entra no sistema
-        const nasceNoAuto = decretoSim || (typeof ehReincidente === 'function' && ehReincidente());
+        const nasceNoAuto = decretoSim || (typeof ehReincidente === 'function' && ehReincidente())
+            || meioAmbienteVaiDiretoAoAuto();
         const rotulo = (typeof ehProcessoJaExistente === 'function' && ehProcessoJaExistente())
-            ? 'Cadastrar Processo'
-            : (nasceNoAuto ? 'Gerar Auto de Infração' : 'Gerar Notificação');
+            ? 'Cadastrar processo'
+            : (nasceNoAuto ? 'Gerar Auto de Infração' : (wizardMeioAmbiente ? 'Gerar Auto de Fiscalização' : 'Gerar notificação'));
         btnFinalizar.innerHTML = `${check} ${rotulo}`;
         btnFinalizar.dataset.originalHtml = btnFinalizar.innerHTML;
     }
@@ -535,11 +924,11 @@ function setWizardLoading(carregando) {
             if (!btnFinalizar.dataset.originalHtml) btnFinalizar.dataset.originalHtml = btnFinalizar.innerHTML;
             btnFinalizar.disabled = true;
             const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
-            const msgCarregando = decretoSim ? 'Criando Auto de Infração...' : 'Criando Notificação...';
+            const msgCarregando = decretoSim ? 'Criando Auto de Infração...' : 'Criando notificação...';
             btnFinalizar.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px;margin-right:8px;"></div> ${msgCarregando}`;
         } else {
             btnFinalizar.disabled = false;
-            btnFinalizar.innerHTML = btnFinalizar.dataset.originalHtml || `Finalizar Solicitação <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
+            btnFinalizar.innerHTML = btnFinalizar.dataset.originalHtml || `Finalizar solicitação <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
         }
     }
 }
@@ -701,38 +1090,29 @@ window.limparBlocoReincidencia = limparBlocoReincidencia;
 // documentos de cada fase que já aconteceu. Tudo opcional, menos a etapa: o que
 // não for informado o sistema gera/deixa vazio.
 const ETAPAS_PROCESSO_EXISTENTE = {
-    1: 'Possui Decreto/Notificação',
-    2: 'Defesa ou Dilação de Prazo',
-    3: 'Envio da 1ª Defesa',
-    4: 'Documentos da Dilação de Prazo',
-    5: 'Análise Dilação de Prazo',
-    6: 'Defesa Com Dilação',
-    7: 'Análise da Defesa Sem Dilação',
-    8: 'Fiscal Analisa Defesa (Pós Dilação)',
-    9: 'Envio Defesa Sem Dilação',
-    10: 'Certidão Sem Defesa',
-    11: 'Gerente antes Infração',
-    12: 'Gerente antes Auto Infração',
-    13: 'Fiscal Analisa Defesa (1ª)',
-    14: 'Auto de Infração',
-    15: 'Gerente Gera a Multa',
-    16: 'Retorno do AR',
-    17: 'Gerência Gera o Edital',
-    18: 'Solicitar Defesa ou Recurso',
-    19: 'Envio de Defesa ou Pagamento',
-    20: 'Arquivamento do Processo',
-    21: 'Fiscal Convocado Jurídico',
-    22: 'Gerente Convocado Jurídico',
-    23: 'Parecer Jurídico',
-    24: 'Secretário Despacha',
-    25: 'Gerente Cumpre Decreto',
-    26: 'Fazenda Gera a Multa',
-    27: 'Devolvimento para o Setor',
-    28: 'Certificação do Vencimento',
-    29: 'Fiscal Emite Certidão',
-    30: 'Gerente Localiza o AR',
-    31: 'Comprovante Pagamento',
-    32: 'Consulta no Jurídico'
+    1: 'Notificação',
+    2: 'Andamento',
+    3: 'Defesa',
+    4: 'Comprovantes',
+    5: 'Análise dilação de prazo',
+    10: 'Certidão de cumprimento',
+    13: 'Análise da defesa',
+    14: 'Auto de Infração (AI)',
+    15: 'Multa do AI',
+    16: 'Dados do AR',
+    17: 'Publicação do edital',
+    18: 'Andamento do AI',
+    19: 'Parecer Jurídico',
+    20: 'Arquivamento do AI',
+    21: 'Comunicação interna (Fiscal)',
+    22: 'Comunicação interna (Gerência)',
+    24: 'Despacho Administrativo',
+    25: 'Encaminhamento do despacho',
+    26: 'Análise para dar desconto',
+    28: 'Certificação do vencimento',
+    29: 'Certidão de encerramento',
+    30: 'AR pendente',
+    31: 'Comprovante pagamento'
 };
 
 // Etapas do fluxo do Auto de Infração (a 16/17/30 valem para os dois fluxos)
@@ -846,6 +1226,8 @@ function renderizarDocumentosProcessoExistente() {
                 </div>
             `).join('')}
         </div>`;
+    // Meio Ambiente: só o texto da tela muda; data-tipo continua o de sempre
+    if (wizardMeioAmbiente) window.aplicarTermosAutoFiscalizacao(container);
 }
 window.renderizarDocumentosProcessoExistente = renderizarDocumentosProcessoExistente;
 
@@ -860,13 +1242,13 @@ function validarStep(step) {
                 return false;
             }
             const obrigatoriosContribuinte = [
-                { id: 'contNome', nome: 'Nome do Contribuinte' },
-                { id: 'contCpfCnpj', nome: 'CPF/CNPJ do Contribuinte' },
-                { id: 'contLogradouro', nome: 'Logradouro do Contribuinte' },
-                { id: 'contNumero', nome: 'Número do Contribuinte' },
-                { id: 'contBairro', nome: 'Bairro do Contribuinte' },
-                { id: 'contMunicipio', nome: 'Município do Contribuinte' },
-                { id: 'contCep', nome: 'CEP do Contribuinte' }
+                { id: 'contNome', nome: 'Nome do contribuinte' },
+                { id: 'contCpfCnpj', nome: 'CPF/CNPJ do contribuinte' },
+                { id: 'contLogradouro', nome: 'Logradouro do contribuinte' },
+                { id: 'contNumero', nome: 'Número do contribuinte' },
+                { id: 'contBairro', nome: 'Bairro do contribuinte' },
+                { id: 'contMunicipio', nome: 'Município do contribuinte' },
+                { id: 'contCep', nome: 'CEP do contribuinte' }
             ];
             for (const campo of obrigatoriosContribuinte) {
                 if (!document.getElementById(campo.id)?.value?.trim()) {
@@ -879,13 +1261,13 @@ function validarStep(step) {
         }
         case 2: {
             const obrigatoriosImovel = [
-                { id: 'imvCodigo', nome: 'Código Reduzido do Imóvel' },
-                { id: 'imvInscricao', nome: 'Inscrição do Imóvel' },
-                { id: 'imvLogradouro', nome: 'Logradouro do Imóvel' },
-                { id: 'imvNumero', nome: 'Número do Imóvel' },
-                { id: 'imvBairro', nome: 'Bairro do Imóvel' },
-                { id: 'imvAreaTotal', nome: 'Área Total do Imóvel' },
-                { id: 'imvTestada', nome: 'Testada do Imóvel' }
+                { id: 'imvCodigo', nome: 'Código reduzido do imóvel' },
+                { id: 'imvInscricao', nome: 'Inscrição do imóvel' },
+                { id: 'imvLogradouro', nome: 'Logradouro do imóvel' },
+                { id: 'imvNumero', nome: 'Número do imóvel' },
+                { id: 'imvBairro', nome: 'Bairro do imóvel' },
+                { id: 'imvAreaTotal', nome: 'Área total do imóvel' },
+                { id: 'imvTestada', nome: 'Testada do imóvel' }
             ];
             for (const campo of obrigatoriosImovel) {
                 if (!document.getElementById(campo.id)?.value?.trim()) {
@@ -899,7 +1281,7 @@ function validarStep(step) {
         case 3: {
             const dataVistoria = document.getElementById('fiscDataVistoria')?.value?.trim();
             if (!dataVistoria) {
-                alert('Informe a Data da Vistoria.');
+                alert('Informe a data da vistoria.');
                 document.getElementById('fiscDataVistoria')?.focus();
                 return false;
             }
@@ -907,7 +1289,7 @@ function validarStep(step) {
             // O decreto vem antes das imagens: é ele que define se a imagem é obrigatória
             const decreto = document.getElementById('fiscDecreto')?.value;
             if (!decreto) {
-                alert('Informe se é decorrente de Decreto de Notificação.');
+                alert('Informe se é decorrente de Decreto de notificação.');
                 document.getElementById('fiscDecreto')?.focus();
                 return false;
             }
@@ -937,7 +1319,7 @@ function validarStep(step) {
             }
 
             if (decreto === 'sim' && !temImagemValida) {
-                alert('Processo decorrente de Decreto: é OBRIGATÓRIO anexar pelo menos 1 Imagem da Vistoria (a legenda é opcional).');
+                alert('Processo decorrente de Decreto: é OBRIGATÓRIO anexar pelo menos 1 imagem da vistoria (a legenda é opcional).');
                 if (containerImagens && itensImagens.length === 0) {
                     if (typeof window.adicionarCampoImagemLegenda === 'function') {
                         window.adicionarCampoImagemLegenda();
@@ -951,7 +1333,7 @@ function validarStep(step) {
             if (decreto === 'sim') {
                 const numDecretoSel = document.getElementById('fiscNumeroDecreto')?.value;
                 if (!numDecretoSel) {
-                    alert('Selecione o Número do Decreto.');
+                    alert('Selecione o número do Decreto.');
                     document.getElementById('fiscNumeroDecreto')?.focus();
                     return false;
                 }
@@ -959,21 +1341,21 @@ function validarStep(step) {
                 if (numDecretoSel === 'outro') {
                     const numDecretoOutro = document.getElementById('fiscNumeroDecretoOutro')?.value?.trim();
                     if (!numDecretoOutro) {
-                        alert('Informe o Número do Decreto no campo "Outro".');
+                        alert('Informe o número do Decreto no campo "Outro".');
                         document.getElementById('fiscNumeroDecretoOutro')?.focus();
                         return false;
                     }
 
                     const dataDecretoOutro = document.getElementById('fiscDataDecretoOutro')?.value?.trim();
                     if (!dataDecretoOutro) {
-                        alert('Informe a Data do Novo Decreto.');
+                        alert('Informe a data do novo Decreto.');
                         document.getElementById('fiscDataDecretoOutro')?.focus();
                         return false;
                     }
 
                     const fileDecreto = document.getElementById('inputDecreto')?.files?.[0];
                     if (!fileDecreto) {
-                        alert('O anexo do Novo Decreto (PDF/Doc) é obrigatório.');
+                        alert('O anexo do novo Decreto (PDF/doc) é obrigatório.');
                         document.getElementById('inputDecreto')?.focus();
                         return false;
                     }
@@ -1000,7 +1382,7 @@ function validarStep(step) {
                 alert('Para processos decorrentes de Decreto, é permitido selecionar apenas 1 dispositivo legal transgredido.');
                 return false;
             }
-            return true;
+            return validarConfigAutoFiscalizacao();
         }
         case 5: {
             const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
@@ -1012,13 +1394,13 @@ function validarStep(step) {
             const textoVistoria = document.getElementById('relTextoVistoria')?.value?.trim();
 
             if (!atendimentoTipo) {
-                alert('Selecione o Tipo em "Para atendimento" (Ex: Denúncia, Memorando, etc.).');
+                alert('Selecione o tipo em "Para atendimento" (Ex: Denúncia, memorando, etc.).');
                 document.getElementById('relAtendimentoTipo')?.focus();
                 return false;
             }
             const semNumero = atendimentoDispensaNumero(atendimentoTipo);
             if (!semNumero && !atendimentoValor) {
-                alert('Informe o Número/Descrição em "Para atendimento" (Ex: 123/2026).');
+                alert('Informe o número/descrição em "Para atendimento" (Ex: 123/2026).');
                 document.getElementById('relAtendimentoValor')?.focus();
                 return false;
             }
@@ -1028,7 +1410,7 @@ function validarStep(step) {
                 return false;
             }
             if (!textoVistoria) {
-                alert('Informe o Texto do Relatório (Descreva as transgressões) antes de prosseguir.');
+                alert('Informe o texto do relatório (descreva as transgressões) antes de prosseguir.');
                 document.getElementById('relTextoVistoria')?.focus();
                 return false;
             }
@@ -1353,9 +1735,10 @@ async function finalizarSolicitacao() {
         dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
 
         // 4. Determinar a Etapa Inicial: a escolhida quando o processo já existe;
-        //    senão 14 para Decreto e para Reincidência, 1 no caso padrão.
+        //    senão 14 para Decreto, Reincidência e infração de Meio Ambiente sem
+        //    Auto de Fiscalização; 1 no caso padrão.
         const reincidencia = dados.reincidencia;
-        const nasceNoAuto = decretoSim || !!reincidencia;
+        const nasceNoAuto = decretoSim || !!reincidencia || meioAmbienteVaiDiretoAoAuto();
         const targetEtapaNumero = procExistente?.etapa || (nasceNoAuto ? 14 : 1);
         let etapaId = 1;
         const { data: etapaTarget } = await supabaseClient
@@ -1444,14 +1827,30 @@ async function finalizarSolicitacao() {
                 anexos: {},
                 // Reincidência: o card de multa da Etapa 14 lê estes dois campos
                 // para escrever o Auto anterior nos textos de muro e passeio.
-                campos: reincidencia ? {
-                    auto_infracao_anterior_numero: reincidencia.auto_anterior_numero || '',
-                    auto_infracao_anterior_data: formatarDataBrParaDocumento(reincidencia.auto_anterior_data),
-                    reincidencia: {
-                        processo_anterior_numero: reincidencia.processo_anterior_numero || '',
-                        processo_anterior_id: reincidencia.processo_anterior_id || null
-                    }
-                } : {}
+                campos: {
+                    ...(reincidencia ? {
+                        auto_infracao_anterior_numero: reincidencia.auto_anterior_numero || '',
+                        auto_infracao_anterior_data: formatarDataBrParaDocumento(reincidencia.auto_anterior_data),
+                        reincidencia: {
+                            processo_anterior_numero: reincidencia.processo_anterior_numero || '',
+                            processo_anterior_id: reincidencia.processo_anterior_id || null
+                        }
+                    } : {}),
+                    // Multas digitadas no Auto de Fiscalização: o card de multas da
+                    // Etapa 1 e o Auto de Infração leem daqui
+                    ...(dados.meio_ambiente ? {
+                        multas_customizadas: dados.meio_ambiente.multas,
+                        upfmd_utilizado: window.valorUpfmdAtual || undefined
+                    } : {})
+                },
+                // Fiscal de Meio Ambiente. Os contribuidores só assinam o Relatório
+                // Fiscal; ficam aqui para o SEMAC pontuar todos os fiscais.
+                // fiscal_contribuidor (o primeiro) fica por compatibilidade.
+                ...(dados.meio_ambiente ? {
+                    setor: 'meio_ambiente',
+                    fiscais_contribuidores: dados.meio_ambiente.fiscais_contribuidores,
+                    fiscal_contribuidor: dados.meio_ambiente.fiscais_contribuidores[0] || null
+                } : {})
             }
         };
 
@@ -1743,11 +2142,23 @@ async function finalizarSolicitacao() {
                         // Decreto nasce como Auto de Infração: prazo de DEFESA de 20 dias
                         // corridos. Sem decreto, é Notificação Preliminar com o prazo de
                         // cumprimento da infração. Os dois contam em dias corridos.
+                        // Auto de Fiscalização (Meio Ambiente): o prazo é o que o
+                        // fiscal escolheu — de imediato (0) ou X dias úteis/corridos.
+                        const prazoAF = (!nasceNoAuto && typeof window.prazoAutoFiscalizacao === 'function')
+                            ? window.prazoAutoFiscalizacao(procCriado, descricaoCat)
+                            : null;
                         const prazoDias = nasceNoAuto
                             ? PRAZO_DEFESA_AUTO_DIAS_NOVA_SOLICITACAO
-                            : obterPrazoNotificacaoNovaSolicitacao(descricaoCat);
+                            : (prazoAF ? prazoAF.dias : obterPrazoNotificacaoNovaSolicitacao(descricaoCat));
                         const dataVenc = new Date(dataInicio);
-                        dataVenc.setDate(dataVenc.getDate() + prazoDias);
+                        if (prazoAF && prazoAF.uteis) {
+                            for (let somados = 0; somados < prazoDias;) {
+                                dataVenc.setDate(dataVenc.getDate() + 1);
+                                if (dataVenc.getDay() !== 0 && dataVenc.getDay() !== 6) somados++;
+                            }
+                        } else {
+                            dataVenc.setDate(dataVenc.getDate() + prazoDias);
+                        }
 
                         const { data: notif, error: errNotif } = await supabaseClient
                             .from('notificacoes')
@@ -1800,8 +2211,8 @@ async function finalizarSolicitacao() {
                 etapa_de_id: null,
                 etapa_para_id: etapaId,
                 usuario_id: profileId,
-                condicao_aplicada: 'Abertura de Solicitação',
-                observacao: dados.fiscal.descricao || 'Processo gerado pelo Assistente de Nova Solicitação.',
+                condicao_aplicada: 'Abertura de solicitação',
+                observacao: dados.fiscal.descricao || 'Processo gerado pelo assistente de nova solicitação.',
                 dados_etapa: {
                     etapa: targetEtapaNumero,
                     numero_processo: numeroProcesso,
@@ -2126,7 +2537,14 @@ function coletarTodosDados() {
         infracoesSelecionadas.push(cb.value);
     });
 
+    const configAF = coletarConfigAutoFiscalizacao();
+
     return {
+        // Só no Fiscal de Meio Ambiente: setor, contribuidor e multas do Auto de Fiscalização
+        meio_ambiente: configAF ? {
+            fiscais_contribuidores: obterFiscaisContribuidoresSelecionados(),
+            multas: configAF.multas
+        } : null,
         contribuinte: {
             nome: document.getElementById('contNome').value,
             cpf_cnpj: document.getElementById('contCpfCnpj').value,
@@ -2161,6 +2579,7 @@ function coletarTodosDados() {
             processo_existente: document.getElementById('infProcessoExistente').value,
             processo_ref: document.getElementById('infProcessoRef').value,
             dispositivos: infracoesSelecionadas,
+            ...(configAF ? { config_af: configAF.config_af } : {}),
         },
         processo_existente: coletarDadosProcessoExistente(),
         reincidencia: coletarDadosReincidencia(),
@@ -2335,6 +2754,17 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
 
     const paHtml = pa ? `<p style="margin:0;"><strong>PA:</strong> ${pa}</p>` : '';
 
+    // Fiscal de Meio Ambiente: subtítulo próprio e, se houver, a assinatura do contribuidor
+    const relatorioEhMeioAmbiente = wizardMeioAmbiente
+        || (typeof window.processoEhMeioAmbiente === 'function' && window.processoEhMeioAmbiente(proc));
+    const selecionados = obterFiscaisContribuidoresSelecionados();
+    const contribuidores = selecionados.length ? selecionados : window.contribuidoresDoProcesso?.(dProc) || [];
+    const assinaturasComContribuidor = (relatorioEhMeioAmbiente && typeof window.htmlAssinaturasRelatorioComContribuidor === 'function')
+        ? window.htmlAssinaturasRelatorioComContribuidor(
+            { nome: fiscalData.nome || 'Nome do Fiscal', cargo: fiscalData.cargo, matricula: fiscalData.matricula },
+            contribuidores)
+        : '';
+
     const dataVistoriaRaw = document.getElementById('fiscDataVistoria')?.value || dProc.fiscal?.data_vistoria || proc?.data_vistoria;
     let textoDataHora = '';
     if (dataVistoriaRaw) {
@@ -2425,7 +2855,7 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
                 <p style="margin:0; font-size: 12pt;">RELATÓRIO FISCAL ${numeroRelatorioTBD}</p>
             </div>
             <div style="text-align: center; margin-bottom: 30px;">
-                <p style="margin:0;">Fiscalização de Posturas</p>
+                <p style="margin:0;">${relatorioEhMeioAmbiente ? 'Fiscalização de Meio Ambiente' : 'Fiscalização de Posturas'}</p>
             </div>
 
             <!-- Data -->
@@ -2471,12 +2901,12 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
                 <!-- Assinatura -->
                 <div style="margin-top: 40px; page-break-inside: avoid; break-inside: avoid;">
                     <p style="margin:0 0 40px 0; text-align: left;">Atenciosamente,</p>
-                    <div style="text-align: center;">
+                    ${assinaturasComContribuidor || `<div style="text-align: center;">
                         <p style="margin:0;">_________________________________________</p>
                         <p style="margin:5px 0 0 0;"><strong>${fiscalData.nome || 'Nome do Fiscal'}</strong></p>
                         <p style="margin:2px 0 0 0;">${fiscalData.cargo || 'Cargo do Fiscal'}</p>
                         <p style="margin:2px 0 0 0;">Matrícula: ${fiscalData.matricula || 'XXXXXXXX'}</p>
-                    </div>
+                    </div>`}
                 </div>
             </div>
 
@@ -3631,11 +4061,11 @@ window.adicionarCampoImagemLegenda = function () {
     div.innerHTML = `
         <button type="button" onclick="removerCampoImagemLegenda(${contadorImagensLegenda})" style="position: absolute; top: 8px; right: 8px; background: var(--danger-color); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-weight: bold; font-size: 11px; display: flex; align-items: center; justify-content: center; z-index: 10;" title="Remover">✕</button>
         <div style="display: flex; flex-direction: column; gap: 4px;">
-            <label style="font-size: 0.75rem; font-weight: 600;">Selecione a Imagem</label>
+            <label style="font-size: 0.75rem; font-weight: 600;">Selecione a imagem</label>
             <input type="file" class="imagem-arquivo form-input" accept="image/*" style="padding: 6px;">
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
-            <label style="font-size: 0.75rem; font-weight: 600;">Legenda da Imagem <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
+            <label style="font-size: 0.75rem; font-weight: 600;">Legenda da imagem <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
             <input type="text" class="imagem-legenda form-input" placeholder="Ex: Vista frontal do lote..." style="padding: 8px;">
         </div>
     `;

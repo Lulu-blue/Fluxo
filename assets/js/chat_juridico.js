@@ -504,7 +504,7 @@
         chatBtn.className = 'floating-chat-btn';
         chatBtn.title = 'Falar com a Interface Jurídica / Gerência';
         chatBtn.innerHTML = `
-            <img src="assets/img/chat_cat_icon.svg" alt="Chat Logo" style="width: 53px; height: 53px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); display: block;" />
+            <img src="assets/img/chat_cat_icon.svg" alt="Chat logo" style="width: 53px; height: 53px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); display: block;" />
             <span class="chat-badge" id="chatJuridicoBadge">0</span>
         `;
         document.body.appendChild(chatBtn);
@@ -521,8 +521,8 @@
             <div class="chat-header">
                 <div class="chat-header-info">
                     <h3 style="display: flex; align-items: center; gap: 8px;">
-                        <img src="assets/img/chat_cat_icon.svg" alt="Chat Logo" style="width: 50px; height: 50px; display: inline-block; vertical-align: middle;" />
-                        Canal de Comunicação
+                        <img src="assets/img/chat_cat_icon.svg" alt="Chat logo" style="width: 50px; height: 50px; display: inline-block; vertical-align: middle;" />
+                        Canal de comunicação
                     </h3>
                     <div style="margin-top: 4px; display: flex; align-items: center; gap: 6px;">
                         <span style="font-size: 0.75rem; color: #e2e8f0; font-weight: 600;">Para:</span>
@@ -621,7 +621,7 @@
 
         if (footer) footer.style.display = 'none';
         if (btnAlternar) btnAlternar.style.display = 'none';
-        if (headerSub) headerSub.textContent = 'Histórico de Conversas';
+        if (headerSub) headerSub.textContent = 'Histórico de conversas';
 
         // Na atualização automática não mostra o "Buscando...", para a lista não piscar
         if (!silencioso) {
@@ -751,11 +751,11 @@
                             <span style="font-size:0.7rem; color:#94a3b8;">${dataFmt}</span>
                         </div>
                         <div style="font-size:0.82rem; color:#475569; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
-                            <strong>${autor}:</strong> ${ultMsg.texto || (ultMsg.anexos?.length ? '📎 [Arquivo Anexo]' : '')}
+                            <strong>${autor}:</strong> ${ultMsg.texto || (ultMsg.anexos?.length ? '[Arquivo Anexo]' : '')}
                         </div>
                         <div style="display:flex; justify-content:flex-end; margin-top:4px;">
                             <span style="background:#80A1D4; color:white; font-size:0.72rem; font-weight:600; padding:4px 10px; border-radius:6px;">
-                                Ver Chat &rarr;
+                                Ver chat &rarr;
                             </span>
                         </div>
                     </div>

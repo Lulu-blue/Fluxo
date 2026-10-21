@@ -104,7 +104,7 @@ window.formatarDataVistoriaRobusta = function (val) {
 };
 
 // ── Etapas compartilhadas pelos dois fluxos (NP e Auto de Infração) ────────
-// As Etapas 16 (Retorno do AR), 17 (Edital) e 30 (Gerente Localiza o AR) são
+// As Etapas 16 (Dados do AR), 17 (Edital) e 30 (AR pendente) são
 // alcançadas tanto pelo fluxo da Notificação Preliminar (vindo da Etapa 1)
 // quanto pelo fluxo do Auto de Infração (vindo da Etapa 14). Nelas o número da
 // etapa não diz qual é o documento do processo — só a origem no histórico diz.
@@ -139,7 +139,7 @@ window.ehStatusAutoInfracao = function (notif, proc) {
     if (!notif) return false;
 
     if (notif.situacao === 'auto_infracao' || notif.situacao === 'arquivado') return true;
-    if (notif.situacao === 'notificacao_preliminar') return false;
+    if (notif.situacao === 'notificacao_preliminar' || notif.situacao === 'auto_fiscalizacao') return false;
 
     const st = (notif.status || '').toLowerCase();
     const etapa = parseInt(notif.etapas?.numero || notif.etapa_atual || notif.etapa_atual_id || 0, 10);
@@ -150,9 +150,14 @@ window.ehStatusAutoInfracao = function (notif, proc) {
 };
 
 // ── Overlay de Carregamento Global ────────────────────────────────────────
+// Guarda o "esconder" agendado: se o carregamento for mostrado de novo logo em
+// seguida (ex.: depois de um confirm), o esconder antigo não pode apagá-lo.
+let timerOcultarCarregamento = null;
+
 function mostrarCarregamento(mensagem) {
     const overlay = document.getElementById('overlayCarregamento');
     const texto = document.getElementById('textoOverlayCarregamento');
+    clearTimeout(timerOcultarCarregamento);
     if (overlay) {
         overlay.style.display = 'flex';
         overlay.style.opacity = '0';
@@ -165,7 +170,8 @@ function ocultarCarregamento() {
     const overlay = document.getElementById('overlayCarregamento');
     if (overlay) {
         overlay.style.opacity = '0';
-        setTimeout(() => { overlay.style.display = 'none'; }, 200);
+        clearTimeout(timerOcultarCarregamento);
+        timerOcultarCarregamento = setTimeout(() => { overlay.style.display = 'none'; }, 200);
     }
 }
 
@@ -687,7 +693,18 @@ function cicloPassouPeloEdital(proc, notif) {
 // corridos); a Notificação Preliminar mantém o prazo dela (20 dias depois de Edital).
 function prazoDoCicloNotificacao(n, ehAuto, passouEtapa17) {
     if (ehAuto) return determinarPrazoAutoInfracao();
-    return passouEtapa17 ? 20 : (n.prazo_dias || obterPrazoNotificacao(n.descricao));
+    if (passouEtapa17) return 20;
+    // Auto de Fiscalização: o prazo escolhido pelo fiscal (0 = de imediato)
+    const prazoAF = window.prazoAutoFiscalizacao ? window.prazoAutoFiscalizacao(processoAtual, n.descricao) : null;
+    if (prazoAF) return prazoAF.dias;
+    return n.prazo_dias || obterPrazoNotificacao(n.descricao);
+}
+
+// Dias úteis ou corridos do prazo de cumprimento. undefined mantém a regra
+// antiga de calcularDataVencimento; o Auto de Fiscalização usa o que o fiscal escolheu.
+function prazoEmDiasUteisDaNotificacao(n) {
+    const prazoAF = window.prazoAutoFiscalizacao ? window.prazoAutoFiscalizacao(processoAtual, n?.descricao) : null;
+    return prazoAF ? prazoAF.uteis : undefined;
 }
 
 // Grava prazo_origem junto; se a migração (migracao/prazos_processos.sql) ainda
@@ -763,7 +780,7 @@ async function aplicarInicioPrazoAR(proc, opcoes = {}) {
             // Defesa do Auto: 20 dias corridos. Prazos da NP seguem a regra de sempre.
             data_vencimento: opcoes.ehAuto
                 ? calcularVencimentoDefesaAuto(dataInicio)
-                : calcularDataVencimento(dataInicio, prazoDias),
+                : calcularDataVencimento(dataInicio, prazoDias, prazoEmDiasUteisDaNotificacao(n)),
             // Sem AR registrado o prazo não começou: o painel mostra "—"
             prazo_origem: inicio ? inicio.origem : null,
             data_movimentacao: dataMov
@@ -872,53 +889,47 @@ const MODO_ACESSO = {
 };
 
 const ETAPAS_MAP = {
-    1: 'Possui Decreto/Notificação',
-    2: 'Defesa ou Dilação de Prazo',
-    3: 'Envio da 1ª Defesa',
-    4: 'Comprovante Propriedade',
-    5: 'Análise Dilação de Prazo',
-    6: 'Defesa Com Dilação',
-    7: 'Análise da Defesa Sem Dilação',
-    8: 'Fiscal Analisa Defesa (Pós Dilação)',
-    9: 'Envio Defesa Sem Dilação',
-    10: 'Certidão Sem Defesa',
-    11: 'Gerente antes Infração',
-    12: 'Gerente antes Auto Infração',
-    13: 'Fiscal Analisa Defesa (1ª)',
-    14: 'Auto de Infração',
-    15: 'Gerente Gera a Multa',
-    16: 'Retorno do AR',
-    17: 'Gerência Gera o Edital',
-    18: 'Solicitar Defesa ou Recurso',
+    1: 'Notificação',
+    2: 'Andamento',
+    3: 'Defesa',
+    4: 'Comprovantes',
+    5: 'Análise dilação de prazo',
+    10: 'Certidão de cumprimento',
+    13: 'Análise da defesa',
+    14: 'Auto de Infração (AI)',
+    15: 'Multa do AI',
+    16: 'Dados do AR',
+    17: 'Publicação do edital',
+    18: 'Andamento do AI',
     19: 'Parecer Jurídico',
-    20: 'Arquivamento do Processo',
-    21: 'Fiscal Convocado Jurídico',
-    22: 'Gerente Convocado Jurídico',
-    23: 'Parecer Jurídico',
-    24: 'Secretário Despacha',
-    25: 'Gerente Cumpre Decreto',
-    26: 'Fazenda Gera a Multa',
-    27: 'Devolvimento para o Setor',
-    28: 'Certificação do Vencimento',
-    29: 'Fiscal Emite Certidão',
-    30: 'Gerente Localiza o AR',
-    31: 'Comprovante Pagamento',
-    32: 'Consulta no Jurídico'
+    20: 'Arquivamento do AI',
+    21: 'Comunicação interna (Fiscal)',
+    22: 'Comunicação interna (Gerência)',
+    24: 'Despacho Administrativo',
+    25: 'Encaminhamento do despacho',
+    26: 'Análise para dar desconto',
+    28: 'Certificação do vencimento',
+    29: 'Certidão de encerramento',
+    30: 'AR pendente',
+    31: 'Comprovante pagamento'
 };
 
 // Mapa de etapas que cada cargo pode editar.
 const ETAPAS_POR_CARGO = {
-    'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
-    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 21, 27, 29, 31, 32],
+    'Dev': [1, 2, 3, 4, 5, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 29, 30, 31],
+    // Etapa 26 (Análise para dar Desconto): mesma mão da Análise de Dilação de Prazo
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 10, 13, 14, 21, 26, 29, 31],
     'Administrativo de Posturas': [15, 16, 17],
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
     // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
-    'Gerente': [11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30],
+    'Gerente': [15, 17, 18, 20, 22, 25, 28, 29, 30],
     'Secretário': [24],
     // Etapa 19 (Parecer Jurídico): Jurídico e Gerente de Interface Jurídica
-    'Jurídico': [18, 19, 23],
+    'Jurídico': [18, 19],
     'Gerente de Interface Jurídica': [19],
-    'Fazenda': [26]
+    // A antiga Etapa 26 ("Fazenda Gera a Multa") saiu do fluxo e o número passou a
+    // ser a Análise de Desconto. O perfil fica sem etapas até ser redefinido.
+    'Fazenda': []
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -956,6 +967,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await carregarProcessoCompleto(processoId);
 
     if (!processoAtual) return;
+
+    // Atalho "Processo unido" do painel: a aba mostra só o PDF unido
+    if (params.get('pdf_unido') === '1') {
+        await abrirProcessoUnidoNaAba();
+        return;
+    }
 
     // 4. Se o processo tem notificações independentes, selecionar a notificação vinda da URL ou ativa
     const notificacoes = obterNotificacoesProcesso(processoAtual);
@@ -1155,10 +1172,10 @@ function renderizarFormularioDinamico(etapaNum) {
     if (btnBaixar) {
         if (etapaNum === 10) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Certidão (.pdf)`;
-        } else if ([5, 8, 13].includes(etapaNum)) {
+        } else if ([5, 8, 13, 26].includes(etapaNum)) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Réplica (.pdf)`;
         } else {
-            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Relatório de Vistoria (.pdf)`;
+            btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / baixar → relatório de vistoria (.pdf)`;
         }
     }
 
@@ -1192,9 +1209,8 @@ function renderizarFormularioDinamico(etapaNum) {
                 <!-- Bloco 2: Anexo da Notificação e Relatório Fiscal Assinados -->
                 <div class="etapa1-card" id="cardAnexoNP" style="margin-top: 18px;">
                     <div class="etapa1-card-header">
-                        <div class="header-icon">📄</div>
                         <div style="flex:1;">
-                            <h3 class="etapa1-card-title">2º Passo: Anexar Notificação Preliminar e Relatório Fiscal Assinados</h3>
+                            <h3 class="etapa1-card-title">2º Passo: Anexar Notificação Preliminar e Relatório Fiscal assinados</h3>
                             <p class="etapa1-card-subtitle">Após baixar os documentos, anexe a Notificação Preliminar e o Relatório Fiscal assinados para habilitar o avanço do processo.</p>
                         </div>
                         <span id="badgeAnexoNPStatus" class="badge-status-anexo">Pendente</span>
@@ -1203,15 +1219,14 @@ function renderizarFormularioDinamico(etapaNum) {
                     <div class="anexo-upload-wrapper" style="display:flex; flex-direction:column; gap:20px;">
                         <!-- Anexo 1: Notificação Preliminar Assinada -->
                         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
-                            <label style="font-weight:700; color:#1e293b; font-size:0.92rem; display:block; margin-bottom:8px;">1. Notificação Preliminar Assinada <span style="color:#ef4444;">*</span></label>
+                            <label style="font-weight:700; color:#1e293b; font-size:0.92rem; display:block; margin-bottom:8px;">1. Notificação Preliminar assinada <span style="color:#ef4444;">*</span></label>
                             <div id="areaDropNP" class="drop-area-clean">
-                                <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique para selecionar ou arraste a Notificação Assinada aqui</p>
+                                <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique para selecionar ou arraste a notificação assinada aqui</p>
                                 <input type="file" id="inputArquivoNP" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
                             </div>
 
                             <div id="anexoNPAtual" class="arquivo-anexado-box" style="display:none;">
                                 <div style="display:flex; align-items:center; gap:12px;">
-                                    <div class="file-icon-badge" style="font-size:1.4rem;">📎</div>
                                     <div>
                                         <div id="nomeArquivoNP" style="font-weight:600; color:#0f172a; font-size:0.95rem;">notificacao_assinada.pdf</div>
                                         <div id="dataArquivoNP" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
@@ -1226,15 +1241,14 @@ function renderizarFormularioDinamico(etapaNum) {
 
                         <!-- Anexo 2: Relatório Fiscal Assinado -->
                         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
-                            <label style="font-weight:700; color:#1e293b; font-size:0.92rem; display:block; margin-bottom:8px;">2. Relatório Fiscal Assinado <span style="color:#ef4444;">*</span></label>
+                            <label style="font-weight:700; color:#1e293b; font-size:0.92rem; display:block; margin-bottom:8px;">2. Relatório Fiscal assinado <span style="color:#ef4444;">*</span></label>
                             <div id="areaDropRF" class="drop-area-clean">
-                                <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal Assinado aqui</p>
+                                <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal assinado aqui</p>
                                 <input type="file" id="inputArquivoRF" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
                             </div>
 
                             <div id="anexoRFAtual" class="arquivo-anexado-box" style="display:none;">
                                 <div style="display:flex; align-items:center; gap:12px;">
-                                    <div class="file-icon-badge" style="font-size:1.4rem;">📋</div>
                                     <div>
                                         <div id="nomeArquivoRF" style="font-weight:600; color:#0f172a; font-size:0.95rem;">relatorio_fiscal_assinado.pdf</div>
                                         <div id="dataArquivoRF" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
@@ -1256,9 +1270,8 @@ function renderizarFormularioDinamico(etapaNum) {
             const infoPrazo = formatarDiasRestantes(notificacaoAtual.data_vencimento);
             prazoHtml = `
                 <div style="background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:15px; display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:1.2rem;">⏳</span>
                     <div>
-                        <div style="font-weight:600; color:#334155; font-size:0.9rem;">Prazo de Vencimento da Notificação</div>
+                        <div style="font-weight:600; color:#334155; font-size:0.9rem;">Prazo de vencimento da notificação</div>
                         <div style="font-size:0.85rem; color:#475569;">${new Date(notificacaoAtual.data_vencimento).toLocaleDateString('pt-BR')} <span style="${infoPrazo.vencido ? 'color:#991b1b; font-weight:600;' : 'color:#166534; font-weight:600;'}">(${infoPrazo.texto})</span></div>
                     </div>
                 </div>
@@ -1271,7 +1284,6 @@ function renderizarFormularioDinamico(etapaNum) {
         if (veioDoGerente && notificacaoAtual?.dados?.etapa11?.justificativa) {
             alertaGerenteHtml = `
                 <div style="background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:12px; margin-bottom:15px; display:flex; gap:12px;">
-                    <span style="font-size:1.5rem;">⚠️</span>
                     <div>
                         <div style="font-weight:800; color:#991b1b; font-size:1rem; margin-bottom:4px;">Atenção: O Gerente retornou esta defesa para reanálise do Fiscal</div>
                         <div style="font-size:0.95rem; color:#7f1d1d; font-weight:500;"><strong>Motivo do Gerente:</strong> ${notificacaoAtual.dados.etapa11.justificativa}</div>
@@ -1303,9 +1315,9 @@ function renderizarFormularioDinamico(etapaNum) {
             `).join('');
 
             conteudo = `
-            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Documentos da Dilação de Prazo</h3>
+            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Documentos da dilação de prazo</h3>
             <p style="font-size:0.95rem; color:#475569;">
-                <strong>Todos são opcionais</strong> — dá para avançar sem anexar nada.
+                <strong>Todos são opcionais</strong>
             </p>
             <div style="display:flex; flex-direction:column; gap:16px; margin-top:14px;">${campos}</div>
         `;
@@ -1313,7 +1325,7 @@ function renderizarFormularioDinamico(etapaNum) {
             // Processos antigos, de quando a defesa ainda passava pela Etapa 4.
             // Hoje a defesa vai da Etapa 2 direto para a 3 e não chega aqui.
             conteudo = `
-            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Comprovante de Propriedade</h3>
+            <h3 style="margin-top:0; color:#0f172a; font-size:1.1rem; margin-bottom:12px;">Comprovante de propriedade</h3>
             <p style="font-size:0.95rem; color:#475569;">Anexe o comprovante de propriedade abaixo.</p>
             ${uploadHtml('Clique para selecionar ou arraste os documentos aqui')}
         `;
@@ -1340,7 +1352,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Análise de Dilação de Prazo</h3>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Análise de dilação de prazo</h3>
                         <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie a solicitação de dilação e informe a decisão.</p>
                     </div>
                 </div>
@@ -1349,11 +1361,11 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão da Dilação <span style="color:#ef4444;">*</span></label>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão da dilação <span style="color:#ef4444;">*</span></label>
                         <select id="selectDecisaoDilacao" onchange="window.toggleOpcoesDilacao()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <option value="">Selecione uma opção...</option>
                             <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
-                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferimento</option>
+                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indefere</option>
                         </select>
                     </div>
 
@@ -1371,12 +1383,66 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="margin-top:20px;">
                     <div id="containerImagensForm" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
                     <div style="display:flex; gap:16px;">
-                        <button type="button" onclick="window.gerarReplicaComAviso(this)" class="btn-primary" style="padding:12px 20px; transition:background 0.2s;">Gerar/Atualizar Réplica</button>
-                        <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar Imagem</button>
+                        <button type="button" onclick="window.gerarReplicaComAviso(this)" class="btn-primary" style="padding:12px 20px; transition:background 0.2s;">Atualizar Réplica</button>
+                        <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar imagem</button>
                     </div>
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
                 ${htmlBotaoParalisarJuridico()}
+            </div>
+        `;
+    } else if (etapaNum === 26) {
+        // Análise de Desconto. O pedido chega pela opção "Desconto" da Etapa 18 e a
+        // tela é a mesma da Análise de Dilação de Prazo (Etapa 5), com a réplica:
+        //   Defere   -> Etapa 25 (Gerente cumpre o decreto, onde o valor é ajustado)
+        //   Indefere -> Etapa 18 (o Auto volta para a escolha da opção)
+        const decisaoAnterior = notificacaoAtual?.dados?.etapa26?.decisao || '';
+        const justificativaAnterior = notificacaoAtual?.dados?.etapa26?.justificativa || '';
+
+        const btnBaixar = document.getElementById('btnBaixarRelatorioPdfEtapa');
+        if (btnBaixar) btnBaixar.innerHTML = btnBaixar.innerHTML.replace('Relatório', 'Réplica');
+
+        setTimeout(() => { if (window.gerarReplica) window.gerarReplica(); }, 300);
+
+        conteudo = `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:12px;">
+                    <div style="background:#f3e8ff; padding:10px; border-radius:10px;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="19" y1="5" x2="5" y2="19"></line>
+                            <circle cx="6.5" cy="6.5" r="2.5"></circle>
+                            <circle cx="17.5" cy="17.5" r="2.5"></circle>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Análise para dar desconto</h3>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr; gap:20px;">
+                    <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão: <span style="color:#ef4444;">*</span></label>
+                        <select id="selectDecisaoDesconto" onchange="window.toggleOpcoesDesconto()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                            <option value="">Selecione uma opção...</option>
+                            <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
+                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indefere</option>
+                        </select>
+                    </div>
+
+                    <div id="blocoJustificativaDesconto" style="display: ${decisaoAnterior === 'indefere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo (pois):</label>
+                        <textarea id="txtJustificativaDesconto" class="form-input" placeholder="Descreva o motivo..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${justificativaAnterior}</textarea>
+                    </div>
+                </div>
+
+                <div style="margin-top:20px;">
+                    <div id="containerImagensForm" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
+                    <div style="display:flex; gap:16px;">
+                        <button type="button" onclick="window.gerarReplicaComAviso(this)" class="btn-primary" style="padding:12px 20px; transition:background 0.2s;">Atualizar Réplica</button>
+                        <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar imagem</button>
+                    </div>
+                </div>
+                ${gerarHtmlBlocoAnexoReplica()}
             </div>
         `;
     } else if (etapaNum === 11) {
@@ -1390,7 +1456,7 @@ function renderizarFormularioDinamico(etapaNum) {
         anexosHtml += `
             <div style="background:white; border:1px solid #cbd5e1; padding:16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
                 <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">Réplica (PDF)</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Parecer do Fiscal (Etapa 13)</p></div>
-                <button type="button" onclick="baixarDocUnico('replica')" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
+                <button type="button" onclick="baixarDocUnico('replica')" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / baixar</button>
             </div>
         `;
 
@@ -1410,7 +1476,7 @@ function renderizarFormularioDinamico(etapaNum) {
         anexosRenda.forEach((anexo, idx) => {
             anexosHtml += `
             <div style="background:white; border:1px solid #cbd5e1; padding:16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
-                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Comprovante Renda/Prop. (Etapa 4)</p></div>
+                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Comprovante renda/prop. (Etapa 4)</p></div>
                 <button type="button" onclick="window.abrirAnexoNotificacao('etapa4', ${idx})" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
             </div>
             `;
@@ -1426,13 +1492,13 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Gerente Analisa Defesa (2ª)</h3>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Gerente analisa defesa (2ª)</h3>
                         <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Analise os documentos e dê o veredito final.</p>
                     </div>
                 </div>
 
                 <div style="margin-bottom:24px; padding:16px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;">
-                    <h4 style="margin:0 0 12px 0; color:#334155;">Documentos Principais e Auxiliares</h4>
+                    <h4 style="margin:0 0 12px 0; color:#334155;">Documentos principais e auxiliares</h4>
                     <div style="display:grid; grid-template-columns:1fr; gap:12px;">
                         ${anexosHtml}
                     </div>
@@ -1464,7 +1530,7 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
 
                     <div id="blocoJustificativaGerente" style="display: ${decisaoAnterior ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo da Decisão <span style="color:#ef4444;">*</span></label>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo da decisão <span style="color:#ef4444;">*</span></label>
                         <textarea id="txtJustificativaGerente" class="form-input" placeholder="Escreva o motivo..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${justificativaAnterior}</textarea>
                     </div>
                 </div>
@@ -1493,7 +1559,7 @@ function renderizarFormularioDinamico(etapaNum) {
         anexosRenda13.forEach((anexo, idx) => {
             anexosEtapa13Html += `
             <div style="background:white; border:1px solid #cbd5e1; padding:12px 16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Comprovante Renda/Prop. (Etapa 4)</p></div>
+                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Comprovante renda/prop. (Etapa 4)</p></div>
                 <button type="button" onclick="window.abrirAnexoNotificacao('etapa4', ${idx})" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
             </div>
             `;
@@ -1509,7 +1575,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Analise da Defesa</h3>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Analise da defesa</h3>
                     </div>
                 </div>
 
@@ -1517,18 +1583,18 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 ${anexosEtapa13Html ? `
                 <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px;">
-                    <h4 style="margin:0 0 12px 0; color:#334155; font-size:0.95rem; font-weight:700;">Documentos Apresentados</h4>
+                    <h4 style="margin:0 0 12px 0; color:#334155; font-size:0.95rem; font-weight:700;">Documentos apresentados</h4>
                     ${anexosEtapa13Html}
                 </div>
                 ` : ''}
 
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão da Defesa <span style="color:#ef4444;">*</span></label>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão da defesa <span style="color:#ef4444;">*</span></label>
                         <select id="selectDecisaoDilacao" onchange="window.toggleOpcoesDilacao()" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <option value="">Selecione uma opção...</option>
                             <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
-                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indeferimento</option>
+                            <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indefere</option>
                         </select>
                     </div>
 
@@ -1541,8 +1607,8 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="margin-top:20px;">
                     <div id="containerImagensForm" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
                     <div style="display:flex; gap:16px;">
-                        <button type="button" onclick="window.gerarReplicaComAviso(this)" class="btn-primary" style="padding:12px 20px; transition:background 0.2s;">Gerar/Atualizar Réplica</button>
-                        <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar Imagem</button>
+                        <button type="button" onclick="window.gerarReplicaComAviso(this)" class="btn-primary" style="padding:12px 20px; transition:background 0.2s;">Atualizar Réplica</button>
+                        <button type="button" onclick="window.adicionarCampoImagemReplica()" class="btn-primary" style="background:#10b981; border-color:#10b981; padding:12px 20px;">Adicionar imagem</button>
                     </div>
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
@@ -1580,14 +1646,14 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Verificação do Cumprimento</h3>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Verificação do cumprimento</h3>
                         <p style="margin:2px 0 0 0; color:#64748b; font-size:0.85rem;">Avalie se as exigências da notificação foram atendidas pelo munícipe.</p>
                     </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
-                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Houve Cumprimento: <span style="color:#ef4444;">*</span></label>
+                        <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Houve cumprimento: <span style="color:#ef4444;">*</span></label>
                         <select id="selectCumprimento" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; transition:all 0.2s; outline:none; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
                             <option value="">Selecione uma opção...</option>
                             <option value="atendida" ${defaultCumprimento === 'atendida' ? 'selected="selected"' : ''}>Atendida</option>
@@ -1637,10 +1703,10 @@ function renderizarFormularioDinamico(etapaNum) {
                                 O gerente analisou a defesa e decidiu pelo <strong>indeferimento</strong>.
                             </p>
                             <div style="background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #fca5a5; font-size: 0.88rem; color: #1e293b;">
-                                <strong style="color: #991b1b;">Motivo / Justificativa do Gerente:</strong>
+                                <strong style="color: #991b1b;">Motivo / justificativa do Gerente:</strong>
                                 <p style="margin: 4px 0 0 0; color: #334155; white-space: pre-wrap;">${e11.justificativa || 'Sem justificativa informada.'}</p>
                             </div>
-                            ${dataDecisaoStr ? `<span style="display: inline-block; margin-top: 8px; font-size: 0.78rem; color: #991b1b; font-weight: 600;">Data da Decisão: ${dataDecisaoStr}</span>` : ''}
+                            ${dataDecisaoStr ? `<span style="display: inline-block; margin-top: 8px; font-size: 0.78rem; color: #991b1b; font-weight: 600;">Data da decisão: ${dataDecisaoStr}</span>` : ''}
                         </div>
                     </div>
                 </div>
@@ -1657,16 +1723,16 @@ function renderizarFormularioDinamico(etapaNum) {
                         </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 6px 0; color: #14532d; font-size: 1.05rem; font-weight: 700;">
-                                Decisão do Gerente: DEFERIDO (Gerar Certidão de Encerramento)
+                                Decisão do Gerente: DEFERIDO (gerar Certidão de encerramento)
                             </h4>
                             <p style="margin: 0 0 8px 0; color: #166534; font-size: 0.9rem; font-weight: 500;">
-                                O gerente <strong>deferiu</strong> a defesa e solicitou passar pela emissão da Certidão de Encerramento antes de encerrar o processo.
+                                O gerente <strong>deferiu</strong> a defesa e solicitou passar pela emissão da Certidão de encerramento antes de encerrar o processo.
                             </p>
                             <div style="background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #86efac; font-size: 0.88rem; color: #1e293b;">
-                                <strong style="color: #14532d;">Motivo / Justificativa do Gerente:</strong>
+                                <strong style="color: #14532d;">Motivo / justificativa do Gerente:</strong>
                                 <p style="margin: 4px 0 0 0; color: #334155; white-space: pre-wrap;">${e11.justificativa || 'Sem justificativa informada.'}</p>
                             </div>
-                            ${dataDecisaoStr ? `<span style="display: inline-block; margin-top: 8px; font-size: 0.78rem; color: #14532d; font-weight: 600;">Data da Decisão: ${dataDecisaoStr}</span>` : ''}
+                            ${dataDecisaoStr ? `<span style="display: inline-block; margin-top: 8px; font-size: 0.78rem; color: #14532d; font-weight: 600;">Data da decisão: ${dataDecisaoStr}</span>` : ''}
                         </div>
                     </div>
                 </div>
@@ -1735,7 +1801,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 <!-- Campo Selecionável: Autuado Apresentou defesa? -->
                 <div style="margin-bottom: 20px; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
                     <label for="selectApresentouDefesaEtapa14" style="display: block; font-weight: 700; color: #1e293b; margin-bottom: 8px; font-size: 0.95rem;">
-                        Autuado Apresentou defesa? <span style="color: #ef4444;">*</span>
+                        Autuado apresentou defesa? <span style="color: #ef4444;">*</span>
                     </label>
                     <select id="selectApresentouDefesaEtapa14" style="width: 100%; max-width: 320px; padding: 10px 14px; border: 1px solid #94a3b8; border-radius: 8px; font-size: 0.95rem; font-weight: 600; background: white; color: #0f172a; cursor: pointer;">
                         <option value="não" ${apresentouDefesaVal.toLowerCase() === 'sim' ? '' : 'selected'}>Não</option>
@@ -1744,12 +1810,16 @@ function renderizarFormularioDinamico(etapaNum) {
                     <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">Esta informação será exibida na Capa do Processo ("Autuado não apresentou defesa" ou "Autuado apresentou defesa").</p>
                 </div>
 
+                ${htmlCampoDataVerificacaoAutoMA()}
+
+                ${htmlCampoNotaFiscalAuto()}
+
                 <!-- Cálculo da Multa do Auto de Infração (mesmo card da Etapa 1) -->
                 ${window.obterHtmlCardCalculoMulta({
                     suffix: 'Ai',
-                    titulo: 'Conferir ou Atualizar o Valor da Multa do Auto de Infração',
+                    titulo: 'Conferir ou atualizar o valor da multa do Auto de Infração',
                     subtitulo: 'Confirme a UPFMD, se o imóvel é de esquina e qual medida é a base de cálculo. O valor é aplicado ao Auto de Infração abaixo.',
-                    textoBotao: 'Salvar Valores e Atualizar Auto de Infração',
+                    textoBotao: 'Salvar valores e atualizar Auto de Infração',
                     estilo: 'margin-bottom: 20px;'
                 })}
 
@@ -1757,8 +1827,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 ${obterHtmlBlocoAutoInfracaoAssinado()}
 
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px; margin-top:20px;">
-                    <span>ℹ️</span>
-                    <span>Ao clicar em <strong>"Avançar Etapa"</strong>, o Auto de Infração Assinado será validado e o processo seguirá automaticamente para a <strong>Etapa 15 (Gerente Gera a Multa)</strong>.</span>
+                    <span>Ao clicar em <strong>"Avançar etapa"</strong>, o Auto de Infração assinado será validado e o processo seguirá automaticamente para a <strong>Etapa 15 (Gerente gera a multa)</strong>.</span>
                 </div>
             </div>
         `;
@@ -1806,28 +1875,28 @@ function renderizarFormularioDinamico(etapaNum) {
                             </svg>
                         </div>
                         <div>
-                            <h2 style="margin:0; color:#0f172a; font-size:1.35rem; font-weight:800;">Etapa 15 – Gerente Gera a Multa</h2>
-                            <p style="margin:4px 0 0 0; color:#64748b; font-size:0.9rem;">Consolidação do Processo Administrativo e Emissão de Documento Único (PDF Unificado).</p>
+                            <h2 style="margin:0; color:#0f172a; font-size:1.35rem; font-weight:800;">Etapa 15 – Multa do AI</h2>
+                            <p style="margin:4px 0 0 0; color:#64748b; font-size:0.9rem;">Consolidação do processo administrativo e emissão de documento único (PDF unificado).</p>
                         </div>
                     </div>
                     <span style="background:#dbeafe; color:#1e40af; font-size:0.82rem; font-weight:700; padding:6px 14px; border-radius:20px;">
-                        ${decretoSim ? '📜 Fluxo com Decreto' : '📋 Fluxo Padrão (Com Notificação)'}
+                        ${decretoSim ? 'Fluxo com Decreto' : 'Fluxo padrão (com notificação)'}
                     </span>
                 </div>
 
                 <!-- Card da Capa do Processo -->
                 <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
                     <h3 style="margin:0 0 14px 0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
-                        <span>📑 Informações da Capa do Processo</span>
+                        <span>Informações da capa do processo</span>
                     </h3>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px; font-size:0.9rem;">
                         <div><strong style="color:#475569;">PROCESSO ADMINISTRATIVO – SEMAC Nº:</strong> <br><span style="color:#0f172a; font-weight:700;">${processoAtual?.numero_processo || numNotificacao}</span></div>
                         <div><strong style="color:#475569;">Autuado(a):</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeAutuado}</span></div>
                         <div><strong style="color:#475569;">cpf/cnpj:</strong> <br><span style="color:#0f172a; font-weight:600;">${cpfCnpjAutuado}</span></div>
                         <div><strong style="color:#475569;">Auto de Infração:</strong> <br><span style="color:#0f172a; font-weight:600;">${numAutoInfracao15}</span></div>
-                        <div><strong style="color:#475569;">Situação da Defesa:</strong> <br><span style="color:#0f172a; font-weight:700;">${defesaText15}</span></div>
-                        <div><strong style="color:#475569;">Data de Geração:</strong> <br><span style="color:#0f172a; font-weight:600;">${dataHoje}</span></div>
-                        <div><strong style="color:#475569;">Agente Fiscal Responsável:</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeFiscal} – Matrícula: ${matriculaFiscal}</span></div>
+                        <div><strong style="color:#475569;">Situação da defesa:</strong> <br><span style="color:#0f172a; font-weight:700;">${defesaText15}</span></div>
+                        <div><strong style="color:#475569;">Data de geração:</strong> <br><span style="color:#0f172a; font-weight:600;">${dataHoje}</span></div>
+                        <div><strong style="color:#475569;">Agente Fiscal responsável:</strong> <br><span style="color:#0f172a; font-weight:600;">${nomeFiscal} – Matrícula: ${matriculaFiscal}</span></div>
                     </div>
                 </div>
 
@@ -1835,10 +1904,10 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div id="cardMultaEtapa15" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
                         <h3 style="margin:0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
-                            <span>💰 Anexo do Documento da Multa</span>
+                            <span>Anexo do documento da multa</span>
                             <span style="color:#ef4444; font-size:0.9rem;">*</span>
                         </h3>
-                        ${!ehGerente ? '<span style="background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem; padding:4px 12px; border-radius:20px;">🔒 Restrito ao Gerente</span>' : ''}
+                        ${!ehGerente ? '<span style="background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem; padding:4px 12px; border-radius:20px;">Restrito ao Gerente</span>' : ''}
                     </div>
                     <div id="cardMultaEtapa15Container">
                         <div style="color:#64748b; font-size:0.9rem;">Carregando documento da multa...</div>
@@ -1849,18 +1918,18 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                         <div>
-                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Unificado do Processo (PDF Completo)</h3>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento unificado do processo (PDF completo)</h3>
                             <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
-                                Ordem de consolidação: Capa ➔ BIC ➔ Relatório Fiscal ➔ Notificação / Decreto ➔ AR ➔ Outros ➔ Auto de Infração.
+                                Ordem de consolidação: Capa ➔ BIC ➔ Relatório Fiscal ➔ notificação / Decreto ➔ AR ➔ outros ➔ Auto de Infração.
                             </p>
                         </div>
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download')" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3); transition:all 0.2s;">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Baixar PDF Completo
+                                Baixar PDF completo
                             </button>
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir')" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; gap:8px; transition:all 0.2s;">
-                                👁️ Visualizar PDF
+                                Visualizar PDF
                             </button>
                         </div>
                     </div>
@@ -1870,7 +1939,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div id="cardOficioGfpEtapa15" style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:20px; margin-bottom:24px;">
                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
                         <h3 style="margin:0; color:#1e3a8a; font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px;">
-                            <span>📨 Ofício SEMAC - GFP</span>
+                            <span>Ofício SEMAC - GFP</span>
                         </h3>
                         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                             ${ehGerente ? `
@@ -1888,7 +1957,7 @@ function renderizarFormularioDinamico(etapaNum) {
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                     Baixar Ofício em PDF
                                 </button>
-                            ` : '<span style="background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem; padding:4px 12px; border-radius:20px;">🔒 Download restrito ao Gerente</span>'}
+                            ` : '<span style="background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem; padding:4px 12px; border-radius:20px;">Download restrito ao Gerente</span>'}
                         </div>
                     </div>
                     <p style="margin:0 0 14px 0; color:#64748b; font-size:0.85rem;">
@@ -1901,8 +1970,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
 
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px;">
-                    <span>ℹ️</span>
-                    <span>Ao anexar a Multa e clicar em <strong>"Avançar Etapa"</strong>, o processo administrativo será finalizado.</span>
+                    <span>Ao anexar a multa e clicar em <strong>"Avançar etapa"</strong>, o processo administrativo será finalizado.</span>
                 </div>
             </div>
         `;
@@ -1948,18 +2016,18 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                         <div>
-                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento completo do processo (PDF)</h3>
                             <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
-                                Todos os documentos do processo num arquivo só, com a Certidão de Encerramento assinada no final.
+                                Todos os documentos do processo num arquivo só, com a Certidão de encerramento assinada no final.
                             </p>
                         </div>
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true, certidaoFinal: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Baixar PDF Completo
+                                Baixar PDF completo
                             </button>
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true, certidaoFinal: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
-                                👁️ Visualizar PDF
+                                Visualizar PDF
                             </button>
                         </div>
                     </div>
@@ -1967,16 +2035,16 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <!-- Documentos avulsos -->
                 <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:24px;">
-                    <h3 style="margin:0 0 14px 0; color:#0f172a; font-size:1.1rem; font-weight:700;">📄 Documentos do processo</h3>
+                    <h3 style="margin:0 0 14px 0; color:#0f172a; font-size:1.1rem; font-weight:700;">Documentos do processo</h3>
                     <div style="display:flex; gap:12px; flex-wrap:wrap;">
                         <button type="button" onclick="window.baixarDocUnico('certidao')" style="padding:12px 20px; background:#16a34a; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.92rem; cursor:pointer;">
-                            ⬇ Baixar Certidão Assinada
+                            ⬇ Baixar Certidão assinada
                         </button>
                         <button type="button" onclick="window.baixarDocUnico('historico')" style="padding:12px 20px; background:white; color:#334155; border:1px solid #cbd5e1; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
-                            📊 Baixar Relatório de Etapas
+                            Baixar relatório de etapas
                         </button>
                         <button type="button" onclick="gerarZipComTodosDocumentos()" style="padding:12px 20px; background:white; color:#1e40af; border:1px solid #bfdbfe; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
-                            📦 Baixar Pacote de Documentos (.ZIP)
+                            Baixar pacote de documentos (.ZIP)
                         </button>
                     </div>
                 </div>
@@ -2023,7 +2091,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 20 – Arquivamento do Processo</h2>
+                        <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 20 – Arquivamento do AI</h2>
                         <p style="margin:4px 0 0 0; color:#64748b; font-size:0.92rem;">Enviado à dívida ativa pelo protocolo ${protocolo20}.</p>
                     </div>
                     <span id="badgeArquivadoEtapa20" style="margin-left:auto; padding:6px 14px; border-radius:20px; font-size:0.82rem; font-weight:700; ${arquivado20 ? 'background:#e2e8f0; color:#334155;' : 'background:#fef9c3; color:#854d0e;'}">
@@ -2035,7 +2103,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                         <div>
-                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento completo do processo (PDF)</h3>
                             <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
                                 Mesmo documento da Etapa 28, com uma <strong>última página</strong> registrando o envio à dívida ativa pelo protocolo ${protocolo20}.
                             </p>
@@ -2043,10 +2111,10 @@ function renderizarFormularioDinamico(etapaNum) {
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true, paginaDividaAtiva: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Baixar PDF Completo
+                                Baixar PDF completo
                             </button>
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true, paginaDividaAtiva: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
-                                👁️ Visualizar PDF
+                                Visualizar PDF
                             </button>
                         </div>
                     </div>
@@ -2086,7 +2154,7 @@ function renderizarFormularioDinamico(etapaNum) {
                         </svg>
                     </div>
                     <div>
-                        <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 28 – Certificação do Vencimento</h2>
+                        <h2 style="margin:0; color:#1e293b; font-size:1.35rem; font-weight:800;">Etapa 28 – Certificação do vencimento</h2>
                     </div>
                 </div>
 
@@ -2094,7 +2162,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                         <div>
-                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento completo do processo (PDF)</h3>
                             <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
                                 Capa ➔ documentos do processo ➔ Auto de Infração ➔ <strong>Multa</strong> ➔ <strong>Fotos do AR</strong>
                                 ➔ <strong>Página com os dados do AR</strong> ➔ <strong>Edital</strong> ➔ demais anexos.
@@ -2103,10 +2171,10 @@ function renderizarFormularioDinamico(etapaNum) {
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Baixar PDF Completo
+                                Baixar PDF completo
                             </button>
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
-                                👁️ Visualizar PDF
+                                Visualizar PDF
                             </button>
                         </div>
                     </div>
@@ -2180,19 +2248,19 @@ function renderizarFormularioDinamico(etapaNum) {
                 <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
                         <div>
-                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento Completo do Processo (PDF)</h3>
+                            <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#f8fafc;">Documento completo do processo (PDF)</h3>
                             <p style="margin:6px 0 0 0; color:#94a3b8; font-size:0.88rem;">
-                                Todos os documentos do processo num arquivo só, com a <strong>Certidão de Encerramento no final</strong>.
+                                Todos os documentos do processo num arquivo só, com a <strong>Certidão de encerramento no final</strong>.
                                 Depois de anexar a certidão assinada, ela entra no lugar da gerada.
                             </p>
                         </div>
                         <div style="display:flex; gap:12px; flex-wrap:wrap;">
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('download', { etapa28: true, certidaoFinal: true })" style="padding:12px 22px; background:#2563eb; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(37,99,235,0.3);">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Baixar PDF Completo
+                                Baixar PDF completo
                             </button>
                             <button type="button" onclick="window.gerarPdfProcessoCompletoEtapa15('abrir', { etapa28: true, certidaoFinal: true })" style="padding:12px 18px; background:rgba(255,255,255,0.12); color:white; border:1px solid rgba(255,255,255,0.25); border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer;">
-                                👁️ Visualizar PDF
+                                Visualizar PDF
                             </button>
                         </div>
                     </div>
@@ -2200,17 +2268,16 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 <!-- Certidão de Encerramento e Relatório de Etapas -->
                 <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:24px;">
-                    <h3 style="margin:0 0 4px 0; color:#0f172a; font-size:1.1rem; font-weight:700;">📜 Certidão de Encerramento</h3>
-                    <p style="margin:0 0 14px 0; color:#64748b; font-size:0.85rem;">Baixe a certidão, colha a assinatura e anexe o documento assinado abaixo.</p>
+                    <h3 style="margin:0 0 4px 0; color:#0f172a; font-size:1.1rem; font-weight:700;">Certidão de encerramento</h3>
                     <div style="display:flex; gap:12px; flex-wrap:wrap;">
                         <button type="button" onclick="window.baixarCertidaoEncerramentoPdf()" style="padding:12px 20px; background:#16a34a; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.92rem; cursor:pointer; display:flex; align-items:center; gap:8px;">
-                            ⬇ Baixar Certidão de Encerramento (PDF)
+                            ⬇ Baixar Certidão de encerramento (PDF)
                         </button>
                         <button type="button" onclick="window.baixarDocUnico('historico')" style="padding:12px 20px; background:white; color:#334155; border:1px solid #cbd5e1; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
-                            📊 Baixar Relatório de Etapas
+                            Baixar relatório de etapas
                         </button>
                         <button type="button" onclick="gerarZipComTodosDocumentos()" style="padding:12px 20px; background:white; color:#1e40af; border:1px solid #bfdbfe; border-radius:10px; font-weight:600; font-size:0.92rem; cursor:pointer;">
-                            📦 Baixar Pacote de Documentos (.ZIP)
+                            Baixar pacote de documentos (.ZIP)
                         </button>
                     </div>
 
@@ -2223,20 +2290,19 @@ function renderizarFormularioDinamico(etapaNum) {
                     ${histHtml}
                 </div>
 
-                <!-- Botão Gigante de Encerramento -->
-                <div style="background:#f0fdf4; padding:32px; border:2px dashed #86efac; border-radius:16px; display:flex; flex-direction:column; align-items:center;">
-                    <h3 style="margin:0 0 16px 0; color:#166534; font-size:1.3rem; text-align:center;">Deseja encerrar ${docFluxo.esteEsta.toLowerCase()} ${docFluxo.rotulo} definitivamente?</h3>
+                <!-- Botão de encerramento -->
+                <div style="background:#fefce8; padding:22px; border:2px dashed #fde047; border-radius:16px; display:flex; flex-direction:column; align-items:center;">
                     <div id="avisoCertidaoEncerramento" style="display:none; background:#fffbeb; border:1px solid #fcd34d; color:#92400e; padding:12px 16px; border-radius:10px; margin-bottom:16px; font-size:0.9rem; font-weight:600; text-align:center;">
-                        Anexe a <strong>Certidão Assinada</strong> acima para liberar o encerramento d${docFluxo.artigo} ${docFluxo.rotulo.toLowerCase()}.
+                        Anexe a <strong>Certidão assinada</strong> acima para liberar o encerramento d${docFluxo.artigo} ${docFluxo.rotulo.toLowerCase()}.
                     </div>
-                    <button type="button" id="btnEncerrarNotificacaoEtapa29" onclick="finalizarEBaixarZipNotificacao()" style="padding:16px 36px; background:#16a34a; color:white; border:none; border-radius:12px; font-weight:800; font-size:1.15rem; cursor:pointer; display:flex; align-items:center; gap:10px; box-shadow:0 8px 20px rgba(22, 163, 74, 0.35); transition:all 0.2s;">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <button type="button" id="btnEncerrarNotificacaoEtapa29" onclick="finalizarEBaixarZipNotificacao()" style="padding:12px 26px; background:#16a34a; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.98rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 6px 16px rgba(22, 163, 74, 0.3); transition:all 0.2s;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                             <polyline points="22 4 12 14.01 9 11.01"></polyline>
                         </svg>
-                        Sim, Encerrar ${docFluxo.rotulo} Definitivamente
+                        Encerrar ${docFluxo.rotulo} definitivamente
                     </button>
-                    <p style="margin:14px 0 0 0; color:#15803d; font-size:0.88rem; font-weight:600; text-align:center;">Atenção: Ao clicar acima, ${docFluxo.artigo} ${docFluxo.rotulo.toLowerCase()} será marcad${docFluxo.artigo} como ${docFluxo.encerrado.toLowerCase()} no sistema.</p>
+                    <p style="margin:12px 0 0 0; color:#dc2626; font-size:0.85rem; font-weight:600; text-align:center;">Atenção: ao clicar acima, ${docFluxo.artigo} ${docFluxo.rotulo.toLowerCase()} será marcad${docFluxo.artigo} como ${docFluxo.encerrado.toLowerCase()} no sistema.</p>
                 </div>
             </div>
         `;
@@ -2245,7 +2311,7 @@ function renderizarFormularioDinamico(etapaNum) {
     formDiv.innerHTML = conteudo;
     setTimeout(() => { if (window.atualizarInterfaceNotificacoes) window.atualizarInterfaceNotificacoes(); }, 150);
 
-    if ([5, 13].includes(etapaNum)) {
+    if ([5, 13, 26].includes(etapaNum)) {
         setTimeout(() => {
             if (typeof window.configurarEventosReplicaAssinada === 'function') window.configurarEventosReplicaAssinada();
             if (typeof window.carregarEExibirAnexoReplicaAssinada === 'function') window.carregarEExibirAnexoReplicaAssinada();
@@ -2727,7 +2793,7 @@ async function renderizarProcessoCancelado(proc) {
             aviso.style.cssText = 'background:#fee2e2; color:#991b1b; border:2px dashed #ef4444; border-radius:12px; padding:16px 20px; margin-bottom:20px; font-weight:700; text-align:center; font-size:1.05rem;';
             containerDoc.parentNode.insertBefore(aviso, containerDoc);
         }
-        aviso.textContent = `⚠️ Processo Cancelado — Nº ${proc.numero_processo || 'S/N'}`;
+        aviso.textContent = `Processo cancelado — Nº ${proc.numero_processo || 'S/N'}`;
     }
 
     restaurarEstadoSidebarEtapa();
@@ -2889,6 +2955,12 @@ async function carregarProcessoCompleto(processoId) {
 
         processoAtual = proc;
 
+        // Fiscal de Meio Ambiente: em todas as etapas, o que a tela chama de
+        // Notificação Preliminar passa a ser Auto de Fiscalização (meio-ambiente.js)
+        if (window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(proc)) {
+            window.ativarTermosAutoFiscalizacaoNaPagina();
+        }
+
         // Origem do fluxo (Etapa 1 x Etapa 14) antes do primeiro render do documento
         await carregarOrigemFluxoProcesso(proc);
 
@@ -2973,7 +3045,7 @@ function determinarModoAcesso(proc, perfil) {
     const etapaAtual = parseInt(proc.etapa_atual || proc.etapa_atual_id || 1, 10);
     const isCriador = perfil.id && proc.fiscal_id && perfil.id === proc.fiscal_id;
 
-    // Etapa 1.2 (Retorno do AR) é exclusiva do Administrativo de Posturas.
+    // Etapa 1.2 (Dados do AR) é exclusiva do Administrativo de Posturas.
     // Qualquer outro cargo visualiza apenas o PDF da Notificação Preliminar.
     if (etapaAtual === 16 && cargo !== 'Administrativo de Posturas') {
         return MODO_ACESSO.LEITURA_NOTIFICACAO;
@@ -3027,7 +3099,7 @@ function aplicarModoAcesso(modo) {
                 const ehAuto16 = window.processoVeioDaEtapa14(processoAtual);
                 const rotuloEtapa16 = ehAuto16 ? 'Etapa 16' : 'Etapa 1.2';
                 const docEtapa16 = ehAuto16 ? 'o Auto de Infração' : 'a Notificação Preliminar';
-                aviso.innerHTML = `<strong>${rotuloEtapa16} — Retorno do AR em andamento.</strong><br>Este processo está com o <strong>Administrativo de Posturas</strong>. Você pode visualizar e baixar ${docEtapa16} enquanto aguarda o retorno.`;
+                aviso.innerHTML = `<strong>${rotuloEtapa16} — Dados do AR em andamento.</strong><br>Este processo está com o <strong>Administrativo de Posturas</strong>. Você pode visualizar e baixar ${docEtapa16} enquanto aguarda o retorno.`;
             } else {
                 aviso.innerHTML = 'Você está visualizando este processo no modo <strong>leitura</strong>. Apenas o documento oficial pode ser visualizado e baixado.';
             }
@@ -3139,7 +3211,7 @@ function obterProximaEtapa(etapaAtual) {
         1: 16,
         16: 2,
         30: 18,
-        28: 20   // Certificação do Vencimento ➔ Arquivamento do Processo
+        28: 20   // Certificação do Vencimento ➔ Arquivamento do AI
     };
     return regras[etapaAtual] || etapaAtual + 1;
 }
@@ -3152,7 +3224,7 @@ function configurarBotoesDocumentoTopbar() {
     if (btnImprimir) {
         const svgIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2 2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>`;
         if (ehStatusAutoInfracao(notificacaoAtual, processoAtual) || (!notificacaoAtual && window.etapaIndicaAutoInfracao(processoAtual?.etapa_atual, processoAtual))) {
-            btnImprimir.innerHTML = `${svgIcon} Imprimir / Baixar → Auto de Infração (.pdf)`;
+            btnImprimir.innerHTML = `${svgIcon} Imprimir / baixar → Auto de Infração (.pdf)`;
         } else {
             btnImprimir.innerHTML = `${svgIcon} Imprimir / Baixar → Notificação (.pdf)`;
         }
@@ -3285,6 +3357,10 @@ async function avancarEtapaPadrao() {
         await avancarEtapa13();
         return;
     }
+    if (etapaAtual === 26) {
+        await avancarEtapa26();
+        return;
+    }
     if (etapaAtual === 7) {
         await avancarEtapa7();
         return;
@@ -3402,7 +3478,7 @@ window.gerarReplicaComAviso = async function (botao) {
         botao.style.borderColor = '#16a34a';
     } catch (err) {
         console.error('Erro ao gerar a réplica:', err);
-        botao.innerHTML = '⚠️ Não deu para gerar';
+        botao.innerHTML = 'Não deu para gerar';
         botao.style.background = '#dc2626';
         botao.style.borderColor = '#dc2626';
     } finally {
@@ -3456,7 +3532,6 @@ function htmlAvisoParalisadoJuridico(notif) {
     const quem = info.nome ? ` por <strong>${info.nome}</strong>` : '';
     return `
         <div style="background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:14px 16px; margin-bottom:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <span style="font-size:1.4rem;">⏸️</span>
             <div style="flex:1; min-width:220px;">
                 <div style="font-weight:700; color:#3730a3; font-size:0.95rem;">Processo paralisado — aguardando análise do Jurídico</div>
                 <div style="font-size:0.85rem; color:#4338ca;">
@@ -3482,7 +3557,7 @@ function htmlBotaoParalisarJuridico() {
             </div>
             <button type="button" onclick="window.paralisarProcessoJuridico()"
                     style="padding:9px 16px; border-radius:8px; border:1px solid #6366f1; background:#eef2ff; color:#3730a3; font-weight:700; font-size:0.85rem; cursor:pointer;">
-                ⏸️ Paralisar aguardando o Jurídico
+                Paralisar aguardando o Jurídico
             </button>
         </div>`;
 }
@@ -3560,7 +3635,7 @@ async function avancarEtapa5() {
     const dias = inputDias ? parseInt(inputDias.value, 10) : 0;
 
     if (!decisao) {
-        alert('Por favor, selecione a decisão da dilação (Defere ou Indefere).');
+        alert('Por favor, selecione a decisão da dilação (defere ou indefere).');
         return;
     }
 
@@ -3587,7 +3662,7 @@ async function avancarEtapa5() {
     }
 
     if (!temAnexoReplica) {
-        alert('⚠️ Anexo Obrigatório!\n\nPor favor, anexe o PDF da Réplica Assinada antes de avançar a etapa.');
+        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.');
         return;
     }
 
@@ -3602,7 +3677,7 @@ async function avancarEtapa5() {
     }
 
     let proxEtapa = 2;
-    let motivo = 'Dilação Deferida';
+    let motivo = 'Dilação deferida';
 
     if (decisao === 'defere') {
         let atualVenc = notificacaoAtual.data_vencimento ? new Date(notificacaoAtual.data_vencimento) : new Date();
@@ -3611,7 +3686,7 @@ async function avancarEtapa5() {
         notificacaoAtual.status = 'pendente';
         notificacaoAtual.dados.etapa2_ja_pediu_dilacao = true;
         proxEtapa = 2;
-        motivo = 'Dilação Deferida';
+        motivo = 'Dilação deferida';
     } else if (decisao === 'indefere') {
         // Indeferir não encerra o prazo do contribuinte: se ainda falta prazo, ele
         // volta para a Etapa 2 para cumprir a notificação. Só vai para a análise
@@ -3625,12 +3700,12 @@ async function avancarEtapa5() {
             // Prazo acabou: vai direto para a certidão, já marcada como não resolvido
             marcarResolvidoParaCertidao(notificacaoAtual, 'nao');
             proxEtapa = 10;
-            motivo = 'Dilação Indeferida (prazo vencido)';
+            motivo = 'Dilação indeferida (prazo vencido)';
         } else {
             notificacaoAtual.status = 'pendente';
             notificacaoAtual.dados.etapa2_ja_pediu_dilacao = true;
             proxEtapa = 2;
-            motivo = 'Dilação Indeferida (ainda no prazo)';
+            motivo = 'Dilação indeferida (ainda no prazo)';
         }
     }
 
@@ -3638,17 +3713,21 @@ async function avancarEtapa5() {
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
-async function avancarEtapa13() {
+// Etapa 26 — Análise para dar Desconto. Gera a mesma réplica da Etapa 5 e, como lá,
+// exige o PDF assinado para avançar.
+//   Defere   -> Etapa 25 (Gerente cumpre o decreto, onde o valor é ajustado)
+//   Indefere -> Etapa 18 (o Auto volta para a escolha da opção)
+async function avancarEtapa26() {
     if (!processoAtual || !notificacaoAtual) return;
 
-    const select = document.getElementById('selectDecisaoDilacao');
-    const txtJustificativa = document.getElementById('txtJustificativaDilacao');
+    const select = document.getElementById('selectDecisaoDesconto');
+    const txtJustificativa = document.getElementById('txtJustificativaDesconto');
 
     const decisao = select ? select.value : '';
     const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
 
     if (!decisao) {
-        alert('Por favor, selecione a decisão da defesa (Defere ou Indefere).');
+        alert('Por favor, selecione a decisão do desconto (defere ou indefere).');
         return;
     }
 
@@ -3670,7 +3749,69 @@ async function avancarEtapa13() {
     }
 
     if (!temAnexoReplica) {
-        alert('⚠️ Anexo Obrigatório!\n\nPor favor, anexe o PDF da Réplica Assinada antes de avançar a etapa.');
+        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.');
+        return;
+    }
+
+    mostrarCarregamento('Avançando etapa...');
+
+    notificacaoAtual.dados = notificacaoAtual.dados || {};
+    notificacaoAtual.dados.etapa26 = { decisao, justificativa, data_decisao: new Date().toISOString() };
+
+    // Atualiza/Gera e salva a Réplica HTML no banco antes de mover de etapa
+    if (typeof window.gerarReplica === 'function') {
+        await window.gerarReplica();
+    }
+
+    const camposNotificacao = { dados: notificacaoAtual.dados };
+    let proxEtapa = 25;
+    let motivo = 'Desconto deferido';
+
+    if (decisao === 'indefere') {
+        proxEtapa = 18;
+        motivo = 'Desconto indeferido';
+        // Volta para a Etapa 18 com o card em branco: a opção é escolhida de novo
+        notificacaoAtual.status = 'pendente';
+        camposNotificacao.status = 'pendente';
+    }
+
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, camposNotificacao);
+    await moverProcessoParaEtapa(proxEtapa, motivo);
+}
+
+async function avancarEtapa13() {
+    if (!processoAtual || !notificacaoAtual) return;
+
+    const select = document.getElementById('selectDecisaoDilacao');
+    const txtJustificativa = document.getElementById('txtJustificativaDilacao');
+
+    const decisao = select ? select.value : '';
+    const justificativa = txtJustificativa ? txtJustificativa.value.trim() : '';
+
+    if (!decisao) {
+        alert('Por favor, selecione a decisão da defesa (defere ou indefere).');
+        return;
+    }
+
+    if (decisao === 'indefere' && !justificativa) {
+        alert('Por favor, preencha o motivo (justificativa).');
+        return;
+    }
+
+    // Validação de obrigatoriedade do anexo da Réplica Assinada
+    let temAnexoReplica = !!(notificacaoAtual?.dados?.replica_assinada_nome || notificacaoAtual?.dados?.anexo_replica_url);
+    if (!temAnexoReplica && notificacaoAtual?.dados?.replica_id) {
+        const { data: docReplica } = await supabaseClient
+            .from('documentos')
+            .select('id, url')
+            .eq('id', notificacaoAtual.dados.replica_id)
+            .not('url', 'is', null)
+            .maybeSingle();
+        if (docReplica?.url) temAnexoReplica = true;
+    }
+
+    if (!temAnexoReplica) {
+        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.');
         return;
     }
 
@@ -3685,14 +3826,14 @@ async function avancarEtapa13() {
     }
 
     let proxEtapa = 10;
-    let motivo = 'Defesa Analisada';
+    let motivo = 'Defesa analisada';
 
     if (decisao === 'defere') {
         proxEtapa = 10;
-        motivo = 'Defesa Deferida pelo Fiscal (encaminhado para Certidão)';
+        motivo = 'Defesa deferida pelo Fiscal (encaminhado para Certidão)';
     } else if (decisao === 'indefere') {
         proxEtapa = 10;
-        motivo = 'Defesa Indeferida pelo Fiscal';
+        motivo = 'Defesa indeferida pelo Fiscal';
     }
 
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, status: notificacaoAtual.status });
@@ -3733,21 +3874,21 @@ async function avancarEtapa11() {
     notificacaoAtual.dados.etapa11 = { decisao, justificativa, dataVencimento, passar_certidao: passarCertidao, data_decisao: new Date().toISOString() };
 
     let proxEtapa = 10;
-    let motivo = 'Gerente Analisou Defesa';
+    let motivo = 'Gerente analisou defesa';
 
     if (decisao === 'defere') {
         if (passarCertidao) {
             proxEtapa = 10;
-            motivo = 'Defesa Deferida pelo Gerente (encaminhado para Certidão)';
+            motivo = 'Defesa deferida pelo Gerente (encaminhado para Certidão)';
 
             // Notificação no menu para o fiscal responsável (criador do processo)
             const novaNotificacaoMenu = {
                 id: 'notif_' + Date.now(),
                 tipo: 'gerente_deferiu_certidao',
-                titulo: 'Gerente Deferiu e Solicitou Certidão de Encerramento',
-                mensagem: `O gerente deferiu a defesa do processo ${processoAtual.numero_processo} (Notificação ${notificacaoAtual.numero}) e decidiu gerar a Certidão de Encerramento antes de encerrar o processo.`,
+                titulo: 'Gerente deferiu e solicitou Certidão de encerramento',
+                mensagem: `O gerente deferiu a defesa do processo ${processoAtual.numero_processo} (Notificação ${notificacaoAtual.numero}) e decidiu gerar a Certidão de encerramento antes de encerrar o processo.`,
                 decisao: 'Deferido',
-                opcao: 'Gerar Certidão de Encerramento',
+                opcao: 'Gerar Certidão de encerramento',
                 motivo: justificativa,
                 numero_processo: processoAtual.numero_processo,
                 numero_notificacao: notificacaoAtual.numero,
@@ -3766,14 +3907,14 @@ async function avancarEtapa11() {
             processoAtual.dados.notificacoes_menu.unshift(novaNotificacaoMenu);
         } else {
             proxEtapa = 29;
-            motivo = 'Defesa Deferida pelo Gerente (Encerrado diretamente)';
+            motivo = 'Defesa deferida pelo Gerente (encerrado diretamente)';
         }
     } else if (decisao === 'indefere') {
         proxEtapa = 10;
-        motivo = 'Defesa Indeferida pelo Gerente';
+        motivo = 'Defesa indeferida pelo Gerente';
     } else if (decisao === 'dilatar') {
         proxEtapa = 2;
-        motivo = 'Gerente Dilatou Prazo';
+        motivo = 'Gerente dilatou prazo';
 
         notificacaoAtual.data_vencimento = dataVencimento + 'T23:59:59Z';
         // Impede que o fiscal peça nova dilação na Etapa 2
@@ -3987,12 +4128,12 @@ window.gerarZipComTodosDocumentos = async function () {
 
         let urlNP = docNP?.url || docNP?.dataUrl || docNP?.base64;
         if (urlNP) {
-            await helperAddZip(docNP?.nome_arquivo || docNP?.nome || `1_Notificacao_Preliminar_${numNotifLimpo}_Assinada.pdf`, urlNP);
+            await helperAddZip(docNP?.nome_arquivo || docNP?.nome || `1_${prefixoArquivoDocumentoEtapa1()}_${numNotifLimpo}_Assinada.pdf`, urlNP);
         } else {
             const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || '';
             const conteudoWord = gerarHtmlCompativelComWordDoc(processoAtual, brasaoBase64);
             const fullDoc = '<html xmlns:o=\'urn:schemas-microsoft-com:office:office\' xmlns:w=\'urn:schemas-microsoft-com:office:word\' xmlns=\'http://www.w3.org/TR/REC-html40\'><head><meta charset="utf-8"><title>' + numNotifLimpo + '</title><style>@page{size:A4;margin:2cm}body{font-family:Calibri,\'Carlito\',Arial,sans-serif;color:#000;line-height:1.4}table{border-collapse:collapse}</style></head><body>' + conteudoWord + '</body></html>';
-            zip.file(`1_Notificacao_Preliminar_${numNotifLimpo}.doc`, fullDoc);
+            zip.file(`1_${prefixoArquivoDocumentoEtapa1()}_${numNotifLimpo}.doc`, fullDoc);
         }
 
         // 2. Relatório Fiscal Assinado
@@ -4110,7 +4251,7 @@ window.gerarZipComTodosDocumentos = async function () {
         const hist = notificacaoAtual?.dados?.historico || [];
         let relatorioTxt = `RELATÓRIO DE HISTÓRICO - NOTIFICAÇÃO ${notificacaoAtual.numero}\r\n`;
         relatorioTxt += `Processo: ${processoAtual.numero_processo}\r\n`;
-        relatorioTxt += `Data de Geração: ${new Date().toLocaleString('pt-BR')}\r\n`;
+        relatorioTxt += `Data de geração: ${new Date().toLocaleString('pt-BR')}\r\n`;
         relatorioTxt += `=====================================================\r\n\r\n`;
 
         if (hist.length === 0) {
@@ -4132,7 +4273,7 @@ window.gerarZipComTodosDocumentos = async function () {
         const url = URL.createObjectURL(content);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Pacote_Documentos_Notificacao_${numNotifLimpo}.zip`;
+        a.download = `Pacote_Documentos_${prefixoArquivoDocumentoEtapa1() === 'Auto_de_Fiscalizacao' ? 'Auto_de_Fiscalizacao' : 'Notificacao'}_${numNotifLimpo}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -4254,17 +4395,16 @@ window.carregarArquivosEtapa29 = async function () {
     // 1. Notificação Preliminar / Auto de Infração Assinado
     const docNP = docsBanco.find(d => ['Notificação Preliminar', 'Notificação Preliminar Assinada', 'Auto de Infração', 'Auto de Infração Assinado'].includes(d.tipo))
         || processoAtual?.campos?.anexo_np_assinada
-        || (notificacaoAtual.dados?.notificacao_assinada_url ? { url: notificacaoAtual.dados.notificacao_assinada_url, nome_arquivo: notificacaoAtual.dados.notificacao_assinada_nome || (decretoSim ? 'Auto_de_Infracao_Assinado.pdf' : 'Notificacao_Preliminar_Assinada.pdf') } : null);
+        || (notificacaoAtual.dados?.notificacao_assinada_url ? { url: notificacaoAtual.dados.notificacao_assinada_url, nome_arquivo: notificacaoAtual.dados.notificacao_assinada_nome || (decretoSim ? 'Auto_de_Infracao_Assinado.pdf' : `${prefixoArquivoDocumentoEtapa1()}_${prefixoArquivoDocumentoEtapa1() === 'Auto_de_Fiscalizacao' ? 'Assinado' : 'Assinada'}.pdf`) } : null);
 
     listaCards.push({
         tipoKey: 'notificacao',
         titulo: decretoSim ? 'Auto de Infração Assinado' : 'Notificação Preliminar Assinada',
-        subtitulo: docNP ? (docNP.nome_arquivo || docNP.nome || (decretoSim ? 'Auto de Infração (PDF Assinado)' : 'Notificação Preliminar (PDF Assinado)')) : (decretoSim ? 'Auto de Infração (PDF Assinado)' : 'Notificação Preliminar (PDF Assinado)'),
-        icone: '📄',
+        subtitulo: docNP ? (docNP.nome_arquivo || docNP.nome || (decretoSim ? 'Auto de Infração (PDF Assinado)' : 'Notificação Preliminar (PDF assinado)')) : (decretoSim ? 'Auto de Infração (PDF Assinado)' : 'Notificação Preliminar (PDF assinado)'),
         corBtn: '#eff6ff',
         corTexto: '#2563eb',
         corBorda: '#bfdbfe',
-        labelBtn: decretoSim ? '⬇ Baixar Auto de Infração Assinado' : '⬇ Baixar Notificação Assinada'
+        labelBtn: decretoSim ? '⬇ Baixar Auto de Infração Assinado' : '⬇ Baixar notificação assinada'
     });
 
     // 2. Relatório Fiscal Assinado
@@ -4276,8 +4416,7 @@ window.carregarArquivosEtapa29 = async function () {
         listaCards.push({
             tipoKey: 'relatorio_fiscal',
             titulo: 'Relatório Fiscal Assinado',
-            subtitulo: docRF ? (docRF.nome_arquivo || docRF.nome || 'Vistoria e Fotos (PDF Assinado)') : 'Relatório Fiscal de Vistoria (PDF Assinado)',
-            icone: '📋',
+            subtitulo: docRF ? (docRF.nome_arquivo || docRF.nome || 'Vistoria e fotos (PDF assinado)') : 'Relatório Fiscal de vistoria (PDF assinado)',
             corBtn: '#f0fdf4',
             corTexto: '#16a34a',
             corBorda: '#bbf7d0',
@@ -4296,7 +4435,6 @@ window.carregarArquivosEtapa29 = async function () {
             tipoKey: 'bic',
             titulo: 'BIC — Espelho Cadastral',
             subtitulo: docBIC?.nome_arquivo || docBIC?.nome || 'Cadastro Imobiliário Municipal (PDF)',
-            icone: '🏠',
             corBtn: '#f0f9ff',
             corTexto: '#0284c7',
             corBorda: '#bae6fd',
@@ -4312,11 +4450,10 @@ window.carregarArquivosEtapa29 = async function () {
             tipoKey: 'ar',
             titulo: 'Anexo do AR (Aviso de Recebimento)',
             subtitulo: docAR?.nome_arquivo || docAR?.nome || 'Comprovante de entrega postal (PDF)',
-            icone: '📬',
             corBtn: '#fff7ed',
             corTexto: '#ea580c',
             corBorda: '#ffedd5',
-            labelBtn: '⬇ Baixar Comprovante AR'
+            labelBtn: '⬇ Baixar comprovante AR'
         });
     }
 
@@ -4332,8 +4469,7 @@ window.carregarArquivosEtapa29 = async function () {
         listaCards.push({
             tipoKey: 'decreto',
             titulo: `Decreto Nº ${numDec}`,
-            subtitulo: docDecreto?.nome_arquivo || 'Decreto Municipal de Notificação (PDF)',
-            icone: '📜',
+            subtitulo: docDecreto?.nome_arquivo || 'Decreto Municipal de notificação (PDF)',
             corBtn: '#fdf4ff',
             corTexto: '#c026d3',
             corBorda: '#f5d0fe',
@@ -4352,8 +4488,7 @@ window.carregarArquivosEtapa29 = async function () {
         listaCards.push({
             tipoKey: 'edital_gerente',
             titulo: 'Edital do Gerente',
-            subtitulo: docEdital?.nome_arquivo || docEdital?.nome || 'Edital de Notificação / Publicação (PDF)',
-            icone: '📢',
+            subtitulo: docEdital?.nome_arquivo || docEdital?.nome || 'Edital de notificação / publicação (PDF)',
             corBtn: '#f0fdf4',
             corTexto: '#047857',
             corBorda: '#a7f3d0',
@@ -4370,11 +4505,10 @@ window.carregarArquivosEtapa29 = async function () {
             tipoKey: 'defesa',
             titulo: 'Defesa do Contribuinte',
             subtitulo: nomeDef,
-            icone: '🛡️',
             corBtn: '#fff7ed',
             corTexto: '#c2410c',
             corBorda: '#ffedd5',
-            labelBtn: '⬇ Baixar Defesa'
+            labelBtn: '⬇ Baixar defesa'
         });
     }
 
@@ -4387,12 +4521,11 @@ window.carregarArquivosEtapa29 = async function () {
         listaCards.push({
             tipoKey: 'comprovante_propriedade',
             titulo: 'Comprovante de Propriedade',
-            subtitulo: docProp?.nome_arquivo || docProp?.nome || 'Matrícula / Escritura do Imóvel (PDF)',
-            icone: '🔑',
+            subtitulo: docProp?.nome_arquivo || docProp?.nome || 'Matrícula / escritura do imóvel (PDF)',
             corBtn: '#f0fdf4',
             corTexto: '#15803d',
             corBorda: '#bbf7d0',
-            labelBtn: '⬇ Baixar Comprovante Propriedade'
+            labelBtn: '⬇ Baixar comprovante propriedade'
         });
     }
 
@@ -4404,12 +4537,11 @@ window.carregarArquivosEtapa29 = async function () {
         listaCards.push({
             tipoKey: 'comprovante_renda',
             titulo: 'Comprovante de Renda',
-            subtitulo: docRenda?.nome_arquivo || docRenda?.nome || 'Comprovante de Renda (PDF)',
-            icone: '💵',
+            subtitulo: docRenda?.nome_arquivo || docRenda?.nome || 'Comprovante de renda (PDF)',
             corBtn: '#fefce8',
             corTexto: '#a16207',
             corBorda: '#fef08a',
-            labelBtn: '⬇ Baixar Comprovante Renda'
+            labelBtn: '⬇ Baixar comprovante renda'
         });
     }
 
@@ -4417,16 +4549,15 @@ window.carregarArquivosEtapa29 = async function () {
     const docReplica = docsBanco.find(d => ['Réplica', 'Réplica Assinada'].includes(d.tipo) || String(d.id) === String(notificacaoAtual.dados?.replica_id))
         || (notificacaoAtual.dados?.anexo_replica_url ? { url: notificacaoAtual.dados.anexo_replica_url, nome_arquivo: notificacaoAtual.dados.replica_assinada_nome || 'Replica_Assinada.pdf' } : null);
 
-    if (docReplica || notificacaoAtual.dados?.etapa5 || notificacaoAtual.dados?.etapa13) {
+    if (docReplica || notificacaoAtual.dados?.etapa5 || notificacaoAtual.dados?.etapa13 || notificacaoAtual.dados?.etapa26) {
         listaCards.push({
             tipoKey: 'replica',
             titulo: 'Réplica Assinada',
-            subtitulo: docReplica ? (docReplica.nome_arquivo || docReplica.nome || 'Parecer Fiscal Assinado (PDF)') : 'Réplica do Fiscal Assinada (PDF)',
-            icone: '📝',
+            subtitulo: docReplica ? (docReplica.nome_arquivo || docReplica.nome || 'Parecer Fiscal assinado (PDF)') : 'Réplica do Fiscal assinada (PDF)',
             corBtn: '#f5f3ff',
             corTexto: '#7c3aed',
             corBorda: '#ddd6fe',
-            labelBtn: '⬇ Baixar Réplica Assinada'
+            labelBtn: '⬇ Baixar Réplica assinada'
         });
     }
 
@@ -4434,16 +4565,15 @@ window.carregarArquivosEtapa29 = async function () {
     const docCertidao = docsBanco.find(d => ['Certidão', 'Certidão Sem Defesa'].includes(d.tipo) || String(d.id) === String(notificacaoAtual.dados?.certidao_id))
         || (notificacaoAtual.dados?.certidao_assinada_url ? { url: notificacaoAtual.dados.certidao_assinada_url, nome_arquivo: notificacaoAtual.dados.certidao_assinada_nome || 'Certidao_Assinada.pdf' } : null);
 
-    const numCert = notificacaoAtual.numero_certidao || notificacaoAtual.dados?.certidao_numero_sequencial || docCertidao?.numero_sequencial || 'Sem Defesa';
+    const numCert = notificacaoAtual.numero_certidao || notificacaoAtual.dados?.certidao_numero_sequencial || docCertidao?.numero_sequencial || 'Sem defesa';
     listaCards.push({
         tipoKey: 'certidao',
         titulo: `Certidão Nº ${numCert}`,
-        subtitulo: docCertidao ? (docCertidao.nome_arquivo || docCertidao.nome || 'Documento de Encerramento (PDF Assinado)') : 'Documento de Encerramento (PDF Assinado)',
-        icone: '📜',
+        subtitulo: docCertidao ? (docCertidao.nome_arquivo || docCertidao.nome || 'Documento de encerramento (PDF assinado)') : 'Documento de encerramento (PDF assinado)',
         corBtn: '#ecfdf5',
         corTexto: '#047857',
         corBorda: '#a7f3d0',
-        labelBtn: '⬇ Baixar Certidão Assinada'
+        labelBtn: '⬇ Baixar Certidão assinada'
     });
 
     // 11. Auto de Infração Assinado (se houver no processo)
@@ -4455,8 +4585,7 @@ window.carregarArquivosEtapa29 = async function () {
         listaCards.push({
             tipoKey: 'auto_infracao',
             titulo: `Auto de Infração Nº ${numAutoCard}`,
-            subtitulo: docAI ? (docAI.nome_arquivo || docAI.nome || 'Auto de Infração Assinado (PDF)') : 'Auto de Infração Assinado (PDF)',
-            icone: '🚨',
+            subtitulo: docAI ? (docAI.nome_arquivo || docAI.nome || 'Auto de Infração assinado (PDF)') : 'Auto de Infração assinado (PDF)',
             corBtn: '#fef2f2',
             corTexto: '#dc2626',
             corBorda: '#fecaca',
@@ -4469,17 +4598,15 @@ window.carregarArquivosEtapa29 = async function () {
         tipoKey: 'historico',
         titulo: 'Relatório de Etapas',
         subtitulo: 'Histórico completo de movimentações (.txt)',
-        icone: '📊',
         corBtn: '#f8fafc',
         corTexto: '#475569',
         corBorda: '#cbd5e1',
-        labelBtn: '⬇ Baixar Relatório de Etapas'
+        labelBtn: '⬇ Baixar relatório de Etapas'
     });
 
     gridEl.innerHTML = listaCards.map(card => `
         <div style="background:white; border:1px solid #cbd5e1; padding:16px; border-radius:10px; display:flex; flex-direction:column; justify-content:space-between; gap:12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="display:flex; align-items:center; gap:10px;">
-                <span style="font-size:1.6rem;">${card.icone}</span>
                 <div>
                     <h4 style="margin:0; color:#1e293b; font-size:0.95rem; font-weight:700;">${card.titulo}</h4>
                     <p style="margin:2px 0 0 0; color:#64748b; font-size:0.8rem;">${card.subtitulo}</p>
@@ -4533,7 +4660,7 @@ window.baixarDocUnico = async function (tipo) {
 
             if (urlNP) {
                 ocultarCarregamento();
-                const defaultName = decretoSim ? `Auto_de_Infracao_${numNotifLimpo}_Assinado.pdf` : `Notificacao_Preliminar_${numNotifLimpo}_Assinada.pdf`;
+                const defaultName = decretoSim ? `Auto_de_Infracao_${numNotifLimpo}_Assinado.pdf` : `${prefixoArquivoDocumentoEtapa1()}_${numNotifLimpo}_Assinada.pdf`;
                 window.abrirOuBaixarDocumento(urlNP, docNP?.nome_arquivo || docNP?.nome || defaultName);
                 return;
             }
@@ -4652,7 +4779,7 @@ window.baixarDocUnico = async function (tipo) {
                 return;
             }
             ocultarCarregamento();
-            alert('Comprovante de Renda não encontrado.');
+            alert('Comprovante de renda não encontrado.');
         } else if (tipo === 'comprovante_propriedade') {
             const docProp = docsBanco.find(d => ['Comprovante de Propriedade', 'Propriedade', 'Matrícula', 'Escritura', 'Comprovante de Renda/Propriedade'].includes(d.tipo))
                 || anexoEtapa4Por('propriedade');
@@ -4669,7 +4796,7 @@ window.baixarDocUnico = async function (tipo) {
                 return;
             }
             ocultarCarregamento();
-            alert('Comprovante de Propriedade não encontrado.');
+            alert('Comprovante de propriedade não encontrado.');
         } else if (tipo === 'defesa') {
             const docDef = docsBanco.find(d => ['Defesa', 'Defesa do Contribuinte'].includes(d.tipo));
             const anexosDefesa = notificacaoAtual.dados?.etapa3?.anexos || [];
@@ -4681,7 +4808,7 @@ window.baixarDocUnico = async function (tipo) {
                 return;
             }
             ocultarCarregamento();
-            alert('Documento da Defesa não encontrado.');
+            alert('Documento da defesa não encontrado.');
         } else if (tipo === 'replica') {
             const docReplica = docsBanco.find(d => ['Réplica', 'Réplica Assinada'].includes(d.tipo) || String(d.id) === String(notificacaoAtual.dados?.replica_id))
                 || (notificacaoAtual.dados?.anexo_replica_url ? { url: notificacaoAtual.dados.anexo_replica_url, nome_arquivo: notificacaoAtual.dados.replica_assinada_nome } : null);
@@ -4698,7 +4825,7 @@ window.baixarDocUnico = async function (tipo) {
                 return;
             }
             ocultarCarregamento();
-            alert('Réplica Assinada não encontrada em PDF.');
+            alert('Réplica assinada não encontrada em PDF.');
         } else if (tipo === 'certidao') {
             const docCertidao = docsBanco.find(d => ['Certidão', 'Certidão Sem Defesa'].includes(d.tipo) || String(d.id) === String(notificacaoAtual.dados?.certidao_id))
                 || (notificacaoAtual.dados?.certidao_assinada_url ? { url: notificacaoAtual.dados.certidao_assinada_url, nome_arquivo: notificacaoAtual.dados.certidao_assinada_nome } : null);
@@ -4780,12 +4907,12 @@ window.baixarDocUnico = async function (tipo) {
                 return;
             }
             ocultarCarregamento();
-            alert('Auto de Infração Assinado não encontrado.');
+            alert('Auto de Infração assinado não encontrado.');
         } else if (tipo === 'historico') {
             const hist = notificacaoAtual?.dados?.historico || [];
             let relatorioTxt = `RELATÓRIO DE HISTÓRICO - NOTIFICAÇÃO ${notificacaoAtual.numero}\r\n`;
             relatorioTxt += `Processo: ${processoAtual.numero_processo}\r\n`;
-            relatorioTxt += `Data de Geração: ${new Date().toLocaleString('pt-BR')}\r\n`;
+            relatorioTxt += `Data de geração: ${new Date().toLocaleString('pt-BR')}\r\n`;
             relatorioTxt += `=====================================================\r\n\r\n`;
 
             if (hist.length === 0) {
@@ -4824,8 +4951,8 @@ async function liberarNumerosEReservasEtapa(etapaOrigemNum) {
     if (!processoAtual) return;
 
     try {
-        // 1) Réplica (Etapa 5 e Etapa 13)
-        if ([5, 13].includes(etapaOrigemNum) && notificacaoAtual?.id) {
+        // 1) Réplica (Etapas 5, 13 e 26)
+        if ([5, 13, 26].includes(etapaOrigemNum) && notificacaoAtual?.id) {
             const replicaAssinadaAnexada = notificacaoAtual.dados?.replica_assinada_nome || notificacaoAtual.dados?.anexo_replica_url;
             if (!replicaAssinadaAnexada) {
                 const numReplicaAtual = notificacaoAtual.dados?.numero_replica;
@@ -5334,8 +5461,12 @@ window.obterDadosImovelParaCalculo = obterDadosImovelParaCalculo;
 
 // ── Helper de Cálculo Padrão de Multa (conforme calculo multas.docx) ────────
 function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidadeNum, temEsquina, upfmd, baseCalculo) {
-    const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
     const upfmdVal = parseNumberSafe(upfmd, window.valorUpfmdAtual || valorUpfmdAtual);
+    // Meio Ambiente: valor fixo do catálogo (ou N UPFMD), sem metragem do imóvel
+    const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(dispLow) : null;
+    if (itemMA) return window.valorPadraoMultaMeioAmbiente(itemMA, upfmdVal);
+
+    const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
     const area = parseNumberSafe(areaNum);
     const testada = parseNumberSafe(testadaNum);
     const profundidade = parseNumberSafe(profundidadeNum, 0);
@@ -5389,7 +5520,9 @@ window.calcularValorNumDefaultMulta = calcularValorNumDefaultMulta;
 
 // Nome completo/legível de uma infração, usado como rótulo de cada input de multa.
 function obterNomeCompletoInfracao(disp) {
-    if (!disp) return 'Infração Geral';
+    if (!disp) return 'Infração geral';
+    const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
+    if (itemMA) return `${itemMA.rotulo} (${itemMA.codigo})`;
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
     const dispLow = disp.toLowerCase();
 
@@ -5441,15 +5574,14 @@ window.obterIndiceMultaNotificacao = obterIndiceMultaNotificacao;
 function obterHtmlCardCalculoMulta(opts) {
     const o = opts || {};
     const sfx = o.suffix || '';
-    const titulo = o.titulo || '1º Passo: Conferir ou Atualizar Valores das Multas';
+    const titulo = o.titulo || '1º Passo: Conferir ou atualizar valores das multas';
     const subtitulo = o.subtitulo || 'Confirme ou edite os valores das multas para atualizar o documento PDF abaixo.';
-    const textoBotao = o.textoBotao || 'Salvar Valores e Atualizar Documento PDF';
+    const textoBotao = o.textoBotao || 'Salvar valores e atualizar documento PDF';
     const estilo = o.estilo || '';
 
     return `
         <div class="etapa1-card" id="cardValoresMultas${sfx}" style="${estilo}">
             <div class="etapa1-card-header">
-                <div class="header-icon">💰</div>
                 <div>
                     <h3 class="etapa1-card-title">${titulo}</h3>
                     <p class="etapa1-card-subtitle">${subtitulo}</p>
@@ -5462,7 +5594,7 @@ function obterHtmlCardCalculoMulta(opts) {
                 <div style="flex: 1; min-width: 260px;">
                     <label
                         style="font-weight: 700; color: #5b21b6; font-size: 0.96rem; display: block; margin-bottom: 4px;">Parâmetros
-                        de Cálculo (UPFMD, imóvel de esquina e base de cálculo)</label>
+                        de cálculo (UPFMD, imóvel de esquina e base de cálculo)</label>
                     <span style="font-size: 0.84rem; color: #6d28d9; display: block;">Regra oficial: imóveis de esquina
                         somam as duas medidas (testada + profundidade) no cálculo das infrações por metro linear.</span>
                     <span style="font-size: 0.84rem; color: #6d28d9; display: block; margin-top: 2px;">A base de cálculo
@@ -5503,10 +5635,9 @@ function obterHtmlCardCalculoMulta(opts) {
             <div id="blocoReincidenciaAnterior${sfx}"
                 style="margin: 0 0 20px 0; padding: 18px 22px; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 14px; display: none;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
-                    <span style="font-size: 1.3rem;">⚠️</span>
                     <div>
                         <h4 style="font-size: 0.98rem; font-weight: 700; color: #9f1239; margin: 0;">Dados
-                            da Reincidência (Auto de Infração Anterior)</h4>
+                            da reincidência (Auto de Infração anterior)</h4>
                     </div>
                 </div>
                 <div style="display: flex; gap: 16px; flex-wrap: wrap;">
@@ -5571,6 +5702,27 @@ function configurarCardCalculoMulta(opts) {
     if (selectBaseEl) selectBaseEl.value = baseCalculo === 'profundidade' ? 'profundidade' : 'testada';
     if (inputUpfmdEl) inputUpfmdEl.value = Number(upfmdAtualProc).toFixed(2);
 
+    // Meio Ambiente: as multas são valores fixos; só a do outdoor é em UPFMD
+    // (10 UPFMD), sem esquina nem base de cálculo. O bloco de parâmetros só
+    // aparece quando há infração em UPFMD, e só com o campo da UPFMD.
+    const ehMeioAmbiente = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(proc));
+    const itemMAUsaUpfmd = (disp) => !!(window.encontrarInfracaoMeioAmbiente && window.encontrarInfracaoMeioAmbiente(disp)?.upfmd);
+    if (ehMeioAmbiente) {
+        const caixaParametros = card?.querySelector('.upfmd-header-box');
+        if (caixaParametros) {
+            caixaParametros.style.display = itens.some(it => itemMAUsaUpfmd(it.disp)) ? 'flex' : 'none';
+            const textoParametros = caixaParametros.firstElementChild;
+            if (textoParametros) {
+                textoParametros.innerHTML = `
+                    <label style="font-weight: 700; color: #5b21b6; font-size: 0.96rem; display: block; margin-bottom: 4px;">Valor da UPFMD</label>
+                    <span style="font-size: 0.84rem; color: #6d28d9; display: block;">A multa do outdoor é de 10 UPFMD. As demais são valores fixos.</span>`;
+            }
+        }
+        if (selectEsquinaEl?.parentElement) selectEsquinaEl.parentElement.style.display = 'none';
+        if (selectBaseEl?.parentElement) selectBaseEl.parentElement.style.display = 'none';
+        if (resumoBaseEl) resumoBaseEl.style.display = 'none';
+    }
+
     // Mostra ao fiscal qual medida está entrando na conta
     const atualizarResumoBase = () => {
         if (!resumoBaseEl) return;
@@ -5592,6 +5744,9 @@ function configurarCardCalculoMulta(opts) {
         const base = selectBaseEl?.value === 'profundidade' ? 'profundidade' : 'testada';
         listaInputs.querySelectorAll('.input-multa-val').forEach(inputEl => {
             const disp = inputEl.dataset.disp || '';
+            // Meio Ambiente: mudar a UPFMD só recalcula a multa em UPFMD (outdoor);
+            // os valores fixos, conferidos pelo fiscal, ficam como estão
+            if (ehMeioAmbiente && !itemMAUsaUpfmd(disp)) return;
             if (disp) {
                 const recVal = calcularValorNumDefaultMulta(disp.toLowerCase(), areaNum, testadaNum, profundidadeNum, ehEsquina, novoUpfmd, base);
                 inputEl.value = recVal.toFixed(2);
@@ -5877,7 +6032,7 @@ async function renderizarPainelEtapa1(proc) {
         if (anexoBoxNP) {
             anexoBoxNP.style.display = 'flex';
             const nmEl = document.getElementById('nomeArquivoNP');
-            if (nmEl) nmEl.textContent = anexoNP.nome || 'notificacao_assinada.pdf';
+            if (nmEl) nmEl.textContent = anexoNP.nome || (prefixoArquivoDocumentoEtapa1() === 'Auto_de_Fiscalizacao' ? 'auto_de_fiscalizacao_assinado.pdf' : 'notificacao_assinada.pdf');
             const btnVer = document.getElementById('btnVerAnexoNP');
             if (btnVer) {
                 btnVer.href = '#';
@@ -5922,7 +6077,7 @@ async function renderizarPainelEtapa1(proc) {
 }
 
 // Helper: Extrair texto de arquivo PDF / texto para validações de anexos
-async function extrairTextoDoArquivo(file) {
+async function extrairTextoDoArquivo(file, maxPaginas = Infinity) {
     if (!file) return '';
     try {
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -5932,7 +6087,7 @@ async function extrairTextoDoArquivo(file) {
                 const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
                 const pdf = await loadingTask.promise;
                 let textCompleto = '';
-                for (let i = 1; i <= pdf.numPages; i++) {
+                for (let i = 1; i <= Math.min(pdf.numPages, maxPaginas); i++) {
                     const page = await pdf.getPage(i);
                     const content = await page.getTextContent();
                     const pageText = content.items.map(item => item.str).join(' ');
@@ -5947,6 +6102,117 @@ async function extrairTextoDoArquivo(file) {
         console.warn('Não foi possível extrair texto do arquivo anexado:', err);
     }
     return '';
+}
+
+// Impede um segundo envio enquanto o primeiro ainda está subindo: o campo
+// fica desativado até o fluxo inteiro (validação, upload e banco) terminar.
+function anexoUmPorVez(input, handler) {
+    return async (e) => {
+        if (input.dataset.enviando === '1') return;
+        input.dataset.enviando = '1';
+        input.disabled = true;
+        try {
+            await handler(e);
+        } finally {
+            input.disabled = false;
+            delete input.dataset.enviando;
+            input.value = '';
+        }
+    };
+}
+
+function normalizarTextoValidacao(txt) {
+    return String(txt || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ');
+}
+
+// "394/2026", "2026/0394" e "0394/2026" viram "2026/394" (ano primeiro, sem zeros à esquerda)
+function numeroDocumentoCanonico(a, b) {
+    const x = String(parseInt(a, 10)), y = String(parseInt(b, 10));
+    if (x === 'NaN' || y === 'NaN') return null;
+    const ehAno = (n) => n.length === 4 && +n >= 2000 && +n <= 2100;
+    if (ehAno(x) && !ehAno(y)) return `${x}/${y}`;
+    if (ehAno(y) && !ehAno(x)) return `${y}/${x}`;
+    return `${x}/${y}`;
+}
+
+// Confere se o PDF anexado é mesmo o documento esperado: procura o título
+// (ex.: "AUTO DE INFRACAO") e o número que vem logo depois dele. PDF digitalizado
+// ou imagem não tem texto para ler, então nesses casos a pessoa confirma.
+// Devolve true quando o anexo pode seguir.
+async function validarDocumentoAnexado(file, { titulo, nomeDocumento, numeroEsperado }) {
+    const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
+    const feminino = /^(Réplica|Certidão|Notificação)/.test(nomeDocumento);
+    const artigo = feminino ? 'a' : 'o';
+    const confirmarSemLeitura = (motivo) => (ocultarCarregamento(), confirm(
+        `${motivo}\n\nConfirma que este arquivo é ${artigo} ${nomeDocumento} assinad${artigo}${numeroEsperado ? ` nº ${numeroEsperado}` : ''}?`
+    ));
+    if (isImagem) {
+        return confirmarSemLeitura('Não dá para conferir o conteúdo de uma imagem.');
+    }
+
+    // O título e o número ficam no topo da primeira página: ler só o começo
+    // evita esperar o PDF inteiro (digitalizados chegam a dezenas de páginas).
+    const texto = normalizarTextoValidacao(await extrairTextoDoArquivo(file, 2));
+    if (!texto.trim()) {
+        return confirmarSemLeitura('Não foi possível ler o texto deste PDF (provavelmente é digitalizado).');
+    }
+
+    const tituloNorm = normalizarTextoValidacao(titulo);
+    // O tipo do documento é o primeiro título que aparece no texto (logo após o
+    // cabeçalho da SEMAC). Uma Réplica cita o Auto de Infração no corpo, mas o
+    // título dela vem antes — por isso não basta o texto conter o título.
+    const titulos = { 'AUTO DE INFRACAO': 'um Auto de Infração', 'AUTO DE FISCALIZACAO': 'um Auto de Fiscalização', 'RELATORIO FISCAL': 'um Relatório Fiscal', 'NOTIFICACAO PRELIMINAR': 'uma Notificação Preliminar', 'CERTIDAO': 'uma Certidão', 'REPLICA': 'uma Réplica' };
+    const primeiro = Object.keys(titulos)
+        .map(t => ({ t, pos: texto.indexOf(t) }))
+        .filter(x => x.pos >= 0)
+        .sort((a, b) => a.pos - b.pos)[0];
+    if (!texto.includes(tituloNorm) || (primeiro && primeiro.t !== tituloNorm && titulos[tituloNorm])) {
+        ocultarCarregamento();
+        alert('Documento incompatível!\n\n'
+            + (primeiro && primeiro.t !== tituloNorm
+                ? `O arquivo anexado parece ser ${titulos[primeiro.t]}, e não o documento esperado (${nomeDocumento}).`
+                : `O arquivo anexado não contém o texto "${titulo}".`)
+            + '\n\nVerifique se selecionou o documento correto.');
+        return false;
+    }
+
+    if (!numeroEsperado) return true;
+    const partesEsperado = String(numeroEsperado).match(/(\d+)\s*\/\s*(\d+)/);
+    if (!partesEsperado) return true;
+    const esperado = numeroDocumentoCanonico(partesEsperado[1], partesEsperado[2]);
+
+    // Números que aparecem logo depois do título ("AUTO DE INFRACAO Nº 2026/0394")
+    const tituloRe = tituloNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`${tituloRe}\\s*(?:N\\s*[º°O.]*\\s*)?(\\d{1,6})\\s*/\\s*(\\d{1,6})`, 'g');
+    const encontrados = [...texto.matchAll(re)].map(m => numeroDocumentoCanonico(m[1], m[2])).filter(Boolean);
+
+    let bateu;
+    if (encontrados.length) {
+        bateu = encontrados.includes(esperado);
+    } else {
+        // Título sem número colado: procura o número em qualquer lugar do texto
+        const todos = [...texto.matchAll(/(\d{1,6})\s*\/\s*(\d{1,6})/g)].map(m => numeroDocumentoCanonico(m[1], m[2]));
+        bateu = todos.includes(esperado);
+    }
+
+    if (!bateu) {
+        ocultarCarregamento();
+        alert(`Numeração incompatível!\n\n${artigo.toUpperCase()} ${nomeDocumento} anexad${artigo} não corresponde a este processo.\n\n`
+            + `Número esperado: ${numeroEsperado}`
+            + (encontrados.length ? `\nNúmero encontrado no arquivo: ${[...new Set(encontrados)].join(', ')}` : '')
+            + '\n\nVerifique o arquivo e tente novamente.');
+        return false;
+    }
+    return true;
+}
+
+function numeroRelatorioFiscalEsperado() {
+    return String(processoAtual?.dados?.relatorio_fiscal?.numero_relatorio || processoAtual?.numero_relatorio || '').trim();
+}
+
+function numeroAutoInfracaoEsperado() {
+    return String(notificacaoAtual?.numero_auto_infracao || notificacaoAtual?.dados?.numero_auto_infracao
+        || processoAtual?.dados?.numero_auto_infracao || '').trim();
 }
 
 function configurarEventosPainelEtapa1() {
@@ -5977,19 +6243,20 @@ function configurarEventosPainelEtapa1() {
             }
         });
 
-        inputArquivoNP.addEventListener('change', async (e) => {
+        inputArquivoNP.addEventListener('change', anexoUmPorVez(inputArquivoNP, async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            // Extrai texto para validação de conteúdo da Notificação Preliminar
-            const textoExtraido = await extrairTextoDoArquivo(file);
-            if (textoExtraido && textoExtraido.trim().length > 0) {
-                const textoNorm = textoExtraido.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                if (!textoNorm.includes('NOTIFICACAO PRELIMINAR')) {
-                    alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém o texto "NOTIFICAÇÃO PRELIMINAR". Por favor, verifique se selecionou o documento correto.');
-                    e.target.value = '';
-                    return;
-                }
+            // Fiscal de Meio Ambiente: o documento da Etapa 1 é o Auto de Fiscalização
+            const ehAutoFiscalizacao = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual));
+            const notificacaoOk = await validarDocumentoAnexado(file, {
+                titulo: ehAutoFiscalizacao ? 'AUTO DE FISCALIZAÇÃO' : 'NOTIFICAÇÃO PRELIMINAR',
+                nomeDocumento: ehAutoFiscalizacao ? 'Auto de Fiscalização' : 'Notificação Preliminar',
+                numeroEsperado: String(processoAtual?.numero_processo || '').trim()
+            });
+            if (!notificacaoOk) {
+                e.target.value = '';
+                return;
             }
 
             // O arquivo vai para o Cloudinary; no banco fica só o link. Guardar
@@ -6081,19 +6348,19 @@ function configurarEventosPainelEtapa1() {
                     .eq('id', processoAtual.id);
 
                 if (error) {
-                    alert('Erro ao anexar Notificação Assinada: ' + error.message);
+                    alert('Erro ao anexar notificação assinada: ' + error.message);
                 } else {
                     renderizarPainelEtapa1(processoAtual);
                 }
             }
-        });
+        }));
     }
 
     const btnRemoverAnexoNP = document.getElementById('btnRemoverAnexoNP');
     if (btnRemoverAnexoNP) {
         btnRemoverAnexoNP.addEventListener('click', async () => {
             if (!processoAtual) return;
-            if (!confirm('Deseja remover a Notificação Preliminar Assinada?')) return;
+            if (!confirm('Deseja remover a Notificação Preliminar assinada?')) return;
 
             processoAtual.campos = processoAtual.campos || {};
             delete processoAtual.campos.anexo_np_assinada;
@@ -6134,7 +6401,7 @@ function configurarEventosPainelEtapa1() {
             }
         });
 
-        inputArquivoRF.addEventListener('change', async (e) => {
+        inputArquivoRF.addEventListener('change', anexoUmPorVez(inputArquivoRF, async (e) => {
             let file = e.target.files[0];
             if (!file) return;
 
@@ -6144,76 +6411,18 @@ function configurarEventosPainelEtapa1() {
             if (typeof window.otimizarPdfParaUpload === 'function') {
                 file = await window.otimizarPdfParaUpload(file);
             }
-            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
-            if (!isImagem) {
-                // Extrai texto para validação do Relatório Fiscal
-                const textoExtraido = await extrairTextoDoArquivo(file);
-                if (textoExtraido && textoExtraido.trim().length > 0) {
-                    // Normaliza o texto removendo acentos e colapsando qualquer espaço/quebra de linha
-                    const textoNorm = textoExtraido.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-
-                    // 1. Valida se contém "RELATORIO FISCAL" ou "RELATORIO"
-                    if (!textoNorm.includes('RELATORIO FISCAL') && !textoNorm.includes('RELATORIO')) {
-                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém o texto "RELATÓRIO FISCAL". Por favor, verifique se selecionou o documento correto.');
-                        e.target.value = '';
-                        return;
-                    }
-
-                    // 2. Valida se a numeração do Relatório/Processo coincide
-                    const numRel = (processoAtual.dados?.relatorio_fiscal?.numero_relatorio || processoAtual.numero_relatorio || '').trim();
-                    const numProc = (processoAtual.numero_processo || processoAtual.numero || '').trim();
-
-                    let bateuNumero = false;
-                    if (!numRel && !numProc) {
-                        bateuNumero = true;
-                    } else {
-                        const candidatos = [];
-                        for (const raw of [numRel, numProc]) {
-                            if (!raw) continue;
-                            candidatos.push(raw);
-                            candidatos.push(raw.replace('/', ''));
-                            const partes = raw.split('/');
-                            if (partes.length === 2) {
-                                candidatos.push(`${partes[1]}/${partes[0]}`);
-                                const p0Clean = partes[0].replace(/^0+/, '') || '0';
-                                const p1Clean = partes[1].replace(/^0+/, '') || '0';
-                                candidatos.push(`${p0Clean}/${p1Clean}`);
-                                candidatos.push(`${p1Clean}/${p0Clean}`);
-                            }
-                        }
-
-                        for (const cand of candidatos) {
-                            const candNorm = cand.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                            if (textoNorm.includes(candNorm)) {
-                                bateuNumero = true;
-                                break;
-                            }
-                        }
-
-                        if (!bateuNumero) {
-                            for (const raw of [numRel, numProc]) {
-                                if (!raw) continue;
-                                const numsEncontrados = (raw.match(/\d+/g) || []).map(n => n.replace(/^0+/, '')).filter(n => n !== '');
-                                if (numsEncontrados.length > 0 && numsEncontrados.every(n => textoNorm.includes(n))) {
-                                    bateuNumero = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (!bateuNumero) {
-                        const numEsperado = numRel || numProc;
-                        alert(`⚠️ Numeração de Relatório Incompatível!\n\nO Relatório Fiscal anexado não corresponde a este processo.\n\nNúmero esperado: RELATÓRIO FISCAL ${numEsperado}\n\nPor favor, verifique o arquivo e tente novamente.`);
-                        e.target.value = '';
-                        return;
-                    }
-                }
+            const relatorioOk = await validarDocumentoAnexado(file, {
+                titulo: 'RELATÓRIO FISCAL',
+                nomeDocumento: 'Relatório Fiscal',
+                numeroEsperado: numeroRelatorioFiscalEsperado()
+            });
+            if (!relatorioOk) {
+                e.target.value = '';
+                return;
             }
 
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
+            await (async () => {
                 // Sem Cloudinary o anexo não é salvo: guardar o arquivo em base64
                 // dentro de `dados` inflava a coluna e derrubava o banco.
                 const fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
@@ -6306,20 +6515,19 @@ function configurarEventosPainelEtapa1() {
                     .eq('id', processoAtual.id);
 
                 if (error) {
-                    alert('Erro ao anexar Relatório Fiscal Assinado: ' + error.message);
+                    alert('Erro ao anexar Relatório Fiscal assinado: ' + error.message);
                 } else {
                     renderizarPainelEtapa1(processoAtual);
                 }
-            };
-            reader.readAsDataURL(file);
-        });
+            })();
+        }));
     }
 
     const btnRemoverAnexoRF = document.getElementById('btnRemoverAnexoRF');
     if (btnRemoverAnexoRF) {
         btnRemoverAnexoRF.addEventListener('click', async () => {
             if (!processoAtual) return;
-            if (!confirm('Deseja remover o Relatório Fiscal Assinado?')) return;
+            if (!confirm('Deseja remover o Relatório Fiscal assinado?')) return;
 
             processoAtual.campos = processoAtual.campos || {};
             delete processoAtual.campos.anexo_rf_assinado;
@@ -6349,23 +6557,21 @@ function gerarHtmlBlocoAnexoReplica() {
                     </svg>
                 </div>
                 <div style="flex:1;">
-                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Réplica Assinada <span style="color:#ef4444;">*</span></h4>
-                    <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Após gerar ou baixar a Réplica, anexe o documento final assinado em PDF aqui.</p>
+                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Réplica assinada <span style="color:#ef4444;">*</span></h4>
                 </div>
                 <span id="badgeStatusAnexoReplica" class="badge-status-anexo" style="padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; background:#f1f5f9; color:#64748b;">Pendente</span>
             </div>
 
             <div id="areaDropReplicaAssinada" class="drop-area-clean" style="border: 2px dashed #8b5cf6; border-radius: 10px; padding: 20px; text-align: center; background: #f5f3ff; cursor: pointer; transition: all 0.2s ease;">
-                <p style="margin:0; font-weight:600; color:#5b21b6; font-size:0.95rem;">Clique para selecionar ou arraste a Réplica Assinada aqui</p>
-                <p style="margin:4px 0 12px 0; color:#7c3aed; font-size:0.82rem;">Formato aceito: PDF (Máx. 10MB)</p>
+                <p style="margin:0; font-weight:600; color:#5b21b6; font-size:0.95rem;">Clique para selecionar ou arraste a Réplica assinada aqui</p>
+                <p style="margin:4px 0 12px 0; color:#7c3aed; font-size:0.82rem;">Formato aceito: PDF (máx. 10MB)</p>
                 <input type="file" id="inputArquivoReplicaAssinada" accept=".pdf" style="display:none;" />
-                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoReplicaAssinada').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#7c3aed; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.2);">Escolher Arquivo PDF</button>
+                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoReplicaAssinada').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#7c3aed; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.2);">Escolher arquivo PDF</button>
             </div>
 
             <div id="anexoReplicaAtual" class="arquivo-anexado-box" style="display:none; margin-top:14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
                     <div style="display:flex; align-items:center; gap:12px;">
-                        <div class="file-icon-badge" style="font-size:1.4rem;">📄</div>
                         <div>
                             <div id="nomeArquivoReplicaAssinada" style="font-weight:600; color:#0f172a; font-size:0.95rem;">replica_assinada.pdf</div>
                             <div id="dataArquivoReplicaAssinada" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
@@ -6410,90 +6616,31 @@ window.configurarEventosReplicaAssinada = function () {
             }
         });
 
-        inputArquivo.addEventListener('change', async (e) => {
+        inputArquivo.addEventListener('change', anexoUmPorVez(inputArquivo, async (e) => {
             let file = e.target.files[0];
             if (!file) return;
 
             if (typeof window.otimizarImagemParaUpload === 'function') {
                 file = await window.otimizarImagemParaUpload(file);
             }
-            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
-            mostrarCarregamento('Validando Réplica Assinada...');
+            mostrarCarregamento('Validando Réplica assinada...');
 
             try {
-                // Declarados fora do if: a validação da numeração (passo 2) também usa
-                const nomeNorm = (file.name || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                let textoNorm = '';
-
-                if (!isImagem) {
-                    const textoExtraido = await extrairTextoDoArquivo(file);
-                    textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-
-                    // 1. Validação da Nomenclatura "RÉPLICA"
-                    if (!textoNorm.includes('REPLICA') && !nomeNorm.includes('REPLICA')) {
-                        ocultarCarregamento();
-                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "RÉPLICA". Por favor, verifique se selecionou o documento correto.');
-                        e.target.value = '';
-                        return;
-                    }
-                }
-
-                // 2. Validação da Numeração
                 const numReplica = (notificacaoAtual?.dados?.numero_replica || '').trim();
-                const numNotif = (notificacaoAtual?.numero || document.getElementById('etapaProcNumero')?.textContent || '').trim();
-                const numProc = (processoAtual?.numero_processo || processoAtual?.numero || '').trim();
-
-                let bateuNumero = false;
-                // Imagem (foto da réplica assinada) não tem texto para conferir
-                if (isImagem || (!numReplica && !numNotif && !numProc)) {
-                    bateuNumero = true;
-                } else {
-                    const candidatos = [];
-                    for (const raw of [numReplica, numNotif, numProc]) {
-                        if (!raw) continue;
-                        candidatos.push(raw);
-                        candidatos.push(raw.replace('/', ''));
-                        const partes = raw.split('/');
-                        if (partes.length === 2) {
-                            candidatos.push(`${partes[1]}/${partes[0]}`);
-                            const p0Clean = partes[0].replace(/^0+/, '') || '0';
-                            const p1Clean = partes[1].replace(/^0+/, '') || '0';
-                            candidatos.push(`${p0Clean}/${p1Clean}`);
-                            candidatos.push(`${p1Clean}/${p0Clean}`);
-                        }
-                    }
-
-                    for (const cand of candidatos) {
-                        const candNorm = cand.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                        if (textoNorm.includes(candNorm) || nomeNorm.includes(candNorm)) {
-                            bateuNumero = true;
-                            break;
-                        }
-                    }
-
-                    if (!bateuNumero) {
-                        for (const raw of [numReplica, numNotif, numProc]) {
-                            if (!raw) continue;
-                            const numsEncontrados = (raw.match(/\d+/g) || []).map(n => n.replace(/^0+/, '')).filter(n => n !== '');
-                            if (numsEncontrados.length > 0 && numsEncontrados.every(n => textoNorm.includes(n) || nomeNorm.includes(n))) {
-                                bateuNumero = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!bateuNumero) {
+                const replicaOk = await validarDocumentoAnexado(file, {
+                    titulo: 'RÉPLICA',
+                    nomeDocumento: 'Réplica',
+                    numeroEsperado: numReplica
+                });
+                if (!replicaOk) {
                     ocultarCarregamento();
-                    const numEsperado = numReplica || numNotif || numProc;
-                    alert(`⚠️ Numeração de Réplica Incompatível!\n\nA Réplica anexada não corresponde a esta notificação.\n\nNúmero esperado: RÉPLICA ${numEsperado}\n\nPor favor, verifique o arquivo e tente novamente.`);
                     e.target.value = '';
                     return;
                 }
+                mostrarCarregamento('Enviando Réplica assinada...');
 
-                const reader = new FileReader();
-                reader.onload = async (ev) => {
+                await (async () => {
                     // O arquivo vai para o Cloudinary; no banco fica só o link.
                     const fileUrl = await window.uploadParaCloudinary(file, 'semac_replicas');
                     if (!fileUrl) {
@@ -6563,20 +6710,19 @@ window.configurarEventosReplicaAssinada = function () {
 
                     window.exibirReplicaAssinadaUI(file.name, fileUrl);
                     ocultarCarregamento();
-                    alert('Réplica Assinada anexada com sucesso!');
-                };
-                reader.readAsDataURL(file);
+                    alert('Réplica assinada anexada com sucesso!');
+                })();
             } catch (errVal) {
                 ocultarCarregamento();
                 console.error('Erro ao validar Réplica:', errVal);
-                alert('Erro ao validar e anexar Réplica Assinada.');
+                alert('Erro ao validar e anexar Réplica assinada.');
             }
-        });
+        }));
     }
 
     if (btnRemover) {
         btnRemover.addEventListener('click', async () => {
-            if (!confirm('Deseja remover o anexo da Réplica Assinada?')) return;
+            if (!confirm('Deseja remover o anexo da Réplica assinada?')) return;
             mostrarCarregamento('Removendo anexo...');
             try {
                 if (notificacaoAtual?.dados?.replica_id) {
@@ -6600,7 +6746,7 @@ window.configurarEventosReplicaAssinada = function () {
             } catch (errRem) {
                 ocultarCarregamento();
                 console.error('Erro ao remover Réplica Assinada:', errRem);
-                alert('Erro ao remover anexo da Réplica Assinada.');
+                alert('Erro ao remover anexo da Réplica assinada.');
             }
         });
     }
@@ -6686,23 +6832,21 @@ window.obterHtmlBlocoCertidaoAssinada = function () {
                     </svg>
                 </div>
                 <div style="flex:1;">
-                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Certidão Assinada <span style="color:#ef4444;">*</span></h4>
-                    <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Após gerar ou baixar a Certidão, anexe o documento final assinado em PDF aqui.</p>
+                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Certidão assinada <span style="color:#ef4444;">*</span></h4>
                 </div>
                 <span id="badgeStatusAnexoCertidao" class="badge-status-anexo" style="padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; background:#f1f5f9; color:#64748b;">Pendente</span>
             </div>
 
             <div id="areaDropCertidaoAssinada" class="drop-area-clean" style="border: 2px dashed #10b981; border-radius: 10px; padding: 20px; text-align: center; background: #ecfdf5; cursor: pointer; transition: all 0.2s ease;">
-                <p style="margin:0; font-weight:600; color:#047857; font-size:0.95rem;">Clique para selecionar ou arraste a Certidão Assinada aqui</p>
-                <p style="margin:4px 0 12px 0; color:#059669; font-size:0.82rem;">Formato aceito: PDF (Máx. 10MB)</p>
+                <p style="margin:0; font-weight:600; color:#047857; font-size:0.95rem;">Clique para selecionar ou arraste a Certidão assinada aqui</p>
+                <p style="margin:4px 0 12px 0; color:#059669; font-size:0.82rem;">Formato aceito: PDF (máx. 10MB)</p>
                 <input type="file" id="inputArquivoCertidaoAssinada" accept=".pdf" style="display:none;" />
-                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoCertidaoAssinada').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#10b981; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Escolher Arquivo PDF</button>
+                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoCertidaoAssinada').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#10b981; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Escolher arquivo PDF</button>
             </div>
 
             <div id="anexoCertidaoAtual" class="arquivo-anexado-box" style="display:none; margin-top:14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
                     <div style="display:flex; align-items:center; gap:12px;">
-                        <div class="file-icon-badge" style="font-size:1.4rem;">📄</div>
                         <div>
                             <div id="nomeArquivoCertidaoAssinada" style="font-weight:600; color:#0f172a; font-size:0.95rem;">certidao_assinada.pdf</div>
                             <div id="dataArquivoCertidaoAssinada" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
@@ -6747,34 +6891,31 @@ window.configurarEventosCertidaoAssinada = function () {
             }
         });
 
-        inputArquivo.addEventListener('change', async (e) => {
+        inputArquivo.addEventListener('change', anexoUmPorVez(inputArquivo, async (e) => {
             let file = e.target.files[0];
             if (!file) return;
 
             if (typeof window.otimizarImagemParaUpload === 'function') {
                 file = await window.otimizarImagemParaUpload(file);
             }
-            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
-            mostrarCarregamento('Validando Certidão Assinada...');
+            mostrarCarregamento('Validando Certidão assinada...');
 
             try {
-                if (!isImagem) {
-                    const textoExtraido = await extrairTextoDoArquivo(file);
-                    const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-                    const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-                    // 1. Validação da Nomenclatura "CERTIDAO"
-                    if (!textoNorm.includes('CERTIDAO') && !nomeNorm.includes('CERTIDAO')) {
-                        ocultarCarregamento();
-                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "CERTIDÃO". Por favor, verifique se selecionou o documento correto.');
-                        e.target.value = '';
-                        return;
-                    }
+                const certidaoOk = await validarDocumentoAnexado(file, {
+                    titulo: 'CERTIDÃO',
+                    nomeDocumento: 'Certidão',
+                    numeroEsperado: String(notificacaoAtual?.numero_certidao || notificacaoAtual?.dados?.certidao_numero_sequencial
+                        || processoAtual?.dados?.certidao_numero_sequencial || '').trim()
+                });
+                if (!certidaoOk) {
+                    ocultarCarregamento();
+                    e.target.value = '';
+                    return;
                 }
+                mostrarCarregamento('Enviando Certidão assinada...');
 
-                const reader = new FileReader();
-                reader.onload = async (ev) => {
+                await (async () => {
                     // O arquivo vai para o Cloudinary; no banco fica só o link.
                     const fileUrl = await window.uploadParaCloudinary(file, 'semac_certidoes');
                     if (!fileUrl) {
@@ -6885,20 +7026,19 @@ window.configurarEventosCertidaoAssinada = function () {
 
                     window.exibirCertidaoAssinadaUI(file.name, fileUrl);
                     ocultarCarregamento();
-                    alert('Certidão Assinada anexada com sucesso!');
-                };
-                reader.readAsDataURL(file);
+                    alert('Certidão assinada anexada com sucesso!');
+                })();
             } catch (errVal) {
                 ocultarCarregamento();
                 console.error('Erro ao validar Certidão:', errVal);
-                alert('Erro ao validar e anexar Certidão Assinada.');
+                alert('Erro ao validar e anexar Certidão assinada.');
             }
-        });
+        }));
     }
 
     if (btnRemover) {
         btnRemover.addEventListener('click', async () => {
-            if (!confirm('Deseja remover o anexo da Certidão Assinada?')) return;
+            if (!confirm('Deseja remover o anexo da Certidão assinada?')) return;
             mostrarCarregamento('Removendo anexo...');
             try {
                 let docId = notificacaoAtual?.dados?.certidao_id || processoAtual?.dados?.certidao_id;
@@ -6934,7 +7074,7 @@ window.configurarEventosCertidaoAssinada = function () {
             } catch (errRem) {
                 ocultarCarregamento();
                 console.error('Erro ao remover Certidão Assinada:', errRem);
-                alert('Erro ao remover anexo da Certidão Assinada.');
+                alert('Erro ao remover anexo da Certidão assinada.');
             }
         });
     }
@@ -7032,7 +7172,7 @@ window.atualizarBotaoEncerrarEtapa29 = async function () {
     btn.disabled = !temCertidao;
     btn.style.opacity = temCertidao ? '' : '0.5';
     btn.style.cursor = temCertidao ? 'pointer' : 'not-allowed';
-    btn.title = temCertidao ? '' : 'Anexe a Certidão Assinada para encerrar';
+    btn.title = temCertidao ? '' : 'Anexe a Certidão assinada para encerrar';
     if (aviso) aviso.style.display = temCertidao ? 'none' : 'block';
 };
 
@@ -7085,23 +7225,21 @@ window.obterHtmlBlocoRelatorioFiscalAssinado = function () {
                     </svg>
                 </div>
                 <div style="flex:1;">
-                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Relatório Fiscal Assinado <span style="color:#ef4444;">*</span></h4>
-                    <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Após gerar ou baixar o Relatório Fiscal, anexe o documento final assinado em PDF aqui.</p>
+                    <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Relatório Fiscal assinado <span style="color:#ef4444;">*</span></h4>
                 </div>
                 <span id="badgeStatusAnexoRelatorio" class="badge-status-anexo" style="padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; background:#f1f5f9; color:#64748b;">Pendente</span>
             </div>
 
             <div id="areaDropRelatorioAssinado" class="drop-area-clean" style="border: 2px dashed #10b981; border-radius: 10px; padding: 20px; text-align: center; background: #ecfdf5; cursor: pointer; transition: all 0.2s ease;">
-                <p style="margin:0; font-weight:600; color:#047857; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal Assinado aqui</p>
-                <p style="margin:4px 0 12px 0; color:#059669; font-size:0.82rem;">Formato aceito: PDF (Máx. 10MB)</p>
+                <p style="margin:0; font-weight:600; color:#047857; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal assinado aqui</p>
+                <p style="margin:4px 0 12px 0; color:#059669; font-size:0.82rem;">Formato aceito: PDF (máx. 10MB)</p>
                 <input type="file" id="inputArquivoRelatorioAssinado" accept=".pdf" style="display:none;" />
-                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoRelatorioAssinado').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#10b981; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Escolher Arquivo PDF</button>
+                <button type="button" class="btn-selecionar-arquivo" onclick="document.getElementById('inputArquivoRelatorioAssinado').click()" style="padding:8px 16px; border-radius:6px; border:none; background:#10b981; cursor:pointer; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Escolher arquivo PDF</button>
             </div>
 
             <div id="anexoRelatorioAtual" class="arquivo-anexado-box" style="display:none; margin-top:14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
                     <div style="display:flex; align-items:center; gap:12px;">
-                        <div class="file-icon-badge" style="font-size:1.4rem;">📋</div>
                         <div>
                             <div id="nomeArquivoRelatorioAssinado" style="font-weight:600; color:#0f172a; font-size:0.95rem;">relatorio_fiscal_assinado.pdf</div>
                             <div id="dataArquivoRelatorioAssinado" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
@@ -7146,7 +7284,7 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
             }
         });
 
-        inputArquivo.addEventListener('change', async (e) => {
+        inputArquivo.addEventListener('change', anexoUmPorVez(inputArquivo, async (e) => {
             let file = e.target.files[0];
             if (!file) return;
 
@@ -7156,26 +7294,23 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
             if (typeof window.otimizarPdfParaUpload === 'function') {
                 file = await window.otimizarPdfParaUpload(file);
             }
-            const isImagem = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|bmp)$/i.test(file.name || '');
 
-            mostrarCarregamento('Validando Relatório Fiscal Assinado...');
+            mostrarCarregamento('Validando Relatório Fiscal assinado...');
 
             try {
-                if (!isImagem) {
-                    const textoExtraido = await extrairTextoDoArquivo(file);
-                    const textoNorm = (textoExtraido || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
-                    const nomeNorm = file.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-                    if (!textoNorm.includes('RELATORIO') && !nomeNorm.includes('RELATORIO')) {
-                        ocultarCarregamento();
-                        alert('⚠️ Documento Incompatível!\n\nO arquivo anexado não contém a palavra "RELATÓRIO". Por favor, verifique se selecionou o documento correto.');
-                        e.target.value = '';
-                        return;
-                    }
+                const relatorioOk = await validarDocumentoAnexado(file, {
+                    titulo: 'RELATÓRIO FISCAL',
+                    nomeDocumento: 'Relatório Fiscal',
+                    numeroEsperado: numeroRelatorioFiscalEsperado()
+                });
+                if (!relatorioOk) {
+                    ocultarCarregamento();
+                    e.target.value = '';
+                    return;
                 }
+                mostrarCarregamento('Enviando Relatório Fiscal assinado...');
 
-                const reader = new FileReader();
-                reader.onload = async (ev) => {
+                await (async () => {
                     const fileUrl = await window.uploadParaCloudinary(file, 'semac_relatorios');
                     if (!fileUrl) {
                         ocultarCarregamento();
@@ -7276,20 +7411,19 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
                     }
 
                     ocultarCarregamento();
-                    alert('Relatório Fiscal Assinado anexado com sucesso!');
+                    alert('Relatório Fiscal assinado anexado com sucesso!');
                     window.carregarEExibirAnexoRelatorioAssinado();
-                };
-                reader.readAsDataURL(file);
+                })();
             } catch (err) {
                 ocultarCarregamento();
                 alert('Erro ao processar arquivo: ' + err.message);
             }
-        });
+        }));
     }
 
     if (btnRemover) {
         btnRemover.addEventListener('click', async () => {
-            if (!confirm('Deseja remover o anexo do Relatório Fiscal Assinado?')) return;
+            if (!confirm('Deseja remover o anexo do Relatório Fiscal assinado?')) return;
             mostrarCarregamento('Removendo anexo...');
 
             try {
@@ -7318,7 +7452,7 @@ window.configurarEventosRelatorioFiscalAssinado = function () {
             }
 
             ocultarCarregamento();
-            alert('Anexo do Relatório Fiscal Assinado removido com sucesso!');
+            alert('Anexo do Relatório Fiscal assinado removido com sucesso!');
             window.carregarEExibirAnexoRelatorioAssinado();
         });
     }
@@ -7395,7 +7529,7 @@ window.carregarEExibirAnexoRelatorioAssinado = async function () {
     }
 };
 
-// ── Avançar da Etapa 1 para a Etapa 1.2 (Retorno do AR) ───────────────────
+// ── Avançar da Etapa 1 para a Etapa 1.2 (Dados do AR) ─────────────────────
 async function avancarEtapa1() {
     if (!processoAtual) return;
 
@@ -7404,13 +7538,13 @@ async function avancarEtapa1() {
 
     if (!anexoNP || !anexoRF) {
         let msg = 'Atenção: Para avançar da Etapa 1, é obrigatório anexar os seguintes documentos no 2º passo:';
-        if (!anexoNP) msg += '\n• Notificação Preliminar Assinada';
-        if (!anexoRF) msg += '\n• Relatório Fiscal Assinado';
+        if (!anexoNP) msg += '\n• Notificação Preliminar assinada';
+        if (!anexoRF) msg += '\n• Relatório Fiscal assinado';
         alert(msg);
         return;
     }
 
-    if (!confirm('Deseja avançar o processo para a Etapa 1.2 (Retorno do AR)?\nApós o avanço, o Administrativo de Posturas fará o registro do AR.')) {
+    if (!confirm('Deseja avançar o processo para a Etapa 1.2 (Dados do AR)?\nApós o avanço, o Administrativo de Posturas fará o registro do AR.')) {
         return;
     }
 
@@ -7681,7 +7815,7 @@ function preencherCabecalhoPagina(proc) {
                         <line x1="19" y1="12" x2="5" y2="12" />
                         <polyline points="12 19 5 12 12 5" />
                     </svg>
-                    Voltar ao Processo
+                    Voltar ao processo
                 `;
             }
         } else {
@@ -7707,13 +7841,14 @@ function preencherCabecalhoPagina(proc) {
         // Mapeamento amigável do status
         const statusMap = {
             'notificacao_preliminar': 'Notificação Preliminar',
+            'auto_fiscalizacao': 'Auto de Fiscalização',
             'auto_infracao': 'Auto de Infração',
             'arquivado': 'Arquivado',
             'encerrado': 'Encerrado',
-            'em_aberto': 'Em Aberto',
-            'em_andamento': 'Em Andamento',
+            'em_aberto': 'Em aberto',
+            'em_andamento': 'Em andamento',
             'aguardando_ar': 'Aguardando AR',
-            'prazo_ar_expirado': 'Prazo do AR Expirado',
+            'prazo_ar_expirado': 'Prazo do AR expirado',
             'finalizado': 'Finalizado',
             'cancelado': 'Cancelado'
         };
@@ -7724,7 +7859,7 @@ function preencherCabecalhoPagina(proc) {
         let bg = '#dcfce7'; // green default (finalizado / concluido)
         let color = '#166534';
 
-        if (stLow === 'notificacao_preliminar' || stLow === 'em_aberto' || stLow === 'em_andamento') {
+        if (stLow === 'notificacao_preliminar' || stLow === 'auto_fiscalizacao' || stLow === 'em_aberto' || stLow === 'em_andamento') {
             bg = '#eff6ff'; // blue
             color = '#1e40af';
         } else if (stLow === 'auto_infracao') {
@@ -7816,12 +7951,12 @@ window.adicionarCampoImagemLegendaEdit = function (imgObj = null) {
         ` : `<div class="preview-img-container" style="display:none; margin-bottom:4px;"><img style="max-width: 140px; max-height: 100px; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 4px;" /></div>`}
 
         <div style="display: flex; flex-direction: column; gap: 4px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Selecione a Imagem ${initialSrc ? '(ou substitua)' : ''}</label>
+            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Selecione a imagem ${initialSrc ? '(ou substitua)' : ''}</label>
             <input type="file" class="imagem-arquivo-edit form-input" accept="image/*" style="padding: 6px;" 
                 data-url="${initialSrc}" data-docid="${initialDocId}" data-nome="${initialName}">
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Legenda da Imagem <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
+            <label style="font-size: 0.75rem; font-weight: 600; color: #334155;">Legenda da imagem <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
             <input type="text" class="imagem-legenda-edit form-input" value="${initialLeg.replace(/"/g, '&quot;')}" placeholder="Ex: Vista frontal do lote..." style="padding: 8px;">
         </div>
     `;
@@ -7937,7 +8072,7 @@ async function preencherFormularioEdicao(proc) {
                         documento_id: doc.id,
                         url: doc.url,
                         dataUrl: doc.url,
-                        nome: doc.nome_arquivo || 'Imagem de Vistoria',
+                        nome: doc.nome_arquivo || 'Imagem de vistoria',
                         legenda: doc.nome_arquivo || ''
                     }));
                 }
@@ -7966,6 +8101,17 @@ function gerarBlocoInfracao(proc, disp, index) {
         ? parseFloat(customMulta)
         : defaultMulta;
     const valFormatado = valMultaFinal.toFixed(2).replace('.', ',');
+
+    // Fiscal de Meio Ambiente: Auto de Fiscalização (meio-ambiente.js)
+    const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
+    if (itemMA) {
+        return `
+        <div class="doc-infracao-bloco" data-notificacao-index="${index}">
+            <div class="doc-infracao-titulo">AUTO DE FISCALIZAÇÃO N° ${numNotif}</div>
+            ${window.montarTextoAutoFiscalizacao(proc, itemMA, valMultaFinal)}
+        </div>
+    `;
+    }
 
     let titulo = '';
     let prazo = '';
@@ -8091,7 +8237,68 @@ function obterObservacoesFiscal(proc) {
 }
 
 function htmlObservacoesFiscal(proc, estiloParagrafo) {
-    const texto = obterObservacoesFiscal(proc);
+    return htmlTextoNotaFiscal(obterObservacoesFiscal(proc), estiloParagrafo);
+}
+window.htmlObservacoesFiscal = htmlObservacoesFiscal;
+
+// ── Nota do fiscal do Auto de Infração ────────────────────────────────────
+// Na Etapa 14 a aba "Editar dados" some quando o Auto vem de uma NP ou de um
+// AF, então a nota do Auto é editada no próprio formulário da etapa. Fica no
+// Auto (notificacoes.dados.observacoes_fiscal_ai; sem Auto em foco, em
+// dados.campos do processo) para não mudar a NP/AF já entregue. Enquanto
+// ninguém mexer nela, vale a nota do cadastro do processo.
+function obterObservacoesFiscalAuto() {
+    const dadosNotif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual.dados : null;
+    if (dadosNotif && typeof dadosNotif.observacoes_fiscal_ai === 'string') return dadosNotif.observacoes_fiscal_ai.trim();
+    const campos = processoAtual?.campos;
+    if (!dadosNotif && campos && typeof campos.observacoes_fiscal_ai === 'string') return campos.observacoes_fiscal_ai.trim();
+    return obterObservacoesFiscal(processoAtual);
+}
+
+function htmlObservacoesFiscalAuto(estiloParagrafo) {
+    return htmlTextoNotaFiscal(obterObservacoesFiscalAuto(), estiloParagrafo);
+}
+
+function htmlCampoNotaFiscalAuto() {
+    if (typeof podeGerenciarEtapaAtual === 'function' && !podeGerenciarEtapaAtual()) return '';
+    const texto = obterObservacoesFiscalAuto()
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `
+        <div style="margin-bottom: 20px; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
+            <label for="inputNotaFiscalAuto" style="display: block; font-weight: 700; color: #1e293b; margin-bottom: 8px; font-size: 0.95rem;">Nota do fiscal <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
+            <textarea id="inputNotaFiscalAuto" rows="3" onchange="window.salvarNotaFiscalAuto(this.value)"
+                placeholder="Ex: Retirar entulho acumulado na lateral esquerda."
+                style="width: 100%; padding: 10px 14px; border: 1px solid #94a3b8; border-radius: 8px; font-size: 0.95rem; font-family: inherit; background: white; color: #0f172a; resize: vertical;">${texto}</textarea>
+            <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">Aparece no Auto de Infração como "Nota do fiscal:", abaixo do valor da multa e acima do prazo de defesa. Deixe em branco para não aparecer.</p>
+        </div>`;
+}
+
+window.salvarNotaFiscalAuto = async function (valor) {
+    if (!processoAtual) return;
+    const texto = String(valor || '').trim();
+    try {
+        if (notificacaoAtual) {
+            notificacaoAtual.dados = notificacaoAtual.dados || {};
+            notificacaoAtual.dados.observacoes_fiscal_ai = texto;
+            await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+        } else {
+            processoAtual.campos = processoAtual.campos || {};
+            processoAtual.campos.observacoes_fiscal_ai = texto;
+            processoAtual.dados = processoAtual.dados || {};
+            processoAtual.dados.campos = processoAtual.campos;
+            const { error } = await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+            if (error) throw error;
+        }
+    } catch (err) {
+        console.error('Erro ao salvar a nota do fiscal do Auto:', err);
+        alert('Não foi possível salvar a nota do fiscal: ' + (err?.message || err));
+        return;
+    }
+    if (typeof window.gerarAutoDeInfracao === 'function') window.gerarAutoDeInfracao(true);
+};
+
+function htmlTextoNotaFiscal(textoBruto, estiloParagrafo) {
+    const texto = String(textoBruto || '').trim();
     if (!texto) return '';
     const seguro = texto
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -8099,19 +8306,18 @@ function htmlObservacoesFiscal(proc, estiloParagrafo) {
     const estilo = estiloParagrafo ? ` style="${estiloParagrafo}"` : '';
     return `<p${estilo}><strong>Nota do fiscal:</strong> ${seguro}</p>`;
 }
-window.htmlObservacoesFiscal = htmlObservacoesFiscal;
 
 // Etapas que GERAM documento: só nelas a prévia aparece embaixo do formulário,
 // para a pessoa conferir antes de baixar. Nas outras o documento continuava
 // sendo redesenhado sem necessidade, repetindo a NP/Auto em tela após tela.
 //   1  Notificação Preliminar (ou Auto, quando é decreto)
-//   5  e 13  Réplica
+//   5, 13 e 26  Réplica
 //   10 Certidão Sem Defesa
 //   14 Auto de Infração
 // A Etapa 15 fica de fora de propósito: o Auto já está no PDF unificado e a
 // etapa tem o documento dela (Ofício GFP). As Etapas 29 e 33 também, porque
 // montam o próprio documento sem passar por aqui.
-const ETAPAS_COM_PREVIA_DO_DOCUMENTO = [1, 5, 10, 13, 14];
+const ETAPAS_COM_PREVIA_DO_DOCUMENTO = [1, 5, 10, 13, 14, 26];
 window.ETAPAS_COM_PREVIA_DO_DOCUMENTO = ETAPAS_COM_PREVIA_DO_DOCUMENTO;
 
 // ── Renderizar Documento Oficial IDÊNTICO ao Modelo .docx ─────────────────
@@ -8130,6 +8336,14 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
         return;
     }
 
+    // Etapas da réplica (5, 13 e 26): o documento da tela é a réplica. Vem antes
+    // do Auto de Infração porque na Etapa 26 (Análise de Desconto) a notificação
+    // já é um Auto, e sem isto a prévia mostraria o Auto no lugar da réplica.
+    if (etapaAtual === 5 || etapaAtual === 13 || etapaAtual === 26) {
+        if (window.gerarReplica) window.gerarReplica();
+        return;
+    }
+
     const ehAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
         ? ehStatusAutoInfracao(notificacaoAtual, proc)
         : (window.etapaIndicaAutoInfracao(etapaAtual, proc) || ehStatusAutoInfracao(proc, proc));
@@ -8139,11 +8353,6 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
             window.gerarAutoDeInfracao(true);
             return;
         }
-    }
-
-    if (etapaAtual === 5 || etapaAtual === 13) {
-        if (window.gerarReplica) window.gerarReplica();
-        return;
     }
     if (etapaAtual === 10) {
         if (window.gerarCertidaoSemDefesa) window.gerarCertidaoSemDefesa();
@@ -8180,6 +8389,9 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
 
     // Gerar blocos de infração conforme Modelo - Notificação Preliminar.docx
     const dispositivos = obterDispositivosDoProcesso(proc);
+
+    // Fiscal de Meio Ambiente: o documento é o Auto de Fiscalização
+    const ehMeioAmbiente = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(proc));
 
     let blocosInfracoesHtml = '';
     dispositivos.forEach((disp, index) => {
@@ -8338,8 +8550,8 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
 
                 <!-- 2. TÍTULO -->
                 <div class="doc-title-section">
-                    <div class="doc-h1">NOTIFICAÇÃO PRELIMINAR</div>
-                    <div class="doc-h2">Fiscalização de Posturas</div>
+                    <div class="doc-h1">${ehMeioAmbiente ? 'AUTO DE FISCALIZAÇÃO' : 'NOTIFICAÇÃO PRELIMINAR'}</div>
+                    <div class="doc-h2">${ehMeioAmbiente ? 'Fiscalização de Meio Ambiente' : 'Fiscalização de Posturas'}</div>
                     <div class="doc-data-right">Divinópolis- MG ${dataFmt}</div>
                 </div>
 
@@ -8376,10 +8588,10 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
                     </div>
                 </div>
 
-                <!-- 5. TEXTO INTRODUTÓRIO -->
-                <div class="doc-intro-p">
+                <!-- 5. TEXTO INTRODUTÓRIO (o Auto de Fiscalização não tem) -->
+                ${ehMeioAmbiente ? '' : `<div class="doc-intro-p">
                     Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}${imv.complemento ? ' - ' + imv.complemento : ''}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
-                </div>
+                </div>`}
 
                 <!-- 6. BLOCOS DE INFRAÇÃO -->
                 ${blocosInfracoesHtml}
@@ -8388,21 +8600,21 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
                 <div class="doc-obs-section">
                     ${htmlObservacoesFiscal(proc)}
                     <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
-                    <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
-                    <p style="text-align: justify;"><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
+                    <p>O autuado tem o prazo de <strong>${ehMeioAmbiente ? window.PRAZO_DEFESA_AUTO_FISCALIZACAO : '10 DIAS ÚTEIS'}</strong> para apresentação de defesa, protocolada via protocolo municipal${ehMeioAmbiente ? window.textoProtocoloDefesaMA(proc) : ''}.</p>
+                    ${ehMeioAmbiente ? window.htmlInstrucoesDefesaMeioAmbiente() : `<p style="text-align: justify;"><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>`}
                 </div>
 
                 <!-- 8. ASSINATURA FISCAL -->
                 <div class="doc-fiscal-sig">
                     <div class="sig-line">________________________________________________</div>
                     <div class="sig-name">${fisc.nome || 'Nome Fiscal'}</div>
-                    <div class="sig-role">Fiscal de Posturas</div>
+                    <div class="sig-role">${ehMeioAmbiente ? window.CARGO_FISCAL_MEIO_AMBIENTE : 'Fiscal de Posturas'}</div>
                     <div class="sig-mat">Matrícula :${fisc.matricula || 'XXXXXXX'}</div>
                 </div>
 
                 <!-- 9. RECIBO DO AUTUADO -->
                 <div class="doc-autuado-receipt">
-                    <div class="receipt-label">Recebi 2° via da presente Notificação Preliminar da qual fico ciente</div>
+                    <div class="receipt-label">${ehMeioAmbiente ? 'Recebi 2° via do presente Auto de Fiscalização do qual fico ciente' : 'Recebi 2° via da presente Notificação Preliminar da qual fico ciente'}</div>
                     <div class="receipt-box">
                         <div class="receipt-left">
                             <span>Assinatura do Autuado:</span>
@@ -8465,6 +8677,9 @@ const PRAZOS_NOTIFICACAO = {
 
 function obterPrazoNotificacao(descricao) {
     if (!descricao) return 15;
+    // Auto de Fiscalização: prazo escolhido pelo fiscal no Novo Processo
+    const prazoAF = window.prazoAutoFiscalizacao ? window.prazoAutoFiscalizacao(processoAtual, descricao) : null;
+    if (prazoAF) return prazoAF.dias;
     const descStr = String(descricao).toLowerCase();
 
     // 1. Códigos numéricos explícitos (Prioridade Máxima)
@@ -8610,7 +8825,9 @@ function calcularDataVencimento(dataInicio, dias, emDiasUteis) {
     if (isNaN(data.getTime())) {
         return new Date().toISOString();
     }
-    const numDias = parseInt(dias, 10) || 20;
+    // 0 é prazo válido ("de imediato", no Auto de Fiscalização): vence no próprio dia
+    const diasInformados = parseInt(dias, 10);
+    const numDias = Number.isNaN(diasInformados) ? 20 : diasInformados;
     const contarUteis = (emDiasUteis === undefined) ? (numDias === 10) : !!emDiasUteis;
 
     if (contarUteis) {
@@ -8721,7 +8938,7 @@ async function renderizarEtapa2(proc) {
 
                 const podeAvancar = !jaAvancou;
                 const btnAvancarHtml = podeAvancar
-                    ? `<button type="button" class="btn-avancar-notif" data-index="${n.index}" style="margin-top:8px; padding:10px 18px; border-radius:8px; border:none; background:#80A1D4; color:white; font-weight:600; font-size:0.88rem; cursor:pointer; box-shadow:0 4px 12px rgba(128,161,212,0.3); transition:all 0.2s ease;">Avançar Notificação</button>`
+                    ? `<button type="button" class="btn-avancar-notif" data-index="${n.index}" style="margin-top:8px; padding:10px 18px; border-radius:8px; border:none; background:#80A1D4; color:white; font-weight:600; font-size:0.88rem; cursor:pointer; box-shadow:0 4px 12px rgba(128,161,212,0.3); transition:all 0.2s ease;">Avançar notificação</button>`
                     : '';
 
                 // Notificação que virou Auto continua neste painel, com o prazo do Auto
@@ -8729,7 +8946,7 @@ async function renderizarEtapa2(proc) {
                 const ehAutoNotif = ehStatusAutoInfracao(n, processoAtual);
                 const prazoAutoCorrendo = ehAutoNotif && !!(n.prazo_origem && n.data_vencimento);
                 const linhaPrazo = (rotulo) => `<div style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#475569;">
-                        <span>📅 ${rotulo}: ${new Date(n.data_vencimento).toLocaleDateString('pt-BR')}</span>
+                        <span>${rotulo}: ${new Date(n.data_vencimento).toLocaleDateString('pt-BR')}</span>
                         <span style="${infoPrazo.vencido ? 'color:#B93838; font-weight:600;' : 'color:#2B7A78; font-weight:600;'}">(${infoPrazo.texto})</span>
                     </div>`;
                 let prazoHtml = '';
@@ -8899,7 +9116,7 @@ function tituloAcompanhamentoEtapa2(notificacoes, proc) {
 
     if (autos > 0 && nps === 0) return autos === 1 ? 'Acompanhamento do Auto de Infração' : 'Acompanhamento dos Autos de Infração';
     if (nps > 0 && autos === 0) return nps === 1 ? 'Acompanhamento da Notificação' : 'Acompanhamento das Notificações';
-    return 'Acompanhamento das Notificações e Autos de Infração';
+    return 'Acompanhamento das notificações e Autos de Infração';
 }
 window.tituloAcompanhamentoEtapa2 = tituloAcompanhamentoEtapa2;
 
@@ -9027,7 +9244,7 @@ function anexoEtapa4Por(chave, notif) {
 window.anexoEtapa4Por = anexoEtapa4Por;
 
 // Para onde cada notificação vai ao sair da Etapa 2:
-//   defesa   -> Etapa 3 (Envio da 1ª Defesa). Não passa mais pela Etapa 4.
+//   defesa   -> Etapa 3 (Defesa). Não passa mais pela Etapa 4.
 //   dilação  -> Etapa 4 (Documentos da Dilação de Prazo)
 //   atendida ou vencida sem atendimento -> Etapa 7
 const ETAPA_DESTINO_SAIDA_ETAPA_2 = {
@@ -9099,7 +9316,7 @@ async function avancarEtapa2() {
             condicao = 'Todas as notificações atendidas';
         } else {
             ocultarCarregamento();
-            alert('Atenção: Existem notificações pendentes que ainda estão no prazo. Para avançar apenas as notificações já verificadas, utilize os botões individuais "Avançar Notificação" presentes em cada quadro. O botão geral avança apenas quando TODAS as notificações do processo estiverem prontas.');
+            alert('Atenção: Existem notificações pendentes que ainda estão no prazo. Para avançar apenas as notificações já verificadas, utilize os botões individuais "Avançar notificação" presentes em cada quadro. O botão geral avança apenas quando TODAS as notificações do processo estiverem prontas.');
             return;
         }
 
@@ -9582,6 +9799,7 @@ async function renderizarEtapa18(proc) {
                 if (a.status === 'defesa') statusBadge = '<span style="background:#F0F4FA; color:#3B5888; border:1px solid #C0B9DD; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Defesa Selecionada</span>';
                 else if (a.status === 'pagamento') statusBadge = '<span style="background:#EBF9F9; color:#2B7A78; border:1px solid #75C9C8; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pagamento Selecionado</span>';
                 else if (a.status === 'sem_pagamento') statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Não fez o Pagamento</span>';
+                else if (a.status === 'desconto') statusBadge = '<span style="background:#F5F3FF; color:#6D28D9; border:1px solid #C4B5FD; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Desconto Selecionado</span>';
                 else if (infoPrazo.vencido) statusBadge = '<span style="background:#FDF2F2; color:#B93838; border:1px solid #F8A4A4; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Vencido</span>';
                 else statusBadge = '<span style="background:#F7F4EA; color:#475569; border:1px solid #DED9E2; padding:3px 10px; border-radius:10px; font-size:0.78rem; font-weight:600;">Pendente</span>';
 
@@ -9605,7 +9823,7 @@ async function renderizarEtapa18(proc) {
                 const prazoHtml = jaAvancou
                     ? ''
                     : `<div style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#475569; flex-wrap:wrap;">
-                        <span>📅 Prazo para Defesa (${rotuloPrazo}): ${dataVencFormatada}</span>
+                        <span>Prazo para defesa (${rotuloPrazo}): ${dataVencFormatada}</span>
                         <span style="${infoPrazo.vencido ? 'color:#B93838; font-weight:600;' : 'color:#2B7A78; font-weight:600;'}">(${infoPrazo.texto})</span>
                     </div>`;
 
@@ -9623,16 +9841,19 @@ async function renderizarEtapa18(proc) {
                         <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#334155; cursor:pointer; padding:8px 14px; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; background:#f8fafc;">
                             <input type="radio" name="opcaoAuto_${a.index}" value="pagamento" ${a.status === 'pagamento' ? 'checked' : ''} data-index="${a.index}"> Pagamento
                         </label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:0.88rem; color:#334155; cursor:pointer; padding:8px 14px; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; background:#f8fafc;">
+                            <input type="radio" name="opcaoAuto_${a.index}" value="desconto" ${a.status === 'desconto' ? 'checked' : ''} data-index="${a.index}"> Desconto
+                        </label>
                     </div>`;
 
                 // Nº do protocolo (Sistema Betha), preenchido pelo Gerente de Posturas ou pelo Jurídico
                 const protocoloAuto = obterProtocoloDoAuto(a);
                 const protocoloHtml = jaAvancou
                     ? (protocoloAuto
-                        ? `<div style="font-size:0.88rem; color:#475569;">📄 Protocolo Nº <strong>${protocoloAuto}</strong></div>`
+                        ? `<div style="font-size:0.88rem; color:#475569;">Protocolo Nº <strong>${protocoloAuto}</strong></div>`
                         : '')
                     : `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px;">
-                        <label for="protocoloAuto_${a.index}" style="font-size:0.88rem; color:#334155; font-weight:600;">Nº do Protocolo</label>
+                        <label for="protocoloAuto_${a.index}" style="font-size:0.88rem; color:#334155; font-weight:600;">Nº do protocolo</label>
                         <input type="text" id="protocoloAuto_${a.index}" class="input-protocolo-auto" data-index="${a.index}"
                             value="${protocoloAuto}" placeholder="Ex: 12345/2026"
                             style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.88rem; color:#0f172a; min-width:180px;">
@@ -9751,7 +9972,7 @@ async function avancarAutoEtapa18(index) {
 
     const selectedRadio = document.querySelector(`input[name="opcaoAuto_${index}"]:checked`);
     if (!selectedRadio) {
-        alert('Selecione uma opção ("Defesa", "Não fez o Pagamento" ou "Pagamento") para avançar este Auto de Infração.');
+        alert('Selecione uma opção ("Defesa", "Não fez o pagamento", "Pagamento" ou "Desconto") para avançar este Auto de Infração.');
         return;
     }
 
@@ -9774,11 +9995,13 @@ async function avancarAutoEtapa18(index) {
     // Caminhos da Etapa 18 (a antiga Etapa 20 "Realizar Pagamento" não entra mais):
     //   Defesa              -> Etapa 19
     //   Não fez o Pagamento -> Etapa 28 (Certificação do Vencimento)
-    //   Pagamento           -> Etapa 29 (Fiscal Emite Certidão)
+    //   Pagamento           -> Etapa 29 (Certidão de encerramento)
+    //   Desconto            -> Etapa 26 (Análise para dar Desconto)
     const CAMINHOS_ETAPA_18 = {
-        defesa: { etapa: 19, statusProc: 'defesa_auto', condicao: 'Defesa do Auto de Infração Apresentada' },
+        defesa: { etapa: 19, statusProc: 'defesa_auto', condicao: 'Defesa do Auto de Infração apresentada' },
         sem_pagamento: { etapa: 28, statusProc: 'sem_pagamento_auto', condicao: 'Autuado não fez o pagamento do Auto de Infração' },
-        pagamento: { etapa: 29, statusProc: 'pagamento_auto', condicao: 'Pagamento do Auto de Infração realizado' }
+        pagamento: { etapa: 29, statusProc: 'pagamento_auto', condicao: 'Pagamento do Auto de Infração realizado' },
+        desconto: { etapa: 26, statusProc: 'desconto_auto', condicao: 'Pedido de desconto do Auto de Infração' }
     };
     const caminho = CAMINHOS_ETAPA_18[opcao];
     if (!caminho) {
@@ -9913,7 +10136,7 @@ async function renderizarEtapa16(proc) {
         // "Etapa 1.2" é a numeração do fluxo da Notificação Preliminar; vindo do
         // Auto de Infração a etapa é a 16 mesmo.
         if (elBadgeNum) elBadgeNum.textContent = window.processoVeioDaEtapa14(proc) ? 'Etapa 16' : 'Etapa 1.2';
-        if (elBadgeSt) elBadgeSt.textContent = 'Retorno do AR';
+        if (elBadgeSt) elBadgeSt.textContent = 'Dados do AR';
 
         // A Etapa 16 não gera documento: a prévia some sozinha (ver
         // ETAPAS_COM_PREVIA_DO_DOCUMENTO). A chamada fica para limpar o container.
@@ -10150,11 +10373,10 @@ function renderizarListaAnexosAR() {
         const isSalvo = !!item.documento_id;
         const statusHtml = isSalvo
             ? '<span style="color:#16a34a; font-weight:600; font-size:0.8rem;">✓ Salvo no banco (documentos)</span>'
-            : '<span style="color:#ea580c; font-weight:600; font-size:0.8rem;">⚠️ Pendente de envio (clique em Salvar/Avançar)</span>';
+            : '<span style="color:#ea580c; font-weight:600; font-size:0.8rem;">Pendente de envio (clique em salvar/avançar)</span>';
 
         div.innerHTML = `
             <div style="display:flex; align-items:center; gap:12px;">
-                <div style="font-size:1.3rem;">📎</div>
                 <div>
                     <div style="font-weight:600; color:#0f172a; font-size:0.9rem;">${item.nome || 'anexo_ar'}</div>
                     ${statusHtml}
@@ -10234,7 +10456,7 @@ function verificarPrazoAR(proc, dadosAR) {
         badge.style.background = '#fecaca';
         badge.style.color = '#991b1b';
     } else if (dadosAR.data_recebimento) {
-        badge.textContent = 'AR Recebido';
+        badge.textContent = 'AR recebido';
         badge.style.background = '#bbf7d0';
         badge.style.color = '#166534';
     } else {
@@ -10294,7 +10516,7 @@ async function verificarPrazo15DiasEtapa16(proc) {
                     dados_etapa: { etapa16: dadosAR }
                 }]);
 
-            alert('O prazo do AR foi expirado. O processo foi encaminhado para a Etapa 30 (Gerência Localiza o AR).');
+            alert('O prazo do AR foi expirado. O processo foi encaminhado para a Etapa 30 (Gerência localiza o AR).');
             window.location.href = notif?.id
                 ? `etapa.html?processo=${proc.id}&notificacao=${notif.id}`
                 : `etapa.html?processo=${proc.id}`;
@@ -10391,7 +10613,7 @@ async function persistirAnexosAR(exigirObrigatorio = false) {
     processoAtual._arAnexosLocais = processoAtual._arAnexosLocais || [];
 
     if (exigirObrigatorio && processoAtual._arAnexosLocais.length === 0) {
-        alert('⚠️ O anexo do AR é OBRIGATÓRIO para avançar de etapa!\n\nPor favor, adicione pelo menos um anexo do AR antes de avançar.');
+        alert('O anexo do AR é OBRIGATÓRIO para avançar de etapa!\n\nPor favor, adicione pelo menos um anexo do AR antes de avançar.');
         return false;
     }
 
@@ -10526,9 +10748,7 @@ function atualizarAvisoTentativasAR(proc) {
     const feitas = obterRetornosARSemSucesso(proc).length;
 
     if (limite === 1) {
-        el.innerHTML = '<strong>Fluxo do Auto de Infração:</strong> não há repetição de envio. '
-            + 'Ao registrar este retorno sem sucesso, o processo segue direto para a '
-            + '<strong>Etapa 17 (Gerência Gera o Edital)</strong>.';
+        el.innerHTML = '<strong>Fluxo do Auto de Infração:</strong> não há repetição de envio novamente. '
         return;
     }
 
@@ -10537,7 +10757,7 @@ function atualizarAvisoTentativasAR(proc) {
         + `Já registradas: <strong>${feitas} de ${limite}</strong>. `
         + (restantes > 1
             ? `Ainda restam ${restantes} tentativas antes do Edital.`
-            : `Este retorno sem sucesso leva o processo para a <strong>Etapa 17 (Gerência Gera o Edital)</strong>.`);
+            : `Este retorno sem sucesso leva o processo para a <strong>Etapa 17 (Publicação do edital)</strong>.`);
 }
 window.atualizarAvisoTentativasAR = atualizarAvisoTentativasAR;
 
@@ -11494,7 +11714,7 @@ async function salvarEdicoesProcesso() {
                     }
                 } else if (existingUrl) {
                     imagensVistoriaSalvar.push({
-                        nome: existingName || 'Imagem de Vistoria',
+                        nome: existingName || 'Imagem de vistoria',
                         documento_id: existingDocId || null,
                         url: existingUrl,
                         dataUrl: existingUrl,
@@ -12079,8 +12299,8 @@ async function baixarRelatorioFiscalPdfEtapa() {
             return;
         }
 
-        // Se for Etapa 5 ou 13 (Réplica), baixa/imprime o documento que está sendo visualizado na tela
-        if (etapaNum === 5 || etapaNum === 13) {
+        // Se for Etapa 5, 13 ou 26 (Réplica), baixa/imprime o documento que está sendo visualizado na tela
+        if (etapaNum === 5 || etapaNum === 13 || etapaNum === 26) {
             if (typeof window.gerarReplica === 'function') {
                 await window.gerarReplica();
             }
@@ -12309,11 +12529,15 @@ async function baixarRelatorioFiscalPdfEtapa() {
             const fNome = fProc.nome || fProc.fiscNome || processoAtual.fiscal_responsavel || fiscAutor.nome || (typeof perfilAtual !== 'undefined' && perfilAtual?.nome) || 'Nome do Fiscal';
             const fCargo = fProc.cargo || fiscAutor.cargo || (typeof perfilAtual !== 'undefined' && perfilAtual?.cargo) || 'Cargo do Fiscal';
             const fMatricula = fProc.matricula || fProc.fiscMatricula || processoAtual.fiscal_matricula || fiscAutor.matricula || (typeof perfilAtual !== 'undefined' && perfilAtual?.matricula) || 'XXXXXXXX';
+            // Fiscal de Meio Ambiente: assinatura do fiscal contribuidor ao lado
+            const assinaturasComContribuidor = (window.htmlAssinaturasRelatorioComContribuidor && window.processoEhMeioAmbiente?.(processoAtual))
+                ? window.htmlAssinaturasRelatorioComContribuidor({ nome: fNome, cargo: fCargo, matricula: fMatricula }, window.contribuidoresDoProcesso(dProc))
+                : '';
 
             // Cabeçalho comum
             const cabecalhoHtml = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;border-collapse:collapse;"><tr><td width="100" rowspan="2" align="center" valign="top" style="padding-right:12px;width:100px;"><img src="${brasaoImg}" alt="Brasão" style="width:85px;height:auto;display:block;margin:0 auto;"></td><td bgcolor="#F78C26" style="background-color:#F78C26;height:14px;font-size:1px;line-height:14px;">&nbsp;</td></tr><tr><td valign="top" style="padding-top:10px;font-size:9.5pt;color:#000;line-height:1.4;"><strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>DIRETORIA DE MEIO AMBIENTE<br>GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br><span style="font-size:9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br><span style="font-size:9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span></td></tr></table>`;
-            const tituloHtml = `<div style="text-align:center;font-weight:bold;margin-top:25px;margin-bottom:5px;"><p style="margin:0;font-size:12pt;">RELATÓRIO FISCAL ${nrTBD}</p></div><div style="text-align:center;margin-bottom:15px;"><p style="margin:0;">Fiscalização de Posturas</p></div><div style="text-align:right;margin-bottom:20px;"><p style="margin:0;">Divinópolis- MG ${dataAtualFmt}</p></div>`;
-            const assinaturaHtml = `<div style="page-break-inside:avoid;break-inside:avoid;">${htmlImagens}<div style="margin-top:40px;page-break-inside:avoid;break-inside:avoid;"><div style="text-align:center;"><p style="margin:0;">_________________________________________</p><p style="margin:5px 0 0 0;"><strong>${fNome}</strong></p><p style="margin:2px 0 0 0;">${fCargo}</p><p style="margin:2px 0 0 0;">Matrícula: ${fMatricula}</p></div></div></div>`;
+            const tituloHtml = `<div style="text-align:center;font-weight:bold;margin-top:25px;margin-bottom:5px;"><p style="margin:0;font-size:12pt;">RELATÓRIO FISCAL ${nrTBD}</p></div><div style="text-align:center;margin-bottom:15px;"><p style="margin:0;">${window.subtituloFiscalizacao ? window.subtituloFiscalizacao(processoAtual) : 'Fiscalização de Posturas'}</p></div><div style="text-align:right;margin-bottom:20px;"><p style="margin:0;">Divinópolis- MG ${dataAtualFmt}</p></div>`;
+            const assinaturaHtml = `<div style="page-break-inside:avoid;break-inside:avoid;">${htmlImagens}<div style="margin-top:40px;page-break-inside:avoid;break-inside:avoid;">${assinaturasComContribuidor || `<div style="text-align:center;"><p style="margin:0;">_________________________________________</p><p style="margin:5px 0 0 0;"><strong>${fNome}</strong></p><p style="margin:2px 0 0 0;">${fCargo}</p><p style="margin:2px 0 0 0;">Matrícula: ${fMatricula}</p></div>`}</div></div>`;
 
             let corpoHtml = '';
             if (ehDecreto) {
@@ -12576,7 +12800,7 @@ async function imprimirDocumentoOficial() {
     // ── Notificação com status de Auto de Infração ──
     if (isAuto) {
         // Tenta buscar o Auto de Infração Assinado se já existir anexo/arquivo no banco
-        mostrarCarregamento('Buscando Auto de Infração Assinado...');
+        mostrarCarregamento('Buscando Auto de Infração assinado...');
         try {
             let docsBanco = [];
             if (notificacaoAtual?.id || processoAtual?.id) {
@@ -12700,7 +12924,7 @@ async function imprimirDocumentoOficial() {
         const assinada = await obterNotificacaoPreliminarAssinada();
         if (assinada?.url) {
             ocultarCarregamento();
-            window.abrirOuBaixarDocumento(assinada.url, assinada.nome || `Notificacao_Preliminar_${numNotifLimpo}.pdf`);
+            window.abrirOuBaixarDocumento(assinada.url, assinada.nome || `${prefixoArquivoDocumentoEtapa1()}_${numNotifLimpo}.pdf`);
             return;
         }
     } catch (errNP) {
@@ -12724,7 +12948,8 @@ async function imprimirDocumentoOficial() {
     if (!docEl) { alert('Documento não encontrado.'); return; }
 
     const procNum = processoAtual?.numero_processo || document.getElementById('etapaProcNumero')?.textContent || '2026-000001';
-    const titulo = `Notificação Preliminar - Processo Nº ${procNum.replace(/[\/\\]/g, '-')}`;
+    // O navegador usa este título como nome do arquivo ao salvar em PDF
+    const titulo = `${nomeDocumentoEtapa1()} - Processo Nº ${procNum.replace(/[\/\\]/g, '-')}`;
 
     const brasaoBase64 = await obterBrasaoBase64() || window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg';
     let conteudoLimpo = gerarHtmlCompativelComWordDoc(processoAtual, brasaoBase64);
@@ -12812,6 +13037,20 @@ function prepararConteudoDocumento(conteudo, brasaoBase64) {
         .replace(/src='assets\/img\/brasao_semac\.jpeg'/g, `src="${brasaoBase64}"`);
 }
 
+// Nome dos arquivos do documento da Etapa 1: Notificação Preliminar ou, para o
+// Fiscal de Meio Ambiente, Auto de Fiscalização
+function prefixoArquivoDocumentoEtapa1() {
+    return (window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual))
+        ? 'Auto_de_Fiscalizacao'
+        : 'Notificacao_Preliminar';
+}
+
+function nomeDocumentoEtapa1() {
+    return (window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual))
+        ? 'Auto de Fiscalização'
+        : 'Notificação Preliminar';
+}
+
 // ── Gerar HTML compatível com Microsoft Word (.DOC) com Tabelas nativas ──
 function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
     const d = proc?.dados || {};
@@ -12837,6 +13076,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
     const areaTotal = imv.area_total || '288';
 
     const dispositivos = obterDispositivosDoProcesso(proc || {});
+    const ehMeioAmbiente = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(proc));
     let blocosInfracoesHtml = '';
     const { areaNum, testadaNum, profundidadeNum, temEsquina, baseCalculo } = obterDadosImovelParaCalculo(proc || {});
     const upfmd = window.valorUpfmdAtual || valorUpfmdAtual || parseFloat(proc?.campos?.upfmd_utilizado);
@@ -12850,6 +13090,18 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             ? parseFloat(customMulta)
             : defaultMulta;
         const valFormatado = valMultaFinal.toFixed(2).replace('.', ',');
+
+        // Fiscal de Meio Ambiente: Auto de Fiscalização (meio-ambiente.js)
+        const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
+        if (itemMA) {
+            blocosInfracoesHtml += `
+            <div style="margin: 24px 0; font-size: 11pt; line-height: 1.45;">
+                <div style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 6px;">AUTO DE FISCALIZAÇÃO N° ${numNotif}</div>
+                ${window.montarTextoAutoFiscalizacao(proc, itemMA, valMultaFinal)}
+            </div>
+        `;
+            return;
+        }
 
         let titulo = '', prazo = '', itens = '', penalidade = '', obsFiscal = proc?.campos?.infracoes_obs?.[index] || '';
         const numAI = proc?.campos?.auto_infracao_anterior_numero || 'XXXX';
@@ -12989,8 +13241,8 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
 
         <!-- 2. TÍTULO -->
         <div style="text-align: center; margin-top: 20px; margin-bottom: 12px;">
-            <div style="font-size: 15.5pt; font-weight: bold; text-transform: uppercase;">NOTIFICAÇÃO PRELIMINAR</div>
-            <div style="font-size: 12.5pt; margin-top: 2px;">Fiscalização de Posturas</div>
+            <div style="font-size: 15.5pt; font-weight: bold; text-transform: uppercase;">${ehMeioAmbiente ? 'AUTO DE FISCALIZAÇÃO' : 'NOTIFICAÇÃO PRELIMINAR'}</div>
+            <div style="font-size: 12.5pt; margin-top: 2px;">${ehMeioAmbiente ? 'Fiscalização de Meio Ambiente' : 'Fiscalização de Posturas'}</div>
             <div style="text-align: right; font-size: 11pt; margin-top: 14px; margin-bottom: 16px;">Divinópolis- MG ${dataFmt}</div>
         </div>
 
@@ -13031,10 +13283,10 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             </tr>
         </table>
 
-        <!-- 5. TEXTO INTRODUTÓRIO -->
-        <div style="font-size: 11pt; text-align: justify; margin: 22px 0 20px 0; line-height: 1.45;">
+        <!-- 5. TEXTO INTRODUTÓRIO (o Auto de Fiscalização não tem) -->
+        ${ehMeioAmbiente ? '' : `<div style="font-size: 11pt; text-align: justify; margin: 22px 0 20px 0; line-height: 1.45;">
             Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}${imv.complemento ? ' - ' + imv.complemento : ''}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
-        </div>
+        </div>`}
 
         <!-- 6. BLOCOS DE INFRAÇÃO -->
         ${blocosInfracoesHtml}
@@ -13043,8 +13295,8 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         <div style="margin: 32px 0; font-size: 11pt; line-height: 1.5;">
             ${htmlObservacoesFiscal(proc)}
             <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
-            <p>O autuado tem o prazo de <strong>10 DIAS ÚTEIS</strong> para apresentação de defesa, protocolada via protocolo municipal.</p>
-            <p style="text-align: justify;"><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>
+            <p>O autuado tem o prazo de <strong>${ehMeioAmbiente ? window.PRAZO_DEFESA_AUTO_FISCALIZACAO : '10 DIAS ÚTEIS'}</strong> para apresentação de defesa, protocolada via protocolo municipal${ehMeioAmbiente ? window.textoProtocoloDefesaMA(proc) : ''}.</p>
+            ${ehMeioAmbiente ? window.htmlInstrucoesDefesaMeioAmbiente() : `<p style="text-align: justify;"><strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".</p>`}
         </div>
 
         <!-- 8. ASSINATURA FISCAL -->
@@ -13053,7 +13305,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
                 <td align="center" style="font-size: 11pt;">
                     <div>________________________________________________</div>
                     <div><strong>${fisc.nome || 'Nome Fiscal'}</strong></div>
-                    <div>Fiscal de Posturas</div>
+                    <div>${ehMeioAmbiente ? window.CARGO_FISCAL_MEIO_AMBIENTE : 'Fiscal de Posturas'}</div>
                     <div>Matrícula: ${fisc.matricula || 'XXXXXXX'}</div>
                 </td>
             </tr>
@@ -13061,7 +13313,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
 
         <!-- 9. RECIBO DO AUTUADO -->
         <div style="margin-top: 36px; font-size: 11pt;">
-            <div style="margin-bottom: 6px;">Recebi 2° via da presente Notificação Preliminar da qual fico ciente</div>
+            <div style="margin-bottom: 6px;">${ehMeioAmbiente ? 'Recebi 2° via do presente Auto de Fiscalização do qual fico ciente' : 'Recebi 2° via da presente Notificação Preliminar da qual fico ciente'}</div>
             <table width="100%" cellpadding="10" cellspacing="0" border="1" style="border-collapse: collapse; border: 2px solid #000; font-size: 11pt;">
                 <tr>
                     <td width="68%" valign="top" style="border: 2px solid #000; height: 80px;">
@@ -13373,7 +13625,7 @@ window.rotuloDocumentoDoFluxo = function () {
     const ehAuto = notif
         ? (notif.situacao === 'auto_infracao'
             || notif.situacao === 'arquivado'
-            || (notif.situacao !== 'notificacao_preliminar'
+            || (notif.situacao !== 'notificacao_preliminar' && notif.situacao !== 'auto_fiscalizacao'
                 && (String(notif.status || '').toLowerCase() === 'auto_infracao' || !!numeroAutoDaNotificacao)))
         : window.processoVeioDaEtapa14(processoAtual);
 
@@ -13817,7 +14069,7 @@ window.avancarEtapa10 = async function () {
     }
 
     if (!temAnexoCertidao) {
-        alert('⚠️ Anexo Obrigatório!\n\nPor favor, anexe o PDF da Certidão Assinada antes de avançar a etapa.');
+        alert('Anexo Obrigatório!\n\nPor favor, anexe o PDF da Certidão Assinada antes de avançar a etapa.');
         return;
     }
 
@@ -13852,6 +14104,10 @@ window.extrairCodigoSubprocesso = function (disp) {
     const str = String(disp);
     const match = str.match(/\b(120000\d{3})\b/);
     if (match) return match[1];
+    // Meio Ambiente antes das palavras-chave: "passeio", "árvore" etc. aparecem
+    // nos textos ambientais e casariam com códigos de Posturas
+    const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(str) : null;
+    if (itemMA) return itemMA.codigo;
 
     const low = str.toLowerCase();
     if (low.includes('limpeza') && (low.includes('não edificado') || low.includes('nao edificado'))) return '120000232';
@@ -13873,6 +14129,8 @@ window.extrairCodigoSubprocesso = function (disp) {
 
 window.obterDescricaoInfracao = function (disp) {
     if (!disp) return 'Falta de limpeza e conservação de imóvel não edificado';
+    const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
+    if (itemMA) return itemMA.rotulo;
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
     const dispStr = String(disp).trim();
     const dispLow = dispStr.toLowerCase();
@@ -14073,8 +14331,16 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
     let multaTextoHeader = '';
     let obsFiscal = '';
 
-    // 1) 120000232 - Falta de limpeza e conservação de imóvel não edificado
-    if (cod === '120000232' || (dispLow.includes('limpeza') && dispLow.includes('não edificado'))) {
+    const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(dispItem) : null;
+
+    // Meio Ambiente: dispositivos do Auto de Fiscalização (meio-ambiente.js)
+    if (itemMA) {
+        leiBase = 'legislação ambiental municipal';
+        dispositivoTexto = itemMA.ai?.dispositivo || window.resolverInfracaoMeioAmbiente(p, itemMA).dispositivo;
+        multaTextoHeader = `MULTA NO VALOR DE: <strong>R$ ${valFormatado}</strong>.`;
+
+        // 1) 120000232 - Falta de limpeza e conservação de imóvel não edificado
+    } else if (cod === '120000232' || (dispLow.includes('limpeza') && dispLow.includes('não edificado'))) {
         leiBase = 'Lei 7.174/2010';
         dispositivoTexto = 'infração aos artigos 1º e 2º, III, da Lei 7.174/2010.';
         multaTextoHeader = `MULTA NO VALOR DE 15% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) multiplicado pela área total do lote, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
@@ -14487,8 +14753,68 @@ window.preencherValoresMultasAntigos = async function ({ gravar = false } = {}) 
         }
     }
     console.info(`[Multas antigas] ${gravados} de ${resultado.length} resultado(s) gravados em multas_antigas (total R$ ${somaFmt}). `
-        + 'Agora rode migracao/multas_antigas_2_aplicar.sql no SQL Editor.');
+        + 'Agora rode migracao/multas_antigas_2_aplicar.sql no SQL editor.');
     return { autos: resultado.length, orfas: orfas.length, gravados, soma };
+};
+
+// ── Data da verificação no Auto de Infração de Meio Ambiente ───────────────
+// "Na data X foi verificado..." / "Foi verificado na data X...". O fiscal informa
+// na Etapa 14 (notificacoes.dados.data_verificacao_ai, AAAA-MM-DD). Sem ela, vale
+// a data da vistoria quando não houve Auto de Fiscalização e a de hoje quando houve.
+function dataVerificacaoAutoMAISO(item) {
+    const salva = notificacaoAtual?.dados?.data_verificacao_ai || processoAtual?.campos?.data_verificacao_ai;
+    if (salva) return salva;
+    const vistoria = String(processoAtual?.dados?.fiscal?.data_vistoria || processoAtual?.data_vistoria || '').slice(0, 10);
+    if (item?.semAF && /^\d{4}-\d{2}-\d{2}$/.test(vistoria)) return vistoria;
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+}
+
+function dataVerificacaoAutoMA(item, dataVistoriaFmt) {
+    const iso = dataVerificacaoAutoMAISO(item);
+    const [a, m, d] = String(iso).split('-');
+    return (a && m && d) ? `${d}/${m}/${a}` : dataVistoriaFmt;
+}
+
+function htmlCampoDataVerificacaoAutoMA() {
+    if (!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual))) return '';
+    const item = window.encontrarInfracaoMeioAmbiente(notificacaoAtual?.descricao)
+        || window.encontrarInfracaoMeioAmbiente(obterDispositivosDoProcesso(processoAtual)[0]);
+    if (!item) return '';
+    const texto = item.semAF
+        ? 'Data em que foi verificado o fato constitutivo da infração.'
+        : 'Data em que foi verificado o não cumprimento das providências do Auto de Fiscalização.';
+    return `
+        <div style="margin-bottom: 20px; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
+            <label for="inputDataVerificacaoAutoMA" style="display: block; font-weight: 700; color: #1e293b; margin-bottom: 8px; font-size: 0.95rem;">Data da verificação</label>
+            <input type="date" id="inputDataVerificacaoAutoMA" value="${dataVerificacaoAutoMAISO(item)}"
+                onchange="window.salvarDataVerificacaoAutoMA(this.value)"
+                style="padding: 10px 14px; border: 1px solid #94a3b8; border-radius: 8px; font-size: 0.95rem; background: white; color: #0f172a;">
+            <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">${texto}</p>
+        </div>`;
+}
+
+window.salvarDataVerificacaoAutoMA = async function (valor) {
+    if (!processoAtual || !/^\d{4}-\d{2}-\d{2}$/.test(String(valor || ''))) return;
+    try {
+        if (notificacaoAtual) {
+            notificacaoAtual.dados = notificacaoAtual.dados || {};
+            notificacaoAtual.dados.data_verificacao_ai = valor;
+            await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+        } else {
+            // Etapa 14 aberta no processo, sem um Auto em foco
+            processoAtual.campos = processoAtual.campos || {};
+            processoAtual.campos.data_verificacao_ai = valor;
+            processoAtual.dados = processoAtual.dados || {};
+            processoAtual.dados.campos = processoAtual.campos;
+            const { error } = await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+            if (error) throw error;
+        }
+    } catch (err) {
+        console.error('Erro ao salvar a data da verificação:', err);
+        alert('Não foi possível salvar a data da verificação: ' + (err?.message || err));
+    }
+    if (typeof window.gerarAutoDeInfracao === 'function') window.gerarAutoDeInfracao(true);
 };
 
 window.gerarAutoDeInfracao = async function (auto = false) {
@@ -14733,9 +15059,17 @@ window.gerarAutoDeInfracao = async function (auto = false) {
         // Notificação Preliminar do próprio processo.
         const ehReincidenciaAuto = processoEhReincidencia(processoAtual);
         const reinc = dadosDaReincidencia(processoAtual);
+        // Fiscal de Meio Ambiente: o documento anterior é o Auto de Fiscalização
+        const autoEhMeioAmbiente = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual));
+        const nomeDocumentoAnterior = autoEhMeioAmbiente ? 'do Auto de Fiscalização' : 'da Notificação Preliminar';
         const textoOrigemDoAuto = ehReincidenciaAuto
             ? `Até a presente data foi verificado: a <strong>reincidência</strong> da infração <strong>(${inputInfracao})</strong>, objeto do Auto de Infração nº <strong>${reinc.numeroAuto || 'XXXX'}</strong>, expedido em <strong>${reinc.dataAuto || 'XX/XX/20XX'}</strong>${reinc.numeroProcesso ? `, referente ao processo nº <strong>${reinc.numeroProcesso}</strong>` : ''}.`
-            : `Até a presente data foi verificado: o não cumprimento da obrigação da Notificação Preliminar nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.`;
+            : `Até a presente data foi verificado: o não cumprimento da obrigação ${nomeDocumentoAnterior} nº: <strong>${inputNotifNum} (${inputInfracao})</strong>.`;
+        const instrucoesDefesaAuto = autoEhMeioAmbiente
+            ? `<div style="margin: 0 0 10px 0;">${window.htmlInstrucoesDefesaMeioAmbiente()}</div>`
+            : `<p style="margin: 0 0 10px 0; text-align: justify;">
+                    <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
+                </p>`;
 
         let corpoHtmlAuto = '';
         if (provenienteDecreto) {
@@ -14785,7 +15119,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
-                    O motivo da infração é baseado no Decreto <strong>${numDecreto}</strong>, publicado no dia <strong>${dataDecretoFmt}</strong>, o qual notificou todos os imóveis dentro da zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${inputInfracao}</strong> foi de <strong>${prazoDiasDecreto} dias</strong> da publicação do decreto, findo aquele no dia <strong>${dataFimPrazoDecretoFmt}</strong>.
+                    A infração é baseada no Decreto <strong>${numDecreto}</strong>, publicado no dia <strong>${dataDecretoFmt}</strong>, o qual notificou todos os imóveis dentro da zona urbana do município de Divinópolis à regularização conforme as leis 7.174/2010 e 6.907/2008. O prazo para <strong>${inputInfracao}</strong> foi de <strong>${prazoDiasDecreto} dias</strong> da publicação do decreto, findo aquele no dia <strong>${dataFimPrazoDecretoFmt}</strong>.
                 </p>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
@@ -14796,7 +15130,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     MULTA NO VALOR DE R$ ${dadosLegais.valFormatado}
                 </p>
 
-                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
+                ${htmlObservacoesFiscalAuto('margin: 0 0 10px 0; text-align: justify;')}
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
                     O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, protocolada via protocolo municipal. 
@@ -14822,17 +15156,70 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     ${dadosLegais.textoCompleto}
                 </div>
 
-                ${htmlObservacoesFiscal(processoAtual, 'margin: 0 0 10px 0; text-align: justify;')}
+                ${htmlObservacoesFiscalAuto('margin: 0 0 10px 0; text-align: justify;')}
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
                     O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, protocolada via protocolo municipal.
                 </p>
-                
-                <p style="margin: 0 0 10px 0; text-align: justify;">
-                    <strong>Instruções:</strong> Para apresentar defesa de uma notificação ou infração, é necessário abrir um protocolo no Sistema Betha. Acesse o site da Prefeitura e selecione "Cidadão" > "Portal de Serviços Digitais" > "Abertura de Processos Digitais". Faça login ou cadastre-se e inicie um novo processo, informando a cidade da infração, a Prefeitura e em "Grupo da solicitação" marcar a opção de Fiscalização de Posturas. Tenha em mãos os documentos necessários para fundamentar a defesa. Em caso de dúvidas, consulte o "Manual de Consulta aos Protocolos Online", disponível em "Cidadão" > "Portal de Serviços Digitais".
-                </p>
+
+                ${instrucoesDefesaAuto}
             </div>
         `;
+        }
+
+        // Fiscal de Meio Ambiente: modelo próprio ("Modelo completo A iNFRAÇÃO"),
+        // com ou sem Auto de Fiscalização antes (meio-ambiente.js)
+        const itemAutoMA = autoEhMeioAmbiente && window.encontrarInfracaoMeioAmbiente
+            ? (window.encontrarInfracaoMeioAmbiente(notificacaoAtual?.descricao)
+                || window.encontrarInfracaoMeioAmbiente(inputInfracaoRaw)
+                || window.encontrarInfracaoMeioAmbiente(inputInfracao))
+            : null;
+        if (itemAutoMA) {
+            const tabelasContribuinteImovel = `
+                <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do Contribuinte</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 8px;">
+                    <tr>
+                        <td width="58%" valign="top">
+                            <div><strong>Contribuinte:</strong> ${nomeAutuado}</div>
+                            <div><strong>Logradouro:</strong> ${endAutuadoLog}</div>
+                            <div><strong>CEP:</strong> ${endAutuadoCepVal}</div>
+                            <div><strong>Município:</strong> ${cont.municipio || 'Divinópolis'}</div>
+                        </td>
+                        <td width="42%" valign="top">
+                            <div><strong>CPF/CNPJ:</strong> ${cpfCnpj}</div>
+                            <div><strong>Bairro:</strong> ${endAutuadoBairroVal}</div>
+                            <div><strong>Número:</strong> ${endAutuadoNumVal}</div>
+                            ${contComplemento ? `<div><strong>Complemento:</strong> ${contComplemento}</div>` : ''}
+                        </td>
+                    </tr>
+                </table>
+                <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do imóvel</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 10px;">
+                    <tr>
+                        <td width="58%" valign="top">
+                            <div><strong>Inscrição:</strong> ${inscricaoImvFmt}</div>
+                            <div><strong>Logradouro:</strong> ${imvRua}, n° ${imvNum}</div>
+                            <div><strong>Bairro:</strong> ${imvBairro}</div>
+                        </td>
+                        <td width="42%" valign="top">
+                            <div><strong>Zona:</strong> ${zona}</div>
+                            <div><strong>Quadra:</strong> ${quadra}</div>
+                            <div><strong>Lote:</strong> ${lote}</div>
+                            ${imvComplemento ? `<div><strong>Complemento:</strong> ${imvComplemento}</div>` : ''}
+                        </td>
+                    </tr>
+                </table>`;
+            // Nº do Auto de Fiscalização como sai no documento (processo-posição)
+            const idxNotifMA = obterIndiceMultaNotificacao(processoAtual, notificacaoAtual);
+            corpoHtmlAuto = window.montarCorpoAutoInfracaoMA(processoAtual, itemAutoMA, {
+                valor: dadosLegais.valMultaFinal,
+                numeroAF: `${processoAtual?.numero_processo || 'XXXX'}-${idxNotifMA + 1}`,
+                dataVerificacao: dataVerificacaoAutoMA(itemAutoMA, dataVistoriaFmt),
+                numeroProtocolo: numProc,
+                prazoDefesa: textoPrazoDefesaAuto,
+                tabelasHtml: tabelasContribuinteImovel,
+                observacoesHtml: htmlObservacoesFiscalAuto('margin: 0 0 10px 0; text-align: justify;')
+            });
         }
 
         const htmlAuto = `
@@ -14856,7 +15243,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 <!-- TÍTULO -->
                 <div style="text-align: center; margin-top: 8px; margin-bottom: 8px;">
                     <div style="font-size: 13pt; font-weight: bold; color: #000; text-transform: uppercase;">AUTO DE INFRAÇÃO Nº ${numAutoInfracao}</div>
-                    <div style="font-size: 10pt; font-weight: bold; color: #000;">Fiscalização de Posturas</div>
+                    <div style="font-size: 10pt; font-weight: bold; color: #000;">${autoEhMeioAmbiente ? 'Fiscalização de Meio Ambiente' : 'Fiscalização de Posturas'}</div>
                 </div>
                 <div style="text-align: right; font-size: 10pt; margin-bottom: 10px;">Divinópolis- MG ${dataAtualFmt}</div>
                 ${corpoHtmlAuto}
@@ -14867,7 +15254,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                     <div style="text-align: center; margin-top: 25px; padding-bottom: 5px; font-size: 10pt;">
                         <div style="display: inline-block; min-width: 250px; border-top: 1px solid #000; padding-top: 4px;">
                             <div><strong>${nomeFiscal}</strong></div>
-                            <div>Fiscal de Posturas</div>
+                            <div>${autoEhMeioAmbiente ? window.CARGO_FISCAL_MEIO_AMBIENTE : 'Fiscal de Posturas'}</div>
                             <div>Matricula : ${matriculaFiscal}</div>
                         </div>
                     </div>
@@ -14922,7 +15309,6 @@ function obterHtmlBlocoAutoInfracaoAssinado() {
                 </div>
                 <div style="flex:1;">
                     <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Anexar Auto de Infração Assinado <span style="color:#ef4444;">*</span></h4>
-                    <p style="margin:2px 0 0 0; color:#64748b; font-size:0.83rem;">Após gerar ou imprimir o Auto de Infração, anexe o documento assinado em PDF aqui.</p>
                 </div>
                 <span id="badgeStatusAnexoAI" class="badge-status-anexo" style="padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; background:#f1f5f9; color:#64748b;">Pendente</span>
             </div>
@@ -14937,7 +15323,6 @@ function obterHtmlBlocoAutoInfracaoAssinado() {
             <div id="anexoAIAtual" class="arquivo-anexado-box" style="display:none; margin-top:14px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px;">
                 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
                     <div style="display:flex; align-items:center; gap:12px;">
-                        <div class="file-icon-badge" style="font-size:1.4rem;">🚨</div>
                         <div>
                             <div id="nomeArquivoAIAssinado" style="font-weight:600; color:#0f172a; font-size:0.95rem;">auto_infracao_assinado.pdf</div>
                             <div id="dataArquivoAIAssinado" style="color:#16a34a; font-weight:600; font-size:0.8rem;">Anexado com sucesso</div>
@@ -14988,15 +15373,26 @@ window.configurarEventosAIAssinado = function () {
             }
         });
 
-        inputArquivo.addEventListener('change', async (e) => {
+        inputArquivo.addEventListener('change', anexoUmPorVez(inputArquivo, async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            mostrarCarregamento('Validando Auto de Infração Assinado...');
+            mostrarCarregamento('Validando Auto de Infração assinado...');
 
             try {
-                const reader = new FileReader();
-                reader.onload = async (ev) => {
+                const autoOk = await validarDocumentoAnexado(file, {
+                    titulo: 'AUTO DE INFRAÇÃO',
+                    nomeDocumento: 'Auto de Infração',
+                    numeroEsperado: numeroAutoInfracaoEsperado()
+                });
+                if (!autoOk) {
+                    ocultarCarregamento();
+                    e.target.value = '';
+                    return;
+                }
+                mostrarCarregamento('Enviando Auto de Infração assinado...');
+
+                await (async () => {
                     const fileUrl = await window.uploadParaCloudinary(file, 'semac_autos');
                     if (!fileUrl) {
                         ocultarCarregamento();
@@ -15102,20 +15498,19 @@ window.configurarEventosAIAssinado = function () {
                     }
 
                     ocultarCarregamento();
-                    alert('Auto de Infração Assinado anexado com sucesso!');
+                    alert('Auto de Infração assinado anexado com sucesso!');
                     window.carregarEExibirAnexoAIAssinado();
-                };
-                reader.readAsDataURL(file);
+                })();
             } catch (err) {
                 ocultarCarregamento();
                 alert('Erro ao processar arquivo: ' + err.message);
             }
-        });
+        }));
     }
 
     if (btnRemover) {
         btnRemover.addEventListener('click', async () => {
-            if (!confirm('Deseja remover o Auto de Infração Assinado?')) return;
+            if (!confirm('Deseja remover o Auto de Infração assinado?')) return;
             mostrarCarregamento('Removendo anexo...');
 
             try {
@@ -15156,7 +15551,7 @@ window.configurarEventosAIAssinado = function () {
             }
 
             ocultarCarregamento();
-            alert('Anexo do Auto de Infração Assinado removido com sucesso!');
+            alert('Anexo do Auto de Infração assinado removido com sucesso!');
             window.carregarEExibirAnexoAIAssinado();
         });
     }
@@ -15266,7 +15661,7 @@ window.avancarEtapa14 = async function () {
         }
 
         if (!temAnexoRF) {
-            alert('⚠️ Anexo Obrigatório!\n\nPor favor, anexe o PDF do Relatório Fiscal Assinado antes de avançar para a Etapa 15.');
+            alert('Anexo obrigatório!\n\nPor favor, anexe o PDF do Relatório Fiscal assinado antes de avançar para a Etapa 15.');
             return;
         }
     }
@@ -15290,11 +15685,11 @@ window.avancarEtapa14 = async function () {
     }
 
     if (!temAnexoAI) {
-        alert('⚠️ Anexo Obrigatório!\n\nPor favor, anexe o PDF do Auto de Infração Assinado antes de avançar para a Etapa 15.');
+        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF do Auto de Infração assinado antes de avançar para a Etapa 15.');
         return;
     }
 
-    mostrarCarregamento('Avançando para Etapa 15 (Gerente Gera a Multa)...');
+    mostrarCarregamento('Avançando para Etapa 15 (multa do AI)...');
 
     const selDefesaEl = document.getElementById('selectApresentouDefesaEtapa14');
     const valDefesa = selDefesaEl ? selDefesaEl.value : (processoAtual?.dados?.apresentou_defesa || 'não');
@@ -15356,7 +15751,7 @@ window.avancarEtapa14 = async function () {
         await gravarValorMultaDoAuto(numAuto, window._ultimaMultaAuto.multa);
     }
 
-    await moverProcessoParaEtapa(15, 'Auto de Infração Emitido');
+    await moverProcessoParaEtapa(15, 'Auto de Infração emitido');
 };
 
 // ── ETAPA 15: PDF COMPLETO UNIFICADO DO PROCESSO ──
@@ -16028,6 +16423,141 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             return false;
         };
 
+        // ── Atalho "Processo unido" do painel (opcoes.todosEmOrdem) ─────────
+        // Capa, índice e depois TODOS os documentos do processo e das notificações
+        // dele, na ordem em que foram inseridos no sistema. O índice diz em que
+        // páginas está cada documento.
+        if (opcoes.todosEmOrdem) {
+            const idsNotif = (obterNotificacoesProcesso(processoAtual) || [])
+                .map(n => n.id).filter(id => id && String(id).length > 20);
+            let consultaTodos = supabaseClient.from('documentos').select('*').not('url', 'is', null);
+            consultaTodos = idsNotif.length
+                ? consultaTodos.or(`processo_id.eq.${procId},notificacao_id.in.(${idsNotif.join(',')})`)
+                : consultaTodos.eq('processo_id', procId);
+            const { data: todosDocs, error: errTodos } = await consultaTodos.order('created_at', { ascending: true });
+            if (errTodos) throw errTodos;
+
+            const ehMA = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual));
+            const escapar = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const nomeDoDocumento = d => {
+                const tipo = ['imagem', 'Imagem Vistoria'].includes(d.tipo) ? 'Imagem' : (d.tipo || 'Documento');
+                return (ehMA && window.trocarTermosAutoFiscalizacao) ? window.trocarTermosAutoFiscalizacao(tipo) : tipo;
+            };
+
+            const docsEmOrdem = (todosDocs || []).filter(doc => doc.tipo !== 'Processo Completo (Encerramento)');
+
+            // Processo de decreto: o decreto fica na tabela `decretos`, não em
+            // `documentos`. Entra primeiro, porque é dele que o processo nasce.
+            // Se ele também estiver anexado como documento, não se repete.
+            const ehDecreto = !!(processoAtual?.possui_decreto
+                || processoAtual?.dados?.fiscal?.decreto === 'sim'
+                || processoAtual?.campos?.fiscDecreto === 'sim');
+            if (ehDecreto) {
+                const resDecreto = await window.obterUrlOuAnexoDecreto(processoAtual, null, docsEmOrdem);
+                const jaEstaNosDocumentos = resDecreto?.docObj?.id
+                    && docsEmOrdem.some(doc => String(doc.id) === String(resDecreto.docObj.id));
+                if (resDecreto?.url && !jaEstaNosDocumentos) {
+                    const numeroDecreto = resDecreto.docObj?.numero;
+                    docsEmOrdem.unshift({
+                        url: resDecreto.url,
+                        tipo: numeroDecreto ? `Decreto Municipal nº ${numeroDecreto}` : 'Decreto Municipal',
+                        nome_arquivo: resDecreto.docObj?.nome_arquivo || resDecreto.docObj?.nome || '',
+                        created_at: resDecreto.docObj?.data_decreto || resDecreto.docObj?.created_at || processoAtual?.created_at
+                    });
+                }
+            }
+
+            const entradas = [];
+            for (const d of docsEmOrdem) {
+                const antes = mergedPdf.getPageCount();
+                const anexou = await anexarArquivoAoPdf(d.url || d.dataUrl || d.base64, d.nome_arquivo || d.tipo || 'Documento');
+                const depois = mergedPdf.getPageCount();
+                entradas.push({
+                    titulo: nomeDoDocumento(d),
+                    arquivo: d.nome_arquivo || '',
+                    // Data sem hora (data do decreto): sem passar por Date, que mudaria o dia pelo fuso
+                    data: /^\d{4}-\d{2}-\d{2}$/.test(String(d.created_at || ''))
+                        ? String(d.created_at).split('-').reverse().join('/')
+                        : (d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : ''),
+                    inicio: antes + 1,
+                    fim: depois,
+                    incluido: anexou && depois > antes
+                });
+            }
+
+            // Índice: páginas logo depois da capa. As páginas dos documentos
+            // andam para frente o tanto de páginas que o índice ocupa.
+            const LINHAS_POR_PAGINA = 20;
+            const paginasIndice = Math.max(1, Math.ceil(entradas.length / LINHAS_POR_PAGINA));
+            for (let p = 0; p < paginasIndice; p++) {
+                const linhas = entradas.slice(p * LINHAS_POR_PAGINA, (p + 1) * LINHAS_POR_PAGINA);
+                const divIndice = document.createElement('div');
+                divIndice.style.cssText = "position:absolute; left:-9999px; top:-9999px; width:794px; height:1123px; padding:40px 50px; background:white; font-family:Arial, 'Segoe UI', Helvetica, sans-serif; box-sizing:border-box; color:#000;";
+                divIndice.innerHTML = `
+                    <div style="display:flex; align-items:flex-start; gap:18px; margin-bottom:20px;">
+                        <img src="${brasaoBase64 || 'assets/img/brasao_semac.jpeg'}" style="width:70px; height:auto;" />
+                        <div style="flex:1;">
+                            <div style="width:100%; height:8px; background-color:#F78C26; margin-bottom:6px;"></div>
+                            <div style="font-size:9.5pt; font-weight:bold;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
+                            <div style="font-size:9pt;">Processo administrativo nº ${escapar(numProcesso)}</div>
+                        </div>
+                    </div>
+                    <div style="text-align:center; font-size:14pt; font-weight:bold; margin:10px 0 18px 0;">ÍNDICE${paginasIndice > 1 ? ` (${p + 1}/${paginasIndice})` : ''}</div>
+                    <table style="width:100%; border-collapse:collapse; font-size:10pt;">
+                        <thead>
+                            <tr style="border-bottom:2px solid #000;">
+                                <th style="text-align:left; padding:6px 4px; width:36px;">Nº</th>
+                                <th style="text-align:left; padding:6px 4px;">Documento</th>
+                                <th style="text-align:left; padding:6px 4px; width:90px;">Inserido em</th>
+                                <th style="text-align:right; padding:6px 4px; width:110px;">Páginas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${linhas.map((e, i) => {
+                                const ini = e.inicio + paginasIndice;
+                                const fim = e.fim + paginasIndice;
+                                const paginas = !e.incluido ? 'não incluído' : (ini === fim ? `${ini}` : `${ini} a ${fim}`);
+                                return `
+                                <tr style="border-bottom:1px solid #cbd5e1;">
+                                    <td style="padding:6px 4px; vertical-align:top;">${p * LINHAS_POR_PAGINA + i + 1}</td>
+                                    <td style="padding:6px 4px; vertical-align:top;">
+                                        <div style="font-weight:600;">${escapar(e.titulo)}</div>
+                                        ${e.arquivo ? `<div style="font-size:8.5pt; color:#475569; word-break:break-all;">${escapar(e.arquivo.length > 70 ? e.arquivo.slice(0, 70) + '…' : e.arquivo)}</div>` : ''}
+                                    </td>
+                                    <td style="padding:6px 4px; vertical-align:top;">${escapar(e.data)}</td>
+                                    <td style="padding:6px 4px; vertical-align:top; text-align:right; white-space:nowrap;">${paginas}</td>
+                                </tr>`;
+                            }).join('') || '<tr><td colspan="4" style="padding:10px 4px;">Nenhum documento inserido no processo.</td></tr>'}
+                        </tbody>
+                    </table>`;
+                document.body.appendChild(divIndice);
+                const canvasIndice = await html2canvas(divIndice, { scale: 2, useCORS: true });
+                document.body.removeChild(divIndice);
+                const imgIndice = await mergedPdf.embedJpg(canvasIndice.toDataURL('image/jpeg', 0.92));
+                const paginaIndice = mergedPdf.insertPage(1 + p, [595.28, 841.89]);
+                paginaIndice.drawImage(imgIndice, { x: 0, y: 0, width: 595.28, height: 841.89 });
+            }
+
+            const bytesUnido = await mergedPdf.save();
+            const blobUnido = new Blob([bytesUnido], { type: 'application/pdf' });
+            const urlUnido = URL.createObjectURL(blobUnido);
+            const nomeUnido = `Processo_Unido_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`;
+            ocultarCarregamento();
+
+            if (acao === 'url') return urlUnido;
+            if (acao === 'abrir') {
+                window.open(urlUnido, '_blank');
+            } else {
+                const a = document.createElement('a');
+                a.href = urlUnido;
+                a.download = nomeUnido;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+            return urlUnido;
+        }
+
         // Identificação dos documentos de categorias específicas
         const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('bic'))
             || processoAtual?.dados?.documento_bic
@@ -16042,6 +16572,23 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
 
         // Ids já anexados, para não repetir documento no fim
         const idsAnexados = new Set();
+
+        // Réplica da Análise de Desconto (Etapa 26): é o último documento do
+        // processo nesse caminho, então entra no fim de tudo em vez de na ordem
+        // de inserção. Nos outros fluxos (Etapas 5 e 13) a réplica segue onde
+        // sempre esteve, junto dos demais anexos.
+        const docReplicaDesconto = notificacaoAtual?.dados?.etapa26
+            ? (docsBanco.find(d => ['Réplica', 'Réplica Assinada'].includes(d.tipo) && (d.url || d.dataUrl || d.base64))
+                || (notificacaoAtual?.dados?.anexo_replica_url
+                    ? { url: notificacaoAtual.dados.anexo_replica_url, nome_arquivo: notificacaoAtual.dados.replica_assinada_nome }
+                    : null))
+            : null;
+        if (docReplicaDesconto?.id) idsAnexados.add(docReplicaDesconto.id);
+
+        const anexarReplicaDoDesconto = async () => {
+            const url = docReplicaDesconto?.url || docReplicaDesconto?.dataUrl || docReplicaDesconto?.base64;
+            if (url) await anexarArquivoAoPdf(url, 'Réplica Assinada (Análise para dar Desconto)');
+        };
 
         if (decretoSim) {
             // ORDEM COM DECRETO: Capa, BIC, Decreto, Certidão, Outros (na ordem que foram anexados), Auto de Infração
@@ -16290,6 +16837,9 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             }
         }
 
+        // 3.14 Réplica da Análise de Desconto: fecha o corpo do processo
+        await anexarReplicaDoDesconto();
+
         // 3.15 Etapa 29: certidão de encerramento no final. Assinada, quando houver.
         if (opcoes.certidaoFinal) {
             const docCertAssinada = docsBanco.find(d => ['Certidão Assinada'].includes(d.tipo))
@@ -16351,6 +16901,9 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             return new File([blob], nomeArquivoPdf, { type: 'application/pdf' });
         }
 
+        // 'url': só devolve o endereço do PDF (atalho "Processo unido" do painel)
+        if (acao === 'url') return blobUrl;
+
         if (acao === 'abrir') {
             window.open(blobUrl, '_blank');
         } else {
@@ -16369,6 +16922,28 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
         alert('Ocorreu um erro ao gerar o PDF unificado do processo:\n' + err.message);
     }
 };
+
+// ── Processo unido aberto pelo painel (etapa.html?processo=…&pdf_unido=1) ───
+// Capa, índice com a página de cada documento e todos os documentos do processo
+// na ordem em que foram inseridos (opcoes.todosEmOrdem). As Comunicações
+// Internas não são documentos (ficam nos dados das Etapas 21/22), então não entram.
+// A aba é aberta pelo link do painel, então o PDF é mostrado nela mesma.
+async function abrirProcessoUnidoNaAba() {
+    const numero = processoAtual?.numero_processo || '';
+    document.title = `Processo unido ${numero}`;
+    const url = await window.gerarPdfProcessoCompletoEtapa15('url', { todosEmOrdem: true });
+    if (!url) return;
+
+    document.body.innerHTML = '';
+    document.body.style.margin = '0';
+    document.body.style.overflow = 'hidden';
+    const visor = document.createElement('iframe');
+    visor.src = url;
+    visor.title = `Processo unido ${numero}`;
+    visor.style.cssText = 'border:0; width:100vw; height:100vh; display:block;';
+    document.body.appendChild(visor);
+    document.title = `Processo unido ${numero}`;
+}
 
 window.carregarAnexosMultaEtapa15 = async function () {
     const container = document.getElementById('cardMultaEtapa15Container');
@@ -16405,19 +16980,18 @@ window.carregarAnexosMultaEtapa15 = async function () {
         container.innerHTML = `
             <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <div style="background:#dcfce7; padding:10px; border-radius:10px; font-size:1.5rem;">💸</div>
                     <div>
                         <div style="font-weight:700; color:#166534; font-size:0.95rem;">${nomeMulta}</div>
-                        <div style="color:#15803d; font-size:0.82rem;">Documento de Multa anexado com sucesso e pronto para encerramento.</div>
+                        <div style="color:#15803d; font-size:0.82rem;">Documento de multa anexado com sucesso e pronto para encerramento.</div>
                     </div>
                 </div>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button type="button" onclick="window.abrirAnexoEmNovaAba('${urlMulta.replace(/'/g, "\\'")}', event, '${nomeMulta.replace(/'/g, "\\'")}')" style="padding:8px 16px; background:#16a34a; color:white; border:none; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; display:flex; align-items:center; gap:6px;">
-                        👁️ Visualizar Multa
+                        Visualizar Multa
                     </button>
                     ${ehGerente ? `
                         <button type="button" onclick="window.removerMultaEtapa15()" style="padding:8px 14px; background:#ef4444; color:white; border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer;">
-                            🗑️ Substituir
+                            Substituir
                         </button>
                     ` : ''}
                 </div>
@@ -16427,13 +17001,13 @@ window.carregarAnexosMultaEtapa15 = async function () {
         container.innerHTML = `
             <div style="background:#ffffff; border:2px dashed #93c5fd; border-radius:10px; padding:20px; text-align:center;">
                 <p style="margin:0 0 12px 0; color:#1e40af; font-weight:600; font-size:0.92rem;">
-                    ${ehGerente ? 'Selecione o arquivo da Multa (PDF ou Imagem) e clique em "Salvar / Anexar Multa":' : 'Nenhum documento de Multa anexado até o momento. Aguardando ação do Gerente.'}
+                    ${ehGerente ? 'Selecione o arquivo da Multa (PDF ou Imagem) e clique em "Anexar Multa":' : 'Nenhum documento de multa anexado até o momento. Aguardando ação do Gerente.'}
                 </p>
                 ${ehGerente ? `
                     <div style="display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;">
                         <input type="file" id="inputAnexoMultaEtapa15" accept=".pdf,image/*" style="font-size:0.9rem; padding:6px; border:1px solid #cbd5e1; border-radius:6px; background:#f8fafc;" />
                         <button type="button" onclick="window.salvarMultaEtapa15()" style="padding:10px 20px; background:#2563eb; color:white; border:none; border-radius:8px; font-weight:700; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
-                            💾 Salvar / Anexar Multa
+                            Anexar Multa
                         </button>
                     </div>
                 ` : ''}
@@ -16446,18 +17020,18 @@ window.salvarMultaEtapa15 = async function () {
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
     const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
     if (!ehGerente) {
-        alert('⚠️ Apenas o Gerente ou Administrativo de Posturas tem permissão para anexar a Multa nesta etapa.');
+        alert('Apenas o Gerente ou Administrativo de Posturas tem permissão para anexar a multa nesta etapa.');
         return false;
     }
 
     const input = document.getElementById('inputAnexoMultaEtapa15');
     if (!input || !input.files || input.files.length === 0) {
-        alert('Por favor, selecione um arquivo de Multa (PDF ou Imagem) para anexar.');
+        alert('Por favor, selecione um arquivo de multa (PDF ou imagem) para anexar.');
         return false;
     }
 
     const file = input.files[0];
-    mostrarCarregamento('Enviando documento da Multa...');
+    mostrarCarregamento('Enviando documento da multa...');
 
     try {
         // O arquivo vai para o Cloudinary e o link é o que se grava — nos quatro
@@ -16469,7 +17043,7 @@ window.salvarMultaEtapa15 = async function () {
             ocultarCarregamento();
             return false;
         }
-        mostrarCarregamento('Anexando documento da Multa...');
+        mostrarCarregamento('Anexando documento da multa...');
 
         // 1. Identificar o ID do Auto de Infração (se houver)
         let docIdAI = notificacaoAtual?.dados?.auto_infracao_id || processoAtual?.dados?.auto_infracao_id || null;
@@ -16582,13 +17156,13 @@ window.salvarMultaEtapa15 = async function () {
         }
 
         ocultarCarregamento();
-        alert('✅ Documento da Multa anexado e vinculado ao Auto de Infração com sucesso!');
+        alert('Documento da multa anexado e vinculado ao Auto de Infração com sucesso!');
         await window.carregarAnexosMultaEtapa15();
         return true;
     } catch (err) {
         ocultarCarregamento();
         console.error('Erro ao salvar documento da Multa:', err);
-        alert('Erro ao salvar o documento da Multa: ' + err.message);
+        alert('Erro ao salvar o documento da multa: ' + err.message);
         return false;
     }
 };
@@ -16597,13 +17171,13 @@ window.removerMultaEtapa15 = async function () {
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
     const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
     if (!ehGerente) {
-        alert('⚠️ Apenas o Gerente ou Administrativo de Posturas pode remover/substituir o documento de Multa.');
+        alert('Apenas o Gerente ou Administrativo de Posturas pode remover/substituir o documento de multa.');
         return;
     }
 
-    if (!confirm('Deseja realmente remover o documento de Multa anexado para selecionar um novo?')) return;
+    if (!confirm('Deseja realmente remover o documento de multa anexado para selecionar um novo?')) return;
 
-    mostrarCarregamento('Removendo anexo da Multa...');
+    mostrarCarregamento('Removendo anexo da multa...');
     try {
         if (processoAtual?.dados?.etapa15) delete processoAtual.dados.etapa15;
         if (notificacaoAtual?.dados?.etapa15) delete notificacaoAtual.dados.etapa15;
@@ -16652,7 +17226,7 @@ window.avancarEtapa15 = async function () {
     const cargoLogado = normalizarCargo(perfilAtual?.cargo);
     const ehGerente = cargoLogado === 'Gerente' || cargoLogado === 'Gerente de Interface Jurídica' || cargoLogado === 'Administrativo de Posturas' || cargoLogado === 'Dev';
     if (!ehGerente) {
-        alert('⚠️ Apenas o Gerente de Fiscalização ou Administrativo de Posturas tem permissão para avançar a Etapa 15.');
+        alert('Apenas o Gerente de Fiscalização ou Administrativo de Posturas tem permissão para avançar a Etapa 15.');
         return;
     }
 
@@ -16687,12 +17261,12 @@ window.avancarEtapa15 = async function () {
     }
 
     if (!docMulta) {
-        alert('⚠️ É OBRIGATÓRIO anexar o documento da Multa antes de avançar a Etapa 15!');
+        alert('É OBRIGATÓRIO anexar o documento da multa antes de avançar a Etapa 15!');
         return;
     }
 
-    mostrarCarregamento('Avançando para Etapa 16 (Retorno do AR)...');
-    await moverProcessoParaEtapa(16, 'Processo enviado pelo Gerente para a Etapa 16 (Retorno do AR) com Multa Anexada');
+    mostrarCarregamento('Avançando para Etapa 16 (dados do AR)...');
+    await moverProcessoParaEtapa(16, 'Processo enviado pelo Gerente para a Etapa 16 (dados do AR) com multa anexada');
 };
 
 // ── Helper para abrir Base64 no Chrome de forma segura ──
@@ -16813,6 +17387,16 @@ window.toggleOpcoesDilacao = function () {
     window.gerarReplica();
 };
 
+// Etapa 26: o motivo só aparece no indeferimento, como na Etapa 5
+window.toggleOpcoesDesconto = function () {
+    const val = document.getElementById('selectDecisaoDesconto')?.value;
+    const blocoJustificativa = document.getElementById('blocoJustificativaDesconto');
+
+    if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere') ? 'block' : 'none';
+
+    window.gerarReplica();
+};
+
 window.contadorImagensReplica = 0;
 
 window.adicionarCampoImagemReplica = function () {
@@ -16863,8 +17447,8 @@ window.gerarReplica = async function () {
         ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
         : parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
 
-    // Se NÃO for etapa de edição da réplica (5 ou 13) e já existir o HTML da Réplica no banco, renderiza o salvo:
-    if (![5, 13].includes(etapaAtual) && notificacaoAtual?.dados?.html_replica) {
+    // Se NÃO for etapa de edição da réplica (5, 13 ou 26) e já existir o HTML da Réplica no banco, renderiza o salvo:
+    if (![5, 13, 26].includes(etapaAtual) && notificacaoAtual?.dados?.html_replica) {
         const container = document.getElementById('containerDocumentoOficial');
         if (container) {
             container.innerHTML = notificacaoAtual.dados.html_replica;
@@ -16971,15 +17555,35 @@ window.gerarReplica = async function () {
         numReplica = `XXX/${_anoAtual}`;
     }
 
-    const selectDecisao = document.getElementById('selectDecisaoDilacao');
+    // A tela da Etapa 26 (Análise de Desconto) usa os mesmos campos, com outros ids
+    const selectDecisao = document.getElementById('selectDecisaoDilacao')
+        || document.getElementById('selectDecisaoDesconto');
+    const campoJustificativa = document.getElementById('txtJustificativaDilacao')
+        || document.getElementById('txtJustificativaDesconto');
     const d13 = notificacaoAtual?.dados?.etapa13 || {};
     const d5 = notificacaoAtual?.dados?.etapa5 || {};
+    const d26 = notificacaoAtual?.dados?.etapa26 || {};
 
-    const decisao = selectDecisao ? selectDecisao.value : (d13.decisao || d5.decisao || '');
-    const txtJustificativa = document.getElementById('txtJustificativaDilacao') ? document.getElementById('txtJustificativaDilacao').value : (d13.justificativa || d5.justificativa || '');
+    const decisao = selectDecisao ? selectDecisao.value : (d13.decisao || d5.decisao || d26.decisao || '');
+    const txtJustificativa = campoJustificativa ? campoJustificativa.value : (d13.justificativa || d5.justificativa || d26.justificativa || '');
     const dias = document.getElementById('inputDiasDilacao') ? document.getElementById('inputDiasDilacao').value : (d5.dias || 0);
+
+    const textoDoDesconto = (dec, just) => {
+        if (dec === 'defere') {
+            return 'Após análise do pedido de desconto informamos que seu pedido foi deferido.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,';
+        }
+        if (dec === 'indefere') {
+            return `Após análise do pedido de desconto informamos que seu pedido foi indeferido, pois ${just}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
+        }
+        return '';
+    };
+
     let textoDecisao = '';
-    if (etapaAtual === 5 || d5.decisao) {
+    // A Etapa 26 vem antes na ordem porque a mesma notificação pode ter passado
+    // pela Etapa 5 (dilação) antes de virar Auto e pedir desconto
+    if (etapaAtual === 26) {
+        textoDecisao = textoDoDesconto(decisao, txtJustificativa);
+    } else if (etapaAtual === 5 || d5.decisao) {
         if (decisao === 'defere') {
             textoDecisao = `Após análise da dilação informamos que seu pedido foi deferido. O prazo foi prorrogado por mais ${dias} dias.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
@@ -16991,6 +17595,9 @@ window.gerarReplica = async function () {
         } else if (decisao === 'indefere') {
             textoDecisao = `Após análise da defesa informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         }
+    } else if (d26.decisao) {
+        // Réplica do desconto vista depois (Etapa 25, PDF unido...)
+        textoDecisao = textoDoDesconto(d26.decisao, d26.justificativa || '');
     }
 
     const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
@@ -17538,7 +18145,7 @@ window.salvarSituacaoOficioGfp = async function (valor) {
     if (!select || !documentoOficioGfpAtual) return;
 
     if (!podeGerenciarOficioGfp()) {
-        alert('⚠️ Apenas o Gerente de Fiscalização ou Administrativo de Posturas pode mudar a situação do ofício.');
+        alert('Apenas o Gerente de Fiscalização ou Administrativo de Posturas pode mudar a situação do ofício.');
         select.value = documentoOficioGfpAtual.situacao || 'sem_movimentacao';
         return;
     }
@@ -17660,7 +18267,7 @@ function configurarEdicaoNomeSecretarioOficio() {
 // ── Download do ofício em PDF (via impressão, igual Réplica/Certidão) ──
 window.baixarOficioGfpPdf = async function () {
     if (!podeGerenciarOficioGfp()) {
-        alert('⚠️ Apenas o Gerente de Fiscalização ou Administrativo de Posturas pode baixar o Ofício GFP.');
+        alert('Apenas o Gerente de Fiscalização ou Administrativo de Posturas pode baixar o Ofício GFP.');
         return;
     }
 

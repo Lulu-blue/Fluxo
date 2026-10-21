@@ -4,42 +4,33 @@
 
 // ── Mapa de etapas (para exibição) ──────────────────────────
 const ETAPAS_MAP = {
-    1: 'Possui Decreto/Notificação',
-    2: 'Defesa ou Dilação de Prazo',
-    3: 'Envio da 1ª Defesa',
-    4: 'Comprovante Propriedade',
-    5: 'Análise Dilação de Prazo',
-    6: 'Defesa Com Dilação',
-    7: 'Análise da Defesa Sem Dilação',
-    8: 'Fiscal Analisa Defesa (Pós Dilação)',
-    9: 'Envio Defesa Sem Dilação',
-    10: 'Certidão Sem Defesa',
-    11: 'Gerente antes Infração',
-    12: 'Gerente antes Auto Infração',
-    13: 'Fiscal Analisa Defesa (1ª)',
-    14: 'Auto de Infração',
-    15: 'Gerente Gera a Multa',
-    16: 'Retorno do AR',
-    17: 'Gerência Gera o Edital',
-    18: 'Solicitar Defesa ou Recurso',
-    19: 'Envio de Defesa ou Pagamento',
-    20: 'Arquivamento do Processo',
-    21: 'Fiscal Convocado Jurídico',
-    22: 'Gerente Convocado Jurídico',
-    23: 'Parecer Jurídico',
-    24: 'Secretário Despacha',
-    25: 'Gerente Cumpre Decreto',
-    26: 'Fazenda Gera a Multa',
-    27: 'Devolvimento para o Setor',
-    28: 'Certificação do Vencimento',
-    29: 'Fiscal Emite Certidão',
-    30: 'Gerente Localiza o AR',
-    31: 'Comprovante Pagamento',
-    32: 'Consulta no Jurídico'
+    1: 'Notificação',
+    2: 'Andamento',
+    3: 'Defesa',
+    4: 'Comprovantes',
+    5: 'Análise dilação de prazo',
+    10: 'Certidão de cumprimento',
+    13: 'Análise da defesa',
+    14: 'Auto de Infração (AI)',
+    15: 'Multa do AI',
+    16: 'Dados do AR',
+    17: 'Publicação do edital',
+    18: 'Andamento do AI',
+    19: 'Parecer Jurídico',
+    20: 'Arquivamento do AI',
+    21: 'Comunicação interna (Fiscal)',
+    22: 'Comunicação interna (Gerência)',
+    24: 'Despacho Administrativo',
+    25: 'Encaminhamento do despacho',
+    26: 'Análise para dar desconto',
+    28: 'Certificação do vencimento',
+    29: 'Certidão de encerramento',
+    30: 'AR pendente',
+    31: 'Comprovante pagamento'
 };
 
 const STATUS_LABELS = {
-    em_aberto: 'Em Aberto',
+    em_aberto: 'Em aberto',
     finalizado: 'Finalizado',
     cancelado: 'Cancelado'
 };
@@ -147,17 +138,18 @@ function calcularEtapaProcesso(item) {
 }
 
 const ETAPAS_POR_CARGO = {
-    'Dev': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
-    'Fiscal de Postura': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 19, 21, 27, 29, 31, 32],
+    'Dev': [1, 2, 3, 4, 5, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 29, 30, 31],
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 10, 13, 14, 19, 21, 26, 29, 31],
     'Administrativo de Posturas': [15, 16, 17],
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
     // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
-    'Gerente': [11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30],
-    'Gerente de Posturas': [11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30],
-    'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32],
+    'Gerente': [15, 17, 18, 20, 22, 25, 28, 29, 30],
+    'Gerente de Posturas': [15, 17, 18, 20, 22, 25, 28, 29, 30],
+    'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 29, 30, 31],
     'Secretário': [24],
-    'Jurídico': [18, 23],
-    'Fazenda': [26]
+    'Jurídico': [18],
+    // A Etapa 26 virou a Análise de Desconto; o perfil fica sem etapas até ser redefinido
+    'Fazenda': []
 };
 
 function normalizarCargo(cargo) {
@@ -179,6 +171,8 @@ function normalizarCargo(cargo) {
 // situações diferentes: uma encerrada, outra virando Auto, outra arquivada.
 const SITUACOES_PROCESSO = {
     notificacao_preliminar: 'Notificação Preliminar',
+    // Meio Ambiente (migracao/situacao_auto_fiscalizacao.sql)
+    auto_fiscalizacao: 'Auto de Fiscalização',
     auto_infracao: 'Auto de Infração',
     arquivado: 'Arquivado',
     encerrado: 'Encerrado',
@@ -261,11 +255,11 @@ async function anexarSituacoesDasNotificacoes(itens) {
 
 // Uma linha por processo, mostrando a situação de cada notificação dele.
 // Sem notificações (ou antes da migração), cai no resumo do processo.
-const ORDEM_SITUACOES = ['auto_infracao', 'notificacao_preliminar', 'arquivado', 'encerrado', 'cancelado'];
+const ORDEM_SITUACOES = ['auto_infracao', 'auto_fiscalizacao', 'notificacao_preliminar', 'arquivado', 'encerrado', 'cancelado'];
 
 const BADGE_AGUARDANDO_JURIDICO =
     '<span style="display:inline-block; padding:2px 10px; border-radius:12px; font-size:0.72rem; font-weight:700; '
-    + 'background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; white-space:nowrap;">⏸️ Aguardando Jurídico</span>';
+    + 'background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; white-space:nowrap;">Aguardando Jurídico</span>';
 
 function montarColunaSituacao(item) {
     const paralisado = item.aguardando_juridico ? BADGE_AGUARDANDO_JURIDICO : '';
@@ -291,8 +285,7 @@ function obterCargoResponsavelPelaEtapa(etapaNum) {
     if ([11, 12, 15, 17, 18, 20, 22, 25, 28, 29, 30].includes(num)) return 'Gerente';
     if ([16, 17].includes(num)) return 'Administrativo';
     if ([24].includes(num)) return 'Secretário';
-    if ([23].includes(num)) return 'Jurídico';
-    if ([26].includes(num)) return 'Fazenda';
+    if ([19].includes(num)) return 'Jurídico';
     return 'Fiscal';
 }
 
@@ -378,6 +371,14 @@ function itemPertenceAoCargo(item, cargoAlvo) {
     if (!cargoAlvo) return true;
     const cargoNorm = normalizarCargo(cargoAlvo);
     if (cargoNorm === 'Dev') return true;
+
+    // Fiscal de Meio Ambiente tem as etapas do Fiscal de Postura, mas cada um só
+    // responde pelos processos do seu tipo (meio-ambiente.js)
+    if (cargoNorm === 'Fiscal de Postura' && typeof window.processoEhMeioAmbiente === 'function') {
+        const filtroMeioAmbiente = window.ehCargoMeioAmbiente(cargoAlvo);
+        if (filtroMeioAmbiente !== window.processoEhMeioAmbiente(item)) return false;
+    }
+
     const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || ETAPAS_POR_CARGO[cargoAlvo] || ETAPAS_POR_CARGO['Gerente'] || [];
     if (etapasPermitidas.length === 0) return true;
 
@@ -617,7 +618,7 @@ function preencherDadosInterfaceUsuario(usuario) {
 
     configurarBotoesAcaoPorCargo();
 
-    // Quando se chega pela sidebar da etapa (painel.html#oficios, #avisos, ...)
+    // Quando se chega pela sidebar da etapa (painel.html#oficios, #instrucoes, ...)
     abrirPaginaDoHash();
 }
 
@@ -766,11 +767,17 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
                 if (docsNotif) docsNotif.forEach(d => { if (d.processo_id) notifProcIds.push(d.processo_id); });
             } catch (eDocNotif) { }
 
+            // A NP e o Auto de Fiscalização impressos mostram "2026/000668-1", mas a
+            // notificação é gravada como "2026/000668/01": procura os dois formatos
+            const termosNotif = [notifTerm];
+            const formatoImpresso = notifTerm.match(/^(.*\d)\s*-\s*(\d{1,2})$/);
+            if (formatoImpresso) termosNotif.push(`${formatoImpresso[1]}/${formatoImpresso[2].padStart(2, '0')}`);
+
             try {
                 const { data: notifsMatch } = await supabaseClient
                     .from('notificacoes')
                     .select('processo_id')
-                    .ilike('numero', `%${notifTerm}%`);
+                    .or(termosNotif.map(t => `numero.ilike.%${t.replace(/[,()]/g, '')}%`).join(','));
                 if (notifsMatch) notifsMatch.forEach(n => { if (n.processo_id) notifProcIds.push(n.processo_id); });
             } catch (eNotif) { }
 
@@ -842,6 +849,30 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
                 orCpf += `,id.in.(${uniqueContribProcIds.join(',')})`;
             }
             query = query.or(orCpf);
+        }
+        if (filtros.codigoReduzido) {
+            // Código reduzido do imóvel: o gravado no processo e, pelo cadastro de
+            // imóveis, os processos ligados a ele (imovel_id)
+            const termoCodigo = filtros.codigoReduzido.replace(/[,()%]/g, '').trim();
+            const procIdsImovel = [];
+            try {
+                const { data: imoveisCodigo } = await supabaseClient
+                    .from('imoveis')
+                    .select('id')
+                    .ilike('codigo_reduzido', `%${termoCodigo}%`);
+                if (imoveisCodigo && imoveisCodigo.length > 0) {
+                    const { data: procImoveis } = await supabaseClient
+                        .from('processos')
+                        .select('id')
+                        .in('imovel_id', imoveisCodigo.map(i => i.id));
+                    (procImoveis || []).forEach(p => procIdsImovel.push(p.id));
+                }
+            } catch (eImovel) { }
+
+            let orCodigo = `dados->imovel->>codigo_reduzido.ilike.%${termoCodigo}%`;
+            const unicosImovel = [...new Set(procIdsImovel)];
+            if (unicosImovel.length > 0) orCodigo += `,id.in.(${unicosImovel.join(',')})`;
+            query = query.or(orCodigo);
         }
         if (filtros.fiscal) {
             query = query.eq('fiscal_id', filtros.fiscal);
@@ -1022,7 +1053,6 @@ function renderizarTabela(dados, cargoFiltro) {
     dados.forEach(item => {
         const tr = document.createElement('tr');
 
-        const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '—';
         const nomeSolicitante = item.dados?.contribuinte?.nome || item.dados?.nome_solicitante || '—';
         const dataInicio = formatarData(item.data_inicio_prazo);
         const dataFinal = formatarData(item.data_vencimento);
@@ -1054,7 +1084,7 @@ function renderizarTabela(dados, cargoFiltro) {
                     <span class="protocolo-badge">${item.numero_processo || '—'}</span>
                 </a>
             </td>
-            <td class="col-cpf">${formatarCpfCnpj(cpfCnpj)}</td>
+            <td class="col-codigo-imovel">${item.dados?.imovel?.codigo_reduzido || '—'}</td>
             <td class="col-nome">${nomeSolicitante}</td>
             <td class="col-data">${dataInicio}</td>
             <td class="col-data">${dataFinal}</td>
@@ -1066,12 +1096,21 @@ function renderizarTabela(dados, cargoFiltro) {
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
             </td>
             <td class="col-acoes">
-                <a href="${linkProcesso}" class="btn-abrir-processo" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir Processo (botão direito para abrir em nova guia)">
+                <a href="${linkProcesso}" class="btn-abrir-processo" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir processo (botão direito para abrir em nova guia)">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Abrir
                 </a>
+                <a href="etapa.html?processo=${encodeURIComponent(item.id)}&pdf_unido=1" target="_blank" rel="noopener" class="btn-abrir-processo btn-processo-unido" title="Abrir em outra aba o processo unido: capa, índice e todos os documentos na ordem em que foram inseridos">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    Processo unido
+                </a>
             </td>
         `;
+
+        // Fiscal de Meio Ambiente: a situação e a etapa falam em Auto de Fiscalização
+        // no lugar de Notificação Preliminar (meio-ambiente.js)
+        const ehProcessoMeioAmbiente = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(item));
+        if (ehProcessoMeioAmbiente) window.aplicarTermosAutoFiscalizacao(tr);
 
         tr.style.borderLeft = `4px solid ${STATUS_COLORS[statusClass] || '#94a3b8'}`;
 
@@ -1083,7 +1122,7 @@ function renderizarTabela(dados, cargoFiltro) {
         // Multa já anexada na Etapa 15: roxo mais escuro (só para os cargos que cuidam dela)
         if (mostrarDestaqueMulta && processoTemMultaAnexada(item)) {
             tr.classList.add('linha-multa-anexada');
-            tr.title = 'Documento da Multa já anexado (Etapa 15)';
+            tr.title = 'Documento da multa já anexado (Etapa 15)';
         }
 
         tr.style.cursor = 'pointer';
@@ -1139,7 +1178,7 @@ function renderizarTabela(dados, cargoFiltro) {
                              title="Clique para abrir esta notificação específica">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <strong style="color: #1e293b; font-size: 0.84rem;">Notificação #${numNotif}</strong>
-                                <span style="font-size: 0.72rem; background: #F0F4FA; color: #3B5888; border: 1px solid #C0B9DD; font-weight: 700; padding: 2px 8px; border-radius: 4px;">Sua Etapa — Clique para abrir</span>
+                                <span style="font-size: 0.72rem; background: #F0F4FA; color: #3B5888; border: 1px solid #C0B9DD; font-weight: 700; padding: 2px 8px; border-radius: 4px;">Sua etapa — Clique para abrir</span>
                             </div>
                             <div style="display: flex; gap: 24px; color: #475569; font-size: 0.78rem; flex-wrap: wrap;">
                                 <span><strong style="color: #64748b;">Etapa:</strong> E${eNum} (${eNome})</span>
@@ -1156,6 +1195,7 @@ function renderizarTabela(dados, cargoFiltro) {
                         </td>
                     `;
 
+                    if (ehProcessoMeioAmbiente) window.aplicarTermosAutoFiscalizacao(trDet);
                     tabelaBody.appendChild(trDet);
                 }
             }
@@ -1221,6 +1261,7 @@ function coletarFiltros() {
         notificacao: document.getElementById('filtroNotificacao')?.value.trim() || '',
         nome: document.getElementById('filtroNome')?.value.trim() || '',
         cpf: document.getElementById('filtroCpf')?.value.trim() || '',
+        codigoReduzido: document.getElementById('filtroCodigoReduzido')?.value.trim() || '',
         fiscal: elFiscal ? elFiscal.value : '',
         status: document.getElementById('filtroStatus')?.value || '',
         dataInicio: document.getElementById('filtroDataInicio')?.value || '',
@@ -1252,7 +1293,7 @@ function exportarCSV() {
         return;
     }
 
-    const headers = ['Protocolo', 'CPF/CNPJ', 'Nome do Solicitante', 'Data Início', 'Data Final', 'Dias p/ Vencimento', 'Fiscal', 'Situação', 'Etapa'];
+    const headers = ['Protocolo', 'Código reduzido', 'CPF/CNPJ', 'Nome do solicitante', 'Data início', 'Data final', 'Dias p/ Vencimento', 'Fiscal', 'Situação', 'Etapa'];
 
     const rows = dadosTabela.map(item => {
         const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '';
@@ -1266,6 +1307,7 @@ function exportarCSV() {
 
         return [
             item.numero_processo || '',
+            item.dados?.imovel?.codigo_reduzido || '',
             cpfCnpj,
             nome,
             dataInicio,
@@ -1432,6 +1474,7 @@ function bindEventos() {
         if (document.getElementById('filtroNotificacao')) document.getElementById('filtroNotificacao').value = '';
         if (document.getElementById('filtroNome')) document.getElementById('filtroNome').value = '';
         if (document.getElementById('filtroCpf')) document.getElementById('filtroCpf').value = '';
+        if (document.getElementById('filtroCodigoReduzido')) document.getElementById('filtroCodigoReduzido').value = '';
         if (document.getElementById('filtroFiscal')) document.getElementById('filtroFiscal').value = '';
         if (document.getElementById('filtroDataInicio')) document.getElementById('filtroDataInicio').value = '';
         if (document.getElementById('filtroDataFim')) document.getElementById('filtroDataFim').value = '';
@@ -1559,13 +1602,12 @@ function bindEventos() {
         }
     });
 
-    // Navegação Menu Lateral (Processos / Ofícios / Avisos / Instruções / Apuração / Configurações)
+    // Navegação Menu Lateral (Processos / Ofícios / Instruções / Apuração / Configurações)
     const TITULOS_PAGINA = {
-        solicitacoes: 'Painel de Processos',
+        solicitacoes: 'Painel de processos',
         oficios: 'Ofícios',
-        avisos: 'Avisos',
         instrucoes: 'Instruções',
-        apuracao: 'Apuração de Dados',
+        apuracao: 'Apuração de dados',
         configuracoes: 'Configurações'
     };
 
@@ -1590,13 +1632,12 @@ function bindEventos() {
             });
             if (breadcrumb) breadcrumb.textContent = 'Painel / ' + (TITULOS_PAGINA[page] || 'Processos');
 
-            if (page === 'avisos' || page === 'instrucoes') {
+            if (page === 'instrucoes') {
                 const secao = document.getElementById('secao-' + page);
                 if (secao) secao.style.display = 'block';
                 if (pageTitle) pageTitle.textContent = TITULOS_PAGINA[page];
                 if (headerActions) headerActions.style.display = 'none';
-                if (page === 'instrucoes') restaurarChecklistInstrucoes();
-                if (page === 'avisos') renderizarFeedAvisos();
+                restaurarChecklistInstrucoes();
             } else if (page === 'oficios') {
                 const secaoOficios = document.getElementById('secao-oficios');
                 if (secaoOficios) secaoOficios.style.display = 'block';
@@ -1620,7 +1661,7 @@ function bindEventos() {
                 }
             } else if (page === 'apuracao') {
                 if (secaoApuracao) secaoApuracao.style.display = 'block';
-                if (pageTitle) pageTitle.textContent = 'Apuração de Dados';
+                if (pageTitle) pageTitle.textContent = 'Apuração de dados';
                 if (headerActions) headerActions.style.display = 'none';
 
                 // Carregar/Renderizar Apuração
@@ -1638,569 +1679,8 @@ function bindEventos() {
     configurarChecklistInstrucoes();
 }
 
-// ── Avisos (mural de publicações) ───────────────────────────
-// Para publicar um aviso novo, acrescente um objeto no INÍCIO desta lista.
-// nivel: 'critico' | 'atencao' | 'info'  (cor da etiqueta)
-// layout: 'documento' exibe o corpo como peça oficial; qualquer outro valor usa o texto comum.
-const AVISOS_PUBLICADOS = [
-    {
-        id: 'cores-da-tabela-e-chat',
-        nivel: 'info',
-        tag: 'Atualização do sistema',
-        titulo: 'O que cada cor da tabela quer dizer',
-        data: '16/09/2026',
-        autor: 'Desenvolvimento do Fluxograma',
-        resumo: 'A tabela de processos usa cor para contar três coisas ao mesmo tempo: de quem é a vez, como está o processo e quanto tempo falta. Mais um resumo de como usar o chat.',
-        corpo: `
-            <p class="pub-lead">A tabela de Processos não é só uma lista. Antes de ler qualquer texto, ela já
-            responde três perguntas pela cor: <strong>de quem é a vez</strong>, <strong>como está o processo</strong> e
-            <strong>quanto tempo falta</strong>. Vale conhecer o código — depois disso a leitura fica bem mais rápida.</p>
-
-            <h3 class="pub-sub">1. O fundo da linha: de quem é a vez</h3>
-            <p class="pub-lead">A cor de fundo mostra o cargo responsável pela etapa em que o processo está parado
-            agora. Se a linha está colorida, a bola não está com o fiscal.</p>
-            <ul class="pub-cores">
-                <li>
-                    <span class="pub-cor" style="background:#ddd9f0;"></span>
-                    <div>
-                        <strong>Roxo claro — Gerência de Posturas</strong>
-                        <span class="pub-cor-desc">Etapas 11, 12, 15, 17, 18, 20, 22, 25, 28, 29 e 30.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="pub-cor" style="background:#c1d2eb;"></span>
-                    <div>
-                        <strong>Azul — Administrativo de Posturas</strong>
-                        <span class="pub-cor-desc">Etapas 16 e 17, a fase do retorno do AR e do edital.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="pub-cor" style="background:#f7daea;"></span>
-                    <div>
-                        <strong>Rosa — Jurídico</strong>
-                        <span class="pub-cor-desc">Etapa 23, quando o processo está aguardando parecer. Também atua na Etapa 18,
-                        que aparece com a cor da Gerência.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="pub-cor" style="background:#c3f3e9;"></span>
-                    <div>
-                        <strong>Verde água — Secretário</strong>
-                        <span class="pub-cor-desc">Etapa 24, o despacho.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="pub-cor" style="background:#ffffff;"></span>
-                    <div>
-                        <strong>Sem cor (branco) — Fiscal de Posturas</strong>
-                        <span class="pub-cor-desc">Todas as outras etapas. Linha branca quer dizer que a próxima
-                        ação é do fiscal.</span>
-                    </div>
-                </li>
-            </ul>
-
-            <h3 class="pub-sub">2. A listra na ponta esquerda: a situação do processo</h3>
-            <p class="pub-lead">Cada linha tem uma listra vertical colorida bem na borda esquerda. Ela não fala de
-            cargo nenhum: fala do estado do processo.</p>
-            <ul class="pub-cores">
-                <li>
-                    <span class="pub-cor pub-cor-listra" style="border-left-color:#80A1D4;"></span>
-                    <div>
-                        <strong>Azul — Em Aberto</strong>
-                        <span class="pub-cor-desc">O processo está em andamento, em alguma etapa do fluxo.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="pub-cor pub-cor-listra" style="border-left-color:#75C9C8;"></span>
-                    <div>
-                        <strong>Verde água — Finalizado</strong>
-                        <span class="pub-cor-desc">Encerrado. Continua aberto para consulta, mas não anda mais.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="pub-cor pub-cor-listra" style="border-left-color:#F8A4A4;"></span>
-                    <div>
-                        <strong>Rosa — Cancelado</strong>
-                        <span class="pub-cor-desc">Interrompido. A coluna de etapa aparece com um traço.</span>
-                    </div>
-                </li>
-            </ul>
-
-            <h3 class="pub-sub">3. A bolinha de dias: quanto tempo falta</h3>
-            <p class="pub-lead">Na coluna <strong>Dias para Vencimento</strong> a cor muda sozinha conforme o prazo
-            se aproxima. É o aviso mais fácil de bater o olho e o mais fácil de ignorar.</p>
-            <ul class="pub-cores">
-                <li>
-                    <span class="dias-badge">22 dias</span>
-                    <div>
-                        <strong>Verde — mais de 15 dias</strong>
-                        <span class="pub-cor-desc">Prazo confortável.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="dias-badge alerta">12 dias</span>
-                    <div>
-                        <strong>Amarelo — 15 dias ou menos</strong>
-                        <span class="pub-cor-desc">Hora de colocar na fila da semana.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="dias-badge urgente">3 dias</span>
-                    <div>
-                        <strong>Vermelho piscando — 5 dias ou menos</strong>
-                        <span class="pub-cor-desc">Pisca de propósito. Também fica vermelho quando o prazo já
-                        venceu.</span>
-                    </div>
-                </li>
-                <li>
-                    <span class="dias-badge">&mdash;</span>
-                    <div>
-                        <strong>Um traço</strong>
-                        <span class="pub-cor-desc">O processo ainda não tem data final cadastrada.</span>
-                    </div>
-                </li>
-            </ul>
-
-            <p class="pub-lead">As três coisas aparecem juntas, e isso é de propósito: uma linha roxa, com listra azul
-            e bolinha vermelha é um processo em aberto, parado com a Gerência, prestes a vencer. Dá pra ver isso sem
-            abrir nada.</p>
-
-            <h3 class="pub-sub">E o chat, como funciona</h3>
-            <p class="pub-lead">Aquele botão redondo no canto inferior direito da tela é o chat. Ele acompanha você
-            no painel e dentro do processo — não é preciso procurar em lugar nenhum.</p>
-            <ul class="pub-lista">
-                <li><strong>Dentro de um processo</strong>, ele abre a conversa daquele processo. Tudo o que for
-                escrito fica grudado ali, então quem abrir depois entende o contexto sem precisar perguntar.</li>
-                <li><strong>No painel</strong>, ele abre o histórico de conversas, para encontrar uma discussão
-                antiga sem ter que caçar o processo primeiro.</li>
-                <li>No topo da janela tem o campo <strong>"Para:"</strong>, que escolhe entre
-                <strong>Interface Jurídica</strong> e <strong>Gerência de Posturas</strong>. Se alguém te escreveu, o
-                sistema já deixa selecionado o destino de quem falou por último — mas se você escolher na mão, ele
-                respeita a sua escolha e não mexe mais.</li>
-                <li>A <strong>bolinha vermelha</strong> no botão conta as mensagens que você ainda não leu. Ela
-                atualiza sozinha mesmo com o chat fechado, então não precisa ficar abrindo para conferir.</li>
-                <li>Dá para <strong>anexar arquivo</strong> na conversa, útil quando a dúvida é sobre um documento
-                específico.</li>
-                <li>Quem enviou consegue ver <strong>quem já leu</strong> a mensagem. A ideia não é cobrar ninguém: é
-                evitar a dúvida de "será que chegou?" e a mensagem repetida por garantia.</li>
-            </ul>
-
-            <p class="pub-lead">Se alguma cor parecer errada, ou o chat não atualizar como deveria, me avise. É mais
-            rápido arrumar do que conviver.</p>
-        `
-    },
-    {
-        id: 'nova-aba-instrucoes',
-        nivel: 'info',
-        tag: 'Atualização do sistema',
-        titulo: 'Nova aba: Instruções',
-        data: '11/09/2026',
-        autor: 'Desenvolvimento do Fluxograma',
-        resumo: 'O passo a passo completo do processo, com dicas e checklist, agora fica sempre disponível no menu lateral.',
-        corpo: `
-            <p class="pub-lead">Foi adicionada ao menu lateral a aba <strong>Instruções</strong>, com o caminho
-            completo de um processo — do momento em que ele é aberto até o clique em <code>Avançar Etapa</code>.</p>
-
-            <h3 class="pub-sub">O que tem lá</h3>
-            <ul class="pub-lista">
-                <li><strong>Sete passos numerados</strong>, em linguagem direta, na ordem em que as telas aparecem.</li>
-                <li>Uma <strong>dica prática</strong> em cada passo, com o detalhe que costuma passar batido.</li>
-                <li>Um <strong>checklist marcável</strong> para acompanhar a conferência enquanto você trabalha. Ele
-                fica salvo no seu navegador, é individual e ninguém mais vê.</li>
-            </ul>
-
-            <h3 class="pub-sub">Para que serve</h3>
-            <p class="pub-lead">A ideia é simples: tirar da memória o que não precisa estar lá. Em vez de lembrar em
-            que ordem fazer as coisas ou perguntar para quem está do lado, a sequência inteira fica a um clique de
-            distância, aberta na tela enquanto o processo é conduzido.</p>
-
-            <p class="pub-lead">Se alguma tela estiver confusa, travando ou puxando algo errado, me procure. Prefiro
-            muito mais arrumar o sistema do que ver alguém perdendo tempo com ele.</p>
-        `
-    },
-    {
-        id: 'notificacao-preliminar-desatencao',
-        nivel: 'critico',
-        tag: 'Aviso importante',
-        titulo: 'Notificação Preliminar de Desatenção',
-        data: '11/09/2026',
-        autor: 'Fiscalização de Posturas',
-        resumo: 'Documento interno sobre a conferência dos processos: o que temos encontrado, o que isso causa e o que muda com um clique. Leitura recomendada antes de avançar qualquer etapa.',
-        layout: 'documento',
-        corpo: `
-        <div class="doc-notificacao">
-            <div class="doc-folha">
-
-                <header class="doc-timbre">
-                    <div class="doc-orgao">
-                        Divisão de Fiscalização de Posturas &middot; Fluxo de Processos<br>
-                        Comunicado interno <strong>CI-001/2026</strong> — via única, sem AR
-                    </div>
-                    <h1>Notificação <span class="doc-rubro">preliminar</span> de desatenção</h1>
-                    <p class="doc-subtitulo">Desta vez o autuado é a gente mesmo. Vale ler com o mesmo cuidado que a
-                        gente cobra do contribuinte.</p>
-                    <div class="doc-carimbo">Conferido?<span class="doc-caixas">( ) sim &nbsp; ( ) não</span></div>
-                </header>
-
-                <dl class="doc-campos">
-                    <div class="doc-campo">
-                        <dt>Autuado(a)</dt>
-                        <dd>Todos nós, quando a pressa fala mais alto</dd>
-                    </div>
-                    <div class="doc-campo">
-                        <dt>CPF/CNPJ</dt>
-                        <dd><em>não conferido — como de costume</em></dd>
-                    </div>
-                    <div class="doc-campo doc-largo">
-                        <dt>Dispositivos internos transgredidos</dt>
-                        <dd>Art. 1º ao 5º do Manual do Bom Senso — que, curiosamente, nunca foi revogado</dd>
-                    </div>
-                    <div class="doc-campo">
-                        <dt>Prazo para regularização</dt>
-                        <dd>Imediato. Venceu ontem, na verdade.</dd>
-                    </div>
-                    <div class="doc-campo">
-                        <dt>Reincidência</dt>
-                        <dd>Sim — com uma constância admirável</dd>
-                    </div>
-                </dl>
-
-                <section class="doc-secao">
-                    <span class="doc-eyebrow">I — Preâmbulo</span>
-                    <h2>Não é difícil. É pressa.</h2>
-                    <p class="doc-lead">Vamos combinar uma coisa antes de começar: o sistema mostra o nome do
-                        contribuinte na tela, deixa abrir o PDF antes de anexar e coloca um botão
-                        <code>Visualizar</code> colado no arquivo que você acabou de subir. Está tudo à mão, em
-                        português, sem senha e sem fila.</p>
-                    <p class="doc-lead">O que acontece depois de um documento errado seguir no fluxo é menos simpático:
-                        alguém abre processo por processo, um por um, pra descobrir onde foi parar o auto de infração de
-                        um contribuinte que não tinha nada a ver com a história. Não é um trabalho difícil. É só um
-                        trabalho que não precisava existir.</p>
-                    <p class="doc-lead">Então fica o pedido, com todo o carinho: <b>não custa olhar.</b></p>
-                </section>
-
-                <section class="doc-secao">
-                    <span class="doc-eyebrow">Rol de constatações</span>
-                    <h2>Do mais bobo ao imperdoável</h2>
-
-                    <div class="doc-rol">
-
-                        <div class="doc-art">
-                            <div class="doc-art-meta"><span>Art. 1º</span><span class="doc-grau leve">Leve</span><span>Frequência: constante</span></div>
-                            <h3>Não conferir o nome do contribuinte antes de começar</h3>
-                            <p>O nome e o <code>CPF/CNPJ</code> aparecem na tela, na primeira linha, em negrito. Não é
-                                letra miúda de contrato, é o cabeçalho. Abrir o processo errado e perceber três etapas
-                                depois não chega a ser azar — é a única linha que precisava de dois segundos de
-                                leitura.</p>
-                            <p class="doc-agravante"><b>Agravante</b>Depois de gerar documento no processo errado, o
-                                engano já está em PDF, numerado e com data.</p>
-                        </div>
-
-                        <div class="doc-art">
-                            <div class="doc-art-meta"><span>Art. 2º</span><span class="doc-grau leve">Leve</span><span>Reincidência: alta</span></div>
-                            <h3>Gerar o processo sem ler o relatório</h3>
-                            <p>O relatório aparece inteiro na tela antes de virar processo: endereço, motivo da
-                                notificação, dispositivo transgredido, tudo montado. Clicar em gerar sem passar o olho é
-                                assinar embaixo de um texto que ninguém leu — o que costuma explicar as perguntas sobre
-                                por que o endereço saiu errado.</p>
-                            <p class="doc-agravante"><b>Agravante</b>Documento gerado consome numeração sequencial.
-                                Errou, queimou um número.</p>
-                        </div>
-
-                        <div class="doc-art">
-                            <div class="doc-art-meta"><span>Art. 3º</span><span class="doc-grau media">Média</span><span>Modalidade: distração seletiva</span></div>
-                            <h3>Esquecer que existe um botão de editar</h3>
-                            <p>Existe uma aba chamada <code>Editar Dados do Processo</code>. Fica no topo, ao lado da
-                                aba do documento oficial, com esse nome exato, escrito por extenso em português. Ninguém
-                                escondeu e ninguém precisa de senha. Ela está ali, disponível, sem fila — e mesmo assim
-                                raramente é clicada, porque é mais rápido avançar tudo em série e depois dizer que não
-                                notou.</p>
-                            <p class="doc-agravante"><b>Agravante</b>O sistema é novo, e sistema novo pede
-                                <b>mais</b> cuidado, não menos — ainda mais quando o que está em jogo é documentação com
-                                o CPF de outras pessoas. Eu sentei com cada um pra ensinar e continuo disponível pra
-                                quem quiser perguntar. Perguntar, aliás, costuma funcionar bem melhor do que reclamar
-                                depois.</p>
-                        </div>
-
-                        <div class="doc-art">
-                            <div class="doc-art-meta"><span>Art. 4º</span><span class="doc-grau media">Média</span><span>Consequência: assinatura em erro</span></div>
-                            <h3>Baixar e assinar sem abrir o que baixou</h3>
-                            <p>Entre clicar em <code>Baixar Relatório (.pdf)</code> e estampar a assinatura existe um
-                                passo pequeno: <b>abrir o arquivo</b>. Duplo clique, dez segundos. Pular esse passo
-                                significa garantir com o nome funcional o conteúdo de um documento que ninguém viu.</p>
-                            <p class="doc-agravante"><b>Agravante</b>Documento assinado errado não se conserta editando.
-                                Refaz-se inteiro.</p>
-                        </div>
-
-                        <div class="doc-art doc-capital">
-                            <div class="doc-art-meta"><span>Art. 5º</span><span class="doc-grau grave">Gravíssima</span><span>Sem atenuantes</span></div>
-                            <h3>Anexar documento de outro processo e avançar etapa sem olhar</h3>
-                            <p>Esta é a campeã: um auto de infração de <b>outro contribuinte</b> anexado no processo
-                                errado, seguido de um <code>Avançar Etapa</code> sem que ninguém tenha clicado em
-                                <code>Visualizar</code> uma única vez.</p>
-                            <p>E o <code>Visualizar</code> fica ao lado do anexo. No mesmo cartão. Colado no
-                                <code>Remover</code>. Abre o PDF em outra aba. É um clique. <b>Um.</b></p>
-                            <p>O resultado é o dado de um cidadão dentro do processo de outro, um documento que não
-                                sustenta o que deveria sustentar, um processo que pode ser questionado — e a tarefa,
-                                para alguém, de varrer processo por processo até achar cada documento trocado.</p>
-                            <p>E isso não fica entre nós: <b>esses processos seguem para a Fazenda</b> — com o nome de
-                                vocês e com a <b>assinatura</b> de vocês no documento. Quem assina é quem responde pelo
-                                que assinou, e nesse ponto não tem sistema, nem estágio, nem tela que assuma o lugar de
-                                ninguém.</p>
-                            <p class="doc-agravante"><b>Agravante máximo</b>Depois que a etapa avança, o documento já
-                                circulou. O que era um detalhe de dois segundos vira problema de todo mundo.</p>
-                        </div>
-
-                    </div>
-                </section>
-
-                <section class="doc-secao">
-                    <span class="doc-eyebrow">II — Sobre avançar tudo de uma vez</span>
-                    <h2>Ninguém vai ficar sem pontuação</h2>
-                    <p class="doc-lead">A pressa costuma ter um motivo, e não é muito difícil adivinhar qual é. Então
-                        vamos tirar esse peso da mesa agora.</p>
-                    <p class="doc-lead"><b>Está tudo salvo.</b> Cada etapa avançada, cada documento gerado e cada anexo
-                        enviado fica registrado no banco, com autor e data. Nada se perde porque alguém foi devagar. O
-                        que se perde é quando o documento sai errado — e esse, sim, não volta.</p>
-
-                    <p class="doc-destaque">A pontuação fecha no fim do mês. Não é hoje, não é agora.</p>
-
-                    <p class="doc-lead">A integração com o outro sistema ainda tem defeito, eu sei — e estou
-                        corrigindo. É uma estagiária construindo isso, então vai no ritmo que dá. Mas defeito de
-                        integração eu conserto até o fechamento. Auto de infração assinado no processo errado, que já
-                        saiu daqui com o nome de vocês, esse eu não consigo consertar.</p>
-                    <p class="doc-lead">Ou seja: não há motivo nenhum pra avançar etapa no automático. <b>O mês inteiro
-                            está disponível. Dá pra gastar trinta segundos.</b></p>
-                </section>
-
-                <section class="doc-secao">
-                    <span class="doc-eyebrow">III — Medidas para regularização</span>
-                    <h2>O processo, do começo ao fim</h2>
-                    <p class="doc-lead">Oito passos. Nenhum deles é difícil, e todos são obrigatórios. O passo a passo
-                        detalhado, com dicas, está na aba <b>Instruções</b>.</p>
-
-                    <ol class="doc-passos">
-                        <li>
-                            <h3>Confira de quem é o processo antes de tocar em qualquer coisa</h3>
-                            <p>Leia o <code>Protocolo</code>, o <b>Nome do Contribuinte</b> e o <code>CPF/CNPJ</code>.
-                                Confirme que é esse mesmo. Só então continue.</p>
-                            <p class="doc-obs"><b>Não vale</b><span>Abrir o primeiro da lista e presumir que é o
-                                    certo.</span></p>
-                        </li>
-                        <li>
-                            <h3>Preencha e revise os dados antes de gerar</h3>
-                            <p>Endereço, motivo da notificação e dispositivos transgredidos. O sistema puxa esses campos
-                                automaticamente para a Notificação, para a Réplica e para o Auto — errado aqui é errado
-                                em tudo que vier depois.</p>
-                            <p class="doc-obs"><b>Lembre</b><span>Os dados vêm de um PDF. A extração acerta quase
-                                    sempre, não sempre.</span></p>
-                        </li>
-                        <li class="doc-chave">
-                            <h3>Precisa corrigir algo? A aba se chama "Editar Dados do Processo"</h3>
-                            <p>Topo da tela, ao lado da aba do documento oficial. Corrija <b>antes</b> de gerar, não
-                                depois de descobrir o erro já assinado.</p>
-                            <p class="doc-obs"><b>Não vale</b><span>Pedir para alguém ajustar no banco o que se resolve
-                                    em dois cliques na própria tela.</span></p>
-                        </li>
-                        <li class="doc-chave">
-                            <h3>Confira o valor da multa e clique em salvar</h3>
-                            <p>No card <b>Conferir ou Atualizar Valores das Multas</b>: UPFMD, imóvel de esquina e base
-                                de cálculo (testada ou profundidade). Confira o valor de cada infração e clique em
-                                <code>Salvar Valores e Atualizar Documento PDF</code>. Depois, procure o valor
-                                <b>dentro do documento</b> e confirme que é o mesmo.</p>
-                            <p class="doc-obs"><b>Não vale</b><span>Mudar o valor na tela e não salvar: o documento sai
-                                    com o valor antigo.</span></p>
-                        </li>
-                        <li>
-                            <h3>Leia o documento na tela antes de gerar</h3>
-                            <p>O relatório aparece montado, com cabeçalho, numeração e texto final. Leia. Se estiver
-                                errado, volte ao passo 3. Só depois gere.</p>
-                            <p class="doc-obs"><b>Lembre</b><span>Cada documento gerado consome um número da sequência.
-                                    Errar aqui custa um número a mais.</span></p>
-                        </li>
-                        <li>
-                            <h3>Baixe o PDF e abra o arquivo</h3>
-                            <p>Clique em <code>Baixar Relatório (.pdf)</code>, abra o PDF e confira nome, endereço e
-                                número da notificação <b>dentro</b> do arquivo. Só então imprima e assine.</p>
-                            <p class="doc-obs"><b>Não vale</b><span>Assinar uma pilha de papel sem olhar folha por
-                                    folha.</span></p>
-                        </li>
-                        <li class="doc-chave">
-                            <h3>Anexe o assinado — e clique em "Visualizar"</h3>
-                            <p>Suba o PDF no campo de anexo da etapa. Depois de subir, clique em
-                                <code>Visualizar</code>, ao lado do anexo, e confirme com os próprios olhos que o nome
-                                do contribuinte e o número da notificação no PDF são <b>os deste processo</b>.</p>
-                            <p class="doc-obs"><b>Errou o arquivo?</b><span>O <code>Remover</code> está
-                                    logo ali, do lado: remova e anexe o certo. Não custa nada e ninguém fica
-                                    sabendo.</span></p>
-                        </li>
-                        <li class="doc-chave">
-                            <h3>Só agora clique em "Avançar Etapa"</h3>
-                            <p>Avançar é o último ato, não o primeiro. Depois dele o documento entra no fluxo e vai para
-                                a próxima mesa com o seu nome nele.</p>
-                            <p class="doc-obs"><b>Antes de clicar</b><span>Percorra o checklist abaixo. Leva menos tempo
-                                    do que desfazer.</span></p>
-                        </li>
-                    </ol>
-                </section>
-
-                <section class="doc-secao">
-                    <span class="doc-eyebrow">IV — Termo de compromisso</span>
-                    <h2>Checklist antes de avançar etapa</h2>
-                    <p class="doc-lead">Use a cada processo. Se sobrar qualquer item em branco, ainda não terminou. É o
-                        mesmo checklist da aba Instruções — marcar aqui marca lá.</p>
-
-                    <div class="doc-checklist">
-                        <div class="doc-checklist-topo">
-                            <h3>Checagem obrigatória</h3>
-                            <button type="button" class="doc-limpar" id="btnLimparChecklistDoc">Limpar para o próximo
-                                processo</button>
-                        </div>
-
-                        <label class="doc-item" for="chkDoc1"><input type="checkbox" id="chkDoc1" data-chk="1"><span>Li
-                                o <b>nome do contribuinte</b> e o CPF/CNPJ na tela e confirmei que é este
-                                processo.</span></label>
-                        <label class="doc-item" for="chkDoc2"><input type="checkbox" id="chkDoc2"
-                                data-chk="2"><span>Revisei endereço, motivo e dispositivos transgredidos <b>antes</b> de
-                                gerar.</span></label>
-                        <label class="doc-item" for="chkDoc3"><input type="checkbox" id="chkDoc3"
-                                data-chk="3"><span>Usei a aba <b>Editar Dados do Processo</b> para corrigir o que estava
-                                errado.</span></label>
-                        <label class="doc-item" for="chkDoc8"><input type="checkbox" id="chkDoc8"
-                                data-chk="8"><span>Conferi o <b>valor da multa</b>, cliquei em salvar e vi o valor
-                                dentro do documento.</span></label>
-                        <label class="doc-item" for="chkDoc4"><input type="checkbox" id="chkDoc4" data-chk="4"><span>Li
-                                o documento inteiro na tela antes de clicar em gerar.</span></label>
-                        <label class="doc-item" for="chkDoc5"><input type="checkbox" id="chkDoc5"
-                                data-chk="5"><span>Abri o PDF baixado e conferi o conteúdo antes de assinar.</span></label>
-                        <label class="doc-item" for="chkDoc6"><input type="checkbox" id="chkDoc6"
-                                data-chk="6"><span>Cliquei em <b>Visualizar</b> depois de anexar e vi o documento com
-                                meus próprios olhos.</span></label>
-                        <label class="doc-item" for="chkDoc7"><input type="checkbox" id="chkDoc7"
-                                data-chk="7"><span>Confirmei que o documento anexado é <b>deste contribuinte</b>, e não
-                                de outro processo.</span></label>
-
-                        <p class="doc-placar" data-placar>0 de 8 conferidos — não avance ainda.</p>
-                    </div>
-                </section>
-
-                <section class="doc-desabafo">
-                    <span class="doc-eyebrow">V — Nota de quem construiu isto &middot; desabafo, fora do documento
-                        oficial</span>
-                    <h2>É um PDF. Eu não faço milagre.</h2>
-
-                    <div class="doc-desabafo-corpo">
-                        <p>Vou sair do tom de ofício por um instante, porque esta parte não é institucional: é minha.</p>
-                        <p>Este sistema foi feito por <b>uma pessoa</b>, do lado de vocês, pra tirar trabalho manual da
-                            mão de vocês. Eu sentei com cada um pra ensinar, e continuo disponível pra quem chegar e
-                            perguntar. Cansa um pouco ouvir que o sistema é ruim vindo de quem ainda não abriu o que
-                            anexou.</p>
-                        <p>E tem uma parte que eu preciso que fique clara: os dados do contribuinte são extraídos de um
-                            <b>PDF</b>. Um PDF. Nenhuma extração garante 100% em todos os casos — nem a minha, nem
-                            nenhuma. <b>É exatamente por isso que a conferência existe, e é por isso que ela é de
-                                vocês.</b> Eu entrego o campo já preenchido e editável; olhar se puxou certo leva o
-                            tempo de ler uma linha.</p>
-                        <p>Achar chato corrigir o nome de uma rua, num campo que já veio preenchido, num formulário que
-                            já montou o documento inteiro — não é exatamente excesso de trabalho.</p>
-                        <p class="doc-cansada">E sim: eu estou cansada. Muito.</p>
-                        <p>Ainda assim eu vou continuar arrumando os defeitos, porque eu quero que isso funcione bem pra
-                            vocês. Só peço a contrapartida mais barata que existe: <b>clicar em Visualizar antes de
-                                avançar.</b></p>
-                        <p class="doc-escolha">A alternativa, afinal, é voltar a fazer o documento inteiro do zero, na
-                            mão, como era antes. A gente escolhe.</p>
-                    </div>
-                </section>
-
-                <footer class="doc-rodape">
-                    <p class="doc-nota-final">Nada aqui exige treinamento novo, permissão especial ou sistema
-                        diferente. Exige <strong>abrir o que foi anexado antes de mandar pra frente</strong>. O botão
-                        está lá. Sempre esteve.</p>
-                    <div class="doc-assinatura">Divisão de Fiscalização de Posturas<br>Ciente em ____/____/______</div>
-                </footer>
-
-            </div>
-        </div>
-        `
-    }
-];
-
-function renderizarFeedAvisos() {
-    const feed = document.getElementById('avisosFeed');
-    if (!feed) return;
-
-    // Volta sempre para a lista ao entrar na aba
-    fecharAviso();
-
-    feed.innerHTML = AVISOS_PUBLICADOS.map(aviso => `
-        <article class="aviso-pub ${aviso.nivel}" data-aviso="${aviso.id}" role="button" tabindex="0">
-            <div class="aviso-topo">
-                <span class="aviso-tag">${aviso.tag}</span>
-                <span class="aviso-data">${aviso.data}</span>
-            </div>
-            <h3>${aviso.titulo}</h3>
-            <p>${aviso.resumo}</p>
-            <span class="aviso-link">Ler publicação &rarr;</span>
-        </article>
-    `).join('');
-
-    feed.querySelectorAll('[data-aviso]').forEach(card => {
-        card.addEventListener('click', () => abrirAviso(card.getAttribute('data-aviso')));
-        card.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                abrirAviso(card.getAttribute('data-aviso'));
-            }
-        });
-    });
-}
-
-function abrirAviso(id) {
-    const aviso = AVISOS_PUBLICADOS.find(a => a.id === id);
-    const lista = document.getElementById('avisosLista');
-    const leitura = document.getElementById('avisosLeitura');
-    if (!aviso || !lista || !leitura) return;
-
-    const ehDocumento = aviso.layout === 'documento';
-    leitura.className = 'aviso-leitura ' + aviso.nivel + (ehDocumento ? ' documento' : '');
-
-    const cabecalho = ehDocumento ? '' : `
-        <div class="aviso-leitura-topo">
-            <span class="aviso-tag">${aviso.tag}</span>
-            <span class="aviso-data">Publicado em ${aviso.data} &middot; ${aviso.autor}</span>
-        </div>
-        <h2>${aviso.titulo}</h2>
-    `;
-
-    leitura.innerHTML = `
-        <button type="button" class="btn-inline aviso-voltar" id="btnVoltarAvisos">&larr; Voltar aos avisos</button>
-        ${cabecalho}
-        <div class="aviso-leitura-corpo">${aviso.corpo}</div>
-    `;
-
-    lista.style.display = 'none';
-    leitura.style.display = 'block';
-    document.getElementById('btnVoltarAvisos').addEventListener('click', fecharAviso);
-
-    // O documento traz uma cópia do checklist; religa os eventos e restaura o estado.
-    if (ehDocumento) configurarChecklistInstrucoes();
-
-    const wrapper = document.querySelector('.main-wrapper');
-    if (wrapper) wrapper.scrollTop = 0;
-}
-
-function fecharAviso() {
-    const lista = document.getElementById('avisosLista');
-    const leitura = document.getElementById('avisosLeitura');
-    if (lista) lista.style.display = 'block';
-    if (leitura) {
-        leitura.style.display = 'none';
-        leitura.innerHTML = '';
-    }
-}
-
-// ── Checklist de conferência (aba Instruções e documento de Avisos) ──
-// As duas telas mostram o mesmo checklist; o estado é identificado por data-chk,
-// então marcar em uma reflete na outra. Persistência local, por navegador.
+// ── Checklist de conferência (aba Instruções) ──
+// O estado é identificado por data-chk. Persistência local, por navegador.
 const CHAVE_CHECKLIST_INSTRUCOES = 'fluxograma:checklist-instrucoes';
 const TOTAL_ITENS_CHECKLIST = 8;
 
@@ -2848,7 +2328,7 @@ window.excluirProcessosSelecionados = async function () {
         return;
     }
 
-    if (!confirm(`Tem certeza que deseja EXCLUIR DEFINITIVAMENTE ${chks.length} processo(s)?\n\nATENÇÃO: Esta ação é irreversível. O sistema apagará todos os dados anexados e devolverá todas as numerações (Protocolo, Relatório, Autos, Certidões, Ofícios GFP) para a tabela de números descartados.`)) {
+    if (!confirm(`Tem certeza que deseja EXCLUIR DEFINITIVAMENTE ${chks.length} processo(s)?\n\nATENÇÃO: Esta ação é irreversível. O sistema apagará todos os dados anexados e devolverá todas as numerações (protocolo, relatório, Autos, Certidões, Ofícios GFP) para a tabela de números descartados.`)) {
         return;
     }
 
@@ -2888,7 +2368,7 @@ window.excluirProcessosSelecionados = async function () {
             }
         }
 
-        alert(`${excluidos} processo(s) excluído(s) com sucesso. As numerações foram devolvidas para os Descartes.`);
+        alert(`${excluidos} processo(s) excluído(s) com sucesso. As numerações foram devolvidas para os descartes.`);
         const chkAll = document.getElementById('chkSelectAll');
         if (chkAll) chkAll.checked = false;
         window.atualizarContagemSelecionados();
@@ -3106,7 +2586,7 @@ window.carregarEExibirApuracaoDados = async function () {
         procs.forEach(p => {
             const profileObj = (p.fiscal_id && apuracaoProfilesMap[p.fiscal_id]) || p.profiles || {};
             const fiscalNome = profileObj.nome || p.fiscal_dados?.nome || p.campos?.fiscal?.nome
-                || p.fiscal_nome || p.campos_fiscal_nome || 'Fiscal Não Atribuído';
+                || p.fiscal_nome || p.campos_fiscal_nome || 'Fiscal não atribuído';
             const fiscalIdKey = p.fiscal_id || profileObj.id || fiscalNome;
             const matricula = profileObj.matricula || p.fiscal_dados?.matricula || p.campos?.fiscal?.matricula
                 || p.fiscal_matricula || p.campos_fiscal_matricula || '---';
@@ -3309,7 +2789,7 @@ function renderizarGraficosApuracao(listaFiscais) {
             data: {
                 labels: labelsFiscais,
                 datasets: [{
-                    label: 'Qtd. de Processos',
+                    label: 'Qtd. de processos',
                     data: dataProcessos,
                     backgroundColor: 'rgba(89, 132, 224, 0.75)',
                     borderColor: '#3b63d3',
@@ -3351,7 +2831,7 @@ function renderizarGraficosApuracao(listaFiscais) {
             data: {
                 labels: labelsFiscais,
                 datasets: [{
-                    label: 'Valor de Multas (R$)',
+                    label: 'Valor de multas (R$)',
                     data: dataMultas,
                     backgroundColor: 'rgba(16, 185, 129, 0.75)',
                     borderColor: '#047857',
@@ -3481,7 +2961,7 @@ window.exportarApuracaoCSV = function () {
     const elTabela = document.getElementById('tabelaApuracaoFiscaisBody');
     if (!elTabela) return;
 
-    let csvContent = "data:text/csv;charset=utf-8,Fiscal;Matricula;Total Processos;Multas Geradas;Valor Total (R$)\n";
+    let csvContent = "data:text/csv;charset=utf-8,Fiscal;Matricula;Total processos;Multas geradas;Valor total (R$)\n";
     const rows = elTabela.querySelectorAll('tr');
 
     rows.forEach(tr => {

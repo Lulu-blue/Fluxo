@@ -1,5 +1,5 @@
 /* ============================================================================
-   etapa25_fazenda.js — Etapa 25 (Gerente cumpre o decreto) e Etapa 31
+   etapa25_fazenda.js — Etapa 25 (Encaminhamento do Despacho) e Etapa 31
    ----------------------------------------------------------------------------
    Etapa 25: o gerente vê o processo unificado, escolhe o desfecho, gera o
    ofício à Fazenda (quando houver) e copia a mensagem do protocolo.
@@ -383,11 +383,27 @@ Atenciosamente,`
 
     // ------------------------------------------------------------------ tela 25
 
+    // O Auto chega à Etapa 25 por dois caminhos: o despacho do Secretário (Etapa 24,
+    // depois do parecer da 19) ou a Análise de Desconto deferida (Etapa 26). No
+    // caminho do desconto não existe parecer nem despacho — existe a réplica.
+    function veioDaAnaliseDeDesconto() {
+        const dados = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual?.dados) || {};
+        if (dados.etapa26?.decisao !== 'defere') return false;
+        return !dados.etapa19?.parecer_texto && !dados.etapa24?.despacho_texto;
+    }
+
     function html(uploadHtml) {
         const cartao = 'background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;';
         const titulo = 'margin:0 0 4px 0; color:#1e293b; font-size:1rem; font-weight:700;';
         const sub = 'margin:0 0 12px 0; color:#64748b; font-size:0.85rem;';
         const botao = 'padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#334155; font-weight:600; font-size:0.88rem; cursor:pointer;';
+
+        const doDesconto = veioDaAnaliseDeDesconto();
+        const tituloTela = doDesconto ? 'Cumprimento do Desconto Deferido' : 'Cumprimento do despacho';
+        const botoesDocumentos = doDesconto
+            ? `<button type="button" id="e25BtnVerReplica" style="${botao}">Ver réplica assinada</button>`
+            : `<button type="button" id="e25BtnVerParecer" style="${botao}">Ver parecer jurídico</button>
+                        <button type="button" id="e25BtnVerDespacho" style="${botao}">Ver despacho do Secretário</button>`;
 
         return `
             <div id="etapa25Fazenda" style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
@@ -399,7 +415,7 @@ Atenciosamente,`
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Cumprimento do Despacho</h3>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">${tituloTela}</h3>
                     </div>
                 </div>
 
@@ -410,8 +426,7 @@ Atenciosamente,`
                         <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="button" id="e25BtnUnificado" class="btn-primary" style="padding:10px 18px;">Abrir processo unificado (PDF)</button>
                         <button type="button" id="e25BtnBaixarUnificado" style="${botao}">Baixar processo unificado</button>
-                        <button type="button" id="e25BtnVerParecer" style="${botao}">Ver parecer jurídico</button>
-                        <button type="button" id="e25BtnVerDespacho" style="${botao}">Ver despacho do Secretário</button>
+                        ${botoesDocumentos}
                     </div>
                 </div>
 
@@ -484,12 +499,17 @@ Atenciosamente,`
             ? window.obterDescricaoInfracao(auto?.descricao)
             : auto?.descricao;
         const decisao24 = P().dadosEtapa(24)?.decisao;
+        // Vindo da Análise de Desconto não há despacho para mostrar: a origem é a
+        // decisão da Etapa 26.
+        const origem = veioDaAnaliseDeDesconto()
+            ? ['Análise para dar desconto (Etapa 26)', 'Deferido']
+            : ['Despacho do Secretário', decisao24 ? (P().DECISOES[decisao24]?.rotulo || decisao24) : 'não registrado'];
         const campos = [
             ['Processo', processoAtual?.numero_processo || '—'],
             ['Auto de Infração', v.AUTO_NUMERO || '—'],
             ['Infração', descricao || '—'],
             ['Autuado', v.DEFENDENTE || '—'],
-            ['Despacho do Secretário', decisao24 ? (P().DECISOES[decisao24]?.rotulo || decisao24) : 'não registrado']
+            origem
         ];
         el.innerHTML = campos.map(([rotulo, valor]) => `
             <div>
@@ -758,6 +778,8 @@ Atenciosamente,`
         document.getElementById('e25BtnBaixarUnificado')?.addEventListener('click', () => window.ProcessoUnificado?.gerar('download', auto));
         document.getElementById('e25BtnVerParecer')?.addEventListener('click', () => window.ProcessoUnificado?.verParecer(auto));
         document.getElementById('e25BtnVerDespacho')?.addEventListener('click', () => window.ProcessoUnificado?.verDespacho(auto));
+        // Caminho do desconto: o documento da decisão é a réplica da Etapa 26
+        document.getElementById('e25BtnVerReplica')?.addEventListener('click', () => window.baixarDocUnico?.('replica'));
 
         if (!P().podeEditar()) {
             const campoValor = document.getElementById('e25NovoValor');
@@ -779,6 +801,14 @@ Atenciosamente,`
         const cartao = 'background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;';
         const titulo = 'margin:0 0 4px 0; color:#1e293b; font-size:1rem; font-weight:700;';
         const sub = 'margin:0 0 12px 0; color:#64748b; font-size:0.85rem;';
+        const botao31 = 'padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#334155; font-weight:600; font-size:0.88rem; cursor:pointer;';
+
+        // A Etapa 31 vem da 25 e herda o caminho dela: sem parecer e sem despacho
+        // quando o Auto chegou pela Análise de Desconto.
+        const botoesDocumentos31 = veioDaAnaliseDeDesconto()
+            ? `<button type="button" id="e31BtnVerReplica" style="${botao31}">Ver réplica assinada</button>`
+            : `<button type="button" id="e31BtnVerParecer" style="${botao31}">Ver parecer jurídico</button>
+                        <button type="button" id="e31BtnVerDespacho" style="${botao31}">Ver despacho do Secretário</button>`;
 
         return `
             <div id="etapa31Pagamento" style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:20px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
@@ -789,7 +819,7 @@ Atenciosamente,`
                         </svg>
                     </div>
                     <div>
-                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Comprovante de Pagamento</h3>
+                        <h3 style="margin:0; color:#1e293b; font-size:1.15rem; font-weight:700;">Comprovante de pagamento</h3>
                     </div>
                 </div>
 
@@ -802,8 +832,7 @@ Atenciosamente,`
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="button" id="e31BtnUnificado" class="btn-primary" style="padding:10px 18px;">Abrir processo unificado (PDF)</button>
                         <button type="button" id="e31BtnBaixarUnificado" style="padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#334155; font-weight:600; font-size:0.88rem; cursor:pointer;">Baixar processo unificado</button>
-                        <button type="button" id="e31BtnVerParecer" style="padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#334155; font-weight:600; font-size:0.88rem; cursor:pointer;">Ver parecer jurídico</button>
-                        <button type="button" id="e31BtnVerDespacho" style="padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:white; color:#334155; font-weight:600; font-size:0.88rem; cursor:pointer;">Ver despacho do Secretário</button>
+                        ${botoesDocumentos31}
                     </div>
                 </div>
 
@@ -952,6 +981,7 @@ Atenciosamente,`
         document.getElementById('e31BtnBaixarUnificado')?.addEventListener('click', () => window.ProcessoUnificado?.gerar('download', auto));
         document.getElementById('e31BtnVerParecer')?.addEventListener('click', () => window.ProcessoUnificado?.verParecer(auto));
         document.getElementById('e31BtnVerDespacho')?.addEventListener('click', () => window.ProcessoUnificado?.verDespacho(auto));
+        document.getElementById('e31BtnVerReplica')?.addEventListener('click', () => window.baixarDocUnico?.('replica'));
 
         if (!P().podeEditar()) {
             raiz.querySelectorAll('input[type="radio"]').forEach(el => { el.disabled = true; });
