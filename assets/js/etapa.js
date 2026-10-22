@@ -4147,7 +4147,7 @@ window.gerarZipComTodosDocumentos = async function () {
         }
 
         // 3. BIC (Espelho Cadastral Imobiliário)
-        const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo))
+        const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo', 'Comprovante de Inscrição CNPJ'].includes(d.tipo))
             || processoAtual?.dados?.documento_bic
             || processoAtual?.dados?.anexos?.bic_espelho_cadastral
             || (processoAtual?.campos?.bic_url ? { url: processoAtual.campos.bic_url, nome_arquivo: 'BIC_Espelho_Cadastral.pdf' } : null);
@@ -4425,7 +4425,7 @@ window.carregarArquivosEtapa29 = async function () {
     }
 
     // 3. BIC (Espelho Cadastral Imobiliário)
-    const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo))
+    const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo', 'Comprovante de Inscrição CNPJ'].includes(d.tipo))
         || processoAtual?.dados?.documento_bic
         || processoAtual?.dados?.anexos?.bic_espelho_cadastral
         || (processoAtual?.campos?.bic_url ? { url: processoAtual.campos.bic_url, nome_arquivo: 'BIC_Espelho_Cadastral.pdf' } : null);
@@ -4716,7 +4716,7 @@ window.baixarDocUnico = async function (tipo) {
                 alert('Documento assinado do Relatório Fiscal não encontrado.');
             }
         } else if (tipo === 'bic') {
-            const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo))
+            const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo', 'Comprovante de Inscrição CNPJ'].includes(d.tipo))
                 || processoAtual?.dados?.documento_bic
                 || processoAtual?.dados?.anexos?.bic_espelho_cadastral
                 || (processoAtual?.campos?.bic_url ? { url: processoAtual.campos.bic_url, nome_arquivo: 'BIC_Espelho_Cadastral.pdf' } : null);
@@ -5409,6 +5409,23 @@ window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
     return partes.join(' e ');
 };
 
+// ── Infração de Posturas para empresa (CNPJ) sem alvará ───────────────────
+// "Exercer atividade sem o licenciamento de alvará de localização e
+// funcionamento" (código ALVARA-PJ). É usada quando o processo é aberto com o
+// Comprovante de Inscrição no CNPJ. Tem tratamento próprio porque o texto fala
+// em "alvará" e, pelas palavras-chave, seria confundida com a 120000236.
+// Multa: 50 UPFMD. Providência imediata (prazo 0).
+const CODIGO_INFRACAO_ALVARA_PJ = 'ALVARA-PJ';
+const TITULO_INFRACAO_ALVARA_PJ = 'Exercer atividade sem o licenciamento de alvará de localização e funcionamento';
+
+function ehInfracaoAlvaraPJ(texto) {
+    const t = String(texto || '');
+    if (/ALVARA-PJ/i.test(t)) return true;
+    return t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .includes('exercer atividade sem o licenciamento');
+}
+window.ehInfracaoAlvaraPJ = ehInfracaoAlvaraPJ;
+
 // ── Helper para Converter Números com Vírgula ou Ponto com Segurança ──────
 function parseNumberSafe(val, defaultVal = 0) {
     if (val === null || val === undefined || val === '') return defaultVal;
@@ -5465,6 +5482,7 @@ function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidade
     // Meio Ambiente: valor fixo do catálogo (ou N UPFMD), sem metragem do imóvel
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(dispLow) : null;
     if (itemMA) return window.valorPadraoMultaMeioAmbiente(itemMA, upfmdVal);
+    if (ehInfracaoAlvaraPJ(dispLow)) return upfmdVal * 50;
 
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
     const area = parseNumberSafe(areaNum);
@@ -5523,6 +5541,7 @@ function obterNomeCompletoInfracao(disp) {
     if (!disp) return 'Infração geral';
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
     if (itemMA) return `${itemMA.rotulo} (${itemMA.codigo})`;
+    if (ehInfracaoAlvaraPJ(disp)) return `${TITULO_INFRACAO_ALVARA_PJ} (${CODIGO_INFRACAO_ALVARA_PJ})`;
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
     const dispLow = disp.toLowerCase();
 
@@ -8113,6 +8132,16 @@ function gerarBlocoInfracao(proc, disp, index) {
     `;
     }
 
+    // Exercer atividade sem alvará (empresa, ALVARA-PJ): providência imediata
+    if (ehInfracaoAlvaraPJ(disp)) {
+        return `
+        <div class="doc-infracao-bloco" data-notificacao-index="${index}">
+            <div class="doc-infracao-titulo">NOTIFICAÇÃO PRELIMINAR N° ${numNotif}</div>
+            ${htmlBlocoInfracaoAlvaraPJ(valFormatado)}
+        </div>
+    `;
+    }
+
     let titulo = '';
     let prazo = '';
     let itens = '';
@@ -8224,6 +8253,74 @@ function gerarBlocoInfracao(proc, disp, index) {
             ${obsHtml}
         </div>
     `;
+}
+
+// ── Dados do contribuinte e do imóvel nos documentos (NP, AF e AI) ─────────
+// Só aparece o que foi preenchido: nada de "Não informado", "XXX" ou valores
+// padrão (CEP 35500-000, Divinópolis, 288 m²). Processo aberto com o
+// Comprovante de CNPJ, por exemplo, não tem endereço do contribuinte, zona,
+// quadra, lote, testada nem área.
+function linhaInfoDocumento(rotulo, valor) {
+    const texto = String(valor ?? '').trim();
+    return texto ? `<div><strong>${rotulo}:</strong> ${texto}</div>` : '';
+}
+
+function partesInscricaoImovel(inscricao) {
+    const partes = String(inscricao || '').replace(/\s/g, '').split('.');
+    return partes.length >= 4 ? { zona: partes[1], quadra: partes[2], lote: partes[3] } : null;
+}
+
+function linhasInfoContribuinte(cont) {
+    const c = cont || {};
+    return {
+        esquerda: linhaInfoDocumento('Contribuinte', c.nome) + linhaInfoDocumento('Logradouro', c.logradouro || c.endereco)
+            + linhaInfoDocumento('CEP', c.cep) + linhaInfoDocumento('Município', c.municipio),
+        direita: linhaInfoDocumento('CPF/CNPJ', c.cpf_cnpj) + linhaInfoDocumento('Bairro', c.bairro)
+            + linhaInfoDocumento('Número', c.numero) + linhaInfoDocumento('Complemento', c.complemento || c.comp)
+    };
+}
+
+function linhasInfoImovel(imv) {
+    const i = imv || {};
+    const logradouro = String(i.logradouro || i.rua || '').trim();
+    const numero = String(i.numero || '').trim();
+    const partes = partesInscricaoImovel(i.inscricao);
+    return {
+        esquerda: linhaInfoDocumento('Inscrição', i.inscricao)
+            + linhaInfoDocumento('Logradouro', logradouro ? `${logradouro}${numero ? `, n° ${numero}` : ''}` : '')
+            + linhaInfoDocumento('Bairro', i.bairro),
+        direita: (partes ? linhaInfoDocumento('Zona', partes.zona) + linhaInfoDocumento('Quadra', partes.quadra)
+            + linhaInfoDocumento('Lote', partes.lote) : '')
+            + linhaInfoDocumento('Complemento', i.complemento || i.comp)
+    };
+}
+
+// Abertura da Notificação Preliminar. Com tudo preenchido, fica igual ao modelo:
+// "situado na RUA X, 10 - COMPL, - BAIRRO - com 12m de extensão e 288m² de área total, necessita..."
+function textoAberturaNotificacaoPreliminar(imv) {
+    const i = imv || {};
+    const v = x => String(x ?? '').trim();
+    const logradouro = v(i.logradouro), numero = v(i.numero), complemento = v(i.complemento), bairro = v(i.bairro);
+    const testada = v(i.testada), area = v(i.area_total);
+    const endereco = [logradouro, numero].filter(Boolean).join(', ') + (complemento ? ` - ${complemento}` : '');
+    let medidas = '';
+    if (testada && area) medidas = ` com ${testada}m de extensão e ${area}m² de área total,`;
+    else if (testada) medidas = ` com ${testada}m de extensão,`;
+    else if (area) medidas = ` com ${area}m² de área total,`;
+    const local = endereco ? ` situado na ${endereco}` : '';
+    const trechoBairro = bairro ? (medidas ? `, - ${bairro} -${medidas}` : `, - ${bairro},`) : (medidas ? `,${medidas}` : ',');
+    return `Verificamos que o imóvel de sua propriedade${local}${trechoBairro} necessita da(s) seguinte(s) regularização(es):`;
+}
+
+// Texto da infração ALVARA-PJ na Notificação Preliminar
+function htmlBlocoInfracaoAlvaraPJ(valFormatado) {
+    return `
+            <p style="margin:4px 0;"><strong>${TITULO_INFRACAO_ALVARA_PJ}: infração ao Artigo 190 e seguintes da Lei 6.907/2008.</strong></p>
+            <p style="margin:10px 0 6px 0;">O autuado tem que tomar as providências:</p>
+            <ul style="margin: 6px 0 10px 0; padding-left: 20px;">
+                <li>Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.</li>
+            </ul>
+            <p style="margin:10px 0 0 0; text-align:justify;">O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 6.907/2008, Artigo 195, e outras legislações. MULTA NO VALOR DE 50 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.</p>`;
 }
 
 // ── Observações do Fiscal (NP e AI) ────────────────────────────────────────
@@ -8558,39 +8655,20 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
                 <!-- 3. INFORMAÇÕES DO CONTRIBUINTE -->
                 <div class="doc-sec-heading">Informações do Contribuinte</div>
                 <div class="doc-info-grid">
-                    <div>
-                        <div><strong>Contribuinte:</strong> ${cont.nome || 'Não informado'}</div>
-                        <div><strong>Logradouro:</strong> ${cont.logradouro || 'Não informado'}</div>
-                        <div><strong>CEP:</strong> ${cont.cep || '35500-000'}</div>
-                        <div><strong>Município:</strong> ${cont.municipio || 'Divinópolis'}</div>
-                    </div>
-                    <div>
-                        <div><strong>CPF/CNPJ:</strong> ${cont.cpf_cnpj || 'Não informado'}</div>
-                        <div><strong>Bairro:</strong> ${cont.bairro || 'Não informado'}</div>
-                        <div><strong>Número:</strong> ${cont.numero || 'Não informado'}</div>
-                        ${cont.complemento ? `<div><strong>Complemento:</strong> ${cont.complemento}</div>` : ''}
-                    </div>
+                    <div>${linhasInfoContribuinte(cont).esquerda}</div>
+                    <div>${linhasInfoContribuinte(cont).direita}</div>
                 </div>
 
                 <!-- 4. INFORMAÇÕES DO IMÓVEL -->
                 <div class="doc-sec-heading" style="margin-top: 18px;">Informações do imóvel</div>
                 <div class="doc-info-grid">
-                    <div>
-                        <div><strong>Inscrição:</strong> ${imv.inscricao || 'XX.XXX.XXXX.XXXXX'}</div>
-                        <div><strong>Logradouro:</strong> ${imv.logradouro || 'Não informado'}, n° ${imv.numero || '0'}</div>
-                        <div><strong>Bairro:</strong> ${imv.bairro || 'Não informado'}</div>
-                    </div>
-                    <div>
-                        <div><strong>Zona:</strong> ${zona}</div>
-                        <div><strong>Quadra:</strong> ${quadra}</div>
-                        <div><strong>Lote:</strong> ${lote}</div>
-                        ${imv.complemento ? `<div><strong>Complemento:</strong> ${imv.complemento}</div>` : ''}
-                    </div>
+                    <div>${linhasInfoImovel(imv).esquerda}</div>
+                    <div>${linhasInfoImovel(imv).direita}</div>
                 </div>
 
                 <!-- 5. TEXTO INTRODUTÓRIO (o Auto de Fiscalização não tem) -->
                 ${ehMeioAmbiente ? '' : `<div class="doc-intro-p">
-                    Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}${imv.complemento ? ' - ' + imv.complemento : ''}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
+                    ${textoAberturaNotificacaoPreliminar(imv)}
                 </div>`}
 
                 <!-- 6. BLOCOS DE INFRAÇÃO -->
@@ -8680,6 +8758,8 @@ function obterPrazoNotificacao(descricao) {
     // Auto de Fiscalização: prazo escolhido pelo fiscal no Novo Processo
     const prazoAF = window.prazoAutoFiscalizacao ? window.prazoAutoFiscalizacao(processoAtual, descricao) : null;
     if (prazoAF) return prazoAF.dias;
+    // Alvará (empresa): cessar as atividades de imediato
+    if (ehInfracaoAlvaraPJ(descricao)) return 0;
     const descStr = String(descricao).toLowerCase();
 
     // 1. Códigos numéricos explícitos (Prioridade Máxima)
@@ -13102,6 +13182,15 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         `;
             return;
         }
+        if (ehInfracaoAlvaraPJ(disp)) {
+            blocosInfracoesHtml += `
+            <div style="margin: 24px 0; font-size: 11pt; line-height: 1.45;">
+                <div style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 6px;">NOTIFICAÇÃO PRELIMINAR N° ${numNotif}</div>
+                ${htmlBlocoInfracaoAlvaraPJ(valFormatado)}
+            </div>
+        `;
+            return;
+        }
 
         let titulo = '', prazo = '', itens = '', penalidade = '', obsFiscal = proc?.campos?.infracoes_obs?.[index] || '';
         const numAI = proc?.campos?.auto_infracao_anterior_numero || 'XXXX';
@@ -13250,18 +13339,8 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         <div style="font-size: 11.5pt; font-weight: bold; margin-bottom: 6px;">Informações do Contribuinte</div>
         <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 11pt; line-height: 1.45; margin-bottom: 16px;">
             <tr>
-                <td width="58%" valign="top">
-                    <div><strong>Contribuinte:</strong> ${cont.nome || 'Não informado'}</div>
-                    <div><strong>Logradouro:</strong> ${cont.logradouro || 'Não informado'}</div>
-                    <div><strong>CEP:</strong> ${cont.cep || '35500-000'}</div>
-                    <div><strong>Município:</strong> ${cont.municipio || 'Divinópolis'}</div>
-                </td>
-                <td width="42%" valign="top">
-                    <div><strong>CPF/CNPJ:</strong> ${cont.cpf_cnpj || 'Não informado'}</div>
-                    <div><strong>Bairro:</strong> ${cont.bairro || 'Não informado'}</div>
-                    <div><strong>Número:</strong> ${cont.numero || 'Não informado'}</div>
-                    ${cont.complemento ? `<div><strong>Complemento:</strong> ${cont.complemento}</div>` : ''}
-                </td>
+                <td width="58%" valign="top">${linhasInfoContribuinte(cont).esquerda}</td>
+                <td width="42%" valign="top">${linhasInfoContribuinte(cont).direita}</td>
             </tr>
         </table>
 
@@ -13269,23 +13348,14 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         <div style="font-size: 11.5pt; font-weight: bold; margin-top: 14px; margin-bottom: 6px;">Informações do imóvel</div>
         <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 11pt; line-height: 1.45; margin-bottom: 18px;">
             <tr>
-                <td width="58%" valign="top">
-                    <div><strong>Inscrição:</strong> ${imv.inscricao || 'XX.XXX.XXXX.XXXXX'}</div>
-                    <div><strong>Logradouro:</strong> ${imv.logradouro || 'Não informado'}, n° ${imv.numero || '0'}</div>
-                    <div><strong>Bairro:</strong> ${imv.bairro || 'Não informado'}</div>
-                </td>
-                <td width="42%" valign="top">
-                    <div><strong>Zona:</strong> ${zona}</div>
-                    <div><strong>Quadra:</strong> ${quadra}</div>
-                    <div><strong>Lote:</strong> ${lote}</div>
-                    ${imv.complemento ? `<div><strong>Complemento:</strong> ${imv.complemento}</div>` : ''}
-                </td>
+                <td width="58%" valign="top">${linhasInfoImovel(imv).esquerda}</td>
+                <td width="42%" valign="top">${linhasInfoImovel(imv).direita}</td>
             </tr>
         </table>
 
         <!-- 5. TEXTO INTRODUTÓRIO (o Auto de Fiscalização não tem) -->
         ${ehMeioAmbiente ? '' : `<div style="font-size: 11pt; text-align: justify; margin: 22px 0 20px 0; line-height: 1.45;">
-            Verificamos que o imóvel de sua propriedade situado na ${imv.logradouro || 'Rua/Av. XXXXXXXXX'}, ${imv.numero || '0'}${imv.complemento ? ' - ' + imv.complemento : ''}, - ${imv.bairro || 'XXXXXXXXXX'} - com ${testada}m de extensão e ${areaTotal}m² de área total, necessita da(s) seguinte(s) regularização(es):
+            ${textoAberturaNotificacaoPreliminar(imv)}
         </div>`}
 
         <!-- 6. BLOCOS DE INFRAÇÃO -->
@@ -14108,6 +14178,7 @@ window.extrairCodigoSubprocesso = function (disp) {
     // nos textos ambientais e casariam com códigos de Posturas
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(str) : null;
     if (itemMA) return itemMA.codigo;
+    if (ehInfracaoAlvaraPJ(str)) return CODIGO_INFRACAO_ALVARA_PJ;
 
     const low = str.toLowerCase();
     if (low.includes('limpeza') && (low.includes('não edificado') || low.includes('nao edificado'))) return '120000232';
@@ -14131,6 +14202,7 @@ window.obterDescricaoInfracao = function (disp) {
     if (!disp) return 'Falta de limpeza e conservação de imóvel não edificado';
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
     if (itemMA) return itemMA.rotulo;
+    if (ehInfracaoAlvaraPJ(disp)) return TITULO_INFRACAO_ALVARA_PJ;
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
     const dispStr = String(disp).trim();
     const dispLow = dispStr.toLowerCase();
@@ -14201,6 +14273,7 @@ window.obterPrazoDefesaAutoInfracaoAntigo = function (infracaoDesc) {
 };
 
 window.obterFundamentoLegalDecreto = function (infracaoDesc) {
+    if (ehInfracaoAlvaraPJ(infracaoDesc)) return 'Artigo 190 e seguintes da Lei 6.907/2008. Sob pena do artigo 195 da Lei 6.907/2008.';
     const cod = window.extrairCodigoSubprocesso(infracaoDesc);
     const dispLow = (infracaoDesc || '').toLowerCase();
 
@@ -14338,6 +14411,12 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         leiBase = 'legislação ambiental municipal';
         dispositivoTexto = itemMA.ai?.dispositivo || window.resolverInfracaoMeioAmbiente(p, itemMA).dispositivo;
         multaTextoHeader = `MULTA NO VALOR DE: <strong>R$ ${valFormatado}</strong>.`;
+
+        // Exercer atividade sem alvará (empresa, ALVARA-PJ)
+    } else if (cod === CODIGO_INFRACAO_ALVARA_PJ || ehInfracaoAlvaraPJ(dispItem)) {
+        leiBase = 'Lei nº 6.907/2008';
+        dispositivoTexto = 'infração ao Artigo 190 e seguintes da Lei 6.907/2008.';
+        multaTextoHeader = `MULTA NO VALOR DE 50 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 1) 120000232 - Falta de limpeza e conservação de imóvel não edificado
     } else if (cod === '120000232' || (dispLow.includes('limpeza') && dispLow.includes('não edificado'))) {
@@ -15081,18 +15160,8 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do Contribuinte</div>
                 <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 8px;">
                     <tr>
-                        <td width="58%" valign="top">
-                            <div><strong>Contribuinte:</strong> ${nomeAutuado}</div>
-                            <div><strong>Logradouro:</strong> ${endAutuadoLog}</div>
-                            <div><strong>CEP:</strong> ${endAutuadoCepVal}</div>
-                            <div><strong>Município:</strong> ${cont.municipio || 'Divinópolis'}</div>
-                        </td>
-                        <td width="42%" valign="top">
-                            <div><strong>CPF/CNPJ:</strong> ${cpfCnpj}</div>
-                            <div><strong>Bairro:</strong> ${endAutuadoBairroVal}</div>
-                            <div><strong>Número:</strong> ${endAutuadoNumVal}</div>
-                            ${contComplemento ? `<div><strong>Complemento:</strong> ${contComplemento}</div>` : ''}
-                        </td>
+                        <td width="58%" valign="top">${linhasInfoContribuinte(cont).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoContribuinte(cont).direita}</td>
                     </tr>
                 </table>
 
@@ -15100,17 +15169,8 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do imóvel</div>
                 <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 10px;">
                     <tr>
-                        <td width="58%" valign="top">
-                            <div><strong>Inscrição:</strong> ${inscricaoImvFmt}</div>
-                            <div><strong>Logradouro:</strong> ${imvRua}, n° ${imvNum}</div>
-                            <div><strong>Bairro:</strong> ${imvBairro}</div>
-                        </td>
-                        <td width="42%" valign="top">
-                            <div><strong>Zona:</strong> ${zona}</div>
-                            <div><strong>Quadra:</strong> ${quadra}</div>
-                            <div><strong>Lote:</strong> ${lote}</div>
-                            ${imvComplemento ? `<div><strong>Complemento:</strong> ${imvComplemento}</div>` : ''}
-                        </td>
+                        <td width="58%" valign="top">${linhasInfoImovel(imv).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoImovel(imv).direita}</td>
                     </tr>
                 </table>
 
@@ -15179,34 +15239,15 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do Contribuinte</div>
                 <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 8px;">
                     <tr>
-                        <td width="58%" valign="top">
-                            <div><strong>Contribuinte:</strong> ${nomeAutuado}</div>
-                            <div><strong>Logradouro:</strong> ${endAutuadoLog}</div>
-                            <div><strong>CEP:</strong> ${endAutuadoCepVal}</div>
-                            <div><strong>Município:</strong> ${cont.municipio || 'Divinópolis'}</div>
-                        </td>
-                        <td width="42%" valign="top">
-                            <div><strong>CPF/CNPJ:</strong> ${cpfCnpj}</div>
-                            <div><strong>Bairro:</strong> ${endAutuadoBairroVal}</div>
-                            <div><strong>Número:</strong> ${endAutuadoNumVal}</div>
-                            ${contComplemento ? `<div><strong>Complemento:</strong> ${contComplemento}</div>` : ''}
-                        </td>
+                        <td width="58%" valign="top">${linhasInfoContribuinte(cont).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoContribuinte(cont).direita}</td>
                     </tr>
                 </table>
                 <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do imóvel</div>
                 <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 10px;">
                     <tr>
-                        <td width="58%" valign="top">
-                            <div><strong>Inscrição:</strong> ${inscricaoImvFmt}</div>
-                            <div><strong>Logradouro:</strong> ${imvRua}, n° ${imvNum}</div>
-                            <div><strong>Bairro:</strong> ${imvBairro}</div>
-                        </td>
-                        <td width="42%" valign="top">
-                            <div><strong>Zona:</strong> ${zona}</div>
-                            <div><strong>Quadra:</strong> ${quadra}</div>
-                            <div><strong>Lote:</strong> ${lote}</div>
-                            ${imvComplemento ? `<div><strong>Complemento:</strong> ${imvComplemento}</div>` : ''}
-                        </td>
+                        <td width="58%" valign="top">${linhasInfoImovel(imv).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoImovel(imv).direita}</td>
                     </tr>
                 </table>`;
             // Nº do Auto de Fiscalização como sai no documento (processo-posição)
@@ -16559,7 +16600,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
         }
 
         // Identificação dos documentos de categorias específicas
-        const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('bic'))
+        const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo', 'Comprovante de Inscrição CNPJ'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('bic'))
             || processoAtual?.dados?.documento_bic
             || processoAtual?.dados?.anexos?.bic_espelho_cadastral
             || (processoAtual?.campos?.bic_url ? { url: processoAtual.campos.bic_url } : null);

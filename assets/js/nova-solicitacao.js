@@ -13,6 +13,8 @@ const BRASAO_PREFEITURA_BASE64 = "assets/img/brasao_semac.jpeg";
 let relatorioEditorAberto = false;
 let numerosReservadosEditor = { processo: null, relatorio: null, certidao: null };
 let bicArquivoAnexado = null;
+// Documento anexado no campo do BIC: 'bic', 'cnpj' (Comprovante de Inscrição no CNPJ) ou null
+let documentoCadastroTipo = null;
 
 // Configurar Worker do PDF.js se disponível
 if (typeof pdfjsLib !== 'undefined') {
@@ -183,6 +185,8 @@ async function abrirModal() {
 // com o anexo já descartado — e a validação reclamava que faltava o BIC.
 function limparAnexoBicUI() {
     bicArquivoAnexado = null;
+    documentoCadastroTipo = null;
+    if (typeof atualizarAvisosDocumentoCadastro === 'function') atualizarAvisosDocumentoCadastro();
 
     const inputBic = document.getElementById('inputBic');
     if (inputBic) inputBic.value = '';
@@ -1236,20 +1240,26 @@ function validarStep(step) {
     switch (step) {
         case 1: {
             if (!bicArquivoAnexado) {
-                alert('O anexo do Espelho Cadastral (BIC) é obrigatório. Busque o espelho atualizado no Tributos e anexe o arquivo.');
+                alert('O anexo do Espelho Cadastral (BIC) ou do Comprovante de Inscrição no CNPJ é obrigatório. Busque o documento atualizado e anexe o arquivo.');
                 const areaBic = document.getElementById('uploadAreaBic') || document.getElementById('bicFileInfo');
                 if (areaBic) areaBic.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return false;
             }
-            const obrigatoriosContribuinte = [
-                { id: 'contNome', nome: 'Nome do contribuinte' },
-                { id: 'contCpfCnpj', nome: 'CPF/CNPJ do contribuinte' },
-                { id: 'contLogradouro', nome: 'Logradouro do contribuinte' },
-                { id: 'contNumero', nome: 'Número do contribuinte' },
-                { id: 'contBairro', nome: 'Bairro do contribuinte' },
-                { id: 'contMunicipio', nome: 'Município do contribuinte' },
-                { id: 'contCep', nome: 'CEP do contribuinte' }
-            ];
+            // Com o comprovante de CNPJ, o endereço do contribuinte é opcional
+            const obrigatoriosContribuinte = documentoCadastroEhCnpj()
+                ? [
+                    { id: 'contNome', nome: 'Nome do contribuinte' },
+                    { id: 'contCpfCnpj', nome: 'CPF/CNPJ do contribuinte' }
+                ]
+                : [
+                    { id: 'contNome', nome: 'Nome do contribuinte' },
+                    { id: 'contCpfCnpj', nome: 'CPF/CNPJ do contribuinte' },
+                    { id: 'contLogradouro', nome: 'Logradouro do contribuinte' },
+                    { id: 'contNumero', nome: 'Número do contribuinte' },
+                    { id: 'contBairro', nome: 'Bairro do contribuinte' },
+                    { id: 'contMunicipio', nome: 'Município do contribuinte' },
+                    { id: 'contCep', nome: 'CEP do contribuinte' }
+                ];
             for (const campo of obrigatoriosContribuinte) {
                 if (!document.getElementById(campo.id)?.value?.trim()) {
                     alert(`O campo "${campo.nome}" é obrigatório.`);
@@ -1260,14 +1270,17 @@ function validarStep(step) {
             return true;
         }
         case 2: {
+            // Com o comprovante de CNPJ: sem código reduzido, área e testada
             const obrigatoriosImovel = [
-                { id: 'imvCodigo', nome: 'Código reduzido do imóvel' },
-                { id: 'imvInscricao', nome: 'Inscrição do imóvel' },
+                ...(documentoCadastroEhCnpj() ? [] : [{ id: 'imvCodigo', nome: 'Código reduzido do imóvel' }]),
+                { id: 'imvInscricao', nome: documentoCadastroEhCnpj() ? 'Inscrição do imóvel / CNPJ' : 'Inscrição do imóvel' },
                 { id: 'imvLogradouro', nome: 'Logradouro do imóvel' },
                 { id: 'imvNumero', nome: 'Número do imóvel' },
                 { id: 'imvBairro', nome: 'Bairro do imóvel' },
-                { id: 'imvAreaTotal', nome: 'Área total do imóvel' },
-                { id: 'imvTestada', nome: 'Testada do imóvel' }
+                ...(documentoCadastroEhCnpj() ? [] : [
+                    { id: 'imvAreaTotal', nome: 'Área total do imóvel' },
+                    { id: 'imvTestada', nome: 'Testada do imóvel' }
+                ])
             ];
             for (const campo of obrigatoriosImovel) {
                 if (!document.getElementById(campo.id)?.value?.trim()) {
@@ -1963,7 +1976,7 @@ async function finalizarSolicitacao() {
                 const { data: docBic } = await supabaseClient.from('documentos').insert([{
                     processo_id: procCriado.id,
                     etapa_id: etapaId,
-                    tipo: 'BIC Espelho Cadastral',
+                    tipo: documentoCadastroEhCnpj() ? 'Comprovante de Inscrição CNPJ' : 'BIC Espelho Cadastral',
                     nome_arquivo: bicObjetoSalvar.nome,
                     url: bicObjetoSalvar.dataUrl,
                     gerado_automaticamente: false,
@@ -2398,6 +2411,12 @@ function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     if (!descricao) return 15;
     const descStr = String(descricao).toLowerCase();
 
+    // Exercer atividade sem alvará (empresa, ALVARA-PJ): cessar de imediato.
+    // Vem antes das palavras-chave: o texto fala em "alvará" (120000236, 10 dias).
+    if (descStr.includes('alvara-pj') || descStr.includes('exercer atividade sem o licenciamento')) {
+        return 0;
+    }
+
     // 1. Códigos numéricos explícitos (Prioridade Máxima)
     if (descStr.includes('120000226') || descStr.includes('120000211') || descStr.includes('120000228') || descStr.includes('120000227')) {
         return 60;
@@ -2466,7 +2485,8 @@ const MAPA_TEXTOS_NOTIFICACAO = {
     '120000239': `11) Água servida: infração ao artigo 6, inciso IV da Lei nº 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Ligação da água servida à rede de esgoto.`,
     '120000236': `12) Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Regularizar o alvará de funcionamento e localização.`,
     '120000234': `13) Reparos por concessionárias: infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.\nPrazo: 10 DIAS, a contar do término de sua respectiva obra e serviço:\n- Executar serviço de reconstrução de muros e passeios danificados.`,
-    '120000230': `14) Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.`
+    '120000230': `14) Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.`,
+    'ALVARA-PJ': `Exercer atividade sem o licenciamento de alvará de localização e funcionamento: infração ao Artigo 190 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.`
 };
 
 function atualizarDescricaoFiscalizacaoPadrao() {
@@ -4466,12 +4486,103 @@ function extrairDadosEspelhoCadastral(textoCompleto) {
 }
 
 // ── Manipulador de upload do BIC (PDF/DOC) ──────────────────────
+// ── Comprovante de Inscrição no CNPJ (no lugar do BIC) ──────────────────
+// O mesmo campo do BIC aceita o "Comprovante de Inscrição e de Situação
+// Cadastral" da Receita (CADASTRO NACIONAL DA PESSOA JURÍDICA). O tipo é
+// reconhecido pelo texto. Com ele: o NOME EMPRESARIAL vai para o nome do
+// contribuinte, o NÚMERO DE INSCRIÇÃO para o CPF/CNPJ e para a inscrição do
+// imóvel, e o endereço do comprovante vai para o imóvel. Endereço do
+// contribuinte, código reduzido, área, testada e profundidade deixam de ser
+// obrigatórios (o comprovante não tem esses dados).
+
+function documentoCadastroEhCnpj() {
+    return documentoCadastroTipo === 'cnpj';
+}
+
+function normalizarRotuloCnpj(txt) {
+    return String(txt || '').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function ehComprovanteCnpj(texto) {
+    const t = normalizarRotuloCnpj(texto);
+    return t.includes('CADASTRO NACIONAL DA PESSOA JURIDICA') && t.includes('NUMERO DE INSCRICAO');
+}
+
+// O pdf.js entrega cada rótulo do comprovante numa linha e o valor na seguinte
+// ("NOME EMPRESARIAL" → "JB ARTES LTDA"). Valor vazio, "****" ou outro rótulo = sem dado.
+function extrairDadosComprovanteCnpj(texto) {
+    const linhas = String(texto || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const rotulos = ['NUMERO DE INSCRICAO', 'NOME EMPRESARIAL', 'LOGRADOURO', 'NUMERO', 'COMPLEMENTO', 'CEP',
+        'BAIRRO/DISTRITO', 'MUNICIPIO', 'UF', 'ENDERECO ELETRONICO', 'TELEFONE', 'MATRIZ', 'FILIAL',
+        'DATA DE INSCRICAO NO CNPJ', 'DATA DE CONSTITUICAO', 'PORTE', 'SITUACAO CADASTRAL'];
+    const valorDe = (rotulo) => {
+        const i = linhas.findIndex(l => normalizarRotuloCnpj(l) === rotulo);
+        if (i < 0) return '';
+        const valor = linhas[i + 1] || '';
+        const valorNorm = normalizarRotuloCnpj(valor);
+        if (!valorNorm || /^\*+$/.test(valorNorm) || rotulos.includes(valorNorm)) return '';
+        return valor.replace(/\s+/g, ' ').trim();
+    };
+    const cnpjNoTexto = (String(texto || '').match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/) || [])[0] || '';
+    return {
+        cnpj: valorDe('NUMERO DE INSCRICAO') || cnpjNoTexto,
+        nome: valorDe('NOME EMPRESARIAL'),
+        logradouro: valorDe('LOGRADOURO'),
+        numero: valorDe('NUMERO'),
+        // "LOJA ." vira "LOJA": o ponto solto é só preenchimento do comprovante
+        complemento: valorDe('COMPLEMENTO').replace(/\s*\.$/, ''),
+        cep: valorDe('CEP'),
+        bairro: valorDe('BAIRRO/DISTRITO'),
+        municipio: valorDe('MUNICIPIO'),
+        uf: valorDe('UF')
+    };
+}
+
+// Campos que o comprovante de CNPJ não traz. Com ele, os que ficarem vazios
+// nem aparecem no formulário (o que veio preenchido continua visível).
+const CAMPOS_OPCIONAIS_COM_CNPJ = [
+    'contLogradouro', 'contNumero', 'contComplemento', 'contBairro', 'contMunicipio', 'contCep',
+    'imvCodigo', 'imvComplemento', 'imvAreaTotal', 'imvTestada', 'imvProfundidade'
+];
+
+// Avisos dos passos 1 e 2, campos opcionais vazios escondidos e a infração
+// de alvará para empresa (ALVARA-PJ), que só aparece com o comprovante de CNPJ
+function atualizarAvisosDocumentoCadastro() {
+    const ehCnpj = documentoCadastroEhCnpj();
+    ['avisoCnpjContribuinte', 'avisoCnpjImovel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = ehCnpj ? '' : 'none';
+    });
+
+    CAMPOS_OPCIONAIS_COM_CNPJ.forEach(id => {
+        const campo = document.getElementById(id);
+        const grupo = campo?.closest('.form-group');
+        if (!grupo) return;
+        grupo.style.display = (ehCnpj && !String(campo.value || '').trim()) ? 'none' : '';
+    });
+
+    // O checkbox pode estar fora da tela (lista de Meio Ambiente aberta)
+    const opcoesCnpj = new Set([
+        ...document.querySelectorAll('[data-somente-cnpj]'),
+        ...(typeof nosInfracoesPosturas !== 'undefined' && nosInfracoesPosturas
+            ? nosInfracoesPosturas.filter(n => n.matches?.('[data-somente-cnpj]')) : [])
+    ]);
+    opcoesCnpj.forEach(label => {
+        label.style.display = ehCnpj ? '' : 'none';
+        const cb = label.querySelector('input[name="infracao"]');
+        if (!ehCnpj && cb && cb.checked) {
+            cb.checked = false;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    });
+}
+
 async function handleArquivoBic(file) {
     if (!file) return;
 
     const ext = (file.name || '').split('.').pop().toLowerCase();
     if (!['pdf', 'doc', 'docx'].includes(ext)) {
-        alert('Por favor, selecione um arquivo válido (.pdf, .doc ou .docx) do Espelho Cadastral (BIC).');
+        alert('Por favor, selecione um arquivo válido (.pdf, .doc ou .docx) do Espelho Cadastral (BIC) ou do Comprovante de Inscrição no CNPJ.');
         return;
     }
 
@@ -4482,7 +4593,7 @@ async function handleArquivoBic(file) {
     const dropEl = document.getElementById('uploadAreaBic');
     if (dropEl) dropEl.style.display = 'none';
 
-    mostrarFeedback('bicFeedback', `Lendo arquivo ${ext.toUpperCase()} do Espelho Cadastral...`, 'info');
+    mostrarFeedback('bicFeedback', `Lendo arquivo ${ext.toUpperCase()}...`, 'info');
 
     try {
         let textoCompleto = '';
@@ -4493,8 +4604,6 @@ async function handleArquivoBic(file) {
         } else if (ext === 'doc') {
             textoCompleto = await extrairTextoDoc(file);
         }
-
-        const dadosExt = extrairDadosEspelhoCadastral(textoCompleto);
 
         bicArquivoAnexado = file;
         // O aviso do BIC do cadastro fica na tela para o fiscal poder comparar
@@ -4511,6 +4620,36 @@ async function handleArquivoBic(file) {
                 delete el.dataset.preenchidoAuto;
             }
         }
+
+        // ── Comprovante de Inscrição no CNPJ ──────────────────────
+        if (ehComprovanteCnpj(textoCompleto)) {
+            documentoCadastroTipo = 'cnpj';
+            const cnpj = extrairDadosComprovanteCnpj(textoCompleto);
+
+            // Contribuinte: nome empresarial e CNPJ (o endereço fica opcional)
+            preencherSeVazio('contNome', cnpj.nome);
+            preencherSeVazio('contCpfCnpj', cnpj.cnpj);
+
+            // Imóvel: o CNPJ é a inscrição (sem setor, zona, quadra e lote) e o
+            // endereço do comprovante é o do imóvel
+            preencherSeVazio('imvInscricao', cnpj.cnpj);
+            preencherSeVazio('imvLogradouro', cnpj.logradouro);
+            preencherSeVazio('imvNumero', cnpj.numero);
+            preencherSeVazio('imvComplemento', cnpj.complemento);
+            preencherSeVazio('imvBairro', cnpj.bairro);
+
+            atualizarAvisosDocumentoCadastro();
+            const lidos = [cnpj.nome && 'nome empresarial', cnpj.cnpj && 'CNPJ', cnpj.logradouro && 'endereço'].filter(Boolean);
+            mostrarFeedback('bicFeedback', lidos.length
+                ? `✓ Comprovante de Inscrição no CNPJ reconhecido: ${lidos.join(', ')} importados. Endereço do contribuinte, código reduzido, área e testada ficam opcionais.`
+                : 'Comprovante de Inscrição no CNPJ reconhecido, mas não foi possível ler os dados. Preencha os campos manualmente.',
+                lidos.length ? 'success' : 'error');
+            return;
+        }
+
+        documentoCadastroTipo = 'bic';
+        atualizarAvisosDocumentoCadastro();
+        const dadosExt = extrairDadosEspelhoCadastral(textoCompleto);
 
         // ── 1. DADOS DO CONTRIBUINTE (Passo 1) ──────────────────────
         preencherSeVazio('contNome', dadosExt.responsavel_nome);

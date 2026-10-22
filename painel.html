@@ -290,6 +290,7 @@
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000237"> Obstáculos em calçadas</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000239"> Água servida</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000236"> Estabelecimento sem alvará</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="ALVARA-PJ"> Exercer atividade sem alvará (empresa)</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000234"> Reparos por concessionárias</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000230"> Piso tátil</label>
                             </div>
@@ -836,8 +837,9 @@
                 <div class="wizard-step" id="step1" style="display: block;">
                     <!-- Anexo BIC - Espelho Cadastral (PDF) -->
                     <div class="step-section">
-                        <h3>Anexo - Espelho Cadastral de imóveis (PDF) <span class="required">*</span></h3>
-                        <p class="step-desc">Importe o arquivo PDF do Espelho Cadastral (BIC) para preencher
+                        <h3>Anexo - Espelho Cadastral (BIC) ou Comprovante de CNPJ <span class="required">*</span></h3>
+                        <p class="step-desc">Importe o PDF do Espelho Cadastral (BIC) ou do Comprovante de Inscrição
+                            no CNPJ (Cadastro Nacional da Pessoa Jurídica). O sistema reconhece o documento e preenche
                             automaticamente os dados do contribuinte e do imóvel. O anexo é obrigatório em todo
                             processo.</p>
                         <div class="upload-area" id="uploadAreaBic">
@@ -851,7 +853,7 @@
                             <p>Arraste o arquivo PDF ou Word aqui ou <label for="inputBic" class="upload-link">clique
                                     para
                                     selecionar</label></p>
-                            <small>Formatos aceitos: .pdf, .doc, .docx (BIC - Espelho Cadastral)</small>
+                            <small>Formatos aceitos: .pdf, .doc, .docx (BIC - Espelho Cadastral ou Comprovante de CNPJ)</small>
                             <input type="file" id="inputBic"
                                 accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                                 hidden>
@@ -864,6 +866,10 @@
                     </div>
                     <div class="step-section">
                         <h3>Dados do contribuinte</h3>
+                        <!-- Comprovante de CNPJ anexado no lugar do BIC (nova-solicitacao.js) -->
+                        <p class="step-desc" id="avisoCnpjContribuinte" style="display:none;">
+                            Comprovante de CNPJ anexado: o endereço do contribuinte é opcional e os campos vazios
+                            ficam ocultos. O endereço do comprovante foi usado nos dados do imóvel.</p>
                         <div class="form-row">
                             <div class="form-group fg-large">
                                 <label for="contNome">Nome do contribuinte <span class="required">*</span></label>
@@ -919,6 +925,9 @@
                         <h3>Dados do imóvel</h3>
                         <p class="step-desc">Informações do imóvel fiscalizado. A inscrição será decomposta
                             automaticamente em setor, zona, quadra e lote.</p>
+                        <p class="step-desc" id="avisoCnpjImovel" style="display:none;">
+                            Comprovante de CNPJ anexado: a inscrição é o CNPJ (sem setor, zona, quadra e lote).
+                            Código reduzido, área total, testada e profundidade são opcionais; os vazios ficam ocultos.</p>
 
                         <div class="form-row">
                             <div class="form-group fg-small">
@@ -1271,6 +1280,10 @@
                                 <label class="checkbox-card"><input type="checkbox" name="infracao"
                                         value="120000236"><span class="cb-label">Estabelecimento sem alvará</span><span
                                         class="cb-code">120000236</span></label>
+                                <!-- Só com o Comprovante de CNPJ anexado (atualizarAvisosDocumentoCadastro) -->
+                                <label class="checkbox-card" data-somente-cnpj style="display:none;"><input type="checkbox" name="infracao"
+                                        value="ALVARA-PJ"><span class="cb-label">Exercer atividade sem o licenciamento de alvará de
+                                        localização e funcionamento</span><span class="cb-code">ALVARA-PJ</span></label>
                                 <label class="checkbox-card"><input type="checkbox" name="infracao"
                                         value="120000234"><span class="cb-label">Reparos por concessionárias</span><span
                                         class="cb-code">120000234</span></label>
@@ -1580,9 +1593,9 @@
     <script src="assets/js/meio-ambiente.js?v=20261021b"></script>
     <script src="assets/js/solicitacoes.js?v=20261021h"></script>
     <script src="assets/js/instrucoes.js?v=20261021e"></script>
-    <script src="assets/js/nova-solicitacao.js?v=20261021b"></script>
+    <script src="assets/js/nova-solicitacao.js?v=20261022b"></script>
     <script src="assets/js/oficio-modelo.js"></script>
-    <script src="assets/js/oficio-avulso.js?v=20261019"></script>
+    <script src="assets/js/oficio-avulso.js?v=20261022"></script>
     <script src="assets/js/chat_juridico.js?v=20261019"></script>
 </body>
 

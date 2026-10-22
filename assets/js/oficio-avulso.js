@@ -925,9 +925,10 @@ async function carregarListaOficios() {
     contador.textContent = 'Carregando...';
 
     const origem = document.getElementById('filtroOficioOrigem').value;
+    // Vírgula e parênteses quebrariam o filtro .or() do Supabase
     const palavras = normalizarTextoOficio(document.getElementById('filtroOficioBusca').value)
         .split(' ')
-        .map(p => p.replace(/[%_\\]/g, ''))
+        .map(p => p.replace(/[%_\\,()]/g, ''))
         .filter(Boolean);
     const { desde, ate } = intervaloDatasOficios();
 
@@ -966,20 +967,56 @@ async function carregarListaOficios() {
 
 window.carregarListaOficios = carregarListaOficios;
 
+// ── Números na busca ─────────────────────────────────────────
+// "2026/12", "2026/0012" e "12/2026" são o mesmo número: ano primeiro, sem zeros.
+function numeroCanonicoOficio(texto) {
+    const m = String(texto || '').match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/);
+    if (!m) return null;
+    const a = String(parseInt(m[1], 10)), b = String(parseInt(m[2], 10));
+    const ehAno = n => n.length === 4 && +n >= 2000 && +n <= 2100;
+    return (ehAno(b) && !ehAno(a)) ? `${b}/${a}` : `${a}/${b}`;
+}
+
+function ehNumeroComBarra(palavra) {
+    return /^\d+\/\d+$/.test(palavra);
+}
+
+// O texto contém o número (em qualquer formato)?
+function textoTemNumeroOficio(texto, palavra) {
+    const alvo = numeroCanonicoOficio(palavra);
+    return (String(texto || '').match(/\d+\s*\/\s*\d+/g) || []).some(n => numeroCanonicoOficio(n) === alvo);
+}
+
 async function buscarOficiosAvulsos(palavras, desde, ate) {
+    const numerosBuscados = palavras.filter(ehNumeroComBarra);
     let query = supabaseClient
         .from('oficios_gfp')
-        .select('id, numero, assunto, created_at, baixado_em, situacao, profiles(nome)')
+        .select(`id, numero, assunto, created_at, baixado_em, situacao, profiles(nome)${numerosBuscados.length ? ', texto_busca' : ''}`)
         .order('created_at', { ascending: false })
         .limit(LIMITE_LISTA_OFICIOS);
     if (desde) query = query.gte('created_at', desde);
     if (ate) query = query.lt('created_at', ate);
-    // Cada palavra precisa aparecer em algum lugar do ofício, em qualquer ordem
-    palavras.forEach(p => { query = query.ilike('texto_busca', `%${p}%`); });
+    // Cada palavra precisa aparecer em algum lugar do ofício, em qualquer ordem.
+    // Além do texto_busca, olha o número e o assunto: ofício antigo ou rascunho
+    // nunca salvo não tem texto_busca e, sem isso, não aparecia em busca nenhuma.
+    palavras.forEach(p => {
+        if (ehNumeroComBarra(p)) {
+            // Número: o banco pode ter zeros à esquerda ou a outra ordem. Aqui
+            // basta cada parte aparecer; a conferência exata vem logo abaixo.
+            p.split('/').map(x => x.replace(/^0+(?=\d)/, '')).forEach(parte => {
+                query = query.or(`numero.ilike.%${parte}%,texto_busca.ilike.%${parte}%`);
+            });
+        } else {
+            query = query.or(`texto_busca.ilike.%${p}%,numero.ilike.%${p}%,assunto.ilike.%${p}%`);
+        }
+    });
 
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []).map(o => ({
+    return (data || [])
+        .filter(o => numerosBuscados.every(p =>
+            numeroCanonicoOficio(o.numero) === numeroCanonicoOficio(p) || textoTemNumeroOficio(o.texto_busca, p)))
+        .map(o => ({
         origem: 'avulso',
         id: o.id,
         numero: o.numero,
@@ -1008,7 +1045,8 @@ async function buscarOficiosEtapa15(palavras, desde, ate) {
         .filter(d => {
             if (!palavras.length) return true;
             const texto = normalizarTextoOficio(`${d.numero_sequencial} ${d.processos?.numero_processo || ''}`);
-            return palavras.every(p => texto.includes(p));
+            // Número com barra vale em qualquer formato (2026/12 = 2026/0012 = 12/2026)
+            return palavras.every(p => texto.includes(p) || (ehNumeroComBarra(p) && textoTemNumeroOficio(texto, p)));
         })
         .map(d => ({
             origem: 'etapa15',
