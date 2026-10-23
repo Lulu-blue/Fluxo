@@ -15,7 +15,7 @@
    (Sim → Etapa 29, Não → Etapa 28).
 
    Textos dos ofícios e das mensagens: tabela modelos_parecer, tipos
-   'oficio_fazenda' e 'mensagem_fazenda' (migracao/modelos_parecer.sql).
+   'oficio_fazenda' e 'mensagem_fazenda'.
    ============================================================================ */
 
 (function () {
@@ -69,8 +69,8 @@
 
     const DIAS_PRAZO_NOVO = 30;
 
-    // Cópia dos modelos usada só enquanto migracao/modelos_parecer.sql não foi
-    // executado. Com o banco atualizado, valem os textos de lá (editáveis).
+    // Cópia dos modelos usada só quando eles não estão no banco. Com o banco
+    // atualizado, valem os textos de lá (editáveis).
     const MODELOS_PADRAO = {
         oficio_fazenda: {
             reducao_50: `Prezado Senhor,
@@ -142,7 +142,7 @@ Atenciosamente,`
             if (error) throw error;
             registroAuto = data?.[0] || null;
         } catch (err) {
-            console.warn('[Etapa 25] Não foi possível ler o valor da multa do Auto (rode migracao/valor_multas.sql):', err?.message || err);
+            console.warn('[Etapa 25] Não foi possível ler o valor da multa do Auto (coluna valor_multa):', err?.message || err);
         }
     }
 
@@ -366,8 +366,8 @@ Atenciosamente,`
             try {
                 await gravarPrazoNotificacao(notif.id, campos);
             } catch (err) {
-                // Banco sem migracao/prazo_origem_etapa25.sql rejeita o valor
-                // novo de prazo_origem (erro 400). O prazo em si é o que importa.
+                // Banco que não aceita prazo_origem = 'etapa25' rejeita o valor
+                // (erro 400). O prazo em si é o que importa.
                 console.warn('[Etapa 25] Gravando o prazo sem prazo_origem:', err?.message || err);
                 const { prazo_origem, ...semOrigem } = campos;
                 await atualizarNotificacaoNoBanco(notif.id, semOrigem);
@@ -533,12 +533,6 @@ Atenciosamente,`
         });
     }
 
-    function oficioFoiEditado() {
-        const salvo = dados25();
-        const atual = document.getElementById('e25Oficio')?.innerHTML || '';
-        return !!salvo.oficio_html && atual.trim() !== '' && salvo.oficio_editado;
-    }
-
     // gerarDoModelo=true descarta as edições e volta ao texto do modelo.
     async function atualizarOficio(gerarDoModelo = true) {
         const opcao = opcaoMarcada();
@@ -556,7 +550,7 @@ Atenciosamente,`
         if (aviso) {
             aviso.hidden = !usandoModelosPadrao;
             aviso.innerHTML = 'Usando o texto embutido no sistema: os modelos ainda não estão no banco. '
-                + 'Rode <strong>migracao/modelos_parecer.sql</strong> para poder editar o modelo padrão pela tela de modelos.';
+                + 'Cadastre os modelos na tabela modelos_parecer para poder editar o modelo padrão pela tela de modelos.';
         }
 
         // Toda edição feita no documento é guardada com o Auto.
@@ -843,7 +837,7 @@ Atenciosamente,`
                 </div>
 
                 <div style="${cartao}">
-                    <h4 style="${titulo}">Veificação de pagamento: <span style="color:#ef4444;">*</span></h4>
+                    <h4 style="${titulo}">Verificação de pagamento: <span style="color:#ef4444;">*</span></h4>
                     <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <label class="e31-opcao" data-opcao="sim" style="display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:10px; border:2px solid #e2e8f0; background:white; cursor:pointer; font-weight:600; color:#16a34a;">
                             <input type="radio" name="e31Pagou" value="sim" style="accent-color:#16a34a;"> Houve pagamento

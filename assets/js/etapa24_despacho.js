@@ -576,7 +576,7 @@
 
         const texto = montarDespacho(decisao);
         if (!texto) {
-            alert('Modelo de despacho não encontrado. Verifique se o script migracao/modelos_parecer.sql foi executado no banco.');
+            alert('Modelo de despacho não encontrado. Verifique se os modelos estão cadastrados na tabela modelos_parecer.');
             return;
         }
         area.value = texto;

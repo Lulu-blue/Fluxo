@@ -926,48 +926,6 @@ body {
     to { transform: rotate(360deg); }
 }
 
-/* ── PAGINAÇÃO ────────────────────────────────────────────── */
-.pagination {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 16px;
-    padding: 20px 0 8px;
-}
-
-.btn-pagination {
-    padding: 8px 16px;
-    background-color: var(--bg-white);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 500;
-    font-family: inherit;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.btn-pagination:hover:not(:disabled) {
-    border-color: var(--accent-color);
-    color: var(--accent-color);
-    transform: translateY(-1px);
-}
-
-.btn-pagination:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.pagination-info {
-    font-size: 0.82rem;
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
 /* ── CARD GENÉRICO (mantido para compatibilidade) ─────────── */
 .card {
     background-color: white;
@@ -1296,13 +1254,6 @@ body {
     cursor: not-allowed;
 }
 
-.input-with-action {
-    display: flex;
-    gap: 6px;
-}
-
-.input-with-action input { flex: 1; }
-
 .btn-inline {
     padding: 10px 14px;
     background: linear-gradient(135deg, var(--accent-color), var(--accent-hover));
@@ -1358,10 +1309,6 @@ body {
 .upload-area small {
     font-size: 0.75rem;
     color: var(--text-muted);
-}
-
-.upload-area-sm {
-    padding: 18px;
 }
 
 .upload-link {
@@ -1436,52 +1383,6 @@ body {
     font-size: 0.95rem;
     font-weight: 700;
     color: var(--accent-hover);
-}
-
-/* ── Image Previews ───────────────────────────────────────── */
-.images-preview {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 10px;
-}
-
-.image-thumb {
-    width: 80px;
-    height: 80px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    position: relative;
-    border: 2px solid var(--border-color);
-}
-
-.image-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.btn-remove-img {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    background: rgba(239, 68, 68, 0.9);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    font-size: 0.65rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: var(--transition);
-}
-
-.image-thumb:hover .btn-remove-img {
-    opacity: 1;
 }
 
 /* ── Checkbox Cards (Infrações) ───────────────────────────── */
@@ -1692,19 +1593,6 @@ body {
 }
 
 /* ── MODAL VER PROCESSO ────────────────────────────────────────── */
-.ver-proc-modal {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-    overflow: hidden;
-}
-
-.ver-tab-btn {
-    transition: all 0.2s ease;
-}
-.ver-tab-btn:hover {
-    color: #1e293b !important;
-}
 
 #previewDocumentoProcesso {
     transition: box-shadow 0.2s ease;
@@ -1891,7 +1779,6 @@ body {
 
 .oficio-origem-avulso   { background: #fff4e5; color: #b45309; }
 .oficio-origem-etapa15  { background: #e0f2fe; color: #0369a1; }
-.oficio-situacao-baixado  { background: #dcfce7; color: #166534; }
 .oficio-situacao-rascunho { background: #fff7ed; color: #9a3412; }
 
 .oficio-acao {
@@ -1993,20 +1880,6 @@ body {
     gap: 18px;
 }
 
-.quadro-intro h2 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text-color);
-    margin-bottom: 6px;
-}
-
-.quadro-intro p {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-    line-height: 1.6;
-    max-width: 68ch;
-}
-
 .instr-passos code {
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
     font-size: 0.85em;
@@ -2082,11 +1955,6 @@ body {
     font-size: 1rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-}
-
-.instr-passos li.chave::before {
-    background-color: var(--success-bg);
-    color: var(--success-color);
 }
 
 .instr-passos h3 {

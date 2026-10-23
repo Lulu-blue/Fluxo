@@ -627,11 +627,6 @@ window.subtituloFiscalizacao = function (proc) {
     return window.processoEhMeioAmbiente(proc) ? 'Fiscalização de Meio Ambiente' : 'Fiscalização de Posturas';
 };
 
-// Cargo impresso na assinatura dos documentos do processo
-window.cargoAssinaturaFiscal = function (proc) {
-    return window.processoEhMeioAmbiente(proc) ? CARGO_FISCAL_MEIO_AMBIENTE : 'Fiscal de Posturas';
-};
-
 // ── "Notificação Preliminar" → "Auto de Fiscalização" na interface ────────
 // Em processo de Meio Ambiente, o documento da Etapa 1 é o Auto de Fiscalização,
 // mas as telas das etapas, avisos, alerts e nomes de etapa (que vêm do banco)

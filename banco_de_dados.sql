@@ -1,15 +1,10 @@
 -- ============================================================
 -- BANCO DE DADOS — Sistema Fluxograma de Processos (Supabase)
--- Esquema exportado do banco em produção em 05/10/2026, por
--- migracao/exportar_esquema.sql. Para atualizar este arquivo, rode aquela
--- consulta de novo e substitua o conteúdo abaixo.
+-- Esquema exportado do banco em produção em 05/10/2026.
 --
 -- Fora deste arquivo de propósito: sync_auth_users_and_identities e
 -- fix_all_users_from_working_template, que regravavam a senha de todos os
--- usuários e são removidas por migracao/seguranca_funcoes.sql.
---
--- Pendente no banco na data da exportação: processos.valor_total_multas e o
--- trigger que soma os Autos (migracao/valor_multas.sql não tinha terminado).
+-- usuários.
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;

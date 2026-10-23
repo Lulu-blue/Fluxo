@@ -33,9 +33,9 @@ const INSTRUCOES = [
         objetivo: 'Cadastrar o processo com os dados do contribuinte, do imóvel, das infrações e o Relatório Fiscal.',
         passos: [
             {
-                titulo: 'Anexe o BIC',
-                texto: 'Na tela de Processos, clique em Novo processo e anexe o BIC (Espelho Cadastral) em PDF. Os dados do contribuinte e do imóvel são preenchidos a partir dele.',
-                dica: 'A leitura do PDF pode falhar em alguns campos. Confira tudo o que foi preenchido automaticamente.'
+                titulo: 'Anexe o BIC ou o comprovante do CNPJ',
+                texto: 'Na tela de Processos, clique em Novo processo e anexe o BIC (Espelho Cadastral) em PDF. Os dados do contribuinte e do imóvel são preenchidos a partir dele. Para empresa sem BIC, anexe no mesmo campo o Comprovante de Inscrição no CNPJ: o nome empresarial, o CNPJ e o endereço do comprovante preenchem o contribuinte e o imóvel.',
+                dica: 'A leitura do PDF pode falhar em alguns campos. Confira tudo o que foi preenchido automaticamente. Com o comprovante do CNPJ, os campos opcionais que ficarem vazios somem do formulário e dos documentos.'
             },
             {
                 titulo: 'Confira contribuinte e imóvel',
@@ -43,13 +43,18 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Preencha os dados da fiscalização',
-                texto: 'Informe a data e a hora da vistoria. Em Posturas, indique se o processo decorre de Decreto de notificação; nesse caso, as imagens da vistoria são obrigatórias.',
-                dica: 'No Meio Ambiente é possível marcar fiscais contribuidores. Eles assinam apenas o Relatório Fiscal.'
+                texto: 'Informe a data e a hora da vistoria e descreva a fiscalização. Em Posturas, indique se o processo decorre de Decreto de notificação; nesse caso, as imagens da vistoria são obrigatórias.',
+                dica: 'No Meio Ambiente é possível marcar um ou mais fiscais contribuidores. Eles assinam apenas o Relatório Fiscal. O usuário Dev escolhe se o processo é de Posturas ou de Meio Ambiente.'
+            },
+            {
+                titulo: 'Informe reincidência e processo existente',
+                texto: 'Em A infração é reincidente?, marque Sim quando o contribuinte já foi autuado pela mesma infração: informe o nº do processo anterior e o nº e a data do Auto anterior. Se o processo anterior não estiver no sistema, anexe os documentos dele. Em Processo já existente?, marque Sim quando o processo já começou fora do sistema (veja a instrução Processo já existente).',
+                dica: 'A reincidência vai direto para o Auto de Infração, e o Relatório Fiscal é gerado sem precisar preencher o último passo.'
             },
             {
                 titulo: 'Marque as infrações',
                 texto: 'Selecione os dispositivos legais transgredidos. Cada infração gera um documento com número próprio.',
-                dica: 'No Meio Ambiente, abaixo de cada infração marcada aparece um quadro: defina o prazo das providências, informe o nº do protocolo e confira a multa.'
+                dica: 'No Meio Ambiente, abaixo de cada infração marcada aparece um quadro: defina o prazo das providências, informe o nº do protocolo e confira a multa. Algumas infrações ambientais não têm Auto de Fiscalização e vão direto para o Auto de Infração. A infração de alvará (ALVARA-PJ) só aparece com o comprovante do CNPJ.'
             },
             {
                 titulo: 'Revise o Relatório Fiscal',
@@ -61,11 +66,52 @@ const INSTRUCOES = [
             }
         ],
         checklist: [
-            'Anexei o BIC e conferi os dados preenchidos.',
+            'Anexei o BIC (ou o comprovante do CNPJ) e conferi os dados preenchidos.',
             'Informei a data e a hora da vistoria.',
+            'Respondi se a infração é reincidente e se o processo já existe.',
             'Marquei as infrações corretas.',
             'No Meio Ambiente: conferi prazo, protocolo e multa de cada infração.',
             'Li o Relatório Fiscal no editor antes de gerar.'
+        ]
+    },
+    {
+        id: 'processo-existente',
+        grupo: 'abertura',
+        etapa: 'Início',
+        titulo: 'Processo já existente',
+        responsavel: 'Fiscal de Posturas e Fiscal de Meio Ambiente',
+        cargos: FISCAL,
+        objetivo: 'Cadastrar no sistema um processo que já começou em papel ou em outro sistema, para ele continuar a partir da etapa em que está.',
+        passos: [
+            {
+                titulo: 'Preencha os passos iniciais',
+                texto: 'Abra o Novo processo e preencha contribuinte, imóvel e fiscalização como em um processo novo, com o BIC ou o comprovante do CNPJ.'
+            },
+            {
+                titulo: 'Marque Processo já existente',
+                texto: 'No passo Infrações, em Processo já existente?, marque Sim. Informe o número do processo e escolha em qual etapa ele está. O processo entra direto nessa etapa.',
+                dica: 'Com o número do processo em branco, o sistema gera o próximo da sequência.'
+            },
+            {
+                titulo: 'Informe as numerações',
+                texto: 'Preencha o nº do Relatório Fiscal e o nº da Notificação Preliminar (ou do Auto de Fiscalização). A partir da Etapa 14, informe também o nº do Auto de Infração. O que ficar em branco o sistema numera.'
+            },
+            {
+                titulo: 'Anexe os documentos que já existem',
+                texto: 'O sistema pede só os documentos das fases pelas quais o processo já passou: Relatório Fiscal, notificação, AR, defesa, Réplica, Certidão e Auto de Infração. Nos ARs, informe o número, a data de recebimento ou a data do edital: essa data inicia o prazo.',
+                dica: 'Todos os anexos são opcionais. O que faltar pode ser anexado depois, na etapa correspondente.'
+            },
+            {
+                titulo: 'Marque as infrações e cadastre',
+                texto: 'Selecione as infrações e clique em Cadastrar processo. Não há o passo do Relatório Fiscal: nenhum documento novo é gerado, o processo só entra no sistema.'
+            }
+        ],
+        checklist: [
+            'Informei o número do processo e a etapa atual.',
+            'Preenchi as numerações que o processo já tem.',
+            'Anexei os documentos assinados que existem.',
+            'Informei as datas do AR ou do edital.',
+            'Conferi as infrações antes de cadastrar.'
         ]
     },
     {
@@ -527,7 +573,7 @@ const INSTRUCOES = [
         passos: [
             {
                 titulo: 'Consulte os documentos',
-                texto: 'Abra o processo unificado, com defesa, comunicações internas e parecer.'
+                texto: 'Abra o processo unificado na tela, com defesa, comunicações internas e parecer.'
             },
             {
                 titulo: 'Registre a decisão',
@@ -587,7 +633,7 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Registre o pagamento',
-                texto: 'Responda Realizou o pagamento? e anexe o comprovante, se houver. Sim segue para o encerramento; Não segue para a certificação do vencimento.'
+                texto: 'Em Verificação de pagamento, marque Houve pagamento ou Não houve pagamento e anexe o comprovante, se houver. Com pagamento, segue para o encerramento; sem pagamento, para a certificação do vencimento.'
             }
         ],
         checklist: [
@@ -662,7 +708,7 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Encerre',
-                texto: 'Clique em Sim, Encerrar Definitivamente. A cópia final do processo é guardada no sistema.',
+                texto: 'Clique em Encerrar definitivamente e confirme. A cópia final do processo é guardada no sistema.',
                 dica: 'Depois de encerrado, o processo não volta. Confira tudo antes.'
             }
         ],
@@ -675,7 +721,11 @@ const INSTRUCOES = [
 ];
 
 // Próximas etapas de cada instrução, com a condição de cada caminho (o fluxo
-// se ramifica). Lista vazia = fim do processo.
+// se ramifica). Lista vazia = fim do processo; sem entrada = texto de PROXIMA_LIVRE.
+const PROXIMA_LIVRE = {
+    'processo-existente': 'O processo continua na etapa escolhida no cadastro. Abra a instrução dessa etapa pelo índice.'
+};
+
 const PROXIMAS_ETAPAS = {
     'novo-processo': [
         { id: 'etapa-1', quando: 'Processo com Notificação Preliminar ou Auto de Fiscalização' },
@@ -1111,7 +1161,7 @@ function htmlProximasEtapas(id) {
         return `
         <section class="instr-proximas">
             <h3>Próxima etapa</h3>
-            <p class="instr-proximas-fim">Esta é a última etapa do processo.</p>
+            <p class="instr-proximas-fim">${escaparInstrucao(PROXIMA_LIVRE[id] || 'Esta é a última etapa do processo.')}</p>
         </section>`;
     }
     return `

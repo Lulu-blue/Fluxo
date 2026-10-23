@@ -29,12 +29,6 @@ const ETAPAS_MAP = {
     31: 'Comprovante pagamento'
 };
 
-const STATUS_LABELS = {
-    em_aberto: 'Em aberto',
-    finalizado: 'Finalizado',
-    cancelado: 'Cancelado'
-};
-
 const STATUS_COLORS = {
     em_aberto: '#80A1D4',
     finalizado: '#75C9C8',
@@ -166,12 +160,12 @@ function normalizarCargo(cargo) {
     return cargo;
 }
 
-// Situação de cada notificação / Auto (notificacoes.situacao), mantida pelo banco
-// (migracao/situacao_por_notificacao.sql). Um processo pode ter notificações em
+// Situação de cada notificação / Auto (notificacoes.situacao), mantida pelo banco.
+// Um processo pode ter notificações em
 // situações diferentes: uma encerrada, outra virando Auto, outra arquivada.
 const SITUACOES_PROCESSO = {
     notificacao_preliminar: 'Notificação Preliminar',
-    // Meio Ambiente (migracao/situacao_auto_fiscalizacao.sql)
+    // Meio Ambiente
     auto_fiscalizacao: 'Auto de Fiscalização',
     auto_infracao: 'Auto de Infração',
     arquivado: 'Arquivado',
@@ -184,14 +178,14 @@ function montarBadgeSituacao(situacao, quantidade) {
     const rotulo = SITUACOES_PROCESSO[chave];
     const sufixo = quantidade > 1 ? ` (${quantidade})` : '';
     if (!rotulo) {
-        // Sem a situação nova ainda (migração não rodou) ou valor antigo
+        // Valor antigo, fora da lista
         return `<span class="situacao-badge outro">${situacao || '—'}</span>`;
     }
     return `<span class="situacao-badge ${chave}">${rotulo}${sufixo}</span>`;
 }
 
 // Processos que têm ALGUMA notificação na situação escolhida (filtro Situação).
-// Devolve null quando a coluna ainda não existe (migração não rodada).
+// Devolve null quando a coluna não existe no banco.
 async function obterProcessosPorSituacaoDaNotificacao(situacao) {
     try {
         const { data, error } = await supabaseClient
@@ -226,7 +220,7 @@ async function anexarSituacoesDasNotificacoes(itens) {
 
         if (error) {
             if (String(error.message || '').includes('situacao')) {
-                console.warn('[PAINEL] Coluna de situação das notificações ainda não existe; rode migracao/situacao_por_notificacao.sql.');
+                console.warn('[PAINEL] Coluna de situação das notificações não existe no banco.');
                 painelTemSituacaoNotificacao = false;
             }
             return;
@@ -254,7 +248,7 @@ async function anexarSituacoesDasNotificacoes(itens) {
 }
 
 // Uma linha por processo, mostrando a situação de cada notificação dele.
-// Sem notificações (ou antes da migração), cai no resumo do processo.
+// Sem notificações, cai no resumo do processo.
 const ORDEM_SITUACOES = ['auto_infracao', 'auto_fiscalizacao', 'notificacao_preliminar', 'arquivado', 'encerrado', 'cancelado'];
 
 const BADGE_AGUARDANDO_JURIDICO =
@@ -415,7 +409,6 @@ window.abrirProcessoAuto = function (id) {
 
 // ── Estado da aplicação ─────────────────────────────────────
 let currentOffset = 0;
-const BATCH_SIZE = 50;
 let hasMoreRecords = true;
 let isFetchingMore = false;
 let currentUserId = null;
@@ -647,7 +640,7 @@ function abrirPaginaDoHash() {
 let currentFetchId = 0;
 let dynamicBatchSize = 50;
 
-// Colunas processos.data_inicio_prazo / data_vencimento (migracao/prazos_processos.sql).
+// Colunas processos.data_inicio_prazo / data_vencimento.
 // Mantidas pelo banco: vencimento mais próximo entre as notificações em aberto e o
 // início que corresponde a ele.
 let painelTemColunasPrazo = true;
@@ -895,7 +888,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             query = query.not('data_vencimento', 'is', null);
         }
         if (filtros.situacao) {
-            // A situação é de cada notificação (migracao/situacao_por_notificacao.sql):
+            // A situação é de cada notificação:
             // traz o processo que tiver ALGUMA notificação nessa situação. Processos
             // sem notificação entram pelo resumo em processos.status.
             const idsPorSituacao = await obterProcessosPorSituacaoDaNotificacao(filtros.situacao);
@@ -925,9 +918,9 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             .order('created_at', { ascending: false });
 
         if (error) {
-            // Migração migracao/prazos_processos.sql ainda não rodou: abre sem as datas
+            // Banco sem as colunas de prazo: abre sem as datas
             if (painelTemColunasPrazo && String(error.message || '').includes('data_')) {
-                console.warn('[PAINEL] Colunas de prazo ainda não existem; rode migracao/prazos_processos.sql.');
+                console.warn('[PAINEL] Colunas de prazo não existem no banco.');
                 painelTemColunasPrazo = false;
                 isFetchingMore = false;
                 return carregarSolicitacoes(append, tentativa);
@@ -1063,7 +1056,6 @@ function renderizarTabela(dados, cargoFiltro) {
         const etapaNome = item.status === 'cancelado' ? 'Cancelado' : (etapaNumero === '—' ? 'Concluído' : (item.etapas?.nome || ETAPAS_MAP[etapaNumero] || '—'));
         const statusClass = item.status || 'em_aberto';
 
-        const linkEtapa = montarLinkEtapa(item, cargoFiltro);
 
         const isDev = window.currentUserProfile && normalizarCargo(window.currentUserProfile.cargo) === 'Dev';
         if (isDev) {
@@ -1334,17 +1326,6 @@ function formatarData(dateStr) {
     if (!dateStr) return '—';
     const d = new Date(dateStr);
     return d.toLocaleDateString('pt-BR');
-}
-
-function formatarCpfCnpj(value) {
-    if (!value || value === '—') return '—';
-    const digits = value.replace(/\D/g, '');
-    if (digits.length === 11) {
-        return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-    } else if (digits.length === 14) {
-        return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-    }
-    return value;
 }
 
 // Dias entre hoje e o vencimento, contando por dia (como a página da etapa).
@@ -1805,7 +1786,6 @@ async function alterarFotoPerfil(input) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             // A foto (já reduzida) vai para o Cloudinary; o perfil guarda só o link.
-            // Antes ia em base64 para profiles.avatar_url.
             const blobAvatar = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
             const urlAvatar = (blobAvatar && typeof window.uploadParaCloudinary === 'function')
                 ? await window.uploadParaCloudinary(new File([blobAvatar], 'avatar.jpg', { type: 'image/jpeg' }), 'avatares')
@@ -2392,7 +2372,7 @@ window.carregarEExibirApuracaoDados = async function () {
         const limitBatch = 100;
         let temMais = true;
 
-        // processos.valor_total_multas (migracao/valor_multas.sql): soma dos Autos
+        // processos.valor_total_multas: soma dos Autos
         // gravada pelo banco. Sem a coluna, a apuração usa o cálculo antigo.
         const { error: errColunaTotal } = await supabaseClient
             .from('processos')
@@ -2400,7 +2380,7 @@ window.carregarEExibirApuracaoDados = async function () {
             .limit(1);
         const temValorTotalMultas = !errColunaTotal;
         if (!temValorTotalMultas) {
-            console.warn('[APURAÇÃO] processos.valor_total_multas não existe: rode migracao/valor_multas.sql. Usando o cálculo antigo.');
+            console.warn('[APURAÇÃO] processos.valor_total_multas não existe. Usando o cálculo antigo.');
         }
 
         // Com valor_total_multas, só o nome/matrícula do fiscal saem do JSON (e só

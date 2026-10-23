@@ -6,7 +6,6 @@ const STEP_LABELS = ['Contribuinte', 'Imóvel', 'Fiscal', 'Infrações', 'Relat�
 let currentWizardStep = 1;
 const TOTAL_STEPS = 5;
 let fiscalData = { nome: '', matricula: '', cargo: '' };
-let selectedImages = [];
 let isWizardLoading = false;
 window.relatorioCustomizadoHTML = null;
 const BRASAO_PREFEITURA_BASE64 = "assets/img/brasao_semac.jpeg";
@@ -300,15 +299,6 @@ function obterDataDecretoSelecionada() {
     return dec ? dec.data_decreto : null;
 }
 
-function obterDecretoIdSelecionado() {
-    const decretoSim = document.getElementById('fiscDecreto')?.value === 'sim';
-    if (!decretoSim) return null;
-
-    const sel = document.getElementById('fiscNumeroDecreto')?.value;
-    if (!sel || sel === 'outro') return null;
-    return sel;
-}
-
 // ── Carregar dados do fiscal logado ─────────────────────────
 async function carregarDadosFiscal() {
     try {
@@ -382,10 +372,6 @@ let nosInfracoesMeioAmbiente = null;
 
 const TEXTO_PASSO4_POSTURAS = 'Selecione os dispositivos legais transgredidos. Cada seleção gerará uma notificação com número próprio.';
 const TEXTO_PASSO4_MEIO_AMBIENTE = 'Selecione os dispositivos legais transgredidos. Cada seleção gerará um Auto de Fiscalização com número próprio.';
-
-function ehWizardMeioAmbiente() {
-    return wizardMeioAmbiente;
-}
 
 function escaparHtmlWizard(txt) {
     return String(txt || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1433,44 +1419,6 @@ function validarStep(step) {
     return true;
 }
 
-// ── Validação CPF/CNPJ (algoritmo matemático) ──────────────
-function validarCpfCnpj(value) {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length === 11) return validarCPF(digits);
-    if (digits.length === 14) return validarCNPJ(digits);
-    return false;
-}
-
-function validarCPF(cpf) {
-    if (/^(\d)\1{10}$/.test(cpf)) return false;
-    let sum = 0;
-    for (let i = 0; i < 9; i++) sum += parseInt(cpf[i]) * (10 - i);
-    let rest = (sum * 10) % 11;
-    if (rest === 10) rest = 0;
-    if (rest !== parseInt(cpf[9])) return false;
-    sum = 0;
-    for (let i = 0; i < 10; i++) sum += parseInt(cpf[i]) * (11 - i);
-    rest = (sum * 10) % 11;
-    if (rest === 10) rest = 0;
-    return rest === parseInt(cpf[10]);
-}
-
-function validarCNPJ(cnpj) {
-    if (/^(\d)\1{13}$/.test(cnpj)) return false;
-    const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    let sum = 0;
-    for (let i = 0; i < 12; i++) sum += parseInt(cnpj[i]) * weights1[i];
-    let rest = sum % 11;
-    const d1 = rest < 2 ? 0 : 11 - rest;
-    if (parseInt(cnpj[12]) !== d1) return false;
-    sum = 0;
-    for (let i = 0; i < 13; i++) sum += parseInt(cnpj[i]) * weights2[i];
-    rest = sum % 11;
-    const d2 = rest < 2 ? 0 : 11 - rest;
-    return parseInt(cnpj[13]) === d2;
-}
-
 // ── Máscara CPF/CNPJ ────────────────────────────────────────
 function aplicarMascaraCpfCnpj(input) {
     input.addEventListener('input', (e) => {
@@ -2135,8 +2083,8 @@ async function finalizarSolicitacao() {
                     .select('id, infracao_id, infracoes_catalogo(descricao)');
 
                 if (errInfracoes) {
-                    // Sem infração não há notificação, e o processo fica pela metade.
-                    // Antes isso só ia para o console e o fiscal via "criado com sucesso".
+                    // Sem infração não há notificação, e o processo fica pela metade:
+                    // o fiscal precisa saber.
                     console.error('Erro ao inserir infrações:', errInfracoes);
                     throw new Error(
                         `O processo ${numeroProcesso} foi criado, mas as infrações não foram gravadas`
@@ -2349,60 +2297,6 @@ async function finalizarSolicitacao() {
         setWizardLoading(false);
     }
 }
-
-// ── Prazos padrão de cada tipo de notificação ─────────────────────────────
-const PRAZOS_NOTIFICACAO = {
-    '120000232': 15,
-    '120000211': 60,
-    '120000226': 60,
-    '120000228': 60,
-    '120000227': 60,
-    '120000229': 15,
-    '120000240': 15,
-    '120000233': 10,
-    '120000237': 10,
-    '120000239': 10,
-    '120000236': 10,
-    '120000234': 10,
-    '120000230': 10,
-
-    'inexistência de cercamento': 60,
-    'inexistencia de cercamento': 60,
-    'inexistência de passeio': 60,
-    'inexistencia de passeio': 60,
-    'reincidência na inexistência de cercamento': 60,
-    'reincidência na inexistência de passeio': 60,
-    'reincidencia na inexistencia de cercamento': 60,
-    'reincidencia na inexistencia de passeio': 60,
-    'cercamento': 60,
-
-    'falta de limpeza e conservação': 15,
-    'não edificado': 15,
-    'nao edificado': 15,
-    'limpeza e conservação': 15,
-    'reconstrução e/ou reparos em muro': 15,
-    'reconstrução e/ou reparos passeio': 15,
-    'reconstrução e/ou reparos muro': 15,
-    'reconstrucao e/ou reparos em muro': 15,
-    'reconstrucao e/ou reparos passeio': 15,
-    'reconstrucao e/ou reparos muro': 15,
-
-    'limpeza de quintal': 10,
-    'quintal': 10,
-    'obstáculos em calçadas': 10,
-    'obstáculo': 10,
-    'obstaculo': 10,
-    'água servida': 10,
-    'agua servida': 10,
-    'estabelecimento sem alvará': 10,
-    'alvará': 10,
-    'alvara': 10,
-    'reparos por concessionárias': 10,
-    'concessionária': 10,
-    'concessionaria': 10,
-    'piso tátil': 10,
-    'piso tatil': 10
-};
 
 // Prazo de DEFESA do Auto de Infração: 20 dias corridos, para qualquer infração
 const PRAZO_DEFESA_AUTO_DIAS_NOVA_SOLICITACAO = 20;
@@ -2941,87 +2835,6 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
     `;
 }
 
-// ── Renderização e Preparação da Certidão (Decreto) ─────────
-async function garantirNumerosReservadosCertidao() {
-    const anoAtual = new Date().getFullYear();
-
-    if (!numerosReservadosEditor.processo) {
-        try {
-            const { data: np, error: errProc } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Processo' });
-            if (!errProc && np) {
-                numerosReservadosEditor.processo = np;
-            } else {
-                console.warn('RPC reservar_numero para Processo falhou, executando fallback local:', errProc?.message);
-                const { data } = await supabaseClient
-                    .from('processos')
-                    .select('numero_processo')
-                    .like('numero_processo', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_processo) {
-                            const p = item.numero_processo.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numerosReservadosEditor.processo = `${anoAtual}/${String(max + 1).padStart(6, '0')}`;
-            }
-        } catch (e) {
-            console.warn('Erro ao reservar número de processo:', e);
-        }
-    }
-
-    if (!numerosReservadosEditor.certidao) {
-        try {
-            const { data: nc, error: errCert } = await supabaseClient.rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Certidão Sem Defesa' });
-            if (!errCert && nc) {
-                numerosReservadosEditor.certidao = nc;
-            } else {
-                console.warn('RPC reservar_numero para Certidão falhou, executando fallback local:', errCert?.message);
-                const { data } = await supabaseClient
-                    .from('notificacoes')
-                    .select('numero_certidao')
-                    .like('numero_certidao', `${anoAtual}/%`);
-                let max = 0;
-                if (data && data.length > 0) {
-                    data.forEach(item => {
-                        if (item.numero_certidao) {
-                            const p = item.numero_certidao.split('/');
-                            if (p.length === 2) {
-                                const v = parseInt(p[1], 10);
-                                if (!isNaN(v) && v > max) max = v;
-                            }
-                        }
-                    });
-                }
-                numerosReservadosEditor.certidao = `${anoAtual}/${String(max + 1).padStart(3, '0')}`;
-            }
-        } catch (e) {
-            console.warn('Erro ao reservar número de certidão:', e);
-        }
-    }
-}
-
-async function prepararEtapaCertidaoDecreto() {
-    await garantirNumerosReservadosCertidao();
-    renderizarDocumentoCertidaoDecreto();
-}
-
-function renderizarDocumentoCertidaoDecreto() {
-    const container = document.getElementById('previewRelatorioContainer');
-    if (!container) return;
-    container.style.display = 'block';
-
-    container.innerHTML = construirHtmlCertidaoDecreto(
-        numerosReservadosEditor.certidao,
-        numerosReservadosEditor.processo
-    );
-}
-
 function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, procObj = null) {
     const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
     const dProc = proc?.dados || {};
@@ -3553,36 +3366,6 @@ async function baixarCertidaoDecretoPdf() {
             btn.innerHTML = oldText;
         }
     }
-}
-
-// Converte <img src="caminho/relativo"> para base64 para o documento Word
-async function embutirImagensComoBase64(html) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const imagens = Array.from(doc.querySelectorAll('img'));
-
-    for (const img of imagens) {
-        const src = img.getAttribute('src');
-        if (!src) continue;
-        // Já está embutido como data URI; mantém como está
-        if (src.startsWith('data:')) continue;
-        try {
-            const response = await fetch(src);
-            if (!response.ok) continue;
-            const blob = await response.blob();
-            const base64 = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-            img.setAttribute('src', base64);
-        } catch (e) {
-            console.warn('Não foi possível embutir imagem:', src, e);
-        }
-    }
-
-    return doc.body.innerHTML;
 }
 
 // ── Bind de todos os eventos ────────────────────────────────
@@ -4862,27 +4645,6 @@ function extrairTextoStringsDoBuffer(data) {
     }
 
     return partes.join(' ');
-}
-
-// ── Extrai logradouro, número e bairro da frase "situado à ..." ──
-function extrairLogradouroSituado(texto) {
-    const resultado = { logradouro: '', numero: '', bairro: '' };
-    // Tenta o formato completo: situado à RUA, NÚMERO, - BAIRRO -
-    let m = texto.match(/situado\s+(?:à|a|na)\s+([^,]+?)\s*,\s*([^\s,]+?)\s*,\s*-\s*([^-]+?)\s*-/i);
-    if (m) {
-        resultado.logradouro = m[1].trim();
-        resultado.numero = m[2].trim();
-        resultado.bairro = m[3].trim();
-        return resultado;
-    }
-    // Fallback: situado à RUA NÚMERO - BAIRRO (sem vírgula entre logradouro e número)
-    m = texto.match(/situado\s+(?:à|a|na)\s+([A-ZÀ-Úa-zà-ú\s]+?)\s+(\d+)\s*,?\s*-\s*([^-]+?)\s*-/i);
-    if (m) {
-        resultado.logradouro = m[1].trim();
-        resultado.numero = m[2].trim();
-        resultado.bairro = m[3].trim();
-    }
-    return resultado;
 }
 
 

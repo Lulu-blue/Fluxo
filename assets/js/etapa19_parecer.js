@@ -3,8 +3,8 @@
    ----------------------------------------------------------------------------
    O jurídico anexa ou cola a defesa, escolhe a decisão (deferido, indeferido
    ou redução de 50%, conforme a infração) e recebe o texto do parecer já
-   montado a partir dos modelos da tabela modelos_parecer
-   (migracao/modelos_parecer.sql). O texto fica editável e pode ser copiado.
+   montado a partir dos modelos da tabela modelos_parecer. O texto fica
+   editável e pode ser copiado.
 
    Depende das globais do etapa.js: processoAtual, notificacaoAtual,
    perfilAtual, supabaseClient, mostrarCarregamento, ocultarCarregamento,
@@ -518,7 +518,7 @@
         if (!modelo) {
             area.value = '';
             textoModeloAplicado = '';
-            mostrarErro('Nenhum modelo de parecer encontrado. Verifique se o script <strong>migracao/modelos_parecer.sql</strong> foi executado no banco.');
+            mostrarErro('Nenhum modelo de parecer encontrado. Verifique se os modelos estão cadastrados na tabela <strong>modelos_parecer</strong>.');
         } else {
             area.value = preencherModelo(modelo.texto, autoSelecionado);
             textoModeloAplicado = area.value;
@@ -1001,7 +1001,7 @@
             await carregarModelos();
         } catch (err) {
             console.error('[Etapa 19] Erro ao carregar modelos:', err);
-            mostrarErro('Não foi possível carregar os modelos de parecer. Verifique se o script <strong>migracao/modelos_parecer.sql</strong> foi executado no banco.');
+            mostrarErro('Não foi possível carregar os modelos de parecer. Verifique se os modelos estão cadastrados na tabela <strong>modelos_parecer</strong>.');
         }
 
         // Sem notificação aberta e sem Autos na 19: processo antigo sem

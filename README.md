@@ -1,7 +1,8 @@
 # Sistema Fluxograma — SEMAC / Fiscalização de Posturas
 
-Sistema web que acompanha o processo administrativo de fiscalização de posturas, da
-vistoria até o encerramento. O processo começa na Notificação Preliminar, pode virar
+Sistema web que acompanha o processo administrativo de fiscalização de posturas e de meio
+ambiente, da vistoria até o encerramento. O processo começa na Notificação Preliminar (ou no
+Auto de Fiscalização, em meio ambiente), pode virar
 Auto de Infração, passar pelo Jurídico e pelo Secretário e terminar em certidão,
 pagamento ou arquivamento. Cada passo é uma **etapa** numerada, com um responsável
 (cargo), uma tela própria e regras de avanço.
@@ -61,7 +62,7 @@ Configuração:
 - **Supabase:** `assets/js/supabase-config.js`. A chave também aparece repetida em `assets/js/login.js`.
 - **Cloudinary:** `assets/js/cloudinary-config.js` (cloud `dsctsogdy`, preset sem assinatura `semac_unsigned`).
 
-Bibliotecas por CDN: supabase-js, pdf-lib, pdf.js, html2canvas, jszip, docx, SheetJS (xlsx) e Chart.js.
+Bibliotecas por CDN: supabase-js, pdf-lib, pdf.js, html2canvas, jszip e Chart.js.
 
 ---
 
@@ -90,8 +91,7 @@ assets/
     oficio-modelo.js       papel timbrado do Ofício SEMAC – GFP
     oficio-avulso.js       ofícios avulsos (aba Ofícios do painel)
     brasao-base64.js       brasão embutido para os PDFs
-banco_de_dados.sql         esquema do banco (Supabase), exportado por migracao/exportar_esquema.sql
-migracao/                  scripts SQL incrementais e migração de anexos (ver LEIA-ME.md)
+banco_de_dados.sql         esquema do banco (Supabase)
 ```
 
 ---
@@ -133,8 +133,8 @@ e os anexos do AR do Auto ficam em `documentos` com o `notificacao_id` dele. Use
 `proc.campos.etapa16` direto.
 
 **Situação** (`notificacoes.situacao` / `processos.status`): `notificacao_preliminar`,
-`auto_infracao`, `arquivado`, `encerrado` ou `cancelado`. Mantida pelo banco
-(`migracao/situacao_por_notificacao.sql`) e mostrada como etiqueta no painel.
+`auto_fiscalizacao`, `auto_infracao`, `arquivado`, `encerrado` ou `cancelado`. Mantida pelo
+banco e mostrada como etiqueta no painel.
 
 **Histórico.** Toda mudança de etapa grava uma linha em `historico_etapas` (de, para,
 condição, usuário, notificação) e uma entrada em `notificacoes.dados.historico`. É esse
@@ -181,7 +181,7 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
 
 - **Infrações:** no Novo Processo aparecem os dispositivos ambientais (códigos `MA-01`
   a `MA-28`, sem `MA-13` e `MA-14`, em `INFRACOES_MEIO_AMBIENTE`), no lugar dos de Posturas.
-  Precisam estar no `infracoes_catalogo` (`migracao/fiscal_meio_ambiente.sql`). Não há
+  Precisam estar no `infracoes_catalogo`. Não há
   Decreto de notificação.
 - **Auto de Fiscalização:** é o nome do documento da Etapa 1 (no lugar da Notificação
   Preliminar), com o mesmo cabeçalho. Para cada infração o fiscal escolhe o prazo das
@@ -219,7 +219,7 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
   compatibilidade. O processo continua sendo de quem criou.
 - **Situação:** enquanto não vira Auto de Infração, a situação de processo e notificação
   de Meio Ambiente é `auto_fiscalizacao` (não `notificacao_preliminar`), calculada pelo
-  banco (`migracao/situacao_auto_fiscalizacao.sql`, função `processo_eh_meio_ambiente`).
+  banco (função `processo_eh_meio_ambiente`).
   O filtro Situação do painel tem a opção "Auto de Fiscalização".
 - O processo é marcado com `dados.setor = 'meio_ambiente'` (`processoEhMeioAmbiente`).
   O Auto de Infração desses processos usa o dispositivo ambiental, cita o Auto de
@@ -231,7 +231,7 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
 
 ### 5.1 Prazo da Notificação Preliminar (por infração)
 
-Antiga `etapas/Vencimentos.docx`, hoje em `PRAZOS_NOTIFICACAO` / `obterPrazoNotificacao` (`etapa.js`):
+Antiga `etapas/Vencimentos.docx`, hoje em `obterPrazoNotificacao` (`etapa.js`):
 
 | Infração | Código | Prazo |
 |---|---|---|
@@ -271,7 +271,7 @@ Notificações `encerrada`, `atendida` ou `pagamento` não contam prazo.
 
 - **AR sem retorno:** 15 dias depois de cadastrado o número do AR sem data de recebimento, o processo vai **sozinho** para a Etapa 30 (verificado ao abrir a Etapa 16). Para testar, use `?teste_prazo_ar=<segundos>` na URL.
 - **Etapa 25:** redução de 50% e alteração de valor **reiniciam** o prazo com 30 dias (a partir da entrada na Etapa 31). Continuidade na cobrança **retoma** os dias que faltavam e nunca reinicia: se já venceu, continua vencido. Origem gravada: `prazo_origem = 'etapa25'`.
-- **Dilação:** deferida pelo Fiscal (Etapa 5), soma N dias ao vencimento. Pelo Gerente (Etapa 11), define uma nova data. Em ambos os casos a Etapa 2 deixa de oferecer "Dilação" para aquela notificação.
+- **Dilação:** deferida pelo Fiscal (Etapa 5), soma N dias ao vencimento. A Etapa 2 deixa de oferecer "Dilação" para aquela notificação.
 
 ---
 
@@ -282,8 +282,8 @@ Diagrama do que o **código** faz hoje. O fluxo oficial é a [imagem do topo](#f
 ```mermaid
 flowchart TD
     N0([Painel / Nova solicitação]) -->|sem decreto| E1[1 Possui Decreto/Notificação]
-    N0 -->|com decreto| E14
-    E1 --> E16[16 Retorno do AR<br/>'1.2' no fluxo da NP]
+    N0 -->|decreto / reincidência / MA sem AF| E14
+    E1 -->|NP ou Auto de Fiscalização| E16[16 Retorno do AR<br/>'1.2' no fluxo da NP]
     E16 -->|AR efetivado, fluxo NP| E2[2 Defesa ou Dilação<br/>painel das notificações]
     E16 -->|AR efetivado, fluxo Auto| E18
     E16 -->|sem sucesso: 3 tentativas NP / 1 Auto| E17[17 Gerência gera o Edital]
@@ -294,24 +294,16 @@ flowchart TD
     E17 -->|fluxo NP, prazo 20 dias| E2
     E17 -->|fluxo Auto| E18
 
-    E2 -->|Defesa / Dilação| E4[4 Comprovante de Propriedade]
-    E2 -->|Atendida / Vencida| E7[7 Análise sem Dilação]
-    E4 -->|defesa + comprovante| E3[3 Envio da 1ª Defesa]
-    E4 -->|dilação| E5[5 Análise da Dilação]
-    E4 -->|sem comprovante / atendida / vencida| E7
+    E2 -->|Defesa| E3[3 Envio da 1ª Defesa]
+    E2 -->|Dilação| E4[4 Documentos da Dilação]
+    E2 -->|Atendida| E29
+    E2 -->|Vencida| E10[10 Certidão]
+    E4 --> E5[5 Análise da Dilação]
+    E5 -->|defere / indefere no prazo| E2
+    E5 -->|indefere vencido| E10
     E3 -->|defesa anexada| E13[13 Fiscal analisa a Defesa]
     E3 -->|venceu sem anexo| E10
-    E5 -->|defere| E2
-    E5 -->|indefere| E7
-    E5 -->|gerente| E11[11 Gerente antes da Infração]
     E13 -->|defere / indefere| E10
-    E13 -->|gerente| E11
-    E11 -->|defere + certidão / indefere| E10
-    E11 -->|defere direto| E29
-    E11 -->|dilatar| E2
-    E11 -->|devolver ao fiscal| E3
-    E7 -->|atendida / vencida| E10[10 Certidão]
-    E7 -->|enviar ao Jurídico| E32[32 Consulta no Jurídico]
     E10 -->|resolvido| E29
     E10 -->|não resolvido| E14[14 Auto de Infração]
 
@@ -320,6 +312,9 @@ flowchart TD
     E18[18 Defesa ou Pagamento<br/>painel dos Autos] -->|Defesa| E19[19 Parecer Jurídico]
     E18 -->|Pagamento| E29
     E18 -->|Não pagou| E28[28 Certificação do Vencimento]
+    E18 -->|Desconto| E26[26 Análise para dar Desconto]
+    E26 -->|defere| E25
+    E26 -->|indefere| E18
     E19 <-->|diligência| E21[21 Fiscal convocado]
     E19 <-->|diligência| E22[22 Gerente convocado]
     E19 -->|parecer pronto| E24[24 Secretário despacha]
@@ -337,13 +332,13 @@ flowchart TD
 
 | Etapa | Nome | Responsável | Saídas |
 |---|---|---|---|
-| 1 | Notificação | Fiscal | → 16 |
+| 1 | Notificação / Auto de Fiscalização | Fiscal | → 16 |
 | 2 | Andamento | Fiscal | por notificação: Defesa → 3; Dilação → 4; Atendida → 29; Vencida → 10 |
 | 3 | Defesa | Fiscal | anexou → 13; venceu sem anexo → 10 |
 | 4 | Comprovantes | Fiscal | sempre → 5 |
 | 5 | Análise Dilação de Prazo | Fiscal | defere → 2; indefere no prazo → 2; indefere vencido → 10 |
 | 10 | Certidão de Cumprimento | Fiscal | resolvido → 29; não → 14 |
-| 13 | Análise da defesa | Fiscal | defere → 29; indefere → 10 |
+| 13 | Análise da defesa | Fiscal | defere / indefere → 10 |
 | 14 | Auto de Infração (AI) | Fiscal | → 15 |
 | 15 | Multa do AI | Gerente / Administrativo | → 16 |
 | 16 | Dados do AR (1.2) | Administrativo | → 2 / 18 / 17 / 30 |
@@ -369,32 +364,34 @@ flowchart TD
 
 Primeira tela depois do login (`painel.html`, `assets/js/solicitacoes.js`).
 
-**Filtros:** Protocolo, Nº Relatório Fiscal, Nº Auto de Infração, Nº Notificação, Nome do
-Solicitante, CPF/CNPJ do contribuinte, Fiscal responsável, Data início/fim, Etapa,
+**Filtros:** Protocolo, Nº Relatório Fiscal, Nº Auto de Infração, Nº Notificação / Auto de
+Fiscalização (aceita os dois formatos de número), Nome do Solicitante, CPF/CNPJ do
+contribuinte, Código reduzido do imóvel, Fiscal responsável, Data início/fim, Etapa,
 Situação, Tipo de infração (várias) e Ordenar por (prazo).
 
-**Tabela:** Protocolo, CPF/CNPJ, Nome do Solicitante, Data Início, Data Final, Dias p/
+**Tabela:** Protocolo, Código reduzido, Nome do Solicitante, Data Início, Data Final, Dias p/
 Vencimento, Fiscal, Situação (etiquetas por notificação), Etapa e Detalhes (abre o
 processo na etapa em que parou). A etapa exibida é a mais avançada entre as notificações
 ainda abertas.
 
 **Ações:** criar nova solicitação (abre o assistente da Etapa 1) e **exportar CSV**,
-respeitando os filtros. Sem filtro, exporta tudo.
+respeitando os filtros. Sem filtro, exporta tudo. Ao lado de "Abrir", o botão **Processo
+unido** abre em outra aba um PDF com capa, índice e todos os documentos na ordem em que
+foram inseridos (inclusive o decreto), sem as Comunicações Internas.
 
 ### Etapa 1 — Possui Decreto/Notificação (criação do processo)
 
-**Quem:** Fiscal de Postura. **Código:** `nova-solicitacao.js` (assistente) + `etapa.js` (tela da etapa).
+**Quem:** Fiscal de Postura ou de Meio Ambiente. **Código:** `nova-solicitacao.js` (assistente) + `etapa.js` (tela da etapa).
 
 **Assistente "Novo Processo", em 5 passos:** Contribuinte → Imóvel → Fiscal → Infrações → Relatório Fiscal.
-- **Anexo Planilha da BETHA** (XLSX, CSV ou DOC no modelo da NP): se anexada, preenche os campos sozinha.
-- **Anexo BIC** (Espelho Cadastral de Imóveis, PDF), obrigatório. No mesmo campo pode ir o **Comprovante de Inscrição no CNPJ** da Receita, reconhecido pelo texto (`ehComprovanteCnpj`): o nome empresarial vai para o nome do contribuinte, o CNPJ para o CPF/CNPJ e para a inscrição do imóvel (sem setor/zona/quadra/lote), e o endereço do comprovante para o imóvel. Com ele, endereço do contribuinte, código reduzido, área, testada e profundidade ficam opcionais; o anexo é gravado como `Comprovante de Inscrição CNPJ`. Os campos opcionais vazios nem aparecem no formulário, e só com esse documento aparece a infração **ALVARA-PJ** ("Exercer atividade sem o licenciamento de alvará de localização e funcionamento", art. 190 e seguintes da Lei 6.907/2008; multa de 50 UPFMD; providência imediata), cadastrada por `migracao/infracao_alvara_pj.sql`. Na Notificação Preliminar e no Auto de Infração, dado do contribuinte ou do imóvel que não foi preenchido não aparece.
-- **Contribuinte:** nome, CPF/CNPJ (validado pelo dígito verificador), logradouro, número, complemento, bairro, município, CEP e e-mail (opcional).
+- **Anexo BIC** (Espelho Cadastral de Imóveis, PDF), obrigatório. No mesmo campo pode ir o **Comprovante de Inscrição no CNPJ** da Receita, reconhecido pelo texto (`ehComprovanteCnpj`), tanto em Posturas quanto em Meio Ambiente: o nome empresarial vai para o nome do contribuinte, o CNPJ para o CPF/CNPJ e para a inscrição do imóvel (sem setor/zona/quadra/lote), e o endereço do comprovante para o imóvel. Com ele, endereço do contribuinte, código reduzido, área, testada e profundidade ficam opcionais; o anexo é gravado como `Comprovante de Inscrição CNPJ`. Os campos opcionais vazios nem aparecem no formulário, e só com esse documento aparece, na lista de Posturas, a infração **ALVARA-PJ** ("Exercer atividade sem o licenciamento de alvará de localização e funcionamento", art. 190 e seguintes da Lei 6.907/2008; multa de 50 UPFMD; providência imediata), cadastrada no `infracoes_catalogo`. Na Notificação Preliminar e no Auto de Infração, dado do contribuinte ou do imóvel que não foi preenchido não aparece.
+- **Contribuinte:** nome, CPF/CNPJ, logradouro, número, complemento, bairro, município, CEP e e-mail (opcional).
 - **Imóvel:** código reduzido, inscrição imobiliária, logradouro, número, complemento, bairro, área total (m²), testada (m) e profundidade. A inscrição `01.036.00181.00300.00000.0` é quebrada em **Setor** (01), **Zona** (036), **Quadra** (00181) e **Lote** (00300).
 - **Fiscal:** nome e matrícula (do usuário logado), data da vistoria (hoje, editável para trás), descrição da fiscalização, imagens da vistoria e **"Decorrente de Decreto de Notificação?"** (com escolha ou anexo do decreto).
-- **Infrações:** reincidente?, "Quais dispositivos legais foram transgredidos?" (várias, ver [Anexo A](#anexo-a--catálogo-de-infrações)) e "Processo já existente?" (com anexo). Nas reincidências, pede o **Nº e a data do Auto de Infração anterior**, que entram no texto da observação (ver [Anexo B](#anexo-b--textos-padrão)).
+- **Infrações:** reincidente?, "Quais dispositivos legais foram transgredidos?" (várias, ver [Anexo A](#anexo-a--catálogo-de-infrações)) e "Processo já existente?". Com **Sim**, o fiscal informa o número do processo (em branco, o sistema gera), a etapa em que ele está, as numerações que já tem (Relatório Fiscal, NP/AF e, a partir da 14, Auto) e anexa os documentos das fases já vencidas, com número e datas dos ARs. O assistente pula o passo 5 (botão **Cadastrar processo**), não gera documento e o processo nasce direto na etapa escolhida. Nas reincidências, pede o **Nº e a data do Auto de Infração anterior**, que entram no texto da observação (ver [Anexo B](#anexo-b--textos-padrão)).
 - **Relatório Fiscal:** editor com o relatório gerado, que pode ser ajustado antes de salvar.
 
-**Destino ao criar:** com decreto, o processo nasce na **Etapa 14**. Sem decreto, na **Etapa 1**.
+**Destino ao criar:** com decreto, reincidência ou só infrações de meio ambiente que vão direto ao Auto, o processo nasce na **Etapa 14**. Nos demais casos, na **Etapa 1** (NP ou Auto de Fiscalização).
 
 **Tela da Etapa 1:**
 1. Card de **cálculo das multas**: UPFMD (vem de `configuracoes_upfmd`), imóvel de esquina e base de cálculo. É o mesmo card da Etapa 14.
@@ -422,8 +419,7 @@ O processo **permanece na Etapa 2**: só as notificações andam.
 ### Etapa 3 — Envio da 1ª Defesa
 
 **Quem:** Fiscal. Mostra o vencimento da notificação e o campo para **anexar a defesa**
-(vários arquivos, PDF/JPG/PNG). Se a defesa voltou do Gerente (Etapa 11 → "devolver ao
-fiscal"), um alerta mostra o **motivo do Gerente**.
+(vários arquivos, PDF/JPG/PNG).
 
 **Avanço:** com anexo → **13**. Sem anexo e vencida → **10**. Sem anexo e ainda no prazo, não avança.
 
@@ -459,55 +455,22 @@ o Jurídico** para a contagem do prazo e avisa os outros no painel.
 Pode **adicionar imagens com legenda** à réplica. É **obrigatório anexar a Réplica assinada** antes de avançar.
 Botão de topo: "Imprimir / Baixar → Réplica (.pdf)". Textos da réplica no [Anexo B](#anexo-b--textos-padrão).
 
-### Etapa 7 — Análise da Defesa sem Dilação (fora do fluxo)
-
-**Não é mais usada.** Ela só repetia uma decisão já tomada antes e mandava tudo para a
-Etapa 10. Agora as etapas vão **direto para a 10**, já com "O problema foi resolvido?"
-marcado — a marcação fica em `notificacoes.dados.certidao_resolvido`:
-
-| Veio de | Situação | Destino |
-|---|---|---|
-| Etapa 2 | Atendida | **Etapa 29** (certidão de encerramento) |
-| Etapa 2 | Vencida sem atendimento | Etapa 10, marcada **Não** → 14 |
-| Etapa 5 | Dilação negada com prazo vencido | **Não** → 14 |
-| Etapa 4 | Defesa sem comprovante / atendida / vencida | **Não** / **Sim** / **Não** |
-
-A tela da Etapa 7 continua no código para os processos antigos que ficaram parados nela;
-o avanço dela leva à 10, como antes.
-
 ### Etapa 10 — Certidão Sem Defesa / Encerramento
 
 **Quem:** Fiscal. Gera a **Certidão** com os dados do autuado, do imóvel e da vistoria.
 Campos: Nº da notificação, tipo da infração e **"O problema foi resolvido?"**.
 
-O padrão é **Não**. Vem **Sim** quando a Etapa 7 marcou atendida, a Etapa 13 deferiu ou o
-Gerente deferiu pedindo certidão. Se a decisão veio do Gerente (indeferido ou deferido com
-certidão), um quadro mostra a decisão e o motivo.
+O padrão é **Não**. Vem **Sim** quando a Etapa 13 deferiu.
 
 Com **Sim**, a última frase da certidão passa a ser *"certificamos que houve o cumprimento da obrigação: …"*.
 
 É **obrigatório anexar a Certidão assinada**. **Avanço:** Sim → **29**. Não → **14**.
-
-### Etapa 11 — Gerente antes da Infração
-
-**Quem:** Gerente. Mostra os documentos: **Réplica** (Etapa 13), **Defesa** (Etapa 3) e
-**comprovantes de renda/propriedade** (Etapa 4), cada um para visualizar ou baixar.
-
-Decisão, sempre com **motivo obrigatório**:
-| Decisão | Destino |
-|---|---|
-| Deferido + "gerar Certidão de Encerramento" = Sim | 10 (avisa o fiscal no sino de notificações) |
-| Deferido + encerrar direto | 29 |
-| Indeferido | 10 |
-| Dilatar prazo (nova data obrigatória; bloqueia nova dilação pelo fiscal) | 2 |
-| Mandar de volta ao fiscal | 3, com o motivo em destaque |
 
 ### Etapa 13 — Fiscal Analisa a Defesa (1ª)
 
 **Quem:** Fiscal. Mostra os anexos da defesa (Etapa 3) e dos comprovantes (Etapa 4) e gera a **Réplica**.
 - **Defere** → **10** (com "resolvido" já marcado como Sim).
 - **Indeferimento:** motivo obrigatório → **10**.
-- **Mandar para o gerente:** parecer **Favorável / Não favorável** e motivo → **11**.
 
 Imagens com legenda opcionais. **Réplica assinada obrigatória** para avançar.
 
@@ -628,7 +591,7 @@ Regras: para **21 ou 22** (diligência) basta a defesa; o pedido escrito é opci
 A redução é de **exatamente 50%** (Lei 7.174/2010, art. 2º, IV) e vale para limpeza, muro,
 passeio e reconstruções, não só para limpeza.
 
-Modelos: tabela `modelos_parecer`, `tipo = 'parecer'` (`migracao/modelos_parecer.sql`).
+Modelos: tabela `modelos_parecer`, `tipo = 'parecer'`.
 
 ### Etapas 21 e 22 — Comunicação Interna (Fiscal / Gerência)
 
@@ -671,7 +634,7 @@ destinatário. "Restaurar texto do modelo" descarta as edições. A **mensagem p
 
 Modelos: `modelos_parecer`, tipos `oficio_fazenda` e `mensagem_fazenda`. Marcadores:
 `{{AUTO_NUMERO}}`, `{{DEFENDENTE}}`, `{{PROCESSO_NUMERO}}`, `{{TEXTO_MANUAL}}`; `**texto**` vira
-negrito. Sem a migração, a tela usa uma cópia embutida dos textos e mostra um aviso.
+negrito. Se os modelos não estiverem no banco, a tela usa uma cópia embutida dos textos e mostra um aviso.
 
 ### Etapa 28 — Certificação do Vencimento
 
@@ -730,17 +693,6 @@ porque alguns PDFs são montados a partir do conteúdo desse container.
 Os botões de **baixar** e **imprimir** continuam funcionando em qualquer etapa: eles montam
 o documento na hora, com `renderizarDocumentoOficial(proc, { forcar: true })`.
 
-### Etapa 32 — Consulta no Jurídico
-
-**Não é usada.** A consulta ao Jurídico acontece pelo **chat** (`chat_juridico.js`), que
-está disponível em qualquer etapa, e nenhuma etapa leva mais para a 32 — a última que
-levava era a 7, e essa opção foi removida.
-
-Quando é preciso esperar a resposta do Jurídico, as Etapas **5** e **13** têm o botão
-**Paralisar aguardando o Jurídico**: ele guarda o vencimento e zera a contagem do prazo,
-mostra um aviso na etapa e o selo "Aguardando Jurídico" no painel. A retomada devolve
-o prazo com os dias que faltavam.
-
 ### "Etapa 33" — Encerrada
 
 Não existe como etapa no banco. É a visão de **notificação/Auto encerrado**: título
@@ -750,7 +702,7 @@ ZIP e o histórico de etapas. Sem botões de avançar, voltar ou cancelar.
 ### Etapas removidas do sistema (14/10/2026)
 
 Saíram do código (mapas de nome, permissões por cargo, filtro do painel e lista do
-"processo já existente") e do banco, por `migracao/remover_etapas_sem_uso.sql`:
+"processo já existente") e do banco:
 
 | Etapa | Nome antigo | Por que saiu |
 |---|---|---|
@@ -763,6 +715,10 @@ Saíram do código (mapas de nome, permissões por cargo, filtro do painel e lis
 | 23 | Parecer Jurídico (antigo) | Substituída pela 19 |
 | 27 | Devolvimento para o Setor | Sem tela; nada levava a ela |
 | 32 | Consulta no Jurídico | Virou o chat do Jurídico |
+
+A consulta ao Jurídico acontece pelo **chat** (`chat_juridico.js`), disponível em qualquer
+etapa. Para esperar a resposta, as Etapas **5** e **13** têm o botão **Paralisar aguardando
+o Jurídico**, que zera a contagem do prazo e devolve os dias que faltavam na retomada.
 
 A **Etapa 100** não é tocada (é usada para outra coisa). A etapa que ainda tem histórico
 de processos antigos não pode ser apagada — apagaria a trilha —, então fica no banco com
@@ -804,7 +760,7 @@ Menu lateral de `painel.html`:
   documentos e não entram.
 - **Notificações:** sino com avisos ao usuário (ex.: devolução do AR, gerente pediu certidão).
 - **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível para Gerente de Posturas e Dev; gerado por Gerente, Administrativo e Dev. Imagens vão para o Cloudinary.
-- **Instruções:** índice com uma instrução por etapa (objetivo, passos, checklist próprio salvo no navegador e "Próxima etapa" com os caminhos possíveis), em **Lista** ou **Fluxograma** (da esquerda para a direita, em 3 faixas; cards com etapa e cargo, setas a partir de `PROXIMAS_ETAPAS`; clicar no card abre a instrução). Filtro "só as etapas do meu cargo". Conteúdo em `assets/js/instrucoes.js`.
+- **Instruções:** índice com uma instrução por etapa (objetivo, passos, checklist próprio salvo no navegador e "Próxima etapa" com os caminhos possíveis), em **Lista** ou **Fluxograma** (da esquerda para a direita, em 3 faixas; cards com etapa e cargo, setas a partir de `PROXIMAS_ETAPAS`; clicar no card abre a instrução). Filtro "só as etapas do meu cargo". O "Processo já existente" tem instrução própria, só na lista. Conteúdo em `assets/js/instrucoes.js`.
 - **Apuração de dados:** gráficos de processos e valor de multas por fiscal. O valor vem de
   `processos.valor_total_multas`, que é a soma dos Autos de Infração do processo. Cada Auto
   grava o próprio valor na Etapa 14 (o calculado ou o digitado pelo fiscal) sempre que é
@@ -823,9 +779,7 @@ Gerente de Interface Jurídica, com anexos. Tabela `chats_interface_juridica`.
 ## 10. Banco de dados
 
 Esquema em `banco_de_dados.sql` (Supabase/Postgres). Para atualizá-lo a partir do banco
-em produção, rode `migracao/exportar_esquema.sql` no SQL Editor do Supabase e cole o
-resultado no arquivo. Ele gera extensões, tipos, sequências, tabelas, restrições, índices,
-funções, views, triggers e políticas de RLS. Outra opção é usar
+em produção, use
 `pg_dump --schema-only --schema=public --no-owner --no-privileges "<string do Session pooler>"`.
 
 Tabelas principais:
@@ -838,7 +792,7 @@ Tabelas principais:
 | `processos` | o processo; JSON `dados` com campos de cada etapa (`dados.campos.etapaN`); `valor_total_multas` = soma dos Autos, mantida por trigger |
 | `notificacoes` | uma por infração: etapa, status, situação, prazo (`data_inicio`, `data_vencimento`, `prazo_dias`, `prazo_origem`), JSON `dados` por etapa |
 | `autos_infracao` | Autos emitidos; `valor_multa` = valor de cada Auto (memória do cálculo em `dados.calculo_multa`) |
-| `etapas`, `transicoes` | cadastro das etapas (o painel mostra `etapas.nome`; renomear exige `migracao/renomear_etapas.sql`) |
+| `etapas`, `transicoes` | cadastro das etapas (o painel mostra `etapas.nome`; renomear exige atualizar a tabela) |
 | `historico_etapas` | todas as movimentações |
 | `documentos` | anexos e documentos gerados (URL do Cloudinary) |
 | `checklist_itens`, `checklist_respostas` | checklists |
@@ -846,21 +800,8 @@ Tabelas principais:
 | `oficios_gfp` | ofícios avulsos |
 | `configuracoes_upfmd` | valor da UPFMD (histórico) |
 | `chats_interface_juridica` | chat |
-| `modelos_parecer` | modelos de parecer, despacho, ofício e mensagem (migração) |
+| `modelos_parecer` | modelos de parecer, despacho, ofício e mensagem |
 | `decretos` | decretos de notificação |
-
-Scripts incrementais em `migracao/`:
-| Arquivo | O que faz |
-|---|---|
-| `valor_multas.sql` | `autos_infracao.valor_multa`, `processos.valor_total_multas` e o trigger que soma os Autos |
-| `modelos_parecer.sql` | cria `modelos_parecer` com os textos das Etapas 19, 24 e 25 |
-| `prazo_conta_do_edital.sql` | regra de início do prazo (recebimento / edital / cadastro do AR) |
-| `prazo_para_no_pagamento.sql` | status `pagamento` deixa de contar prazo |
-| `prazo_origem_etapa25.sql` | aceita `prazo_origem = 'etapa25'` |
-| `situacao_arquivado.sql` | situação `arquivado` |
-| `situacao_por_notificacao.sql` | situação por notificação |
-| `diagnostico_banco.sql` | consultas para investigar banco lento ou fora do ar |
-| `01_preparar.sql`, `02_conferir.sql`, `03_finalizar.sql`, `migrar_anexos.mjs`, `backup_tabelas_pesadas.sh` | migração de anexos base64 → Cloudinary (passo a passo em `migracao/LEIA-ME.md`) |
 
 > Anexos **nunca** devem ser gravados em base64 no banco: isso já derrubou o sistema.
 > Tudo vai para o Cloudinary e o banco guarda só o link.
@@ -888,11 +829,7 @@ e uma **sugestão de decisão**, com o botão "Usar esta sugestão".
 | Etapa | Fluxo oficial | Código hoje |
 |---|---|---|
 | 13 | Deferida → **29** | Deferida → **10** (certidão já com "resolvido = Sim"), depois 29 |
-| 13 | Opção **Enviar para o Jurídico (32)**, com chat e possibilidade de paralisar o processo | Não existe |
-| 11 | Deferido → **29** | Pergunta se passa pela certidão (10) ou encerra direto (29) |
-| 11 | Opção **Envia para o Jurídico (32)** | Não existe |
-| 11 | "Dilatar prazo" só aparece **se veio de pedido de dilação** | Aparece sempre |
-| 32 | Chat com o Jurídico que pode paralisar o processo | Sem tela; avança pela regra padrão |
+| 13 | Opção **Enviar para o Jurídico (32)**, com chat e possibilidade de paralisar o processo | Feito pelo chat do Jurídico + botão de paralisar |
 | 1 | Sem decreto → 2 | 1 → 16 (AR) → 2. O canvas omite o ciclo do AR nesse caminho |
 | 17 | Sempre → 18 | → 18 no fluxo do Auto e → 2 no fluxo da NP (Edital da Notificação Preliminar) |
 | 30 | Efetivado → 18 | → 18 no fluxo do Auto e → 2 no fluxo da NP |
@@ -905,16 +842,14 @@ canvas deve ser completado.
 
 - **Etapa 18:** antes era um checklist → 19 / 20 ("Realizar Pagamento"). Hoje são três opções por Auto: Defesa → 19, Pagamento → 29, Não pagou → 28.
 - **Etapa 20:** deixou de ser "Realizar Pagamento" e virou **Arquivamento do Processo**.
-- **Etapa 19:** passou a ser o Parecer Jurídico (antes era a 23). O painel (`solicitacoes.js`) ainda mostra o nome antigo da 19, **"Envio de Defesa ou Pagamento"**.
+- **Etapa 19:** passou a ser o Parecer Jurídico (antes era a 23).
 - **Etapa 16:** 3 tentativas valem só para a NP; no fluxo do Auto, 1 tentativa leva ao Edital.
 
 **Pendências:**
 - **Etapas sem uso:** resolvido em 14/10/2026 — 6, 7, 8, 9, 11, 12, 23, 27 e 32 saíram do código e do banco (ver "Etapas removidas do sistema"). A consulta ao Jurídico da antiga 32 virou o chat, com o botão de paralisar nas Etapas 5 e 13. A 26, que era "Fazenda Gera a Multa" sem tela, passou a ser a Análise para dar Desconto.
 - **Perfil Fazenda:** ficou sem etapas quando a 26 virou Análise de Desconto. Definir o que ele faz ou removê-lo.
 - **Permissões duplicadas:** `ETAPAS_POR_CARGO` de `solicitacoes.js` difere da de `etapa.js` (ex.: lá o Fiscal tem a 19, o Jurídico não tem a 19 e o Gerente de Interface Jurídica tem todas).
-- **Etapa 4 (dilação):** o texto pede "no mínimo 2 documentos", mas o avanço não confere isso.
 - **Chave do Supabase** repetida em `login.js` e `supabase-config.js`.
-- `migracao/` está no `.gitignore` por causa dos backups com dados pessoais, mas os scripts continuam versionados. Garantir que `migracao/backup/` nunca seja adicionado.
 - Itens jurídicos a validar: ver o fim do [Anexo C](#anexo-c--pesquisa-argumentos-comuns-nas-defesas).
 
 ---
@@ -938,11 +873,6 @@ canvas deve ser completado.
 | Estabelecimento sem alvará | 120000236 |
 | Reparos por concessionárias | 120000234 |
 | Piso tátil | 120000230 |
-
-Mapeamento dos campos da planilha/modelo da NP (BETHA) para o formulário:
-- **Contribuinte** (bloco "INFORMAÇÕES DO CONTRIBUINTE"): Contribuinte, Nº CPF/CNPJ, Logradouro, Número, Observação (→ complemento), Bairro, Município, CEP.
-- **Imóvel** (bloco "INFORMAÇÕES DO IMÓVEL"): Código (→ código reduzido), Inscrição do Imóvel, Logradouro, Número, Complemento, Bairro.
-- Na frase *"Verificamos que o imóvel … com **12 m** de extensão e **300 m²** de área"*: 12 m = **testada**; 300 m² = **área total**. A **profundidade** aparece na mesma frase, precedida da palavra "profundidade".
 
 ---
 
@@ -984,7 +914,7 @@ Com "O problema foi resolvido? = Sim", a última frase (depois da data da vistor
 
 ### Parecer, despacho, ofício à Fazenda e mensagem do protocolo
 
-Ficam na tabela `modelos_parecer` (semente em `migracao/modelos_parecer.sql`) e são editáveis
+Ficam na tabela `modelos_parecer` e são editáveis
 na própria tela. `texto_original` guarda a versão de fábrica, para "restaurar modelo".
 
 ---

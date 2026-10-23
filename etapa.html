@@ -1623,21 +1623,6 @@
         </div> <!-- Fim de main-wrapper -->
     </div> <!-- Fim de dashboard-layout -->
 
-    <!-- Modal de Seleção de Notificação -->
-    <div id="modalSelecionarNotificacao"
-        style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); backdrop-filter:blur(3px); z-index:9998; align-items:center; justify-content:center; padding:24px;">
-        <div
-            style="background:white; border-radius:18px; padding:28px; max-width:560px; width:100%; box-shadow:0 20px 50px rgba(0,0,0,0.25);">
-            <h2 style="margin:0 0 8px 0; font-size:1.3rem; color:#1e293b;">Selecionar notificação</h2>
-            <p style="margin:0 0 20px 0; color:#64748b; font-size:0.95rem;">Este processo possui notificações em etapas
-                diferentes. Escolha qual deseja visualizar:</p>
-            <div id="listaOpcoesNotificacao"
-                style="display:flex; flex-direction:column; gap:12px; max-height:400px; overflow-y:auto;">
-                <!-- Opções renderizadas via JS -->
-            </div>
-        </div>
-    </div>
-
     <!-- Overlay de Carregamento Global -->
     <div id="overlayCarregamento"
         style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); backdrop-filter:blur(3px); z-index:9999; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
@@ -1661,19 +1646,18 @@
     <script src="assets/js/supabase-config.js"></script>
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="assets/js/brasao-base64.js"></script>
     <script src="assets/js/oficio-modelo.js"></script>
-    <script src="assets/js/meio-ambiente.js?v=20261021b"></script>
-    <script src="assets/js/etapa.js?v=20261022b"></script>
+    <script src="assets/js/meio-ambiente.js?v=20261022"></script>
+    <script src="assets/js/etapa.js?v=20261022d"></script>
     <!-- ?v= evita que o navegador use uma versão antiga em cache -->
     <script src="assets/js/ia_defesa.js?v=20260925"></script>
-    <script src="assets/js/etapa19_parecer.js?v=20261019"></script>
-    <script src="assets/js/etapa24_despacho.js?v=20261020b"></script>
-    <script src="assets/js/etapa25_fazenda.js?v=20261019"></script>
+    <script src="assets/js/etapa19_parecer.js?v=20261022"></script>
+    <script src="assets/js/etapa24_despacho.js?v=20261022"></script>
+    <script src="assets/js/etapa25_fazenda.js?v=20261022b"></script>
     <script src="assets/js/chat_juridico.js?v=20261019"></script>
 </body>
 
