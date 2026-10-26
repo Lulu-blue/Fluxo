@@ -215,7 +215,7 @@ async function anexarSituacoesDasNotificacoes(itens) {
     try {
         const { data, error } = await supabaseClient
             .from('notificacoes')
-            .select('processo_id, situacao, dados')
+            .select('id, numero, processo_id, situacao, dados')
             .in('processo_id', ids);
 
         if (error) {
@@ -238,7 +238,16 @@ async function anexarSituacoesDasNotificacoes(itens) {
             if (n.processo_id && n.dados?.aguardando_juridico) aguardandoJuridico[n.processo_id] = true;
         });
 
+        // Um botão de PDF unificado por notificação / Auto (PA Nº …)
+        const pasPorProcesso = {};
+        (data || []).forEach(n => {
+            if (!n.processo_id || !n.id) return;
+            (pasPorProcesso[n.processo_id] = pasPorProcesso[n.processo_id] || []).push({ id: n.id, numero: n.numero || '' });
+        });
+
         itens.forEach(item => {
+            item.notificacoes_pa = (pasPorProcesso[item.id] || [])
+                .sort((a, b) => String(a.numero).localeCompare(String(b.numero), 'pt-BR', { numeric: true }));
             item.situacoes_notificacoes = porProcesso[item.id] || null;
             item.aguardando_juridico = !!aguardandoJuridico[item.id];
         });
@@ -254,6 +263,22 @@ const ORDEM_SITUACOES = ['auto_infracao', 'auto_fiscalizacao', 'notificacao_prel
 const BADGE_AGUARDANDO_JURIDICO =
     '<span style="display:inline-block; padding:2px 10px; border-radius:12px; font-size:0.72rem; font-weight:700; '
     + 'background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; white-space:nowrap;">Aguardando Jurídico</span>';
+
+// PDF unificado de cada notificação / Auto, aberto em outra aba. O rótulo é o
+// número da notificação depois do número do processo: 2026/000123/02 → PA Nº 02.
+function montarBotoesPdfUnificado(item) {
+    const escapeHtml = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const icone = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
+    const base = `etapa.html?processo=${encodeURIComponent(item.id)}&pdf_unido=1`;
+    const pas = item.notificacoes_pa || [];
+    if (pas.length === 0) {
+        return `<a href="${base}" target="_blank" rel="noopener" class="btn-abrir-processo btn-processo-unido" title="Abrir em outra aba o PDF unificado do processo">${icone} PDF</a>`;
+    }
+    return pas.map(pa => {
+        const sufixo = String(pa.numero || '').split('/').pop() || '—';
+        return `<a href="${base}&notificacao=${encodeURIComponent(pa.id)}" target="_blank" rel="noopener" class="btn-abrir-processo btn-processo-unido" title="Abrir em outra aba o PDF unificado de ${escapeHtml(pa.numero || 'notificação')}">${icone} PA Nº ${escapeHtml(sufixo)}</a>`;
+    }).join('');
+}
 
 function montarColunaSituacao(item) {
     const paralisado = item.aguardando_juridico ? BADGE_AGUARDANDO_JURIDICO : '';
@@ -1092,10 +1117,7 @@ function renderizarTabela(dados, cargoFiltro) {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                     Abrir
                 </a>
-                <a href="etapa.html?processo=${encodeURIComponent(item.id)}&pdf_unido=1" target="_blank" rel="noopener" class="btn-abrir-processo btn-processo-unido" title="Abrir em outra aba o processo unido: capa, índice e todos os documentos na ordem em que foram inseridos">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Processo unido
-                </a>
+                ${montarBotoesPdfUnificado(item)}
             </td>
         `;
 

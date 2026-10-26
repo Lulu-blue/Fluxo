@@ -43,7 +43,7 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Preencha os dados da fiscalização',
-                texto: 'Informe a data e a hora da vistoria e descreva a fiscalização. Em Posturas, indique se o processo decorre de Decreto de notificação; nesse caso, as imagens da vistoria são obrigatórias.',
+                texto: 'Informe a data e a hora da vistoria e descreva a fiscalização. Abaixo das imagens, em Outros documentos, anexe quantos arquivos forem necessários (ou nenhum); use Visualizar para conferir e Excluir para retirar um arquivo. Em Posturas, indique se o processo decorre de Decreto de notificação; nesse caso, as imagens da vistoria são obrigatórias.',
                 dica: 'No Meio Ambiente é possível marcar um ou mais fiscais contribuidores. Eles assinam apenas o Relatório Fiscal. O usuário Dev escolhe se o processo é de Posturas ou de Meio Ambiente.'
             },
             {
@@ -54,7 +54,7 @@ const INSTRUCOES = [
             {
                 titulo: 'Marque as infrações',
                 texto: 'Selecione os dispositivos legais transgredidos. Cada infração gera um documento com número próprio.',
-                dica: 'No Meio Ambiente, abaixo de cada infração marcada aparece um quadro: defina o prazo das providências, informe o nº do protocolo e confira a multa. Algumas infrações ambientais não têm Auto de Fiscalização e vão direto para o Auto de Infração. A infração de alvará (ALVARA-PJ) só aparece com o comprovante do CNPJ.'
+                dica: 'No Meio Ambiente, abaixo de cada infração marcada aparece um quadro: defina o prazo das providências, informe o nº do protocolo e confira a multa. Algumas infrações ambientais não têm Auto de Fiscalização e vão direto para o Auto de Infração. Nas queimadas com REDS, informe o nº do REDS, anexe o REDS se tiver e escolha se vai fazer o Relatório Fiscal. Seguir sem o relatório só é possível com o REDS anexado; nesse caso, o último passo é pulado. A infração de alvará (ALVARA-PJ) só aparece com o comprovante do CNPJ.'
             },
             {
                 titulo: 'Revise o Relatório Fiscal',
@@ -126,7 +126,7 @@ const INSTRUCOES = [
             {
                 titulo: 'Confira os dados',
                 texto: 'Revise endereço, infrações e dispositivos. Para corrigir algo, use a aba Editar dados do processo.',
-                dica: 'Corrigir antes de assinar é rápido. Depois de assinado, o documento precisa ser refeito.'
+                dica: 'Corrigir antes de assinar é rápido. Depois de assinado, o documento precisa ser refeito. No Auto de Fiscalização, responda se houve testemunhas; com Sim, preencha as duas (outro Fiscal de Meio Ambiente ou nome e CPF digitados).'
             },
             {
                 titulo: 'Confira a multa',
@@ -414,7 +414,7 @@ const INSTRUCOES = [
         passos: [
             {
                 titulo: 'Preencha os dados do Auto',
-                texto: 'Informe se o autuado apresentou defesa. No Meio Ambiente, informe também a data da verificação.',
+                texto: 'Informe se o autuado apresentou defesa. No Meio Ambiente, informe também a data da verificação e se houve testemunhas: com Sim, preencha as duas (escolhendo outro Fiscal de Meio Ambiente ou digitando nome e CPF).',
                 dica: 'A nota do fiscal do Auto pode ser editada nesta etapa. Ela não altera a Notificação Preliminar / Auto de Fiscalização já entregue.'
             },
             {
@@ -423,7 +423,7 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Baixe, assine e anexe',
-                texto: 'Anexe o Auto de Infração assinado. Em processo por decreto, anexe também o Relatório Fiscal assinado.'
+                texto: 'Anexe o Auto de Infração assinado. Em processo por decreto ou de Meio Ambiente que começou direto no Auto de Infração, anexe também o Relatório Fiscal assinado (exceto quando ele foi dispensado na queimada com REDS).'
             }
         ],
         checklist: [

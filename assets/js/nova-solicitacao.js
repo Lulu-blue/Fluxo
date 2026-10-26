@@ -14,6 +14,8 @@ let numerosReservadosEditor = { processo: null, relatorio: null, certidao: null 
 let bicArquivoAnexado = null;
 // Documento anexado no campo do BIC: 'bic', 'cnpj' (Comprovante de Inscrição no CNPJ) ou null
 let documentoCadastroTipo = null;
+// "Outros documentos" do passo 3: arquivos que o fiscal quiser juntar ao processo
+let outrosDocumentosNovoProcesso = [];
 
 // Configurar Worker do PDF.js se disponível
 if (typeof pdfjsLib !== 'undefined') {
@@ -172,6 +174,13 @@ async function abrirModal() {
     // Os blocos de processo existente e de reincidência voltam fechados e vazios
     limparBlocoProcessoExistente();
     limparBlocoReincidencia();
+    outrosDocumentosNovoProcesso = [];
+    renderizarOutrosDocumentos();
+    if (campoRelatorioReds) campoRelatorioReds.querySelector('select').value = '';
+    document.querySelectorAll('#infracoesList .af-reds-arquivo').forEach(el => {
+        el.value = '';
+        el.dispatchEvent(new Event('change'));
+    });
     carregarOpcoesDecreto();
     atualizarWizard();
     carregarDadosFiscal();
@@ -551,6 +560,8 @@ function renderizarConfigAutoFiscalizacao() {
             multa: card.querySelector('.af-multa')?.value,
             variante: card.querySelector('.af-variante')?.value,
             reds: card.querySelector('.af-reds')?.value,
+            // O próprio <input type="file">: o arquivo escolhido não dá para recolocar
+            arquivoReds: card.querySelector('.af-reds-arquivo'),
             protocolo: card.querySelector('.af-protocolo')?.value
         };
     });
@@ -584,6 +595,22 @@ function renderizarConfigAutoFiscalizacao() {
                         <label>Nº do REDS <span class="required">*</span></label>
                         <input type="text" class="af-reds" value="${escaparHtmlWizard(ant.reds || '')}" placeholder="Ex: 2026-012345678-001">
                     </div>` : '';
+        // Segunda linha das queimadas: anexo do REDS e, no primeiro cartão com
+        // REDS, a pergunta do Relatório Fiscal (posicionarCampoRelatorioReds)
+        const linhaReds = item.reds ? `
+                <div style="display:flex; flex-wrap:wrap; gap:12px 20px; align-items:flex-start; margin-top:4px; padding-top:12px; border-top:1px dashed #e2e8f0;">
+                    <div class="form-group" style="flex:1 1 260px; margin:0;">
+                        <label>Anexo do REDS <span class="optional">(opcional)</span></label>
+                        <div style="display:flex; align-items:center; gap:10px; min-height:42px;">
+                            <label style="flex:none; padding:8px 14px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#0f172a; font-size:0.85rem; font-weight:600; cursor:pointer;">
+                                Escolher arquivo
+                                <input type="file" class="af-reds-arquivo" accept=".pdf,.jpg,.jpeg,.png" hidden>
+                            </label>
+                            <span class="af-reds-nome" style="font-size:0.84rem; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Nenhum arquivo</span>
+                        </div>
+                    </div>
+                    <div class="af-relatorio-slot" style="flex:1 1 220px;"></div>
+                </div>` : '';
         const instrucao = item.semAF
             ? 'Auto de Infração: confira o valor da multa.'
             : 'Auto de Fiscalização: defina o prazo das providências e confira o valor da multa.';
@@ -623,11 +650,18 @@ function renderizarConfigAutoFiscalizacao() {
                         ${notaUpfmd}
                     </div>
                 </div>
+                ${linhaReds}
                 <div class="af-providencias" style="font-size:0.84rem; color:#334155;"></div>
             </div>
         `;
-        cb.closest('label').after(tpl.content.firstElementChild);
+        const novoCard = tpl.content.firstElementChild;
+        if (ant.arquivoReds && novoCard.querySelector('.af-reds-arquivo')) {
+            novoCard.querySelector('.af-reds-arquivo').replaceWith(ant.arquivoReds);
+        }
+        cb.closest('label').after(novoCard);
     });
+
+    posicionarCampoRelatorioReds();
 
     lista.querySelectorAll('.af-config-card').forEach(card => {
         const item = window.encontrarInfracaoMeioAmbiente(card.dataset.codigo);
@@ -657,7 +691,77 @@ function renderizarConfigAutoFiscalizacao() {
         selModo.addEventListener('change', atualizarCartao);
         if (selVariante) selVariante.addEventListener('change', atualizarCartao);
         atualizarCartao();
+
+        const arquivoReds = card.querySelector('.af-reds-arquivo');
+        if (arquivoReds) {
+            const mostrarNome = () => {
+                card.querySelector('.af-reds-nome').textContent = arquivoReds.files?.[0]?.name || 'Nenhum arquivo';
+                atualizarOpcaoSemRelatorioReds();
+            };
+            arquivoReds.onchange = mostrarNome;
+            mostrarNome();
+        }
     });
+}
+
+// Queimada com REDS (MA-29 / MA-30): o fiscal escolhe se faz o Relatório
+// Fiscal. A escolha vale para o processo inteiro, então o campo é um só e fica
+// no primeiro cartão de queimada marcado. Sem relatório, o passo 5 sai do assistente.
+let campoRelatorioReds = null;
+
+function posicionarCampoRelatorioReds() {
+    if (!campoRelatorioReds) {
+        campoRelatorioReds = document.createElement('div');
+        campoRelatorioReds.className = 'form-group';
+        campoRelatorioReds.style.margin = '0';
+        campoRelatorioReds.innerHTML = `
+            <label for="infRelatorioReds">Fazer o Relatório Fiscal? <span class="required">*</span></label>
+            <select id="infRelatorioReds">
+                <option value="">Selecione...</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não, o processo segue só com o REDS</option>
+            </select>
+            <small class="af-relatorio-aviso" style="color:#64748b; font-size:0.78rem;">Para não fazer o Relatório Fiscal, anexe o REDS.</small>`;
+        campoRelatorioReds.querySelector('select').addEventListener('change', () => {
+            if (typeof atualizarLabelsUIWizardStep5 === 'function') atualizarLabelsUIWizardStep5();
+            atualizarWizard();
+        });
+    }
+    const slot = document.querySelector('#infracoesList .af-config-card .af-relatorio-slot');
+    if (slot) {
+        slot.appendChild(campoRelatorioReds);
+        atualizarOpcaoSemRelatorioReds();
+    } else {
+        campoRelatorioReds.querySelector('select').value = '';
+        campoRelatorioReds.remove();
+    }
+}
+
+// "Não fazer o Relatório Fiscal" só vale com o REDS anexado: ele é o documento
+// que sustenta o Auto no lugar do relatório
+function atualizarOpcaoSemRelatorioReds() {
+    if (!campoRelatorioReds) return;
+    const temReds = coletarArquivosReds().length > 0;
+    const sel = campoRelatorioReds.querySelector('select');
+    sel.querySelector('option[value="nao"]').disabled = !temReds;
+    campoRelatorioReds.querySelector('.af-relatorio-aviso').style.display = temReds ? 'none' : '';
+    if (!temReds && sel.value === 'nao') {
+        sel.value = '';
+        if (typeof atualizarLabelsUIWizardStep5 === 'function') atualizarLabelsUIWizardStep5();
+        atualizarWizard();
+    }
+}
+
+function relatorioFiscalDispensado() {
+    if (!wizardMeioAmbiente || !campoRelatorioReds?.isConnected) return false;
+    return campoRelatorioReds.querySelector('select').value === 'nao';
+}
+
+function coletarArquivosReds() {
+    if (!wizardMeioAmbiente) return [];
+    return Array.from(document.querySelectorAll('#infracoesList .af-config-card'))
+        .map(card => ({ codigo: card.dataset.codigo, file: card.querySelector('.af-reds-arquivo')?.files?.[0] || null }))
+        .filter(r => r.file);
 }
 
 // { config_af: { 'MA-01': {...} }, multas: { '0': 6275.5, ... } } — o índice
@@ -692,6 +796,17 @@ function validarConfigAutoFiscalizacao() {
     const diretas = codigos.filter(c => window.infracaoMeioAmbienteVaiDiretoAoAuto(c));
     if (diretas.length && diretas.length !== codigos.length) {
         alert('As infrações "Direto para o Auto de Infração" não podem ser marcadas junto com as que têm Auto de Fiscalização.\n\nAbra um processo para cada grupo.');
+        return false;
+    }
+
+    const selRelatorioReds = campoRelatorioReds?.isConnected ? campoRelatorioReds.querySelector('select') : null;
+    if (selRelatorioReds && !selRelatorioReds.value) {
+        alert('Informe se o Relatório Fiscal será feito.');
+        selRelatorioReds.focus();
+        return false;
+    }
+    if (selRelatorioReds?.value === 'nao' && coletarArquivosReds().length === 0) {
+        alert('Para seguir sem o Relatório Fiscal, anexe o REDS.');
         return false;
     }
 
@@ -824,7 +939,7 @@ function ehProcessoJaExistente() {
 function ultimoPassoDoWizard() {
     // Reincidente nasce no Auto de Infração: o Relatório Fiscal do passo 5 é
     // gerado como nos processos por decreto, sem o fiscal preencher nada ali.
-    return (ehProcessoJaExistente() || ehReincidente()) ? 4 : TOTAL_STEPS;
+    return (ehProcessoJaExistente() || ehReincidente() || relatorioFiscalDispensado()) ? 4 : TOTAL_STEPS;
 }
 
 function atualizarWizard() {
@@ -1616,6 +1731,10 @@ async function finalizarSolicitacao() {
 
     try {
         const dados = coletarTodosDados();
+        // Os arquivos do REDS sobem depois que o processo existe; não vão para o JSON
+        const arquivosReds = dados.arquivos_reds || [];
+        delete dados.arquivos_reds;
+        const semRelatorio = dados.relatorio_fiscal?.dispensado === true;
 
         // 1. Verificar sessão ativa e identificar fiscal
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -1670,8 +1789,13 @@ async function finalizarSolicitacao() {
             }
         }
 
-        numeroRelatorio = procExistente?.numero_relatorio || numerosReservadosEditor.relatorio;
-        if (!numeroRelatorio) {
+        // Sem Relatório Fiscal (queimada com REDS) não há número de relatório
+        if (semRelatorio && numerosReservadosEditor.relatorio) {
+            await supabaseClient.rpc('devolver_numero', { p_numero: numerosReservadosEditor.relatorio, p_categoria: 'Relatório Fiscal' });
+            numerosReservadosEditor.relatorio = null;
+        }
+        numeroRelatorio = semRelatorio ? null : (procExistente?.numero_relatorio || numerosReservadosEditor.relatorio);
+        if (!numeroRelatorio && !semRelatorio) {
             const { data: nr, error: errNumRel } = await supabaseClient
                 .rpc('reservar_numero', { p_ano: anoAtual, p_categoria: 'Relatório Fiscal' });
             if (!errNumRel && nr) {
@@ -1693,7 +1817,7 @@ async function finalizarSolicitacao() {
         numerosReservadosEditor.certidao = null;
 
         dados.relatorio_fiscal = dados.relatorio_fiscal || {};
-        dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
+        if (!semRelatorio) dados.relatorio_fiscal.numero_relatorio = numeroRelatorio;
 
         // 4. Determinar a Etapa Inicial: a escolhida quando o processo já existe;
         //    senão 14 para Decreto, Reincidência e infração de Meio Ambiente sem
@@ -1883,7 +2007,7 @@ async function finalizarSolicitacao() {
         // Processo que já existe e reincidência não passam pelo passo 5: o relatório
         // deles é o que o fiscal anexou (ou o do processo anterior). Gerar um aqui
         // produzia um relatório com os campos em branco — "RELATÓRIO FISCAL XXX/2026".
-        if (!procExistente && !reincidencia) try {
+        if (!procExistente && !reincidencia && !semRelatorio) try {
             let relatorioUrl = construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procCriado);
             const htmlDaTela = obterHtmlRelatorioDaTela();
             if (htmlDaTela && htmlDaTela.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('RELATORIO FISCAL')) {
@@ -2155,6 +2279,49 @@ async function finalizarSolicitacao() {
         // 8.4 Documentos do processo anterior (reincidência)
         if (reincidencia) {
             await salvarDocumentosDaReincidencia(procCriado, reincidencia, etapaId, profileId);
+        }
+
+        // 8.4.1 REDS anexado nas queimadas (MA-29 / MA-30)
+        for (const reds of arquivosReds) {
+            try {
+                const url = await fileToBase64(reds.file);
+                if (!url) continue;
+                await supabaseClient.from('documentos').insert([{
+                    processo_id: procCriado.id,
+                    etapa_id: etapaId,
+                    tipo: 'REDS',
+                    nome_arquivo: reds.file.name,
+                    url,
+                    mime_type: reds.file.type || null,
+                    gerado_automaticamente: false,
+                    usuario_id: profileId
+                }]);
+            } catch (err) {
+                console.warn(`Erro ao salvar o REDS de ${reds.codigo}:`, err);
+            }
+        }
+
+        // 8.4.2 Outros documentos do passo 3
+        for (const arquivo of outrosDocumentosNovoProcesso) {
+            try {
+                const url = await fileToBase64(arquivo);
+                if (!url) {
+                    console.warn(`Não foi possível enviar o documento "${arquivo.name}".`);
+                    continue;
+                }
+                await supabaseClient.from('documentos').insert([{
+                    processo_id: procCriado.id,
+                    etapa_id: etapaId,
+                    tipo: 'Outro documento',
+                    nome_arquivo: arquivo.name,
+                    url,
+                    mime_type: arquivo.type || null,
+                    gerado_automaticamente: false,
+                    usuario_id: profileId
+                }]);
+            } catch (err) {
+                console.warn(`Erro ao salvar o documento "${arquivo.name}":`, err);
+            }
         }
 
         // 8.5 Documentos e datas que o processo já tinha (processo existente)
@@ -2497,7 +2664,8 @@ function coletarTodosDados() {
         },
         processo_existente: coletarDadosProcessoExistente(),
         reincidencia: coletarDadosReincidencia(),
-        relatorio_fiscal: {
+        arquivos_reds: coletarArquivosReds(),
+        relatorio_fiscal: relatorioFiscalDispensado() ? { dispensado: true } : {
             atendimento: (document.getElementById('relAtendimentoTipo').value + ' ' + document.getElementById('relAtendimentoValor').value).trim(),
             assunto: document.getElementById('relAssunto').value,
             pa: document.getElementById('relPA').value,
@@ -3369,6 +3537,26 @@ async function baixarCertidaoDecretoPdf() {
 }
 
 // ── Bind de todos os eventos ────────────────────────────────
+function renderizarOutrosDocumentos() {
+    const lista = document.getElementById('listaOutrosDocumentos');
+    if (!lista) return;
+    if (!outrosDocumentosNovoProcesso.length) {
+        lista.innerHTML = '<span style="font-size:0.82rem; color:#64748b;">Nenhum documento anexado.</span>';
+        return;
+    }
+    const tamanho = (bytes) => bytes >= 1048576
+        ? `${(bytes / 1048576).toFixed(1).replace('.', ',')} MB`
+        : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    const estiloBotao = 'padding:5px 12px; border-radius:8px; font-size:0.8rem; font-weight:600; cursor:pointer; background:#fff;';
+    lista.innerHTML = outrosDocumentosNovoProcesso.map((arquivo, i) => `
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc;">
+            <span style="flex:1; min-width:0; font-size:0.86rem; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escaparHtmlWizard(arquivo.name)}">${escaparHtmlWizard(arquivo.name)}</span>
+            <span style="flex:none; font-size:0.78rem; color:#64748b;">${tamanho(arquivo.size)}</span>
+            <button type="button" data-acao-outro-doc="ver" data-indice="${i}" style="${estiloBotao} border:1px solid #cbd5e1; color:#1e40af;">Visualizar</button>
+            <button type="button" data-acao-outro-doc="excluir" data-indice="${i}" style="${estiloBotao} border:1px solid #fecaca; color:#b91c1c;">Excluir</button>
+        </div>`).join('');
+}
+
 function bindWizardEventos() {
     // Abrir modal
     document.getElementById('btnNovaSolicitacao').addEventListener('click', abrirModal);
@@ -3383,6 +3571,30 @@ function bindWizardEventos() {
     document.getElementById('btnWizardAvancar').addEventListener('click', avancarStep);
     document.getElementById('btnWizardVoltar').addEventListener('click', voltarStep);
     document.getElementById('btnWizardFinalizar').addEventListener('click', finalizarSolicitacao);
+
+    // Outros documentos (passo 3)
+    const inputOutros = document.getElementById('inputOutrosDocumentos');
+    document.getElementById('btnAdicionarOutrosDocumentos')?.addEventListener('click', () => inputOutros?.click());
+    inputOutros?.addEventListener('change', () => {
+        outrosDocumentosNovoProcesso.push(...Array.from(inputOutros.files || []));
+        // Limpo para o mesmo arquivo poder ser escolhido de novo depois de excluído
+        inputOutros.value = '';
+        renderizarOutrosDocumentos();
+    });
+    document.getElementById('listaOutrosDocumentos')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-acao-outro-doc]');
+        if (!btn) return;
+        const arquivo = outrosDocumentosNovoProcesso[Number(btn.dataset.indice)];
+        if (!arquivo) return;
+        if (btn.dataset.acaoOutroDoc === 'ver') {
+            const url = URL.createObjectURL(arquivo);
+            window.open(url, '_blank');
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        } else if (confirm(`Excluir o documento "${arquivo.name}"?`)) {
+            outrosDocumentosNovoProcesso.splice(Number(btn.dataset.indice), 1);
+            renderizarOutrosDocumentos();
+        }
+    });
 
     // Máscara CPF nos inputs
     aplicarMascaraCpfCnpj(document.getElementById('contCpfCnpj'));

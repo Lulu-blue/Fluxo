@@ -919,12 +919,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (!processoAtual) return;
 
-    // Atalho "Processo unido" do painel: a aba mostra só o PDF unido
-    if (params.get('pdf_unido') === '1') {
-        await abrirProcessoUnidoNaAba();
-        return;
-    }
-
     // 4. Se o processo tem notificações independentes, selecionar a notificação vinda da URL ou ativa
     const notificacoes = obterNotificacoesProcesso(processoAtual);
     const paramNotif = (new URLSearchParams(window.location.search)).get('notificacao');
@@ -954,10 +948,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const procEtapa = parseInt(processoAtual.etapas?.numero || processoAtual.etapa_atual_id || 2, 10);
             processoAtual.etapa_atual = procEtapa;
         }
-        await inicializarPaginaEtapa();
-    } else {
-        await inicializarPaginaEtapa();
     }
+
+    // Botão "PA Nº …" do painel: a aba mostra só o PDF unificado da notificação
+    if (params.get('pdf_unido') === '1') {
+        await abrirPdfUnificadoNaAba();
+        return;
+    }
+    await inicializarPaginaEtapa();
 });
 
 // Aplica a notificação selecionada como "etapa atual" do processo para renderização
@@ -1127,6 +1125,8 @@ function renderizarFormularioDinamico(etapaNum) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / Baixar → Réplica (.pdf)`;
         } else {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / baixar → relatório de vistoria (.pdf)`;
+            // Queimada com REDS sem Relatório Fiscal: não há o que baixar
+            btnBaixar.style.display = processoSemRelatorioFiscal(processoAtual) ? 'none' : '';
         }
     }
 
@@ -1156,6 +1156,9 @@ function renderizarFormularioDinamico(etapaNum) {
             <div id="painelAcoesEtapa1" class="etapa1-control-panel">
                 <!-- Bloco 1: Valores das Multas (card compartilhado com a Etapa 14) -->
                 ${window.obterHtmlCardCalculoMulta({ suffix: '' })}
+
+                <!-- Meio Ambiente: testemunhas do Auto de Fiscalização -->
+                ${htmlCampoTestemunhas('af')}
 
                 <!-- Bloco 2: Anexo da Notificação e Relatório Fiscal Assinados -->
                 <div class="etapa1-card" id="cardAnexoNP" style="margin-top: 18px;">
@@ -1765,6 +1768,8 @@ function renderizarFormularioDinamico(etapaNum) {
 
                 ${htmlCampoNotaFiscalAuto()}
 
+                ${htmlCampoTestemunhas('ai')}
+
                 <!-- Cálculo da Multa do Auto de Infração (mesmo card da Etapa 1) -->
                 ${window.obterHtmlCardCalculoMulta({
                     suffix: 'Ai',
@@ -1774,7 +1779,7 @@ function renderizarFormularioDinamico(etapaNum) {
                     estilo: 'margin-bottom: 20px;'
                 })}
 
-                ${decretoSim && typeof window.obterHtmlBlocoRelatorioFiscalAssinado === 'function' ? window.obterHtmlBlocoRelatorioFiscalAssinado() : ''}
+                ${etapa14PedeRelatorioFiscalAssinado() && typeof window.obterHtmlBlocoRelatorioFiscalAssinado === 'function' ? window.obterHtmlBlocoRelatorioFiscalAssinado() : ''}
                 ${obterHtmlBlocoAutoInfracaoAssinado()}
 
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px; margin-top:20px;">
@@ -2282,10 +2287,7 @@ function renderizarFormularioDinamico(etapaNum) {
             if (typeof window.configurarEventosAIAssinado === 'function') window.configurarEventosAIAssinado();
             if (typeof window.carregarEExibirAnexoAIAssinado === 'function') window.carregarEExibirAnexoAIAssinado();
 
-            const decretoSim = processoAtual?.possui_decreto
-                || processoAtual?.campos?.fiscDecreto === 'sim'
-                || notificacaoAtual?.dados?.possui_decreto;
-            if (decretoSim) {
+            if (etapa14PedeRelatorioFiscalAssinado()) {
                 if (typeof window.configurarEventosRelatorioFiscalAssinado === 'function') window.configurarEventosRelatorioFiscalAssinado();
                 if (typeof window.carregarEExibirAnexoRelatorioAssinado === 'function') window.carregarEExibirAnexoRelatorioAssinado();
             }
@@ -4007,7 +4009,8 @@ window.gerarZipComTodosDocumentos = async function () {
             } else if (notifId) {
                 queryDocs = queryDocs.eq('notificacao_id', notifId);
             }
-            const { data } = await queryDocs;
+            // Em ordem de inserção: a numeração dos anexos fica igual à do PDF
+            const { data } = await queryDocs.order('created_at', { ascending: true });
             docsBanco = data || [];
         } catch (errDoc) {
             console.error('Erro ao buscar documentos para ZIP:', errDoc);
@@ -4062,7 +4065,18 @@ window.gerarZipComTodosDocumentos = async function () {
             await helperAddZip(docRF?.nome_arquivo || docRF?.nome || `2_Relatorio_Fiscal_${numNotifLimpo}_Assinado.pdf`, urlRF);
         }
 
-        // 3. BIC (Espelho Cadastral Imobiliário)
+        // 2.1 Outros documentos do Novo processo (Anexo 1, 2, ...) e o REDS das queimadas
+        let numeroAnexoZip = 0;
+        for (const d of docsBanco.filter(doc => doc.tipo === 'Outro documento')) {
+            const u = d.url || d.dataUrl || d.base64;
+            if (u) await helperAddZip(`2_Anexo_${++numeroAnexoZip}_${d.nome_arquivo || 'documento'}`, u);
+        }
+        for (const d of docsBanco.filter(doc => doc.tipo === 'REDS')) {
+            const u = d.url || d.dataUrl || d.base64;
+            if (u) await helperAddZip(`2_REDS_${d.nome_arquivo || numNotifLimpo}`, u);
+        }
+
+        // 3. BIC (Espelho Cadastral Imobiliário) ou Comprovante de Inscrição no CNPJ
         const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo', 'Comprovante de Inscrição CNPJ'].includes(d.tipo))
             || processoAtual?.dados?.documento_bic
             || processoAtual?.dados?.anexos?.bic_espelho_cadastral
@@ -4070,7 +4084,8 @@ window.gerarZipComTodosDocumentos = async function () {
 
         let urlBIC = docBIC?.url || docBIC?.dataUrl || docBIC?.base64;
         if (urlBIC) {
-            await helperAddZip(docBIC?.nome_arquivo || docBIC?.nome || `3_BIC_Espelho_Cadastral_${numNotifLimpo}.pdf`, urlBIC);
+            const nomePadraoCadastro = docBIC?.tipo === 'Comprovante de Inscrição CNPJ' ? 'Comprovante_CNPJ' : 'BIC_Espelho_Cadastral';
+            await helperAddZip(docBIC?.nome_arquivo || docBIC?.nome || `3_${nomePadraoCadastro}_${numNotifLimpo}.pdf`, urlBIC);
         }
 
         // 4. Anexo do AR (Aviso de Recebimento)
@@ -6892,7 +6907,24 @@ window.removerCertidaoAssinadaUI = function () {
     if (typeof window.atualizarBotaoEncerrarEtapa29 === 'function') window.atualizarBotaoEncerrarEtapa29();
 };
 
-// ── Bloco de Anexo do Relatório Fiscal Assinado (Etapa 14 / Decreto) ───────────────────
+// Processos que nascem na Etapa 14 com Relatório Fiscal próprio: o de decreto e
+// o de Meio Ambiente direto para o Auto (sem Auto de Fiscalização), salvo a
+// queimada com REDS em que o fiscal dispensou o relatório. Neles o relatório
+// assinado é anexado aqui, porque não houve Etapa 1. A reincidência usa o
+// relatório do processo anterior.
+function etapa14PedeRelatorioFiscalAssinado() {
+    const decretoSim = processoAtual?.possui_decreto
+        || processoAtual?.campos?.fiscDecreto === 'sim'
+        || notificacaoAtual?.dados?.possui_decreto;
+    if (decretoSim) return true;
+    if (!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual))) return false;
+    if (processoSemRelatorioFiscal(processoAtual)) return false;
+    if (typeof processoEhReincidencia === 'function' && processoEhReincidencia(processoAtual)) return false;
+    const dispositivos = obterDispositivosDoProcesso(processoAtual);
+    return dispositivos.length > 0 && dispositivos.every(d => window.infracaoMeioAmbienteVaiDiretoAoAuto(d));
+}
+
+// ── Bloco de Anexo do Relatório Fiscal Assinado (Etapa 14) ───────────────────
 window.obterHtmlBlocoRelatorioFiscalAssinado = function () {
     return `
         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin-top:20px; margin-bottom:20px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
@@ -8013,6 +8045,160 @@ function obterObservacoesFiscalAuto() {
     return obterObservacoesFiscal(processoAtual);
 }
 
+// ── Testemunhas (Meio Ambiente: Auto de Fiscalização e Auto de Infração) ─────
+// O fiscal informa se houve testemunhas na Etapa 1 (chave 'af') e na Etapa 14
+// (chave 'ai'). São sempre duas, com nome e CPF, preenchidas a partir de outro
+// Fiscal de Meio Ambiente ou à mão. Ficam em notificacoes.dados.testemunhas_af /
+// testemunhas_ai (ou em campos do processo, sem notificação aberta):
+//   { houve: true, lista: [{ fiscal_id, nome, cpf }, { fiscal_id, nome, cpf }] }
+function obterTestemunhasDocumento(chave) {
+    const campo = `testemunhas_${chave}`;
+    const dadosNotif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual.dados : null;
+    const salvo = dadosNotif?.[campo] || processoAtual?.campos?.[campo] || null;
+    const lista = [0, 1].map(i => ({
+        fiscal_id: salvo?.lista?.[i]?.fiscal_id || '',
+        nome: salvo?.lista?.[i]?.nome || '',
+        cpf: salvo?.lista?.[i]?.cpf || ''
+    }));
+    return { houve: salvo?.houve === true, lista };
+}
+
+function formatarCpfTestemunha(valor) {
+    const d = String(valor || '').replace(/\D/g, '').slice(0, 11);
+    if (d.length !== 11) return String(valor || '').trim();
+    return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+// Bloco das duas assinaturas, logo abaixo da do fiscal. Em tabela para sair
+// igual no HTML da tela, no PDF e no .doc do Word.
+function htmlAssinaturasTestemunhas(chave) {
+    const t = obterTestemunhasDocumento(chave);
+    if (!t.houve) return '';
+    const esc = v => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const coluna = (item, i) => `
+                <td width="50%" align="center" valign="top" style="padding: 0 14px; font-size: 10.5pt; line-height: 1.5;">
+                    <div style="border-top: 1px solid #000; padding-top: 4px;">Testemunha ${i + 1}</div>
+                    <div>${esc(item.nome) || '&nbsp;'}</div>
+                    <div>CPF: ${esc(formatarCpfTestemunha(item.cpf))}</div>
+                </td>`;
+    return `
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 34px 0 24px 0; page-break-inside: avoid; break-inside: avoid;">
+            <tr>${t.lista.map(coluna).join('')}</tr>
+        </table>`;
+}
+
+function htmlCampoTestemunhas(chave) {
+    if (!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual))) return '';
+    if (typeof podeGerenciarEtapaAtual === 'function' && !podeGerenciarEtapaAtual()) return '';
+    const t = obterTestemunhasDocumento(chave);
+    const esc = v => String(v || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const documento = chave === 'af' ? 'Auto de Fiscalização' : 'Auto de Infração';
+    const blocoTestemunha = (item, i) => `
+        <div style="flex: 1 1 280px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px;">
+            <div style="font-weight: 700; color: #0f172a; margin-bottom: 8px;">Testemunha ${i + 1}</div>
+            <label style="display: block; font-size: 0.82rem; color: #475569; margin-bottom: 4px;">Preencher com</label>
+            <select data-testemunha-fiscal="${i}" data-fiscal-salvo="${esc(item.fiscal_id)}" onchange="window.escolherFiscalTestemunha('${chave}', ${i}, this.value)"
+                style="width: 100%; padding: 8px 10px; border: 1px solid #94a3b8; border-radius: 8px; margin-bottom: 8px; background: white;">
+                <option value="">Preencher manualmente</option>
+            </select>
+            <label style="display: block; font-size: 0.82rem; color: #475569; margin-bottom: 4px;">Nome</label>
+            <input type="text" data-testemunha-nome="${i}" value="${esc(item.nome)}" onchange="window.salvarTestemunhas('${chave}')"
+                style="width: 100%; padding: 8px 10px; border: 1px solid #94a3b8; border-radius: 8px; margin-bottom: 8px;">
+            <label style="display: block; font-size: 0.82rem; color: #475569; margin-bottom: 4px;">CPF</label>
+            <input type="text" data-testemunha-cpf="${i}" value="${esc(formatarCpfTestemunha(item.cpf))}" maxlength="14" placeholder="000.000.000-00" onchange="window.salvarTestemunhas('${chave}')"
+                style="width: 100%; padding: 8px 10px; border: 1px solid #94a3b8; border-radius: 8px;">
+        </div>`;
+    // As opções de fiscais chegam do banco depois que o campo já está na tela
+    setTimeout(() => preencherFiscaisTestemunhas(chave), 0);
+    return `
+        <div id="campoTestemunhas_${chave}" style="margin: 18px 0 20px 0; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
+            <label for="selHouveTestemunhas_${chave}" style="display: block; font-weight: 700; color: #1e293b; margin-bottom: 8px; font-size: 0.95rem;">Houve testemunhas?</label>
+            <select id="selHouveTestemunhas_${chave}" onchange="window.salvarTestemunhas('${chave}')"
+                style="padding: 8px 10px; border: 1px solid #94a3b8; border-radius: 8px; background: white; min-width: 140px;">
+                <option value="nao" ${t.houve ? '' : 'selected'}>Não</option>
+                <option value="sim" ${t.houve ? 'selected' : ''}>Sim</option>
+            </select>
+            <div id="blocoTestemunhas_${chave}" style="display: ${t.houve ? 'flex' : 'none'}; flex-wrap: wrap; gap: 12px; margin-top: 14px;">
+                ${t.lista.map(blocoTestemunha).join('')}
+            </div>
+            <p style="margin: 8px 0 0 0; color: #64748b; font-size: 0.82rem;">Com Sim, as duas testemunhas assinam o ${documento} logo abaixo do fiscal.</p>
+        </div>`;
+}
+
+let fiscaisTestemunhasCache = null;
+async function preencherFiscaisTestemunhas(chave) {
+    const campo = document.getElementById(`campoTestemunhas_${chave}`);
+    if (!campo) return;
+    if (!fiscaisTestemunhasCache) {
+        // O fiscal que assina o Auto não pode ser testemunha dele
+        fiscaisTestemunhasCache = await window.carregarFiscaisMeioAmbiente(processoAtual?.fiscal_id);
+    }
+    campo.querySelectorAll('select[data-testemunha-fiscal]').forEach(sel => {
+        if (sel.options.length > 1) return;
+        fiscaisTestemunhasCache.forEach(f => {
+            const o = document.createElement('option');
+            o.value = f.id;
+            o.textContent = f.matricula ? `${f.nome} — ${f.matricula}` : f.nome;
+            sel.appendChild(o);
+        });
+        sel.value = sel.dataset.fiscalSalvo || '';
+    });
+}
+
+window.escolherFiscalTestemunha = function (chave, indice, fiscalId) {
+    const campo = document.getElementById(`campoTestemunhas_${chave}`);
+    if (!campo) return;
+    const fiscal = (fiscaisTestemunhasCache || []).find(f => String(f.id) === String(fiscalId));
+    if (fiscal) {
+        campo.querySelector(`[data-testemunha-nome="${indice}"]`).value = fiscal.nome || '';
+        campo.querySelector(`[data-testemunha-cpf="${indice}"]`).value = formatarCpfTestemunha(fiscal.cpf);
+    }
+    window.salvarTestemunhas(chave);
+};
+
+window.salvarTestemunhas = async function (chave) {
+    const campo = document.getElementById(`campoTestemunhas_${chave}`);
+    if (!campo || !processoAtual) return;
+    const houve = document.getElementById(`selHouveTestemunhas_${chave}`).value === 'sim';
+    document.getElementById(`blocoTestemunhas_${chave}`).style.display = houve ? 'flex' : 'none';
+    const valor = {
+        houve,
+        lista: [0, 1].map(i => {
+            const cpfEl = campo.querySelector(`[data-testemunha-cpf="${i}"]`);
+            cpfEl.value = formatarCpfTestemunha(cpfEl.value);
+            return {
+                fiscal_id: campo.querySelector(`[data-testemunha-fiscal="${i}"]`).value || null,
+                nome: campo.querySelector(`[data-testemunha-nome="${i}"]`).value.trim(),
+                cpf: cpfEl.value
+            };
+        })
+    };
+    const chaveDados = `testemunhas_${chave}`;
+    try {
+        if (notificacaoAtual) {
+            notificacaoAtual.dados = notificacaoAtual.dados || {};
+            notificacaoAtual.dados[chaveDados] = valor;
+            await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+        } else {
+            processoAtual.campos = processoAtual.campos || {};
+            processoAtual.campos[chaveDados] = valor;
+            processoAtual.dados = processoAtual.dados || {};
+            processoAtual.dados.campos = processoAtual.campos;
+            const { error } = await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+            if (error) throw error;
+        }
+    } catch (err) {
+        console.error('Erro ao salvar as testemunhas:', err);
+        alert('Não foi possível salvar as testemunhas: ' + (err?.message || err));
+        return;
+    }
+    if (chave === 'af') {
+        renderizarDocumentoOficial(processoAtual);
+    } else if (typeof window.gerarAutoDeInfracao === 'function') {
+        window.gerarAutoDeInfracao(true);
+    }
+};
+
 function htmlObservacoesFiscalAuto(estiloParagrafo) {
     return htmlTextoNotaFiscal(obterObservacoesFiscalAuto(), estiloParagrafo);
 }
@@ -8209,6 +8395,7 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
                     <div class="sig-role">${ehMeioAmbiente ? window.CARGO_FISCAL_MEIO_AMBIENTE : 'Fiscal de Posturas'}</div>
                     <div class="sig-mat">Matrícula :${fisc.matricula || 'XXXXXXX'}</div>
                 </div>
+                ${ehMeioAmbiente ? htmlAssinaturasTestemunhas('af') : ''}
 
                 <!-- 9. RECIBO DO AUTUADO -->
                 <div class="doc-autuado-receipt">
@@ -11683,6 +11870,12 @@ async function salvarEdicoesProcesso() {
 }
 
 // ── Download do Relatório Fiscal em PDF ────────────────────────────
+// Queimada com REDS (MA-29 / MA-30) em que o fiscal escolheu não fazer o
+// Relatório Fiscal no Novo processo
+function processoSemRelatorioFiscal(proc) {
+    return proc?.dados?.relatorio_fiscal?.dispensado === true;
+}
+
 async function baixarRelatorioFiscalPdfEtapa() {
     const btn = document.getElementById('btnBaixarRelatorioPdfEtapa');
     const oldText = btn ? btn.innerHTML : '';
@@ -11902,6 +12095,11 @@ async function baixarRelatorioFiscalPdfEtapa() {
             }
             return true;
         };
+
+        if (processoSemRelatorioFiscal(processoAtual)) {
+            alert('Este processo não tem Relatório Fiscal: o fiscal optou por seguir só com o REDS.');
+            return;
+        }
 
         let relatorioUrl = null;
 
@@ -12825,6 +13023,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
                 </td>
             </tr>
         </table>
+        ${ehMeioAmbiente ? htmlAssinaturasTestemunhas('af') : ''}
 
         <!-- 9. RECIBO DO AUTUADO -->
         <div style="margin-top: 36px; font-size: 11pt;">
@@ -14516,6 +14715,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                             <div>Matricula : ${matriculaFiscal}</div>
                         </div>
                     </div>
+                    ${autoEhMeioAmbiente ? htmlAssinaturasTestemunhas('ai') : ''}
 
                     <!-- RECIBO DO AUTUADO -->
                     <div style="margin-top: 15px; font-size: 10pt;">
@@ -14893,12 +15093,8 @@ window.carregarEExibirAnexoAIAssinado = async function () {
 window.avancarEtapa14 = async function () {
     if (!processoAtual) return;
 
-    // Validação do Anexo Obrigatório do Relatório Fiscal Assinado se o processo for decorrente de decreto
-    const decretoSim = processoAtual?.possui_decreto
-        || processoAtual?.campos?.fiscDecreto === 'sim'
-        || notificacaoAtual?.dados?.possui_decreto;
-
-    if (decretoSim) {
+    // Relatório Fiscal assinado obrigatório quando o processo nasceu na Etapa 14 com relatório próprio
+    if (etapa14PedeRelatorioFiscalAssinado()) {
         let temAnexoRF = false;
         if (processoAtual?.dados?.relatorio_fiscal?.anexo_url && processoAtual?.dados?.relatorio_fiscal?.gerado_automaticamente !== true) {
             temAnexoRF = true;
@@ -15555,7 +15751,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
         };
 
         // Helper para mesclar arquivos (PDF ou imagem) no mergedPdf
-        const anexarArquivoAoPdf = async (urlOuDataUrl, identificacaoDoc) => {
+        const anexarArquivoAoPdfSemIndice = async (urlOuDataUrl, identificacaoDoc) => {
             if (!urlOuDataUrl) return false;
 
             if (pareceHtml(urlOuDataUrl)) {
@@ -15680,68 +15876,26 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             return false;
         };
 
-        // ── Atalho "Processo unido" do painel (opcoes.todosEmOrdem) ─────────
-        // Capa, índice e depois TODOS os documentos do processo e das notificações
-        // dele, na ordem em que foram inseridos no sistema. O índice diz em que
-        // páginas está cada documento.
-        if (opcoes.todosEmOrdem) {
-            const idsNotif = (obterNotificacoesProcesso(processoAtual) || [])
-                .map(n => n.id).filter(id => id && String(id).length > 20);
-            let consultaTodos = supabaseClient.from('documentos').select('*').not('url', 'is', null);
-            consultaTodos = idsNotif.length
-                ? consultaTodos.or(`processo_id.eq.${procId},notificacao_id.in.(${idsNotif.join(',')})`)
-                : consultaTodos.eq('processo_id', procId);
-            const { data: todosDocs, error: errTodos } = await consultaTodos.order('created_at', { ascending: true });
-            if (errTodos) throw errTodos;
-
-            const ehMA = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual));
-            const escapar = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const nomeDoDocumento = d => {
-                const tipo = ['imagem', 'Imagem Vistoria'].includes(d.tipo) ? 'Imagem' : (d.tipo || 'Documento');
-                return (ehMA && window.trocarTermosAutoFiscalizacao) ? window.trocarTermosAutoFiscalizacao(tipo) : tipo;
-            };
-
-            const docsEmOrdem = (todosDocs || []).filter(doc => doc.tipo !== 'Processo Completo (Encerramento)');
-
-            // Processo de decreto: o decreto fica na tabela `decretos`, não em
-            // `documentos`. Entra primeiro, porque é dele que o processo nasce.
-            // Se ele também estiver anexado como documento, não se repete.
-            const ehDecreto = !!(processoAtual?.possui_decreto
-                || processoAtual?.dados?.fiscal?.decreto === 'sim'
-                || processoAtual?.campos?.fiscDecreto === 'sim');
-            if (ehDecreto) {
-                const resDecreto = await window.obterUrlOuAnexoDecreto(processoAtual, null, docsEmOrdem);
-                const jaEstaNosDocumentos = resDecreto?.docObj?.id
-                    && docsEmOrdem.some(doc => String(doc.id) === String(resDecreto.docObj.id));
-                if (resDecreto?.url && !jaEstaNosDocumentos) {
-                    const numeroDecreto = resDecreto.docObj?.numero;
-                    docsEmOrdem.unshift({
-                        url: resDecreto.url,
-                        tipo: numeroDecreto ? `Decreto Municipal nº ${numeroDecreto}` : 'Decreto Municipal',
-                        nome_arquivo: resDecreto.docObj?.nome_arquivo || resDecreto.docObj?.nome || '',
-                        created_at: resDecreto.docObj?.data_decreto || resDecreto.docObj?.created_at || processoAtual?.created_at
-                    });
-                }
+        // Cada documento anexado entra no índice que fica logo depois da capa
+        const entradasIndice = [];
+        const anexarArquivoAoPdf = async (urlOuDataUrl, identificacaoDoc, infoIndice = {}) => {
+            const antes = mergedPdf.getPageCount();
+            const anexou = await anexarArquivoAoPdfSemIndice(urlOuDataUrl, identificacaoDoc);
+            const depois = mergedPdf.getPageCount();
+            if (anexou && depois > antes) {
+                entradasIndice.push({ titulo: infoIndice.titulo || identificacaoDoc, arquivo: infoIndice.arquivo || '', inicio: antes + 1, fim: depois });
             }
+            return anexou;
+        };
 
-            const entradas = [];
-            for (const d of docsEmOrdem) {
-                const antes = mergedPdf.getPageCount();
-                const anexou = await anexarArquivoAoPdf(d.url || d.dataUrl || d.base64, d.nome_arquivo || d.tipo || 'Documento');
-                const depois = mergedPdf.getPageCount();
-                entradas.push({
-                    titulo: nomeDoDocumento(d),
-                    arquivo: d.nome_arquivo || '',
-                    // Data sem hora (data do decreto): sem passar por Date, que mudaria o dia pelo fuso
-                    data: /^\d{4}-\d{2}-\d{2}$/.test(String(d.created_at || ''))
-                        ? String(d.created_at).split('-').reverse().join('/')
-                        : (d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : ''),
-                    inicio: antes + 1,
-                    fim: depois,
-                    incluido: anexou && depois > antes
-                });
-            }
+        // "Outros documentos" do Novo processo: entram logo abaixo do Relatório
+        // Fiscal e aparecem no índice como "Anexo N"
+        const ehOutroDocumento = d => d?.tipo === 'Outro documento';
 
+        const inserirIndiceAposCapa = async (entradas) => {
+            const escaparIndice = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const ehMAIndice = !!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual));
+            const trocarTermos = t => (ehMAIndice && window.trocarTermosAutoFiscalizacao) ? window.trocarTermosAutoFiscalizacao(t) : t;
             // Índice: páginas logo depois da capa. As páginas dos documentos
             // andam para frente o tanto de páginas que o índice ocupa.
             const LINHAS_POR_PAGINA = 20;
@@ -15756,7 +15910,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                         <div style="flex:1;">
                             <div style="width:100%; height:8px; background-color:#F78C26; margin-bottom:6px;"></div>
                             <div style="font-size:9.5pt; font-weight:bold;">SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</div>
-                            <div style="font-size:9pt;">Processo administrativo nº ${escapar(numProcesso)}</div>
+                            <div style="font-size:9pt;">Processo administrativo nº ${escaparIndice(numProcesso)}</div>
                         </div>
                     </div>
                     <div style="text-align:center; font-size:14pt; font-weight:bold; margin:10px 0 18px 0;">ÍNDICE${paginasIndice > 1 ? ` (${p + 1}/${paginasIndice})` : ''}</div>
@@ -15765,7 +15919,6 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                             <tr style="border-bottom:2px solid #000;">
                                 <th style="text-align:left; padding:6px 4px; width:36px;">Nº</th>
                                 <th style="text-align:left; padding:6px 4px;">Documento</th>
-                                <th style="text-align:left; padding:6px 4px; width:90px;">Inserido em</th>
                                 <th style="text-align:right; padding:6px 4px; width:110px;">Páginas</th>
                             </tr>
                         </thead>
@@ -15773,18 +15926,17 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                             ${linhas.map((e, i) => {
                                 const ini = e.inicio + paginasIndice;
                                 const fim = e.fim + paginasIndice;
-                                const paginas = !e.incluido ? 'não incluído' : (ini === fim ? `${ini}` : `${ini} a ${fim}`);
+                                const paginas = ini === fim ? `${ini}` : `${ini} a ${fim}`;
                                 return `
                                 <tr style="border-bottom:1px solid #cbd5e1;">
                                     <td style="padding:6px 4px; vertical-align:top;">${p * LINHAS_POR_PAGINA + i + 1}</td>
                                     <td style="padding:6px 4px; vertical-align:top;">
-                                        <div style="font-weight:600;">${escapar(e.titulo)}</div>
-                                        ${e.arquivo ? `<div style="font-size:8.5pt; color:#475569; word-break:break-all;">${escapar(e.arquivo.length > 70 ? e.arquivo.slice(0, 70) + '…' : e.arquivo)}</div>` : ''}
+                                        <div style="font-weight:600;">${escaparIndice(trocarTermos(e.titulo))}</div>
+                                        ${e.arquivo ? `<div style="font-size:8.5pt; color:#475569; word-break:break-all;">${escaparIndice(e.arquivo.length > 70 ? e.arquivo.slice(0, 70) + '…' : e.arquivo)}</div>` : ''}
                                     </td>
-                                    <td style="padding:6px 4px; vertical-align:top;">${escapar(e.data)}</td>
                                     <td style="padding:6px 4px; vertical-align:top; text-align:right; white-space:nowrap;">${paginas}</td>
                                 </tr>`;
-                            }).join('') || '<tr><td colspan="4" style="padding:10px 4px;">Nenhum documento inserido no processo.</td></tr>'}
+                            }).join('') || '<tr><td colspan="3" style="padding:10px 4px;">Nenhum documento inserido no processo.</td></tr>'}
                         </tbody>
                     </table>`;
                 document.body.appendChild(divIndice);
@@ -15794,26 +15946,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 const paginaIndice = mergedPdf.insertPage(1 + p, [595.28, 841.89]);
                 paginaIndice.drawImage(imgIndice, { x: 0, y: 0, width: 595.28, height: 841.89 });
             }
-
-            const bytesUnido = await mergedPdf.save();
-            const blobUnido = new Blob([bytesUnido], { type: 'application/pdf' });
-            const urlUnido = URL.createObjectURL(blobUnido);
-            const nomeUnido = `Processo_Unido_SEMAC_${numProcesso.replace(/[\/\\]/g, '-')}.pdf`;
-            ocultarCarregamento();
-
-            if (acao === 'url') return urlUnido;
-            if (acao === 'abrir') {
-                window.open(urlUnido, '_blank');
-            } else {
-                const a = document.createElement('a');
-                a.href = urlUnido;
-                a.download = nomeUnido;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-            }
-            return urlUnido;
-        }
+        };
 
         // Identificação dos documentos de categorias específicas
         const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo', 'Comprovante de Inscrição CNPJ'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('bic'))
@@ -15821,6 +15954,12 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             || processoAtual?.dados?.anexos?.bic_espelho_cadastral
             || (processoAtual?.campos?.bic_url ? { url: processoAtual.campos.bic_url } : null);
         let urlBIC = docBIC?.url || docBIC?.dataUrl || docBIC?.base64;
+        // No índice: o cadastro do processo pode ser o BIC ou o comprovante do CNPJ.
+        // Sem o tipo gravado, a inscrição no formato de CNPJ indica o comprovante.
+        const tituloCadastro = (docBIC?.tipo === 'Comprovante de Inscrição CNPJ'
+            || (!docBIC?.tipo && /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(String(processoAtual?.dados?.imovel?.inscricao || '').trim())))
+            ? 'Comprovante de Inscrição no CNPJ'
+            : 'BIC (Espelho Cadastral)';
 
         const docAI = docsBanco.find(d => ['Auto de Infração Assinado', 'Auto de Infração'].includes(d.tipo) || String(d.id) === String(notificacaoAtual?.dados?.auto_infracao_id))
             || (notificacaoAtual?.dados?.etapa14?.anexo_url ? { url: notificacaoAtual.dados.etapa14.anexo_url } : null)
@@ -15842,6 +15981,18 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             : null;
         if (docReplicaDesconto?.id) idsAnexados.add(docReplicaDesconto.id);
 
+        const docsAnexosOutros = docsBanco.filter(ehOutroDocumento);
+        docsAnexosOutros.forEach(d => { if (d.id) idsAnexados.add(d.id); });
+        const anexarOutrosDocumentos = async () => {
+            let numero = 0;
+            for (const d of docsAnexosOutros) {
+                const u = d.url || d.dataUrl || d.base64;
+                if (!u) continue;
+                numero++;
+                await anexarArquivoAoPdf(u, `Anexo ${numero}`, { titulo: `Anexo ${numero}`, arquivo: d.nome_arquivo });
+            }
+        };
+
         const anexarReplicaDoDesconto = async () => {
             const url = docReplicaDesconto?.url || docReplicaDesconto?.dataUrl || docReplicaDesconto?.base64;
             if (url) await anexarArquivoAoPdf(url, 'Réplica Assinada (Análise para dar Desconto)');
@@ -15851,7 +16002,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             // ORDEM COM DECRETO: Capa, BIC, Decreto, Certidão, Outros (na ordem que foram anexados), Auto de Infração
 
             // 1. BIC
-            if (urlBIC) await anexarArquivoAoPdf(urlBIC, 'BIC');
+            if (urlBIC) await anexarArquivoAoPdf(urlBIC, 'BIC', { titulo: tituloCadastro });
 
             // 2. Decreto
             const resDecreto = await window.obterUrlOuAnexoDecreto(processoAtual, notificacaoAtual, docsBanco);
@@ -15921,6 +16072,15 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             let urlCertidao = docCertidao?.url || docCertidao?.dataUrl || docCertidao?.base64;
             if (urlCertidao) await anexarArquivoAoPdf(urlCertidao, 'Certidão Assinada');
 
+            // 3.0 Relatório Fiscal e, logo abaixo, os outros documentos do Novo processo
+            const docRFDecreto = docsBanco.find(d => ['Relatório Fiscal Assinado', 'Relatório Fiscal'].includes(d.tipo));
+            const urlRFDecreto = docRFDecreto?.url || docRFDecreto?.dataUrl || docRFDecreto?.base64;
+            if (urlRFDecreto) {
+                await anexarArquivoAoPdf(urlRFDecreto, 'Relatório Fiscal Assinado');
+                idsAnexados.add(docRFDecreto.id);
+            }
+            await anexarOutrosDocumentos();
+
             // 3.1 O AR do processo de decreto (um Auto só, um AR só) entra logo
             // abaixo do Auto, no item 5 — fora de "outros documentos".
             const docARDecreto = window.escolherDocumentoAR(docsBanco);
@@ -15932,7 +16092,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 for (const doc of docsBanco) {
                     if (!idsAnexados.has(doc.id)) {
                         let u = doc.url || doc.dataUrl || doc.base64;
-                        if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                        if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro', { titulo: doc.tipo || 'Documento', arquivo: doc.nome_arquivo });
                     }
                 }
             }
@@ -15951,7 +16111,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             // do documento que ele comprova.
 
             // 1. BIC
-            if (urlBIC) await anexarArquivoAoPdf(urlBIC, 'BIC');
+            if (urlBIC) await anexarArquivoAoPdf(urlBIC, 'BIC', { titulo: tituloCadastro });
 
             // 1.1 Processo anterior (reincidência): primeiro o Relatório Fiscal dele,
             // depois o Auto de Infração. Sem esta ordem explícita eles caíam em
@@ -15971,6 +16131,9 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 || (processoAtual?.campos?.anexo_rf_assinado ? { url: processoAtual.campos.anexo_rf_assinado } : null);
             let urlRF = docRF?.url || docRF?.dataUrl || docRF?.base64;
             if (urlRF) await anexarArquivoAoPdf(urlRF, 'Relatório Fiscal Assinado');
+
+            // 2.1 Outros documentos do Novo processo (Anexo 1, 2, ...)
+            await anexarOutrosDocumentos();
 
             // 3. Notificação Preliminar Assinada
             const docNP = docsBanco.find(d => ['Notificação Preliminar Assinada', 'Notificação Preliminar'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('notificacao'))
@@ -16007,7 +16170,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 for (const doc of docsBanco) {
                     if (!idsAnexados.has(doc.id)) {
                         let u = doc.url || doc.dataUrl || doc.base64;
-                        if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                        if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro', { titulo: doc.tipo || 'Documento', arquivo: doc.nome_arquivo });
                     }
                 }
             }
@@ -16089,7 +16252,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             for (const doc of docsBanco) {
                 if (!idsAnexados.has(doc.id)) {
                     const u = doc.url || doc.dataUrl || doc.base64;
-                    if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro');
+                    if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro', { titulo: doc.tipo || 'Documento', arquivo: doc.nome_arquivo });
                 }
             }
         }
@@ -16133,12 +16296,18 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 if (item.tipo === 'arquivo' && item.url) {
                     await anexarArquivoAoPdf(item.url, item.nome || 'Documento');
                 } else if (item.html) {
+                    const antes = mergedPdf.getPageCount();
                     await window.anexarHtmlPaginadoAoPdf(mergedPdf, item.html);
+                    const depois = mergedPdf.getPageCount();
+                    if (depois > antes) entradasIndice.push({ titulo: item.nome || 'Documento', arquivo: '', inicio: antes + 1, fim: depois });
                 }
             } catch (errItem) {
                 console.warn('[PDF Unificado] Falha ao anexar item final:', item?.nome || item?.tipo, errItem);
             }
         }
+
+        // 3.4 Índice logo depois da capa
+        await inserirIndiceAposCapa(entradasIndice);
 
         // 4. Salvar PDF Unificado
         const pdfBytes = await mergedPdf.save();
@@ -16158,7 +16327,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             return new File([blob], nomeArquivoPdf, { type: 'application/pdf' });
         }
 
-        // 'url': só devolve o endereço do PDF (atalho "Processo unido" do painel)
+        // 'url': só devolve o endereço do PDF (botões "PA Nº …" do painel)
         if (acao === 'url') return blobUrl;
 
         if (acao === 'abrir') {
@@ -16180,15 +16349,16 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
     }
 };
 
-// ── Processo unido aberto pelo painel (etapa.html?processo=…&pdf_unido=1) ───
-// Capa, índice com a página de cada documento e todos os documentos do processo
-// na ordem em que foram inseridos (opcoes.todosEmOrdem). As Comunicações
-// Internas não são documentos (ficam nos dados das Etapas 21/22), então não entram.
+// ── PDF unificado aberto pelo painel (etapa.html?processo=…&notificacao=…&pdf_unido=1) ───
+// O mesmo PDF das etapas, na mesma ordem de documentos, da notificação / Auto
+// escolhido no botão "PA Nº …". Encerrada, sai como a cópia do encerramento.
 // A aba é aberta pelo link do painel, então o PDF é mostrado nela mesma.
-async function abrirProcessoUnidoNaAba() {
-    const numero = processoAtual?.numero_processo || '';
-    document.title = `Processo unido ${numero}`;
-    const url = await window.gerarPdfProcessoCompletoEtapa15('url', { todosEmOrdem: true });
+async function abrirPdfUnificadoNaAba() {
+    const sufixo = String(notificacaoAtual?.numero || '').split('/').pop();
+    const titulo = sufixo ? `PA Nº ${sufixo} — ${processoAtual?.numero_processo || ''}` : `Processo ${processoAtual?.numero_processo || ''}`;
+    document.title = titulo;
+    const encerrada = notificacaoAtual?.status === 'encerrada' && !notificacaoAtual?.dados?.arquivado;
+    const url = await window.gerarPdfProcessoCompletoEtapa15('url', encerrada ? { etapa28: true, certidaoFinal: true } : {});
     if (!url) return;
 
     document.body.innerHTML = '';
@@ -16196,10 +16366,10 @@ async function abrirProcessoUnidoNaAba() {
     document.body.style.overflow = 'hidden';
     const visor = document.createElement('iframe');
     visor.src = url;
-    visor.title = `Processo unido ${numero}`;
+    visor.title = titulo;
     visor.style.cssText = 'border:0; width:100vw; height:100vh; display:block;';
     document.body.appendChild(visor);
-    document.title = `Processo unido ${numero}`;
+    document.title = titulo;
 }
 
 window.carregarAnexosMultaEtapa15 = async function () {

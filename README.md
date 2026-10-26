@@ -194,10 +194,17 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
   antes: "Na data X foi verificado: o não cumprimento das providências solicitadas no Auto
   de Fiscalização nº …"; sem: "Foi verificado na data X, o seguinte fato constitutivo da
   infração: …". A data é informada na Etapa 14 (`notificacoes.dados.data_verificacao_ai`).
+- **Testemunhas:** nas Etapas 1 (Auto de Fiscalização) e 14 (Auto de Infração), "Houve
+  testemunhas?". Com Sim, são duas, cada uma com nome e CPF, preenchidas a partir de outro
+  Fiscal de Meio Ambiente ou à mão. Assinam logo abaixo do fiscal, lado a lado. Ficam em
+  `notificacoes.dados.testemunhas_af` / `testemunhas_ai` (`{ houve, lista: [{ fiscal_id, nome, cpf }] }`).
 - **Direto para o Auto de Infração:** `MA-29` a `MA-59` (`semAF`) não têm Auto de
   Fiscalização: o processo nasce na Etapa 14, como o de decreto. Não podem ser marcadas
-  junto com as que têm AF. As queimadas com REDS pedem o nº do REDS (`config_af.reds`) e
-  o `MA-56` pede a alínea (I ou II).
+  junto com as que têm AF. As queimadas com REDS (`MA-29` e `MA-30`) pedem o nº do REDS
+  (`config_af.reds`), aceitam o anexo do REDS (documento tipo `REDS`, opcional) e perguntam
+  "Fazer o Relatório Fiscal?". **Não** só pode ser escolhido com o REDS anexado. Com **Não**, o passo 5 sai do assistente, o processo não
+  reserva número de relatório e fica com `dados.relatorio_fiscal.dispensado = true`: o botão
+  do relatório some da etapa. O `MA-56` pede a alínea (I ou II).
 - **Protocolo da defesa:** o fiscal informa o nº do protocolo em cada infração
   (`config_af.protocolo`). Ele sai em "protocolada via protocolo municipal n° …" no
   Auto de Fiscalização (os números diferentes, juntos) e no Auto de Infração da infração.
@@ -375,9 +382,9 @@ processo na etapa em que parou). A etapa exibida é a mais avançada entre as no
 ainda abertas.
 
 **Ações:** criar nova solicitação (abre o assistente da Etapa 1) e **exportar CSV**,
-respeitando os filtros. Sem filtro, exporta tudo. Ao lado de "Abrir", o botão **Processo
-unido** abre em outra aba um PDF com capa, índice e todos os documentos na ordem em que
-foram inseridos (inclusive o decreto), sem as Comunicações Internas.
+respeitando os filtros. Sem filtro, exporta tudo. Ao lado de "Abrir", um botão **PA Nº NN**
+por notificação / Auto abre em outra aba o PDF unificado dela, com a mesma ordem de
+documentos das etapas (ver [seção 9](#9-telas-do-painel)).
 
 ### Etapa 1 — Possui Decreto/Notificação (criação do processo)
 
@@ -387,7 +394,7 @@ foram inseridos (inclusive o decreto), sem as Comunicações Internas.
 - **Anexo BIC** (Espelho Cadastral de Imóveis, PDF), obrigatório. No mesmo campo pode ir o **Comprovante de Inscrição no CNPJ** da Receita, reconhecido pelo texto (`ehComprovanteCnpj`), tanto em Posturas quanto em Meio Ambiente: o nome empresarial vai para o nome do contribuinte, o CNPJ para o CPF/CNPJ e para a inscrição do imóvel (sem setor/zona/quadra/lote), e o endereço do comprovante para o imóvel. Com ele, endereço do contribuinte, código reduzido, área, testada e profundidade ficam opcionais; o anexo é gravado como `Comprovante de Inscrição CNPJ`. Os campos opcionais vazios nem aparecem no formulário, e só com esse documento aparece, na lista de Posturas, a infração **ALVARA-PJ** ("Exercer atividade sem o licenciamento de alvará de localização e funcionamento", art. 190 e seguintes da Lei 6.907/2008; multa de 50 UPFMD; providência imediata), cadastrada no `infracoes_catalogo`. Na Notificação Preliminar e no Auto de Infração, dado do contribuinte ou do imóvel que não foi preenchido não aparece.
 - **Contribuinte:** nome, CPF/CNPJ, logradouro, número, complemento, bairro, município, CEP e e-mail (opcional).
 - **Imóvel:** código reduzido, inscrição imobiliária, logradouro, número, complemento, bairro, área total (m²), testada (m) e profundidade. A inscrição `01.036.00181.00300.00000.0` é quebrada em **Setor** (01), **Zona** (036), **Quadra** (00181) e **Lote** (00300).
-- **Fiscal:** nome e matrícula (do usuário logado), data da vistoria (hoje, editável para trás), descrição da fiscalização, imagens da vistoria e **"Decorrente de Decreto de Notificação?"** (com escolha ou anexo do decreto).
+- **Fiscal:** nome e matrícula (do usuário logado), data da vistoria (hoje, editável para trás), descrição da fiscalização, imagens da vistoria, **outros documentos** (quantos forem, ou nenhum; cada um com Visualizar e Excluir, gravados como `Outro documento`; no PDF do processo entram logo abaixo do Relatório Fiscal e aparecem no índice, logo depois da capa, como **Anexo N**) e **"Decorrente de Decreto de Notificação?"** (com escolha ou anexo do decreto).
 - **Infrações:** reincidente?, "Quais dispositivos legais foram transgredidos?" (várias, ver [Anexo A](#anexo-a--catálogo-de-infrações)) e "Processo já existente?". Com **Sim**, o fiscal informa o número do processo (em branco, o sistema gera), a etapa em que ele está, as numerações que já tem (Relatório Fiscal, NP/AF e, a partir da 14, Auto) e anexa os documentos das fases já vencidas, com número e datas dos ARs. O assistente pula o passo 5 (botão **Cadastrar processo**), não gera documento e o processo nasce direto na etapa escolhida. Nas reincidências, pede o **Nº e a data do Auto de Infração anterior**, que entram no texto da observação (ver [Anexo B](#anexo-b--textos-padrão)).
 - **Relatório Fiscal:** editor com o relatório gerado, que pode ser ajustado antes de salvar.
 
@@ -753,11 +760,11 @@ documentos descartados voltam para a fila.
 
 Menu lateral de `painel.html`:
 - **Processos:** lista de processos ([Etapa 0](#etapa-0--solicitações-painel)). Ao lado de
-  "Abrir", **Processo unido** abre em outra aba um PDF com capa, índice (em que páginas
-  está cada documento) e todos os documentos do processo e das notificações dele, na ordem
-  em que foram inseridos: `etapa.html?processo=<id>&pdf_unido=1`
-  (`gerarPdfProcessoCompletoEtapa15` com `todosEmOrdem`). As Comunicações Internas não são
-  documentos e não entram.
+  "Abrir", um botão **PA Nº NN** por notificação / Auto (NN é o número que vem depois do
+  número do processo, ex.: 2026/000123/**02**) abre em outra aba o PDF unificado daquela
+  notificação: o mesmo das etapas (`gerarPdfProcessoCompletoEtapa15`), com capa, índice e a
+  mesma ordem de documentos; se ela já está encerrada, sai como a cópia do encerramento.
+  Link: `etapa.html?processo=<id>&notificacao=<id>&pdf_unido=1`.
 - **Notificações:** sino com avisos ao usuário (ex.: devolução do AR, gerente pediu certidão).
 - **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível para Gerente de Posturas e Dev; gerado por Gerente, Administrativo e Dev. Imagens vão para o Cloudinary.
 - **Instruções:** índice com uma instrução por etapa (objetivo, passos, checklist próprio salvo no navegador e "Próxima etapa" com os caminhos possíveis), em **Lista** ou **Fluxograma** (da esquerda para a direita, em 3 faixas; cards com etapa e cargo, setas a partir de `PROXIMAS_ETAPAS`; clicar no card abre a instrução). Filtro "só as etapas do meu cargo". O "Processo já existente" tem instrução própria, só na lista. Conteúdo em `assets/js/instrucoes.js`.

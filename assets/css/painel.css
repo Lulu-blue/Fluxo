@@ -761,10 +761,11 @@ body {
 .col-descricao { max-width: 250px; }
 .col-situacao { min-width: 150px; }
 .col-etapa { min-width: 160px; }
-.col-acoes { min-width: 100px; text-align: center; white-space: nowrap; }
+.col-acoes { min-width: 100px; max-width: 280px; text-align: center; }
 
-/* Atalho "Processo unido", ao lado de "Abrir" */
-.btn-processo-unido { margin-left: 6px; }
+/* PDF unificado de cada notificação (PA Nº …), ao lado de "Abrir"; quebram linha se forem muitos */
+.col-acoes .btn-abrir-processo { white-space: nowrap; margin: 3px 0; }
+.btn-processo-unido { margin-left: 6px !important; }
 
 /* Link do protocolo: âncora real para permitir "abrir em nova guia" no botão direito */
 .link-processo {

@@ -8,7 +8,7 @@
     <meta name="description" content="Painel de controle do Sistema Fluxograma de Processos - Fiscalização de Posturas">
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
-    <link rel="stylesheet" href="assets/css/painel.css?v=20261022">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261023">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -1120,6 +1120,18 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Outros documentos: quantos forem, ou nenhum (nova-solicitacao.js) -->
+                        <div class="form-row" style="margin-top: 12px;">
+                            <div class="form-group fg-full">
+                                <label>Outros documentos <span class="optional">(opcional; anexe quantos precisar)</span></label>
+                                <button type="button" class="btn-inline" id="btnAdicionarOutrosDocumentos"
+                                    style="align-self: flex-start; padding: 6px 12px; font-size: 0.8rem;">+ Adicionar documentos</button>
+                                <input type="file" id="inputOutrosDocumentos" multiple
+                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
+                                <div id="listaOutrosDocumentos"
+                                    style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1590,9 +1602,9 @@
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/meio-ambiente.js?v=20261022"></script>
-    <script src="assets/js/solicitacoes.js?v=20261022b"></script>
-    <script src="assets/js/instrucoes.js?v=20261022"></script>
-    <script src="assets/js/nova-solicitacao.js?v=20261022c"></script>
+    <script src="assets/js/solicitacoes.js?v=20261023"></script>
+    <script src="assets/js/instrucoes.js?v=20261026"></script>
+    <script src="assets/js/nova-solicitacao.js?v=20261023e"></script>
     <script src="assets/js/oficio-modelo.js"></script>
     <script src="assets/js/oficio-avulso.js?v=20261022"></script>
     <script src="assets/js/chat_juridico.js?v=20261019"></script>
