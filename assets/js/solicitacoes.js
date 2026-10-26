@@ -435,6 +435,8 @@ window.abrirProcessoAuto = function (id) {
 // ── Estado da aplicação ─────────────────────────────────────
 let currentOffset = 0;
 let hasMoreRecords = true;
+let totalProcessosFiltro = null;
+let rotuloDecretoFiltro = '';
 let isFetchingMore = false;
 let currentUserId = null;
 let dadosTabela = []; // dados exibidos acumulados (para exportação)
@@ -719,7 +721,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
                 created_at,
                 updated_at,
                 fiscal_id${painelTemColunasPrazo ? ',\n                data_inicio_prazo,\n                data_vencimento' : ''}
-            `);
+            `, append ? {} : { count: 'exact' });
 
         // Aplicar filtros
         const filtros = coletarFiltros();
@@ -929,6 +931,12 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         if (filtros.criador === 'meu' && currentUserId) {
             query = query.eq('fiscal_id', currentUserId);
         }
+        if (filtros.decreto === 'sim') {
+            query = query.eq('possui_decreto', true);
+        } else if (filtros.decreto === 'nao') {
+            // Falso ou vazio (processos antigos sem a coluna preenchida)
+            query = query.not('possui_decreto', 'is', true);
+        }
 
         // Execução em lote adaptativo (redimensiona automaticamente se o banco expirar tempo)
         const effectiveBatch = Math.max(10, dynamicBatchSize);
@@ -938,7 +946,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         if (ordenarPorVencimento) {
             query = query.order('data_vencimento', { ascending: true });
         }
-        const { data, error } = await query
+        const { data, error, count } = await query
             .range(from, to)
             .order('created_at', { ascending: false });
 
@@ -957,6 +965,12 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         if (myFetchId !== currentFetchId) return;
 
         const rawData = data || [];
+        // Total do filtro (só na primeira página; o "carregar mais" mantém).
+        // Com o filtro Responsável, que é aplicado aqui no navegador, não há total.
+        if (!append) {
+            totalProcessosFiltro = (typeof count === 'number' && !filtros.responsavel) ? count : null;
+            rotuloDecretoFiltro = filtros.decreto === 'sim' ? ' por decreto' : (filtros.decreto === 'nao' ? ' sem decreto' : '');
+        }
 
         // Buscar nomes dos fiscais via query separada ultrarrápida
         const fiscalIds = [...new Set(rawData.map(i => i.fiscal_id).filter(Boolean))];
@@ -1282,6 +1296,7 @@ function coletarFiltros() {
         dataFim: document.getElementById('filtroDataFim')?.value || '',
         etapa: document.getElementById('filtroEtapa')?.value || '',
         situacao: document.getElementById('filtroSituacao')?.value || '',
+        decreto: document.getElementById('filtroDecreto')?.value || '',
         prazo: document.getElementById('filtroPrazo')?.value || '',
         descricao: document.getElementById('filtroDescricao')?.value.trim() || '',
         criador: document.getElementById('filtroCriador')?.value || '',
@@ -1425,7 +1440,10 @@ function atualizarContadorECarregarMais() {
         if (msgFim) msgFim.style.display = 'none';
     } else {
         if (resultsCount) {
-            resultsCount.textContent = `${totalLoaded} processo${totalLoaded > 1 ? 's' : ''} carregado${totalLoaded > 1 ? 's' : ''}`;
+            const carregados = `${totalLoaded} processo${totalLoaded > 1 ? 's' : ''} carregado${totalLoaded > 1 ? 's' : ''}`;
+            resultsCount.innerHTML = totalProcessosFiltro !== null
+                ? `<strong>Total: ${totalProcessosFiltro} processo${totalProcessosFiltro === 1 ? '' : 's'}${rotuloDecretoFiltro}</strong> · ${carregados}`
+                : carregados;
         }
 
         if (hasMoreRecords) {
@@ -1483,6 +1501,7 @@ function bindEventos() {
         if (document.getElementById('filtroDataFim')) document.getElementById('filtroDataFim').value = '';
         if (document.getElementById('filtroEtapa')) document.getElementById('filtroEtapa').value = '';
         if (document.getElementById('filtroSituacao')) document.getElementById('filtroSituacao').value = '';
+        if (document.getElementById('filtroDecreto')) document.getElementById('filtroDecreto').value = '';
         if (document.getElementById('filtroPrazo')) document.getElementById('filtroPrazo').value = '';
         if (document.getElementById('filtroDescricao')) document.getElementById('filtroDescricao').value = '';
         if (document.getElementById('filtroCriador')) document.getElementById('filtroCriador').value = '';

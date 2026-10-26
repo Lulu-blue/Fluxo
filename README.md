@@ -374,7 +374,10 @@ Primeira tela depois do login (`painel.html`, `assets/js/solicitacoes.js`).
 **Filtros:** Protocolo, Nº Relatório Fiscal, Nº Auto de Infração, Nº Notificação / Auto de
 Fiscalização (aceita os dois formatos de número), Nome do Solicitante, CPF/CNPJ do
 contribuinte, Código reduzido do imóvel, Fiscal responsável, Data início/fim, Etapa,
-Situação, Tipo de infração (várias) e Ordenar por (prazo).
+Situação, Decreto (todos, só por decreto ou só sem decreto), Tipo de infração (várias) e
+Ordenar por (prazo). Acima da tabela aparece o total de processos do filtro (ex.: "Total: 42
+processos por decreto"), além de quantos já foram carregados; com o filtro Responsável, que é
+aplicado no navegador, só a quantidade carregada.
 
 **Tabela:** Protocolo, Código reduzido, Nome do Solicitante, Data Início, Data Final, Dias p/
 Vencimento, Fiscal, Situação (etiquetas por notificação), Etapa e Detalhes (abre o
