@@ -1322,7 +1322,7 @@ function exportarCSV() {
         return;
     }
 
-    const headers = ['Protocolo', 'Código reduzido', 'CPF/CNPJ', 'Nome do solicitante', 'Data início', 'Data final', 'Dias p/ Vencimento', 'Fiscal', 'Situação', 'Etapa'];
+    const headers = ['Protocolo', 'Código reduzido', 'CPF/CNPJ', 'Nome do contribuente', 'Data início', 'Data final', 'Dias p/ Vencimento', 'Fiscal', 'Situação', 'Etapa'];
 
     const rows = dadosTabela.map(item => {
         const cpfCnpj = item.dados?.contribuinte?.cpf_cnpj || item.dados?.cpf_cnpj_solicitante || '';
