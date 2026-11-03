@@ -43,7 +43,7 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Preencha os dados da fiscalização',
-                texto: 'Informe a data e a hora da vistoria e descreva a fiscalização. Abaixo das imagens, em Outros documentos, anexe quantos arquivos forem necessários (ou nenhum); use Visualizar para conferir e Excluir para retirar um arquivo. Em Posturas, indique se o processo decorre de Decreto de notificação; nesse caso, as imagens da vistoria são obrigatórias.',
+                texto: 'Informe a data e a hora da vistoria e descreva a fiscalização. Abaixo das imagens, em Outros documentos, anexe quantos arquivos forem necessários (ou nenhum); use Visualizar para conferir e Excluir para retirar um arquivo.',
                 dica: 'No Meio Ambiente é possível marcar um ou mais fiscais contribuidores. Eles assinam apenas o Relatório Fiscal. O usuário Dev escolhe se o processo é de Posturas ou de Meio Ambiente.'
             },
             {

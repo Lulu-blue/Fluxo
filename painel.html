@@ -1043,6 +1043,8 @@
                             </div>
                         </div>
                         <div class="form-row">
+                            <!-- Desativado: hoje nenhum processo novo é por decreto. Para voltar a
+                                 oferecer a escolha, descomente o bloco e apague o input escondido abaixo.
                             <div class="form-group fg-medium" id="grupoFiscDecreto">
                                 <label for="fiscDecreto">Decorrente de Decreto de notificação? <span
                                         class="required">*</span></label>
@@ -1052,6 +1054,8 @@
                                     <option value="sim">Sim</option>
                                 </select>
                             </div>
+                            -->
+                            <input type="hidden" id="fiscDecreto" value="nao">
                             <div class="form-group fg-medium">
                                 <label for="fiscDataVistoria">Data e hora da vistoria <span
                                         class="required">*</span></label>
@@ -1611,7 +1615,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/meio-ambiente.js?v=20261022"></script>
     <script src="assets/js/solicitacoes.js?v=20261026"></script>
-    <script src="assets/js/instrucoes.js?v=20261026"></script>
+    <script src="assets/js/instrucoes.js?v=20261103"></script>
     <script src="assets/js/nova-solicitacao.js?v=20261023e"></script>
     <script src="assets/js/oficio-modelo.js"></script>
     <script src="assets/js/oficio-avulso.js?v=20261022"></script>
