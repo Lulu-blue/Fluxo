@@ -54,7 +54,7 @@ const INSTRUCOES = [
             {
                 titulo: 'Marque as infrações',
                 texto: 'Selecione os dispositivos legais transgredidos. Cada infração gera um documento com número próprio.',
-                dica: 'No Meio Ambiente, abaixo de cada infração marcada aparece um quadro: defina o prazo das providências, informe o nº do protocolo e confira a multa. Algumas infrações ambientais não têm Auto de Fiscalização e vão direto para o Auto de Infração. Nas queimadas com REDS, informe o nº do REDS, anexe o REDS se tiver e escolha se vai fazer o Relatório Fiscal. Seguir sem o relatório só é possível com o REDS anexado; nesse caso, o último passo é pulado. A infração de alvará (ALVARA-PJ) só aparece com o comprovante do CNPJ.'
+                dica: 'No Meio Ambiente, abaixo de cada infração marcada aparece um quadro: defina o prazo das providências, informe o nº do protocolo e confira a multa. Algumas infrações ambientais não têm Auto de Fiscalização e vão direto para o Auto de Infração. Nas queimadas com REDS, informe o nº do REDS, anexe o REDS se tiver e escolha se vai fazer o Relatório Fiscal. Seguir sem o relatório só é possível com o REDS anexado; nesse caso, o último passo é pulado. No fim da lista do Meio Ambiente fica o grupo Posturas: marcando uma delas, o processo segue as regras de Posturas (Notificação Preliminar) e não pode ter infrações de Meio Ambiente junto. A infração de alvará (ALVARA-PJ) só aparece com o comprovante do CNPJ.'
             },
             {
                 titulo: 'Revise o Relatório Fiscal',

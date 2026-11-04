@@ -392,10 +392,13 @@ function itemPertenceAoCargo(item, cargoAlvo) {
     if (cargoNorm === 'Dev') return true;
 
     // Fiscal de Meio Ambiente tem as etapas do Fiscal de Postura, mas cada um só
-    // responde pelos processos do seu tipo (meio-ambiente.js)
+    // responde pelos processos do seu tipo (meio-ambiente.js). O processo de
+    // Posturas aberto por um Fiscal de Meio Ambiente continua sendo dele.
     if (cargoNorm === 'Fiscal de Postura' && typeof window.processoEhMeioAmbiente === 'function') {
         const filtroMeioAmbiente = window.ehCargoMeioAmbiente(cargoAlvo);
-        if (filtroMeioAmbiente !== window.processoEhMeioAmbiente(item)) return false;
+        const abertoPorMim = !!(currentUserId && item.fiscal_id === currentUserId
+            && cargoAlvo === window.currentUserProfile?.cargo);
+        if (filtroMeioAmbiente !== window.processoEhMeioAmbiente(item) && !abertoPorMim) return false;
     }
 
     const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || ETAPAS_POR_CARGO[cargoAlvo] || ETAPAS_POR_CARGO['Gerente'] || [];

@@ -182,7 +182,12 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
 - **Infrações:** no Novo Processo aparecem os dispositivos ambientais (códigos `MA-01`
   a `MA-28`, sem `MA-13` e `MA-14`, em `INFRACOES_MEIO_AMBIENTE`), no lugar dos de Posturas.
   Precisam estar no `infracoes_catalogo`. Não há
-  Decreto de notificação.
+  Decreto de notificação. No fim da lista vem o grupo **Posturas**, com as infrações de
+  Posturas: marcando uma delas, o processo é de Posturas (sem `setor = 'meio_ambiente'`,
+  Notificação Preliminar, prazos, textos e multas de Posturas, sem fiscais contribuidores).
+  Posturas e Meio Ambiente não vão no mesmo processo. No filtro Responsável → "Minha
+  responsabilidade", o processo de Posturas aberto pelo próprio Fiscal de Meio Ambiente
+  continua aparecendo para ele.
 - **Auto de Fiscalização:** é o nome do documento da Etapa 1 (no lugar da Notificação
   Preliminar), com o mesmo cabeçalho. Para cada infração o fiscal escolhe o prazo das
   providências (de imediato ou X dias úteis/corridos) e pode alterar a multa. As

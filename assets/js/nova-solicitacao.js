@@ -380,7 +380,7 @@ let nosInfracoesPosturas = null;
 let nosInfracoesMeioAmbiente = null;
 
 const TEXTO_PASSO4_POSTURAS = 'Selecione os dispositivos legais transgredidos. Cada seleção gerará uma notificação com número próprio.';
-const TEXTO_PASSO4_MEIO_AMBIENTE = 'Selecione os dispositivos legais transgredidos. Cada seleção gerará um Auto de Fiscalização com número próprio.';
+const TEXTO_PASSO4_MEIO_AMBIENTE = 'Selecione os dispositivos legais transgredidos. Cada seleção gerará um documento com número próprio. As de Posturas, no fim da lista, seguem as regras de Posturas (Notificação Preliminar) e não podem ir junto com as de Meio Ambiente.';
 
 function escaparHtmlWizard(txt) {
     return String(txt || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -497,8 +497,11 @@ function trocarListaInfracoesWizard() {
         tpl.innerHTML = titulo('Com Auto de Fiscalização', 'O processo começa no Auto de Fiscalização (Etapa 1).')
             + comAF.map(opcao).join('')
             + titulo('Direto para o Auto de Infração', 'Sem Auto de Fiscalização: o processo começa no Auto de Infração (Etapa 14).')
-            + semAF.map(opcao).join('');
-        nosInfracoesMeioAmbiente = Array.from(tpl.content.children);
+            + semAF.map(opcao).join('')
+            + titulo('Posturas', 'Com as regras de Posturas: o processo começa na Notificação Preliminar (Etapa 1).');
+        // As opções de Posturas são as mesmas da lista de Posturas (mesmos
+        // elementos, com os eventos já ligados): entram no fim, depois do título
+        nosInfracoesMeioAmbiente = [...Array.from(tpl.content.children), ...nosInfracoesPosturas];
         // Os checkboxes de Posturas são ligados um a um em bindWizardEventos;
         // os de Meio Ambiente são ouvidos pela lista.
         lista.addEventListener('change', (e) => {
@@ -510,9 +513,9 @@ function trocarListaInfracoesWizard() {
     }
 
     const alvo = wizardMeioAmbiente ? nosInfracoesMeioAmbiente : nosInfracoesPosturas;
-    if (lista.firstElementChild === alvo[0]) return;
+    if (lista.firstElementChild === alvo[0] && lista.children.length === alvo.length) return;
     // Trocou o tipo: nada marcado do outro conjunto pode ir junto
-    [...nosInfracoesPosturas, ...nosInfracoesMeioAmbiente].forEach(label => {
+    [...new Set([...nosInfracoesPosturas, ...nosInfracoesMeioAmbiente])].forEach(label => {
         const cb = label.querySelector('input[name="infracao"]');
         if (cb) cb.checked = false;
     });
@@ -520,17 +523,30 @@ function trocarListaInfracoesWizard() {
     if (typeof atualizarDescricaoFiscalizacaoPadrao === 'function') atualizarDescricaoFiscalizacaoPadrao();
 }
 
+// O Fiscal de Meio Ambiente também vê as infrações de Posturas (grupo
+// "Posturas", no fim da lista). Marcando uma delas, o processo é de Posturas:
+// Notificação Preliminar, prazos, textos e multas de Posturas. Os dois tipos
+// não vão no mesmo processo (validarConfigAutoFiscalizacao).
+function infracoesPosturasMarcadasNoWizard() {
+    return Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked'))
+        .some(cb => !window.encontrarInfracaoMeioAmbiente(cb.value));
+}
+
+function processoNovoEhMeioAmbiente() {
+    return wizardMeioAmbiente && !infracoesPosturasMarcadasNoWizard();
+}
+
 // Meio Ambiente com infrações do grupo "Direto para o Auto de Infração": o
 // processo nasce na Etapa 14 (a validação do passo 4 não deixa misturar)
 function meioAmbienteVaiDiretoAoAuto() {
-    if (!wizardMeioAmbiente) return false;
+    if (!processoNovoEhMeioAmbiente()) return false;
     const codigos = Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked')).map(cb => cb.value);
     return codigos.length > 0 && codigos.every(c => window.infracaoMeioAmbienteVaiDiretoAoAuto(c));
 }
 
 // Fiscais contribuidores marcados, na ordem da lista
 function obterFiscaisContribuidoresSelecionados() {
-    if (!wizardMeioAmbiente) return [];
+    if (!processoNovoEhMeioAmbiente()) return [];
     const ids = Array.from(document.querySelectorAll('#fiscContribuidores input[type="checkbox"]:checked')).map(cb => String(cb.value));
     return fiscaisMeioAmbienteCache
         .filter(f => ids.includes(String(f.id)))
@@ -767,7 +783,7 @@ function coletarArquivosReds() {
 // { config_af: { 'MA-01': {...} }, multas: { '0': 6275.5, ... } } — o índice
 // das multas é a posição em dados.infracoes.dispositivos (multas_customizadas).
 function coletarConfigAutoFiscalizacao() {
-    if (!wizardMeioAmbiente) return null;
+    if (!processoNovoEhMeioAmbiente()) return null;
     const config_af = {};
     const multas = {};
     const codigos = Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked')).map(cb => cb.value);
@@ -793,6 +809,11 @@ function validarConfigAutoFiscalizacao() {
     // Um processo começa ou no Auto de Fiscalização (Etapa 1) ou direto no Auto
     // de Infração (Etapa 14): não dá para misturar os dois grupos
     const codigos = Array.from(document.querySelectorAll('#infracoesList input[name="infracao"]:checked')).map(cb => cb.value);
+    const dePosturas = codigos.filter(c => !window.encontrarInfracaoMeioAmbiente(c));
+    if (dePosturas.length && dePosturas.length !== codigos.length) {
+        alert('As infrações de Posturas não podem ser marcadas junto com as de Meio Ambiente.\n\nAbra um processo para cada grupo.');
+        return false;
+    }
     const diretas = codigos.filter(c => window.infracaoMeioAmbienteVaiDiretoAoAuto(c));
     if (diretas.length && diretas.length !== codigos.length) {
         alert('As infrações "Direto para o Auto de Infração" não podem ser marcadas junto com as que têm Auto de Fiscalização.\n\nAbra um processo para cada grupo.');
@@ -894,7 +915,7 @@ function atualizarLabelsUIWizardStep5() {
             || meioAmbienteVaiDiretoAoAuto();
         const rotulo = (typeof ehProcessoJaExistente === 'function' && ehProcessoJaExistente())
             ? 'Cadastrar processo'
-            : (nasceNoAuto ? 'Gerar Auto de Infração' : (wizardMeioAmbiente ? 'Gerar Auto de Fiscalização' : 'Gerar notificação'));
+            : (nasceNoAuto ? 'Gerar Auto de Infração' : (processoNovoEhMeioAmbiente() ? 'Gerar Auto de Fiscalização' : 'Gerar notificação'));
         btnFinalizar.innerHTML = `${check} ${rotulo}`;
         btnFinalizar.dataset.originalHtml = btnFinalizar.innerHTML;
     }
@@ -2837,7 +2858,7 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
     const paHtml = pa ? `<p style="margin:0;"><strong>PA:</strong> ${pa}</p>` : '';
 
     // Fiscal de Meio Ambiente: subtítulo próprio e, se houver, a assinatura do contribuidor
-    const relatorioEhMeioAmbiente = wizardMeioAmbiente
+    const relatorioEhMeioAmbiente = processoNovoEhMeioAmbiente()
         || (typeof window.processoEhMeioAmbiente === 'function' && window.processoEhMeioAmbiente(proc));
     const selecionados = obterFiscaisContribuidoresSelecionados();
     const contribuidores = selecionados.length ? selecionados : window.contribuidoresDoProcesso?.(dProc) || [];
@@ -3422,7 +3443,7 @@ async function baixarRelatorioFiscalPdf() {
             * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { margin: 0; padding: 0; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
             img { max-width: 100%; height: auto; }
-            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
+            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
         `;
 
         const printIframe = document.createElement('iframe');
@@ -3499,7 +3520,7 @@ async function baixarCertidaoDecretoPdf() {
             * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { margin: 0; padding: 0; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
             img { max-width: 100%; height: auto; }
-            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 0; } }
+            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
         `;
 
         const printIframe = document.createElement('iframe');
