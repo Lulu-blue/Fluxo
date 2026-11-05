@@ -5419,9 +5419,15 @@ function configurarCardCalculoMulta(opts) {
         if (resumoBaseEl) resumoBaseEl.style.display = 'none';
     }
 
+    // Os listeners abaixo são ligados uma vez só; por isso leem as medidas do
+    // imóvel na hora, e não as de quando o card foi montado (senão, depois de
+    // mudar testada/área em Editar dados, a conta continuava com as antigas)
+    const medidasAtuais = () => obterDadosImovelParaCalculo(processoAtual || proc);
+
     // Mostra ao fiscal qual medida está entrando na conta
     const atualizarResumoBase = () => {
         if (!resumoBaseEl) return;
+        const { areaNum, testadaNum, profundidadeNum } = medidasAtuais();
         const ehEsquina = (selectEsquinaEl?.value === 'sim');
         const base = selectBaseEl?.value === 'profundidade' ? 'profundidade' : 'testada';
         const fmt = (v) => (v > 0 ? `${Number(v).toFixed(2).replace('.', ',')} m` : 'não informada');
@@ -5438,6 +5444,7 @@ function configurarCardCalculoMulta(opts) {
         const novoUpfmd = parseNumberSafe(inputUpfmdEl?.value, 0) || upfmdAtualProc || 103.00;
         const ehEsquina = (selectEsquinaEl?.value === 'sim');
         const base = selectBaseEl?.value === 'profundidade' ? 'profundidade' : 'testada';
+        const { areaNum, testadaNum, profundidadeNum } = medidasAtuais();
         listaInputs.querySelectorAll('.input-multa-val').forEach(inputEl => {
             const disp = inputEl.dataset.disp || '';
             // Meio Ambiente: mudar a UPFMD só recalcula a multa em UPFMD (outdoor);
@@ -5541,8 +5548,19 @@ function configurarCardCalculoMulta(opts) {
         // salvar os valores da multa não deve duplicar o registro da UPFMD.
         await window.registrarNovaUpfmdSeMudou(novoUpfmd);
 
+        // Só fica gravado o valor que o fiscal mudou à mão. O que é igual ao
+        // calculado não é gravado, e a multa continua acompanhando a testada,
+        // a área e a UPFMD (antes, salvar congelava todos os valores)
+        const { areaNum: areaSalvar, testadaNum: testadaSalvar, profundidadeNum: profSalvar } = medidasAtuais();
         listaInputs.querySelectorAll('.input-multa-val').forEach(inp => {
-            processoAtual.campos.multas_customizadas[inp.dataset.index] = parseNumberSafe(inp.value, 0);
+            const valor = parseNumberSafe(inp.value, 0);
+            const calculado = calcularValorNumDefaultMulta((inp.dataset.disp || '').toLowerCase(), areaSalvar, testadaSalvar, profSalvar,
+                processoAtual.campos.imovel_esquina === 'sim', novoUpfmd, processoAtual.campos.base_calculo_multa);
+            if (Math.abs(valor - calculado) < 0.005) {
+                delete processoAtual.campos.multas_customizadas[inp.dataset.index];
+            } else {
+                processoAtual.campos.multas_customizadas[inp.dataset.index] = valor;
+            }
         });
 
         processoAtual.dados = processoAtual.dados || {};
@@ -11581,8 +11599,33 @@ async function salvarEdicoesProcesso() {
             delete processoAtual.campos.etapa14.anexo_auto_infracao;
         }
 
+        // Testada, área ou profundidade mudaram: valores de multa digitados à mão
+        // (multas_customizadas) não acompanham a mudança. Pergunta se recalcula.
+        const imvAntes = dadosAtuais.imovel || {};
+        const mudouMedida = ['testada', 'area_total', 'profundidade']
+            .some(c => parseNumberSafe(imvAntes[c], 0) !== parseNumberSafe(novosDados.imovel[c], 0));
+        const customizadas = processoAtual.campos.multas_customizadas || {};
+        const dispositivosEdit = obterDispositivosDoProcesso(processoAtual);
+        // Só as infrações cuja conta muda com as medidas novas (as de valor fixo,
+        // como água servida, mantêm o valor digitado sem perguntar)
+        const medidasAntes = obterDadosImovelParaCalculo({ ...processoAtual, dados: dadosAtuais });
+        const medidasDepois = obterDadosImovelParaCalculo({ ...processoAtual, dados: novosDados });
+        const upfmdEdit = parseNumberSafe(processoAtual.campos.upfmd_utilizado, 0) || window.valorUpfmdAtual || valorUpfmdAtual;
+        const contaCom = (m, disp) => calcularValorNumDefaultMulta(disp.toLowerCase(), m.areaNum, m.testadaNum,
+            m.profundidadeNum, m.temEsquina, upfmdEdit, m.baseCalculo);
+        const indicesPorMedida = Object.keys(customizadas).filter(i => {
+            const disp = dispositivosEdit[i] || '';
+            if (!disp || (window.encontrarInfracaoMeioAmbiente && window.encontrarInfracaoMeioAmbiente(disp))) return false;
+            return Math.abs(contaCom(medidasAntes, disp) - contaCom(medidasDepois, disp)) >= 0.005;
+        });
+        if (mudouMedida && indicesPorMedida.length
+            && confirm('As medidas do imóvel mudaram, mas há valores de multa salvos à mão no quadro de multas.\n\nRecalcular essas multas com as novas medidas?\n(OK recalcula; Cancelar mantém os valores salvos.)')) {
+            indicesPorMedida.forEach(i => { delete customizadas[i]; });
+        }
+
         // Atualiza as referências em memória local
         processoAtual.campos.imagens_vistoria = imagensVistoriaSalvar;
+        novosDados.campos = processoAtual.campos;
         processoAtual.dados = novosDados;
 
         // 1. Atualiza tabela processos no Supabase
@@ -11773,6 +11816,7 @@ async function salvarEdicoesProcesso() {
                 numero: novosDados.imovel.numero || null,
                 bairro: novosDados.imovel.bairro || null,
                 testada: pFloat(novosDados.imovel.testada),
+                profundidade: pFloat(novosDados.imovel.profundidade),
                 area_total: pFloat(novosDados.imovel.area_total)
             };
 
@@ -11856,9 +11900,9 @@ async function salvarEdicoesProcesso() {
             }
         }
 
-        if (typeof window.renderizarEtapa === 'function') {
-            window.renderizarEtapa(numEtapa);
-        }
+        // O card de multas (Etapa 1 / 14) continua na tela: refaz com as medidas novas
+        if (document.getElementById('listaInputsMultas')) configurarCardCalculoMulta();
+        if (document.getElementById('listaInputsMultasAi')) window.configurarCardCalculoMultaAutoInfracao();
 
         if (typeof ocultarCarregamento === 'function') ocultarCarregamento();
         alert('Alterações salvas com sucesso! Os documentos foram atualizados e os anexos antigos foram expelidos para permitir novos downloads com os dados corretos.');
