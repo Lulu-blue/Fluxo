@@ -2741,6 +2741,13 @@ function textoDoRotuloInfracao(el) {
     return limpo || el?.value || '';
 }
 
+// Relatório Fiscal: "verificamos que houve <infrações>". Nomes que não fazem
+// sentido nessa frase ganham a forma certa ("houve limpeza de quintal" →
+// "houve a falta de limpeza de quintal"). Não repete se já estiver escrito assim.
+function textoInfracoesParaRelatorio(texto) {
+    return String(texto || '').replace(/(?<!falta de )limpeza de quintal/gi, 'a falta de limpeza de quintal');
+}
+
 async function prepararEtapaRelatorio() {
     const infracoesSelecionadas = Array.from(document.querySelectorAll('input[name="infracao"]:checked')).map(el => {
         return textoDoRotuloInfracao(el).toLowerCase();
@@ -2749,7 +2756,7 @@ async function prepararEtapaRelatorio() {
 
     const textarea = document.getElementById('relTextoVistoria');
     if (textarea && !textarea.value.trim()) {
-        textarea.value = listaInfracoesStr || 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
+        textarea.value = textoInfracoesParaRelatorio(listaInfracoesStr) || 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
     }
 
     await garantirNumerosReservados();
@@ -2851,8 +2858,8 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
     const logradouroImv = document.getElementById('imvLogradouro')?.value || iProc.logradouro || 'XXX';
     const numeroImv = document.getElementById('imvNumero')?.value || iProc.numero || 'XXXX';
     const bairroImv = document.getElementById('imvBairro')?.value || iProc.bairro || 'XXXX';
-    const textoVistoria = document.getElementById('relTextoVistoria')?.value || rProc.texto_vistoria ||
-        'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
+    const textoVistoria = textoInfracoesParaRelatorio(document.getElementById('relTextoVistoria')?.value || rProc.texto_vistoria ||
+        'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio');
 
     const paHtml = pa ? `<p style="margin:0;"><strong>PA:</strong> ${pa}</p>` : '';
 

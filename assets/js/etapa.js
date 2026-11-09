@@ -5000,6 +5000,13 @@ function textoDoRotuloInfracao(el) {
     return limpo || el?.value || '';
 }
 
+// Relatório Fiscal: "verificamos que houve <infrações>". Nomes que não fazem
+// sentido nessa frase ganham a forma certa ("houve limpeza de quintal" →
+// "houve a falta de limpeza de quintal"). Não repete se já estiver escrito assim.
+function textoInfracoesParaRelatorio(texto) {
+    return String(texto || '').replace(/(?<!falta de )limpeza de quintal/gi, 'a falta de limpeza de quintal');
+}
+
 window.obterTextoInfracoesProcesso = function (procObj) {
     const proc = procObj || (typeof processoAtual !== 'undefined' ? processoAtual : null);
 
@@ -12688,7 +12695,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 const dispositivosStrComum = (typeof window.obterTextoInfracoesProcesso === 'function')
                     ? window.obterTextoInfracoesProcesso(processoAtual)
                     : 'falta de limpeza e conservação de imóvel não edificado, inexistência de cercamento e inexistência de passeio';
-                const textoVistoria = rProc.texto_vistoria || fProc.texto_vistoria || dispositivosStrComum;
+                const textoVistoria = textoInfracoesParaRelatorio(rProc.texto_vistoria || fProc.texto_vistoria || dispositivosStrComum);
                 const paHtml = pa ? `<p style="margin:0 0 6px 0;"><strong>PA:</strong> ${pa}</p>` : '';
                 const inscricaoValor = iProc.inscricao || 'Não informada';
                 const inscricaoLabel = inscricaoValor.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'Inscrição Imobiliária';
