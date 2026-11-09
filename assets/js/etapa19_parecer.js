@@ -1,15 +1,15 @@
 /* ============================================================================
    etapa19_parecer.js — Etapa 19: Parecer Jurídico
    ----------------------------------------------------------------------------
-   O jurídico anexa ou cola a defesa, escolhe a decisão (deferido, indeferido
+   O jurídico lê a defesa (registrada no quadro do Auto, na Etapa 18), escolhe a decisão (deferido, indeferido
    ou redução de 50%, conforme a infração) e recebe o texto do parecer já
    montado a partir dos modelos da tabela modelos_parecer. O texto fica
    editável e pode ser copiado.
 
    Depende das globais do etapa.js: processoAtual, notificacaoAtual,
    perfilAtual, supabaseClient, mostrarCarregamento, ocultarCarregamento,
-   moverProcessoParaEtapa, atualizarNotificacaoNoBanco, extrairTextoDoArquivo,
-   obterNotificacoesProcesso, obterDispositivosDoProcesso,
+   moverProcessoParaEtapa, atualizarNotificacaoNoBanco, obterDefesaNotificacao,
+   htmlDefesaSomenteLeitura, obterNotificacoesProcesso, obterDispositivosDoProcesso,
    podeGerenciarEtapaAtual.
    ============================================================================ */
 
@@ -302,7 +302,7 @@
 
     // ------------------------------------------------------------------ HTML
 
-    function html(uploadHtml) {
+    function html() {
         const cartao = 'background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;';
         const titulo = 'margin:0 0 4px 0; color:#1e293b; font-size:1rem; font-weight:700;';
         const sub = 'margin:0 0 12px 0; color:#64748b; font-size:0.85rem;';
@@ -342,11 +342,10 @@
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="${cartao}">
                         <h4 style="${titulo}">1. Defesa</h4>
-                        <p style="${sub}">Anexe o arquivo da defesa ou cole o texto abaixo. O texto de PDFs anexados é copiado automaticamente para o campo.</p>
-                        ${uploadHtml('Clique para selecionar ou arraste a defesa aqui')}
-                        <label for="e19TextoDefesa" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin:4px 0 8px 0;">Texto da defesa</label>
-                        <textarea id="e19TextoDefesa" rows="7" placeholder="Cole aqui o texto da defesa..." style="width:100%; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.92rem; color:#1e293b; resize:vertical; font-family:inherit;"></textarea>
-                        <div id="e19AvisoPdf" hidden style="margin-top:8px; font-size:0.85rem; color:#92400e;"></div>
+                        <p style="${sub}">Registrada no quadro do Auto de Infração, na Etapa 18 (arquivos e/ou texto).</p>
+                        <div id="e19DefesaRegistrada"></div>
+                        <!-- Texto da defesa e dos PDFs anexados: é o que o resumo com IA lê -->
+                        <textarea id="e19TextoDefesa" hidden readonly></textarea>
 
                         <div id="e19BlocoIA" hidden style="margin-top:14px; background:white; border:1px solid #ddd6fe; border-radius:10px; padding:14px;">
                             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
@@ -582,34 +581,6 @@
         aplicarModelo(decisao);
     }
 
-    // Anexos em PDF: copia o texto para o campo da defesa. Roda junto com o
-    // upload genérico do etapa.js, que guarda o arquivo em etapa19.anexos.
-    async function extrairTextoDosAnexos(evento) {
-        const arquivos = Array.from(evento.target.files || []);
-        const area = document.getElementById('e19TextoDefesa');
-        const aviso = document.getElementById('e19AvisoPdf');
-        if (!area || !arquivos.length) return;
-
-        const semTexto = [];
-        for (const arquivo of arquivos) {
-            const ehPdf = arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf');
-            if (!ehPdf) continue;
-            const texto = (await extrairTextoDoArquivo(arquivo) || '').replace(/\s+/g, ' ').trim();
-            if (!texto) {
-                semTexto.push(arquivo.name);
-                continue;
-            }
-            const separador = area.value.trim() ? '\n\n' : '';
-            area.value += `${separador}--- ${arquivo.name} ---\n${texto}`;
-        }
-        if (aviso) {
-            aviso.hidden = semTexto.length === 0;
-            aviso.textContent = semTexto.length
-                ? `Não foi possível ler o texto de: ${semTexto.join(', ')}. O arquivo parece ser digitalizado (imagem). Cole o texto manualmente, se precisar dele.`
-                : '';
-        }
-    }
-
     // ------------------------------------------------------------------- IA
 
     let analiseIA = null;
@@ -801,7 +772,6 @@
         return {
             decisao: document.querySelector('input[name="e19Decisao"]:checked')?.value || '',
             destino: parseInt(document.querySelector('input[name="e19Destino"]:checked')?.value || '0', 10) || null,
-            defesa_texto: document.getElementById('e19TextoDefesa')?.value || '',
             parecer_texto: document.getElementById('e19TextoParecer')?.value || ''
         };
     }
@@ -853,16 +823,16 @@
         const convocado = CONVOCADOS[form.destino];
         const ehDiligencia = !!convocado;
 
-        const temDefesa = !!form.defesa_texto.trim() || (dadosEtapa19().anexos || []).length > 0;
+        const temDefesa = window.defesaTemConteudo(window.obterDefesaNotificacao(notificacaoAtual, 'ai'));
 
         if (ehDiligencia) {
             // Sem parecer tudo bem: o fiscal precisa é da defesa em mãos.
             if (!temDefesa) {
-                alert(`Antes de enviar ${convocado.nome === 'Gerência' ? 'à Gerência' : 'ao Fiscal'}, anexe o arquivo da defesa ou cole o texto dela (item 1).`);
+                alert(`Antes de enviar ${convocado.nome === 'Gerência' ? 'à Gerência' : 'ao Fiscal'}, registre a defesa no quadro do Auto de Infração, na Etapa 18.`);
                 return;
             }
         } else {
-            if (!temDefesa && !confirm('Não há texto nem anexo da defesa (item 1). Deseja avançar mesmo assim?')) {
+            if (!temDefesa && !confirm('Não há defesa registrada para este Auto (item 1). Deseja avançar mesmo assim?')) {
                 return;
             }
             if (!form.decisao) {
@@ -1014,7 +984,13 @@
         // Restaura o rascunho salvo; sem rascunho, carrega o modelo da decisão salva.
         const areaDefesa = document.getElementById('e19TextoDefesa');
         const areaParecer = document.getElementById('e19TextoParecer');
-        if (areaDefesa) areaDefesa.value = dados.defesa_texto || '';
+        const defesaAuto = window.obterDefesaNotificacao(notificacaoAtual, 'ai');
+        if (areaDefesa) areaDefesa.value = window.textoCompletoDefesa(defesaAuto);
+        const areaDefesaRegistrada = document.getElementById('e19DefesaRegistrada');
+        if (areaDefesaRegistrada) {
+            window.ligarEventosBlocoDefesa();
+            areaDefesaRegistrada.innerHTML = window.htmlDefesaSomenteLeitura(notificacaoAtual, 'ai', '');
+        }
         if (dados.parecer_texto) {
             areaParecer.value = dados.parecer_texto;
             const modelo = dados.decisao ? modeloDaDecisao(dados.decisao) : null;
@@ -1044,7 +1020,7 @@
             if (rotulo) rotulo.textContent = `Solicitação para ${quem}`;
             const ajuda = document.getElementById('e19AjudaPedido');
             if (ajuda) {
-                ajuda.innerHTML = `Enviar ${artigo} <strong>não exige o parecer pronto</strong>, mas <strong>exige a defesa</strong> (anexo ou texto colado no item 1). `
+                ajuda.innerHTML = `Enviar ${artigo} <strong>não exige o parecer pronto</strong>, mas <strong>exige a defesa</strong> (registrada no quadro do Auto, na Etapa 18). `
                     + `${convocado.nome === 'Gerência' ? 'A gerência recebe' : 'O fiscal recebe'} a defesa e este pedido, responde por escrito ou com anexos, e o Auto volta para cá.`;
             }
             const campo = document.getElementById('e19PedidoFiscal');
@@ -1072,7 +1048,6 @@
         document.getElementById('e19BtnReaplicar')?.addEventListener('click', recarregarModelo);
         document.getElementById('e19BtnEditarModelo')?.addEventListener('click', abrirEdicaoModelo);
         document.getElementById('e19BtnSalvar')?.addEventListener('click', salvarRascunho);
-        document.getElementById('inputAnexoGenerico')?.addEventListener('change', extrairTextoDosAnexos);
 
         prepararIA();
 
@@ -1244,20 +1219,11 @@
                     : '<div style="background:#fffbeb; border:1px solid #fde68a; color:#78350f; padding:12px 16px; border-radius:10px; font-size:0.9rem;">Não há pedido registrado pelo jurídico para este Auto. Responda mesmo assim, se for o caso.</div>';
             }
 
-            const dados19 = dadosEtapa19();
             const elDefesa = document.getElementById(`${pre}Defesa`);
             if (elDefesa) {
-                // blocoTexto(titulo, corpo, cor, anexos): a lista de anexos estava indo
-                // na posição do título, e por isso aparecia "[object Object]" com o
-                // corpo vazio ("—") e nenhum anexo. Aqui basta a lista de anexos.
-                // Mostra o que houver: os anexos e, quando o jurídico colou, o texto.
-                const anexosDefesa = dados19.anexos || [];
-                const textoDefesa = dados19.defesa_texto
-                    ? `<div style="white-space:pre-wrap; font-size:0.92rem; color:#1e293b; line-height:1.5;">${escaparHtml(dados19.defesa_texto)}</div>`
-                    : '';
-                elDefesa.innerHTML = (anexosDefesa.length || textoDefesa)
-                    ? textoDefesa + htmlAnexos(anexosDefesa)
-                    : '<div style="font-size:0.9rem; color:#64748b;">O jurídico não registrou o texto da defesa nem anexos.</div>';
+                // Defesa registrada no quadro do Auto (Etapa 18)
+                window.ligarEventosBlocoDefesa();
+                elDefesa.innerHTML = window.htmlDefesaSomenteLeitura(notificacaoAtual, 'ai', '');
             }
 
             const elHistorico = document.getElementById(`${pre}Historico`);

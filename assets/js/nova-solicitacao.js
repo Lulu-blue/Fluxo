@@ -1218,7 +1218,6 @@ window.limparBlocoReincidencia = limparBlocoReincidencia;
 const ETAPAS_PROCESSO_EXISTENTE = {
     1: 'Notificação',
     2: 'Andamento',
-    3: 'Defesa',
     4: 'Comprovantes',
     5: 'Análise dilação de prazo',
     10: 'Certidão de cumprimento',
@@ -1258,7 +1257,7 @@ const DOCS_PROCESSO_EXISTENTE = [
     { chave: 'ar_np', titulo: 'AR da Notificação Preliminar', tipo: 'Anexo AR',
       ajuda: 'O aviso de recebimento da notificação.', aPartirDe: 16, soSemDecreto: true, datas: 'ar' },
     { chave: 'defesa_np', titulo: 'Defesa da Notificação Preliminar', tipo: 'Defesa',
-      ajuda: 'A defesa que o contribuinte apresentou contra a notificação.', aPartirDe: 3, soSemDecreto: true },
+      ajuda: 'A defesa que o contribuinte apresentou contra a notificação.', aPartirDe: 13, soSemDecreto: true },
     { chave: 'replica', titulo: 'Réplica', tipo: 'Réplica',
       ajuda: 'A réplica do fiscal à defesa ou à dilação.', aPartirDe: 5 },
     { chave: 'certidao', titulo: 'Certidão', tipo: 'Certidão',

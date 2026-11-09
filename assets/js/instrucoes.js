@@ -257,8 +257,13 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Marque a situação',
-                texto: 'Atendida segue para o encerramento. Defesa segue para o envio da defesa. Dilação de prazo segue para os documentos da dilação. Sem marcação, a notificação aguarda o prazo.',
+                texto: 'Atendida segue para o encerramento. Defesa segue direto para a análise da defesa. Dilação de prazo segue para os documentos da dilação. Sem marcação, a notificação aguarda o prazo.',
                 dica: 'Vencido o prazo sem atendimento, a notificação pode avançar como vencida e seguirá para o Auto de Infração.'
+            },
+            {
+                titulo: 'Registre o protocolo e a defesa',
+                texto: 'No quadro de cada notificação, informe o Nº do protocolo e, logo abaixo, anexe os arquivos da defesa e/ou escreva o texto dela. Use Visualizar para conferir e Excluir para retirar um arquivo. Tudo é salvo na hora.',
+                dica: 'Qualquer usuário pode registrar a defesa; no dia a dia, quem faz é o Administrativo de Posturas. Para avançar com Defesa, ela precisa estar registrada.'
             },
             {
                 titulo: 'Avance a notificação',
@@ -267,31 +272,9 @@ const INSTRUCOES = [
         ],
         checklist: [
             'Conferi o vencimento de cada notificação.',
+            'Registrei o protocolo e a defesa, quando houve.',
             'Marquei a situação conforme o protocolo recebido.',
             'Avancei apenas as notificações prontas.'
-        ]
-    },
-    {
-        id: 'etapa-3',
-        grupo: 'notificacao',
-        etapa: 'Etapa 3',
-        titulo: 'Envio da defesa',
-        responsavel: 'Fiscal',
-        cargos: FISCAL,
-        objetivo: 'Anexar a defesa apresentada pelo contribuinte.',
-        passos: [
-            {
-                titulo: 'Anexe a defesa',
-                texto: 'Anexe os arquivos da defesa (PDF, JPG ou PNG). É possível anexar mais de um.'
-            },
-            {
-                titulo: 'Avance a etapa',
-                texto: 'Com a defesa anexada, o processo segue para a análise da defesa. Sem anexo e com o prazo vencido, segue para a Certidão.'
-            }
-        ],
-        checklist: [
-            'Anexei todos os arquivos da defesa.',
-            'Conferi que a defesa é deste processo.'
         ]
     },
     {
@@ -356,7 +339,7 @@ const INSTRUCOES = [
         passos: [
             {
                 titulo: 'Analise a defesa',
-                texto: 'Leia a defesa e os comprovantes anexados.'
+                texto: 'Leia a defesa registrada na Etapa 2 (arquivos e texto) e os comprovantes anexados.'
             },
             {
                 titulo: 'Registre a decisão',
@@ -474,12 +457,18 @@ const INSTRUCOES = [
                 texto: 'Cada Auto tem o seu quadro, com prazo de defesa, situação e nº do protocolo.'
             },
             {
+                titulo: 'Registre o protocolo e a defesa',
+                texto: 'Logo abaixo do Nº do protocolo, anexe os arquivos da defesa (ou do pedido de desconto) e/ou escreva o texto. Use Visualizar para conferir e Excluir para retirar um arquivo. Tudo é salvo na hora.',
+                dica: 'Qualquer usuário pode registrar; no dia a dia, quem faz é o Administrativo de Posturas. Para avançar com Defesa, ela precisa estar registrada.'
+            },
+            {
                 titulo: 'Escolha a opção',
                 texto: 'Defesa segue para o Parecer Jurídico. Pagamento segue para o encerramento. Não fez o pagamento segue para a certificação do vencimento. Desconto segue para a análise de desconto.'
             }
         ],
         checklist: [
             'Conferi o prazo e o protocolo de cada Auto.',
+            'Registrei a defesa ou o pedido de desconto, quando houve.',
             'Escolhi a opção correta para cada Auto.'
         ]
     },
@@ -492,6 +481,10 @@ const INSTRUCOES = [
         cargos: FISCAL,
         objetivo: 'Decidir o pedido de desconto e emitir a Réplica.',
         passos: [
+            {
+                titulo: 'Leia o pedido',
+                texto: 'O pedido de desconto aparece no topo da tela, como foi registrado no quadro do Auto na Etapa 18.'
+            },
             {
                 titulo: 'Registre a decisão',
                 texto: 'Defira ou indefira. No indeferimento, o motivo é obrigatório.'
@@ -516,8 +509,8 @@ const INSTRUCOES = [
         objetivo: 'Analisar a defesa do Auto e redigir o parecer.',
         passos: [
             {
-                titulo: 'Registre a defesa',
-                texto: 'Anexe o arquivo e/ou cole o texto da defesa. O botão Analisar defesa com IA ajuda na leitura.'
+                titulo: 'Leia a defesa',
+                texto: 'A defesa aparece no item 1, como foi registrada no quadro do Auto na Etapa 18. O botão Analisar defesa com IA ajuda na leitura.'
             },
             {
                 titulo: 'Escolha a decisão',
@@ -533,7 +526,7 @@ const INSTRUCOES = [
             }
         ],
         checklist: [
-            'Registrei a defesa.',
+            'Li a defesa.',
             'Escolhi a decisão.',
             'Revisei o parecer e removi os colchetes.',
             'Escolhi o encaminhamento correto.'
@@ -748,14 +741,10 @@ const PROXIMAS_ETAPAS = {
         { id: 'etapa-18', quando: 'Edital do Auto de Infração' }
     ],
     'etapa-2': [
-        { id: 'etapa-3', quando: 'Defesa' },
+        { id: 'etapa-13', quando: 'Defesa' },
         { id: 'etapa-4', quando: 'Dilação de prazo' },
         { id: 'etapa-29', quando: 'Atendida' },
         { id: 'etapa-10', quando: 'Prazo vencido' }
-    ],
-    'etapa-3': [
-        { id: 'etapa-13', quando: 'Defesa anexada' },
-        { id: 'etapa-10', quando: 'Prazo vencido sem defesa' }
     ],
     'etapa-4': [{ id: 'etapa-5' }],
     'etapa-5': [
@@ -806,7 +795,7 @@ const POSICOES_FLUXOGRAMA = {
     'etapa-1': [2, 2],
     'etapa-17': [1, 3], 'etapa-16': [2, 3], 'etapa-30': [3, 3],
     'etapa-2': [2, 4],
-    'etapa-3': [1, 5], 'etapa-4': [3, 5],
+    'etapa-4': [3, 5],
     'etapa-13': [1, 6], 'etapa-5': [3, 6],
     'etapa-10': [2, 7],
     'etapa-14': [2, 8],

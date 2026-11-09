@@ -306,15 +306,13 @@ flowchart TD
     E17 -->|fluxo NP, prazo 20 dias| E2
     E17 -->|fluxo Auto| E18
 
-    E2 -->|Defesa| E3[3 Envio da 1ª Defesa]
+    E2 -->|Defesa registrada no quadro| E13[13 Fiscal analisa a Defesa]
     E2 -->|Dilação| E4[4 Documentos da Dilação]
     E2 -->|Atendida| E29
     E2 -->|Vencida| E10[10 Certidão]
     E4 --> E5[5 Análise da Dilação]
     E5 -->|defere / indefere no prazo| E2
     E5 -->|indefere vencido| E10
-    E3 -->|defesa anexada| E13[13 Fiscal analisa a Defesa]
-    E3 -->|venceu sem anexo| E10
     E13 -->|defere / indefere| E10
     E10 -->|resolvido| E29
     E10 -->|não resolvido| E14[14 Auto de Infração]
@@ -345,8 +343,7 @@ flowchart TD
 | Etapa | Nome | Responsável | Saídas |
 |---|---|---|---|
 | 1 | Notificação / Auto de Fiscalização | Fiscal | → 16 |
-| 2 | Andamento | Fiscal | por notificação: Defesa → 3; Dilação → 4; Atendida → 29; Vencida → 10 |
-| 3 | Defesa | Fiscal | anexou → 13; venceu sem anexo → 10 |
+| 2 | Andamento | Fiscal | por notificação: Defesa → 13; Dilação → 4; Atendida → 29; Vencida → 10 |
 | 4 | Comprovantes | Fiscal | sempre → 5 |
 | 5 | Análise Dilação de Prazo | Fiscal | defere → 2; indefere no prazo → 2; indefere vencido → 10 |
 | 10 | Certidão de Cumprimento | Fiscal | resolvido → 29; não → 14 |
@@ -423,20 +420,28 @@ documentos das etapas (ver [seção 9](#9-telas-do-painel)).
 Um quadro por notificação, com número, descrição, vencimento e dias restantes. O fiscal
 marca uma opção:
 - **Atendida** → Etapa **29**, direto para a Certidão de Encerramento (não passa pela 10)
-- **Defesa** → Etapa 3 (vai direto para o envio da defesa, sem passar pela Etapa 4)
+- **Defesa** → Etapa **13** (análise da defesa). Exige a defesa registrada no quadro.
 - **Dilação de prazo** → Etapa 4. Fica desabilitada se a notificação já teve dilação.
 - **Em branco:** fica aguardando. Vencido o prazo, pode avançar como "vencida" → Etapa 10, já com "O problema foi resolvido?" marcado como **Não** (gera o Auto, Etapa 14).
+
+**Protocolo e defesa no quadro:** cada notificação ainda na Etapa 2 tem o **Nº do protocolo**
+(`dados.protocolo_np`) e, logo abaixo, a **defesa**: anexar arquivos (vários, com Visualizar e
+Excluir) e/ou escrever o texto. Tudo é salvo na hora, em `notificacoes.dados.defesa_np`
+(`{ texto, anexos: [{ documento_id, nome, url, texto_extraido, … }] }`), e os arquivos também na
+tabela `documentos` (tipo `Defesa`). **Qualquer usuário** pode registrar (o bloco não é
+travado para quem não é o responsável pela etapa); no dia a dia, quem faz é o Administrativo
+de Posturas. Componente: `htmlBlocoDefesaNotificacao` em `etapa.js`.
 
 Cada quadro tem o seu **"Avançar Notificação"**. O botão geral só avança quando **todas**
 estão prontas. Se ainda houver notificação no prazo sem opção marcada, ele avisa.
 O processo **permanece na Etapa 2**: só as notificações andam.
 
-### Etapa 3 — Envio da 1ª Defesa
+### Etapa 3 — Envio da 1ª Defesa (fora do fluxo)
 
-**Quem:** Fiscal. Mostra o vencimento da notificação e o campo para **anexar a defesa**
-(vários arquivos, PDF/JPG/PNG).
-
-**Avanço:** com anexo → **13**. Sem anexo e vencida → **10**. Sem anexo e ainda no prazo, não avança.
+**Não é mais usada:** a defesa é registrada no quadro da notificação, na Etapa 2, e a
+notificação vai direto para a 13. A tela continua no código só para os processos antigos
+que ficaram parados nela (com anexo → 13; sem anexo e vencida → 10). Os anexos antigos
+(`dados.etapa3.anexos`) continuam aparecendo junto da defesa nas Etapas 13 e no PDF.
 
 ### Etapa 4 — Documentos da Dilação de Prazo
 
@@ -452,7 +457,7 @@ opcionais, nenhum deles muda o destino.
 | Situação | Destino |
 |---|---|
 | Dilação (com ou sem anexos) | 5 |
-| Defesa (só processos antigos que ficaram parados aqui) | 3 |
+| Defesa (só processos antigos que ficaram parados aqui) | 3 (fora do fluxo; ver acima) |
 
 ### Etapa 5 — Análise da Dilação de Prazo
 
@@ -483,7 +488,7 @@ Com **Sim**, a última frase da certidão passa a ser *"certificamos que houve o
 
 ### Etapa 13 — Fiscal Analisa a Defesa (1ª)
 
-**Quem:** Fiscal. Mostra os anexos da defesa (Etapa 3) e dos comprovantes (Etapa 4) e gera a **Réplica**.
+**Quem:** Fiscal. Mostra a defesa registrada no quadro da Etapa 2 (texto e arquivos) e os comprovantes (Etapa 4) e gera a **Réplica**.
 - **Defere** → **10** (com "resolvido" já marcado como Sim).
 - **Indeferimento:** motivo obrigatório → **10**.
 
@@ -549,21 +554,24 @@ Cada documento tem o seu edital:
 ### Etapa 18 — Andamento do AI (painel dos Autos)
 
 **Quem:** Gerente de Posturas e Jurídico. Um **card por Auto de Infração**, com prazo de
-defesa, situação, **Nº do protocolo** (Sistema Betha, aparece ao lado da situação no painel) e quatro opções:
+defesa, situação, **Nº do protocolo** (Sistema Betha, aparece ao lado da situação no painel;
+salvo ao sair do campo), logo abaixo a **defesa ou o pedido de desconto** (mesmo bloco da Etapa 2,
+em `dados.defesa_ai`; qualquer usuário registra, em geral o Administrativo de Posturas) e quatro opções:
 
 | Opção | Destino |
 |---|---|
-| Defesa | 19 |
+| Defesa (exige a defesa registrada) | 19 |
 | Pagamento | 29 (para de contar prazo) |
 | Não fez o pagamento | 28 |
-| Desconto | 26 (Análise de Desconto) |
+| Desconto (sem pedido registrado, pede confirmação) | 26 (Análise de Desconto) |
 
 Cada Auto avança pelo próprio botão; o processo fica no painel da 18. Os Autos que já
 avançaram mostram "avançou e está na Etapa X" e abrem ao clicar.
 
 ### Etapa 26 — Análise para dar Desconto
 
-**Quem:** Fiscal de Posturas. **Por Auto.** Chega pela opção **Desconto** da Etapa 18.
+**Quem:** Fiscal de Posturas. **Por Auto.** Chega pela opção **Desconto** da Etapa 18. No
+topo, o **pedido do contribuinte** registrado no quadro do Auto (somente leitura).
 
 A tela é a da Análise de Dilação de Prazo (Etapa 5): decisão (defere / indeferimento),
 motivo obrigatório no indeferimento e a **Réplica** — mesmo modelo e mesma numeração da
@@ -595,7 +603,7 @@ Tela:
 - **Resumo do Auto:** número, infração, autuado, imóvel, inscrição e data da constatação.
 - **Idas e vindas** com Fiscal e Gerência (cada rodada: pedido, resposta, anexos, autor e data).
 - **Documentos do processo:** PDF oficial com capa (o mesmo da Etapa 24).
-1. **Defesa:** anexo e/ou texto colado. O texto de PDFs é extraído sozinho. Inclui o botão **Analisar defesa com IA** ([seção 11](#11-ia-da-defesa-etapa-19)).
+1. **Defesa:** somente leitura, como foi registrada no quadro do Auto na Etapa 18 (texto e arquivos; os antigos `etapa19.anexos` / `defesa_texto` também aparecem). O texto dos PDFs é lido no envio e guardado (`texto_extraido`), e é o que o botão **Analisar defesa com IA** usa ([seção 11](#11-ia-da-defesa-etapa-19)).
 2. **Decisão:** deferido, indeferido e, conforme a infração, **redução de 50%** ou deferimento parcial; há também complementação documental. As opções vêm dos modelos cadastrados para o código da infração.
 3. **Texto do parecer:** modelo preenchido e editável, com botões copiar, recarregar e editar o modelo padrão. **Trechos entre [colchetes] bloqueiam o avanço.**
 4. **Encaminhamento:** 22 (Gerência), 21 (Fiscal) ou 24 (Secretário).

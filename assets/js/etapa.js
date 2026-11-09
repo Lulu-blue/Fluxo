@@ -1373,6 +1373,8 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                 </div>
 
+                <div style="margin-bottom:20px;">${(ligarEventosBlocoDefesa(), htmlDefesaSomenteLeitura(notificacaoAtual, 'ai', 'Pedido do contribuinte (registrado na Etapa 18)'))}</div>
+
                 <div style="display:grid; grid-template-columns:1fr; gap:20px;">
                     <div style="background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
                         <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Decisão: <span style="color:#ef4444;">*</span></label>
@@ -1499,16 +1501,9 @@ function renderizarFormularioDinamico(etapaNum) {
 
         setTimeout(() => { if (window.gerarReplica) window.gerarReplica(); }, 300);
 
-        let anexosEtapa13Html = '';
-        const anexosDefesa13 = notificacaoAtual?.dados?.etapa3?.anexos || [];
-        anexosDefesa13.forEach((anexo, idx) => {
-            anexosEtapa13Html += `
-            <div style="background:white; border:1px solid #cbd5e1; padding:12px 16px; border-radius:10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <div><h4 style="margin:0; font-size:0.95rem; color:#1e293b;">${anexo.nome}</h4><p style="margin:0; font-size:0.8rem; color:#64748b;">Defesa (Etapa 3)</p></div>
-                <button type="button" onclick="window.abrirAnexoNotificacao('etapa3', ${idx})" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-weight:600; cursor:pointer;">Visualizar / Baixar</button>
-            </div>
-            `;
-        });
+        // Defesa registrada no cartão da notificação (Etapa 2)
+        ligarEventosBlocoDefesa();
+        let anexosEtapa13Html = `<div style="margin-bottom:8px;">${htmlDefesaSomenteLeitura(notificacaoAtual, 'np', 'Defesa do contribuinte')}</div>`;
         const anexosRenda13 = notificacaoAtual?.dados?.etapa4?.anexos || [];
         anexosRenda13.forEach((anexo, idx) => {
             anexosEtapa13Html += `
@@ -8636,6 +8631,276 @@ function formatarDiasRestantes(dataVencimentoISO) {
     return { texto: `${diffDias} dias restantes`, vencido: false, dias: diffDias };
 }
 
+// ── Protocolo e defesa do contribuinte (cartões das Etapas 2 e 18) ─────────
+// A defesa (ou o pedido de desconto) é registrada no cartão da própria
+// notificação: na Etapa 2 para a Notificação Preliminar / Auto de Fiscalização
+// (chave 'np') e na Etapa 18 para o Auto de Infração (chave 'ai'). Qualquer
+// usuário pode registrar; quem faz no dia a dia é o Administrativo de Posturas.
+// Fica em notificacoes.dados.defesa_np / defesa_ai:
+//   { texto, anexos: [{ documento_id, nome, url, tipo, texto_extraido, data_upload, enviado_por }],
+//     atualizado_em, atualizado_por }
+// Os arquivos também vão para a tabela documentos (tipo 'Defesa').
+// O protocolo da Etapa 2 fica em dados.protocolo_np; o da 18 em dados.numero_protocolo.
+function obterDefesaNotificacao(notif, chave) {
+    const d = notif?.dados || {};
+    const salvo = d[`defesa_${chave}`] || {};
+    let texto = salvo.texto || '';
+    const anexos = [...(salvo.anexos || [])];
+    // Registros antigos: a defesa da NP era anexada na Etapa 3 e a do Auto na 19
+    if (chave === 'np') {
+        (d.etapa3?.anexos || []).forEach((a, i) => anexos.push({ ...a, legado: 'etapa3', indice_legado: i }));
+    } else {
+        (d.etapa19?.anexos || []).forEach(a => anexos.push({ ...a, legado: 'etapa19' }));
+        if (!texto && d.etapa19?.defesa_texto) texto = d.etapa19.defesa_texto;
+    }
+    return { texto, anexos };
+}
+window.obterDefesaNotificacao = obterDefesaNotificacao;
+
+function defesaTemConteudo(defesa) {
+    return !!(String(defesa?.texto || '').trim() || (defesa?.anexos || []).length);
+}
+window.defesaTemConteudo = defesaTemConteudo;
+
+// Texto para leitura (Etapa 19 / IA): o escrito e o que foi lido dos PDFs
+function textoCompletoDefesa(defesa) {
+    const partes = [];
+    if (String(defesa?.texto || '').trim()) partes.push(defesa.texto.trim());
+    (defesa?.anexos || []).forEach(a => {
+        if (a.texto_extraido) partes.push(`--- ${a.nome || 'Anexo'} ---\n${a.texto_extraido}`);
+    });
+    return partes.join('\n\n');
+}
+window.textoCompletoDefesa = textoCompletoDefesa;
+
+function escaparHtmlDefesa(t) {
+    return String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Lista de anexos com Visualizar (e Excluir, quando editável)
+function htmlListaAnexosDefesa(defesa, editavel) {
+    if (!defesa.anexos.length) {
+        return '<div style="font-size:0.84rem; color:#64748b;">Nenhum arquivo anexado.</div>';
+    }
+    return defesa.anexos.map((a, i) => `
+        <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px; background:white;">
+            <span style="flex:1; min-width:0; font-size:0.85rem; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escaparHtmlDefesa(a.nome)}">${escaparHtmlDefesa(a.nome || 'Arquivo')}</span>
+            <button type="button" data-defesa-ver="${i}" style="padding:4px 10px; border-radius:6px; border:1px solid #bfdbfe; background:#eff6ff; color:#1e40af; font-size:0.8rem; font-weight:600; cursor:pointer;">Visualizar</button>
+            ${editavel && !a.legado ? `<button type="button" data-defesa-excluir="${i}" style="padding:4px 10px; border-radius:6px; border:1px solid #fecaca; background:white; color:#b91c1c; font-size:0.8rem; font-weight:600; cursor:pointer;">Excluir</button>` : ''}
+        </div>`).join('');
+}
+
+// Bloco do cartão: protocolo (só na Etapa 2; na 18 já existe), anexos e texto
+function htmlBlocoDefesaNotificacao(notif, chave) {
+    if (!notif?.id) return '';
+    const defesa = obterDefesaNotificacao(notif, chave);
+    const rotulo = chave === 'ai' ? 'Defesa ou pedido de desconto' : 'Defesa';
+    const protocoloHtml = chave === 'np' ? `
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <label style="font-size:0.88rem; color:#334155; font-weight:600;">Nº do protocolo</label>
+            <input type="text" data-defesa-protocolo value="${escaparHtmlDefesa(notif.dados?.protocolo_np || '')}" placeholder="Ex: 12345/2026"
+                style="padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.88rem; color:#0f172a; min-width:180px;">
+            <span style="font-size:0.8rem; color:#64748b;">Protocolo do Sistema Betha em que a defesa chegou.</span>
+        </div>` : '';
+    return `
+        <div class="bloco-defesa" data-notif-id="${escaparHtmlDefesa(notif.id)}" data-chave="${chave}"
+            style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+            ${protocoloHtml}
+            <div style="font-size:0.88rem; color:#334155; font-weight:700;">${rotulo} <span style="font-weight:400; color:#64748b;">(anexe o documento e/ou escreva o texto)</span></div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <label style="padding:7px 14px; border:1px solid #cbd5e1; border-radius:8px; background:white; color:#0f172a; font-size:0.85rem; font-weight:600; cursor:pointer;">
+                    + Anexar arquivos
+                    <input type="file" data-defesa-arquivos multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
+                </label>
+                <span data-defesa-status style="font-size:0.82rem; color:#64748b;"></span>
+            </div>
+            <div data-defesa-lista style="display:flex; flex-direction:column; gap:6px;">${htmlListaAnexosDefesa(defesa, true)}</div>
+            <textarea data-defesa-texto rows="3" placeholder="Ou escreva aqui o texto da ${chave === 'ai' ? 'defesa ou do pedido' : 'defesa'}..."
+                style="width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.9rem; color:#0f172a; resize:vertical; background:white;">${escaparHtmlDefesa(notif.dados?.[`defesa_${chave}`]?.texto || '')}</textarea>
+        </div>`;
+}
+
+// Defesa só para leitura (Etapas 13, 19, 21/22 e 26)
+function htmlDefesaSomenteLeitura(notif, chave, titulo) {
+    const defesa = obterDefesaNotificacao(notif, chave);
+    const corpo = defesaTemConteudo(defesa)
+        ? `${defesa.texto ? `<div style="white-space:pre-wrap; font-size:0.92rem; color:#1e293b; line-height:1.5; margin-bottom:8px;">${escaparHtmlDefesa(defesa.texto)}</div>` : ''}
+           <div style="display:flex; flex-direction:column; gap:6px;">${defesa.anexos.length ? htmlListaAnexosDefesa(defesa, false) : ''}</div>`
+        : `<div style="font-size:0.9rem; color:#64748b;">Nenhuma defesa registrada. Ela é registrada no quadro da notificação, na Etapa ${chave === 'ai' ? '18' : '2'}.</div>`;
+    return `
+        <div class="bloco-defesa-leitura" data-notif-id="${escaparHtmlDefesa(notif?.id || '')}" data-chave="${chave}"
+            style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px;">
+            ${titulo ? `<div style="font-weight:700; color:#1e293b; font-size:0.95rem; margin-bottom:8px;">${titulo}</div>` : ''}
+            ${corpo}
+        </div>`;
+}
+window.htmlDefesaSomenteLeitura = htmlDefesaSomenteLeitura;
+
+// Grava o campo na notificação: lê o que está no banco, junta e grava, para não
+// apagar o que outra tela tenha gravado. Atualiza as cópias em memória.
+async function gravarCampoNaNotificacao(notifId, campo, valor) {
+    const { data: atual, error } = await supabaseClient.from('notificacoes').select('dados').eq('id', notifId).maybeSingle();
+    if (error) throw error;
+    const dados = { ...(atual?.dados || {}), [campo]: valor };
+    await atualizarNotificacaoNoBanco(notifId, { dados });
+    const copias = [...(processoAtual?.notificacoes || [])];
+    if (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) copias.push(notificacaoAtual);
+    copias.forEach(n => {
+        if (String(n.id) === String(notifId)) n.dados = { ...(n.dados || {}), [campo]: valor };
+    });
+    return dados;
+}
+
+function acharNotificacaoEmMemoria(notifId) {
+    const lista = [...(processoAtual?.notificacoes || [])];
+    if (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) lista.push(notificacaoAtual);
+    return lista.find(n => String(n.id) === String(notifId)) || { id: notifId, dados: {} };
+}
+
+function atualizarListaBlocoDefesa(bloco) {
+    const notif = acharNotificacaoEmMemoria(bloco.dataset.notifId);
+    const defesa = obterDefesaNotificacao(notif, bloco.dataset.chave);
+    const lista = bloco.querySelector('[data-defesa-lista]');
+    if (lista) lista.innerHTML = htmlListaAnexosDefesa(defesa, !bloco.classList.contains('bloco-defesa-leitura'));
+}
+
+async function salvarDefesaDoBloco(bloco, alterar) {
+    const notifId = bloco.dataset.notifId;
+    const chave = bloco.dataset.chave;
+    const notif = acharNotificacaoEmMemoria(notifId);
+    const atual = notif.dados?.[`defesa_${chave}`] || {};
+    const novo = alterar({ texto: atual.texto || '', anexos: [...(atual.anexos || [])] });
+    novo.atualizado_em = new Date().toISOString();
+    novo.atualizado_por = perfilAtual?.nome || '';
+    await gravarCampoNaNotificacao(notifId, `defesa_${chave}`, novo);
+}
+
+// Eventos dos blocos, ligados uma vez no documento (os cartões são redesenhados)
+let eventosBlocoDefesaLigados = false;
+function ligarEventosBlocoDefesa() {
+    if (eventosBlocoDefesaLigados) return;
+    eventosBlocoDefesaLigados = true;
+
+    document.addEventListener('change', async (e) => {
+        const bloco = e.target.closest('.bloco-defesa');
+        if (!bloco) return;
+        const status = bloco.querySelector('[data-defesa-status]');
+        try {
+            if (e.target.matches('[data-defesa-protocolo]')) {
+                await gravarCampoNaNotificacao(bloco.dataset.notifId, 'protocolo_np', e.target.value.trim());
+                if (status) status.textContent = 'Protocolo salvo.';
+            } else if (e.target.matches('[data-defesa-texto]')) {
+                const texto = e.target.value;
+                await salvarDefesaDoBloco(bloco, d => ({ ...d, texto }));
+                if (status) status.textContent = 'Texto salvo.';
+            } else if (e.target.matches('[data-defesa-arquivos]')) {
+                const arquivos = Array.from(e.target.files || []);
+                e.target.value = '';
+                const novos = [];
+                for (const arquivo of arquivos) {
+                    if (status) status.textContent = `Enviando ${arquivo.name}...`;
+                    const url = typeof window.uploadParaCloudinary === 'function'
+                        ? await window.uploadParaCloudinary(arquivo, 'semac_documentos')
+                        : null;
+                    if (!url) {
+                        alert(`Não foi possível enviar o arquivo "${arquivo.name}".`);
+                        continue;
+                    }
+                    // Texto dos PDFs, para a leitura do Jurídico e o resumo com IA
+                    let textoExtraido = '';
+                    if (arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf')) {
+                        try {
+                            textoExtraido = (await extrairTextoDoArquivo(arquivo) || '').replace(/\s+/g, ' ').trim();
+                        } catch (errTexto) {
+                            console.warn('Não foi possível ler o texto do PDF da defesa:', errTexto);
+                        }
+                    }
+                    const { data: doc, error } = await supabaseClient.from('documentos').insert([{
+                        processo_id: processoAtual.id,
+                        notificacao_id: bloco.dataset.notifId,
+                        tipo: 'Defesa',
+                        nome_arquivo: arquivo.name,
+                        url,
+                        mime_type: arquivo.type || null,
+                        gerado_automaticamente: false,
+                        usuario_id: perfilAtual?.id || null
+                    }]).select('id').single();
+                    if (error) throw error;
+                    novos.push({
+                        documento_id: doc.id,
+                        nome: arquivo.name,
+                        url,
+                        tipo: arquivo.type || '',
+                        texto_extraido: textoExtraido,
+                        data_upload: new Date().toISOString(),
+                        enviado_por: perfilAtual?.nome || ''
+                    });
+                }
+                if (novos.length) {
+                    await salvarDefesaDoBloco(bloco, d => ({ ...d, anexos: [...d.anexos, ...novos] }));
+                    if (status) status.textContent = novos.length === 1 ? 'Arquivo anexado.' : `${novos.length} arquivos anexados.`;
+                } else if (status) {
+                    status.textContent = '';
+                }
+                atualizarListaBlocoDefesa(bloco);
+            }
+        } catch (err) {
+            console.error('Erro ao salvar a defesa:', err);
+            if (status) status.textContent = '';
+            alert('Não foi possível salvar: ' + (err?.message || err));
+        }
+    });
+
+    document.addEventListener('click', async (e) => {
+        const bloco = e.target.closest('.bloco-defesa, .bloco-defesa-leitura');
+        if (!bloco) return;
+        const btnVer = e.target.closest('[data-defesa-ver]');
+        const btnExcluir = e.target.closest('[data-defesa-excluir]');
+        if (!btnVer && !btnExcluir) return;
+        const notif = acharNotificacaoEmMemoria(bloco.dataset.notifId);
+        const defesa = obterDefesaNotificacao(notif, bloco.dataset.chave);
+        const anexo = defesa.anexos[Number((btnVer || btnExcluir).dataset[btnVer ? 'defesaVer' : 'defesaExcluir'])];
+        if (!anexo) return;
+
+        if (btnVer) {
+            if (anexo.legado === 'etapa3' && !anexo.url) {
+                window.abrirAnexoNotificacao('etapa3', anexo.indice_legado);
+                return;
+            }
+            let url = anexo.url || anexo.dataUrl || anexo.base64;
+            if (!url && anexo.documento_id) {
+                const { data } = await supabaseClient.from('documentos').select('url').eq('id', anexo.documento_id).maybeSingle();
+                url = data?.url;
+            }
+            if (url) window.abrirOuBaixarDocumento(url, anexo.nome || 'Defesa');
+            else alert('Arquivo não encontrado.');
+            return;
+        }
+
+        if (!confirm(`Excluir o arquivo "${anexo.nome}" da defesa?`)) return;
+        try {
+            if (anexo.documento_id) await supabaseClient.from('documentos').delete().eq('id', anexo.documento_id);
+            await salvarDefesaDoBloco(bloco, d => ({
+                ...d,
+                anexos: d.anexos.filter(a => !(a.documento_id === anexo.documento_id && a.nome === anexo.nome))
+            }));
+            atualizarListaBlocoDefesa(bloco);
+        } catch (err) {
+            console.error('Erro ao excluir arquivo da defesa:', err);
+            alert('Não foi possível excluir: ' + (err?.message || err));
+        }
+    });
+}
+
+window.ligarEventosBlocoDefesa = ligarEventosBlocoDefesa;
+
+// Os cartões desabilitam tudo para quem não é o responsável pela etapa; o bloco
+// da defesa e o protocolo continuam liberados para qualquer usuário
+function liberarBlocosDefesa(container) {
+    container?.querySelectorAll('.bloco-defesa input, .bloco-defesa textarea, .bloco-defesa button, .input-protocolo-auto')
+        .forEach(el => { el.disabled = false; });
+}
+
 async function renderizarEtapa2(proc) {
     const modo = determinarModoAcesso(proc, perfilAtual);
 
@@ -8656,6 +8921,7 @@ async function renderizarEtapa2(proc) {
     if (topbar2) topbar2.style.display = 'none';
     if (formulario2) formulario2.style.display = '';
 
+    ligarEventosBlocoDefesa();
     const notificacoes = await obterNotificacoesEtapa2(proc);
     const lista = document.getElementById('listaNotificacoesEtapa2');
     if (lista) {
@@ -8770,6 +9036,7 @@ async function renderizarEtapa2(proc) {
                     </div>
                     ${prazoHtml}
                     ${controlesHtml}
+                    ${!jaAvancou && !ehAutoNotif ? htmlBlocoDefesaNotificacao(n, 'np') : ''}
                     ${btnAvancarHtml}
                 `;
                 lista.appendChild(card);
@@ -8798,6 +9065,7 @@ async function renderizarEtapa2(proc) {
         formulario2.querySelectorAll('input, select, textarea, button').forEach(el => {
             el.disabled = true;
         });
+        liberarBlocosDefesa(formulario2);
     }
 }
 
@@ -8860,7 +9128,7 @@ function configurarEventosEtapa2() {
             }
 
             // Ignora cliques em controles interativos do card
-            if (e.target.closest('input, label, button, select, textarea')) return;
+            if (e.target.closest('input, label, button, select, textarea, .bloco-defesa')) return;
 
             const card = e.target.closest('.card-notificacao-etapa2');
             if (card) {
@@ -9013,12 +9281,12 @@ function anexoEtapa4Por(chave, notif) {
 window.anexoEtapa4Por = anexoEtapa4Por;
 
 // Para onde cada notificação vai ao sair da Etapa 2:
-//   defesa   -> Etapa 3 (Defesa)
+//   defesa   -> Etapa 13 (a defesa é registrada no próprio cartão; a Etapa 3 saiu)
 //   dilação  -> Etapa 4 (Documentos da Dilação de Prazo)
 //   atendida -> Etapa 29 (não há o que certificar na Etapa 10)
 //   vencida sem atendimento -> Etapa 10
 const ETAPA_DESTINO_SAIDA_ETAPA_2 = {
-    defesa: 3,
+    defesa: 13,
     dilacao: 4,
     atendida: 29,
     pendente_vencida: 10
@@ -9051,6 +9319,14 @@ async function avancarEtapa2() {
     await salvarEtapa2();
 
     const notificacoes = await obterNotificacoesEtapa2(processoAtual);
+
+    const semDefesaRegistrada = notificacoes.filter(n => n.status === 'defesa'
+        && !defesaTemConteudo(obterDefesaNotificacao(n, 'np')));
+    if (semDefesaRegistrada.length) {
+        ocultarCarregamento();
+        alert(`Marcada como "Defesa" sem a defesa registrada: ${semDefesaRegistrada.map(n => n.numero).join(', ')}.\n\nAnexe o arquivo ou escreva o texto da defesa no quadro da notificação.`);
+        return;
+    }
 
     const temDefesa = notificacoes.some(n => n.status === 'defesa');
     const temDilacao = notificacoes.some(n => n.status === 'dilacao');
@@ -9092,7 +9368,7 @@ async function avancarEtapa2() {
         const dataMov = new Date().toISOString();
 
         // Cada notificação vai para o destino do próprio status: num processo com
-        // defesa e dilação juntas, uma vai para a Etapa 3 e a outra para a Etapa 4.
+        // defesa e dilação juntas, uma vai para a Etapa 13 e a outra para a Etapa 4.
         const idDaEtapa = {};
         const buscarIdEtapa = async (numero) => {
             if (idDaEtapa[numero] !== undefined) return idDaEtapa[numero];
@@ -9220,6 +9496,11 @@ async function avancarNotificacaoEtapa2(index) {
 
     const info = formatarDiasRestantes(notif.data_vencimento);
     const isVencida = info.vencido;
+
+    if (statusSelecionado === 'defesa' && !defesaTemConteudo(obterDefesaNotificacao(notif, 'np'))) {
+        alert('Para avançar com "Defesa", anexe o arquivo da defesa ou escreva o texto dela no quadro desta notificação.');
+        return;
+    }
 
     if (!statusSelecionado || statusSelecionado === 'pendente') {
         if (!isVencida) {
@@ -9640,6 +9921,7 @@ async function renderizarEtapa18(proc) {
                     </div>
                     ${prazoHtml}
                     ${protocoloHtml}
+                    ${jaAvancou ? '' : htmlBlocoDefesaNotificacao(a, 'ai')}
                     ${controlesHtml}
                     ${btnAvancarHtml}
                 `;
@@ -9652,15 +9934,31 @@ async function renderizarEtapa18(proc) {
         formulario18.querySelectorAll('input, select, textarea, button').forEach(el => {
             el.disabled = true;
         });
+        liberarBlocosDefesa(formulario18);
     }
 }
 
 function configurarEventosEtapa18() {
     const btnSalvar = document.getElementById('btnSalvarEtapa18');
     if (btnSalvar) btnSalvar.addEventListener('click', salvarEtapa18);
+    ligarEventosBlocoDefesa();
 
     const container = document.getElementById('listaAutosEtapa18');
     if (container) {
+        // O protocolo é gravado ao sair do campo: qualquer usuário pode registrar
+        // (quem registra é o Administrativo de Posturas, junto com a defesa)
+        container.addEventListener('change', async (e) => {
+            const inp = e.target.closest('.input-protocolo-auto');
+            if (!inp) return;
+            const index = parseInt(inp.dataset.index, 10);
+            try {
+                const autos = await obterAutosEtapa18(processoAtual);
+                if (autos[index]) await gravarProtocoloDoAuto(autos[index], index, inp.value);
+            } catch (errProt) {
+                console.error('Erro ao salvar o Nº do protocolo:', errProt);
+                alert('Não foi possível salvar o Nº do protocolo: ' + (errProt?.message || errProt));
+            }
+        });
         container.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-avancar-auto-18');
             if (btn) {
@@ -9747,6 +10045,17 @@ async function avancarAutoEtapa18(index) {
     const opcao = selectedRadio.value;
     const autos = await obterAutosEtapa18(processoAtual);
     const item = autos[index];
+
+    // A defesa (ou o pedido de desconto) é registrada no próprio cartão
+    const defesaAuto = obterDefesaNotificacao(item, 'ai');
+    if (opcao === 'defesa' && !defesaTemConteudo(defesaAuto)) {
+        alert('Para avançar com "Defesa", anexe o arquivo da defesa ou escreva o texto dela no quadro deste Auto de Infração.');
+        return;
+    }
+    if (opcao === 'desconto' && !defesaTemConteudo(defesaAuto)
+        && !confirm('Não há pedido de desconto registrado no quadro deste Auto. Avançar mesmo assim?')) {
+        return;
+    }
 
     mostrarCarregamento('Avançando Auto de Infração...');
 
