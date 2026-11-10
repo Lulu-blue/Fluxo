@@ -719,7 +719,7 @@ async function prepararEImprimirOficio(vaiVirarDefinitivo) {
         * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body { margin: 0; padding: 0; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
         img { max-width: 100%; height: auto; }
-        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
     `;
 
     const printIframe = document.createElement('iframe');
@@ -1322,7 +1322,7 @@ async function baixarOficioEtapa15Pdf() {
         * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
         img { max-width: 100%; height: auto; }
-        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
     `;
 
     const printIframe = document.createElement('iframe');

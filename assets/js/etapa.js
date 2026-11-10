@@ -4230,7 +4230,7 @@ window.abrirOuBaixarDocumento = function (url, nomePadrao) {
 
         const printDoc = printIframe.contentWindow.document;
         printDoc.open();
-        printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeTitulo}</title><style>* { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; } img { max-width: 100%; height: auto; } @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }</style></head><body>${url}</body></html>`);
+        printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeTitulo}</title><style>* { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; } img { max-width: 100%; height: auto; } @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }</style></head><body>${url}</body></html>`);
         printDoc.close();
 
         setTimeout(() => {
@@ -4528,7 +4528,7 @@ window.baixarDocUnico = async function (tipo) {
                     * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Carlito', Arial, sans-serif; color: #000; max-width: 820px; margin: 0 auto; }
                     img { max-width: 100%; height: auto; }
-                    @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+                    @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
                 `;
 
                 const printIframe = document.createElement('iframe');
@@ -12360,7 +12360,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
                 img { max-width: 100%; height: auto; }
-                @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+                @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
             `;
 
             const printIframe = document.createElement('iframe');
@@ -12417,7 +12417,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
                 img { max-width: 100%; height: auto; }
-                @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+                @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
             `;
 
             const printIframe = document.createElement('iframe');
@@ -12801,7 +12801,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
             * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
             img { max-width: 100%; height: auto; }
-            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
         `;
 
         const printIframe = document.createElement('iframe');
@@ -12975,7 +12975,7 @@ async function imprimirDocumentoOficial() {
             .doc-sec-heading { font-size: 11.5pt; font-weight: bold; margin-bottom: 4px; }
             .doc-info-grid { display: grid; grid-template-columns: 1.35fr 1fr; column-gap: 20px; font-size: 11pt; line-height: 1.45; }
             table { border-collapse: collapse; }
-            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+            @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
         `;
 
         let iframe = document.getElementById('iframeImpressaoOficial');
@@ -13076,7 +13076,7 @@ async function imprimirDocumentoOficial() {
         .receipt-right { border-left: 2px solid #000; padding: 8px 10px; display: flex; flex-direction: column; justify-content: space-between; }
         .receipt-date-slashes { text-align: center; font-size: 14pt; margin-bottom: 12px; }
         .doc-footer-orange-bar { width: 100%; height: 0; border-top: 16px solid #F78C26 !important; background-color: #F78C26 !important; }
-        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
     `;
 
     let iframe = document.getElementById('iframeImpressaoOficial');
@@ -15867,8 +15867,10 @@ window.anexarHtmlPaginadoAoPdf = async function (mergedPdf, htmlPagina) {
 
     const alturaPagina = Math.round(canvas.width * (841.89 / 595.28));
     // Da 2ª página em diante o texto desce o mesmo respiro do topo da 1ª
-    // (padding de 50px), em vez de começar colado na borda da folha
+    // (padding de 50px), em vez de começar colado na borda da folha. Embaixo,
+    // toda página deixa ~15 mm livres
     const margemTopo = Math.round(50 * (canvas.width / 794));
+    const margemBaixo = Math.round(57 * (canvas.width / 794));
     let y = 0;
     let primeira = true;
     while (y < canvas.height) {
@@ -15879,7 +15881,7 @@ window.anexarHtmlPaginadoAoPdf = async function (mergedPdf, htmlPagina) {
         const ctx = fatia.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, fatia.width, fatia.height);
-        const altura = Math.min(alturaPagina - topo, canvas.height - y);
+        const altura = Math.min(alturaPagina - topo - margemBaixo, canvas.height - y);
         ctx.drawImage(canvas, 0, y, canvas.width, altura, 0, topo, canvas.width, altura);
 
         const img = await mergedPdf.embedJpg(fatia.toDataURL('image/jpeg', 0.95));
@@ -18097,7 +18099,7 @@ window.baixarOficioGfpPdf = async function () {
         * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; }
         img { max-width: 100%; height: auto; }
-        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 0 0; } @page :first { margin-top: 0; } }
+        @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }
     `;
 
     const printIframe = document.createElement('iframe');
