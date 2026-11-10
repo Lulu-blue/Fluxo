@@ -30,9 +30,9 @@ window.ehCargoMeioAmbiente = function (cargo) {
 // multa padrão é essa quantidade de UPFMD; sem ele, a multa padrão é `valor`.
 // As providências são fixas; só o prazo delas é escolhido pelo fiscal.
 // atencao aparece antes da penalidade; atencaoPosMulta, depois.
-const PENALIDADE_CODEMA = 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização dentro do prazo legal sujeitará o infrator às penalidades previstas pelo Anexo único da Resolução CODEMA nº 01 de 27 de abril de 2023, multa no importe de <strong>R$ {VALOR}</strong>';
-const PENALIDADE_ART133_I = 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização dentro do prazo legal sujeitará o infrator às penalidades previstas pelo artigo 133, I, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong>';
-const PENALIDADE_ART133_II = 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização dentro do prazo legal sujeitará o infrator às penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong>';
+const PENALIDADE_CODEMA = 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas pelo Anexo único da Resolução CODEMA nº 01 de 27 de abril de 2023, multa no importe de <strong>R$ {VALOR}</strong>';
+const PENALIDADE_ART133_I = 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas pelo artigo 133, I, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong>';
+const PENALIDADE_ART133_II = 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong>';
 
 const INFRACOES_MEIO_AMBIENTE = [
     {
@@ -140,7 +140,7 @@ const INFRACOES_MEIO_AMBIENTE = [
         dispositivo: 'Lei Municipal nº 5451/2002, artigos 9 e 135, alínea “c”, do Decreto Municipal nº 4748/2002.',
         providencias: ['Apresentar dados e/ou informações solicitadas pelo órgão competente e/ou CODEMA.'],
         valor: 11980.00,
-        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização dentro do prazo legal sujeitará o infrator às penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong> para infrações graves.'
+        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong> para infrações graves.'
     },
     {
         // Uma infração só, com o tipo de efluente escolhido pelo fiscal
@@ -200,7 +200,7 @@ const INFRACOES_MEIO_AMBIENTE = [
         providencias: ['Análise da água, diante da necessidade de esclarecimento técnico uma vez que foram constatadas irregularidades'],
         atencao: 'essa análise deverá observar as determinações e as especificações estabelecidas pelo órgão ambiental municipal.',
         valor: 11980.00,
-        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização dentro do prazo legal sujeitará o infrator às penalidades previstas no Art. 135, “p”, do Decreto Municipal nº 4748/2002 multa no importe de <strong>R$ {VALOR}</strong>.'
+        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas no Art. 135, “p”, do Decreto Municipal nº 4748/2002 multa no importe de <strong>R$ {VALOR}</strong>.'
     },
     {
         codigo: 'MA-18',
@@ -209,7 +209,7 @@ const INFRACOES_MEIO_AMBIENTE = [
         dispositivo: 'Lei Municipal nº 5451/2002; artigo 64 do Decreto Municipal nº 4748/2002 (CAPÍTULO V – DA POLUIÇÃO VISUAL EM LOGRADOUROS PÚBLICOS); artigos 11, inciso I e 16 do Decreto 9493/2010 e artigo 111 e seguintes da Lei 6.907/2008.',
         providencias: ['Proceder com a imediata retirada do outdoor no local autuado, instalado no passeio público em desconformidade com a legislação vigente.'],
         upfmd: 10,
-        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização dentro do prazo legal sujeitará o infrator às penalidades previstas pelo artigo 142, da Lei 6.907/2008, multa no valor de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ {VALOR}</strong>. Também será realizada a retirada do Outdoor.'
+        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas pelo artigo 142, da Lei 6.907/2008, multa no valor de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ {VALOR}</strong>. Também será realizada a retirada do Outdoor.'
     },
     {
         codigo: 'MA-19',
