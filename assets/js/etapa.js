@@ -8764,6 +8764,16 @@ function acharNotificacaoEmMemoria(notifId) {
     return lista.find(n => String(n.id) === String(notifId)) || { id: notifId, dados: {} };
 }
 
+// Etapa em que a notificação está (é a do cartão: 2 para NP/AF, 18 para o Auto).
+// Sem ela na memória, busca o id da etapa pelo número.
+async function idEtapaDoBlocoDefesa(bloco) {
+    const notif = acharNotificacaoEmMemoria(bloco.dataset.notifId);
+    if (notif.etapa_atual_id) return notif.etapa_atual_id;
+    const numero = bloco.dataset.chave === 'ai' ? 18 : 2;
+    const { data } = await supabaseClient.from('etapas').select('id').eq('numero', numero).maybeSingle();
+    return data?.id || numero;
+}
+
 function atualizarListaBlocoDefesa(bloco) {
     const notif = acharNotificacaoEmMemoria(bloco.dataset.notifId);
     const defesa = obterDefesaNotificacao(notif, bloco.dataset.chave);
@@ -8825,6 +8835,8 @@ function ligarEventosBlocoDefesa() {
                     const { data: doc, error } = await supabaseClient.from('documentos').insert([{
                         processo_id: processoAtual.id,
                         notificacao_id: bloco.dataset.notifId,
+                        // documentos.etapa_id é obrigatório: a etapa do cartão (2 ou 18)
+                        etapa_id: await idEtapaDoBlocoDefesa(bloco),
                         tipo: 'Defesa',
                         nome_arquivo: arquivo.name,
                         url,

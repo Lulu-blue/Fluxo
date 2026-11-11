@@ -260,7 +260,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     {
         codigo: 'MA-24',
         rotulo: 'Utilização ou detonação de explosivos sem autorização da FUMED',
-        descricao: 'Constatamos a utilização ou detonação de explosivos ou similares sem autorização da FUMED.',
+        descricao: 'Utilização\detonação de explosivos ou similares sem autorização da FUMED.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 16 e 135, “i”, do Decreto Municipal nº 4748/2002.',
         providencias: ['Paralisar a utilização ou detonação de explosivos ou similares no local.'],
         valor: 571.00,
@@ -269,7 +269,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     {
         codigo: 'MA-25',
         rotulo: 'Serviços de construção civil em horário especial sem autorização da FUMED',
-        descricao: 'Constatamos a utilização ou detonação de explosivos ou similares sem autorização da FUMED.',
+        descricao: 'Utilização\detonação de explosivos ou similares sem autorização da FUMED.',
         dispositivo: 'Lei Municipal nº 5451/2002, artigos 14, 15, 18 e 135, “j”, do Decreto Municipal nº 4748/2002.',
         providencias: ['Paralisar a utilização ou detonação de explosivos ou similares no local.'],
         valor: 571.00,
@@ -278,7 +278,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     {
         codigo: 'MA-26',
         rotulo: 'Ruído de 10 dB a 40 dB acima do permitido',
-        descricao: 'Constatamos através do laudo que foi gerado ruído de 10 dB a 40 dB acima do permitido.',
+        descricao: 'Fica demonstrador pelo laudo que foi gerado ruído de 10 dB a 40 dB acima do permitido.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 14, 15 e 135, “k”, do Decreto Municipal nº 4748/2002 e Lei Municipal nº 5380/2002.',
         providencias: ['Suspender o ruído gerado acima do permitido, conforme dispõe o artigo 131, III, do Decreto Municipal nº 4748/2002.'],
         valor: 6275.50,
