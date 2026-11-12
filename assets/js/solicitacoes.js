@@ -186,6 +186,45 @@ function montarBadgeSituacao(situacao, quantidade) {
 
 // Processos que têm ALGUMA notificação na situação escolhida (filtro Situação).
 // Devolve null quando a coluna não existe no banco.
+// Filtro Etapa: processos que têm alguma notificação / Auto nessa etapa, mais os
+// que estão nela e não têm notificação nenhuma (ex.: Etapa 1, ainda sem NP
+// criada). Um processo parado na Etapa 2 cujas notificações já andaram não
+// entra no filtro "Etapa 2". Devolve null se a consulta falhar (usa a etapa do processo).
+async function obterProcessosPorEtapa(numeroEtapa) {
+    try {
+        const { data: notifsNaEtapa, error: errNotif } = await supabaseClient
+            .from('notificacoes')
+            .select('processo_id')
+            .eq('etapa_atual_id', numeroEtapa);
+        if (errNotif) throw errNotif;
+        const ids = new Set((notifsNaEtapa || []).map(n => n.processo_id).filter(Boolean));
+
+        const { data: procsNaEtapa, error: errProc } = await supabaseClient
+            .from('processos')
+            .select('id')
+            .eq('etapa_atual_id', numeroEtapa);
+        if (errProc) throw errProc;
+        const candidatos = (procsNaEtapa || []).map(p => p.id).filter(id => !ids.has(id));
+
+        if (candidatos.length) {
+            const comNotificacao = new Set();
+            for (let i = 0; i < candidatos.length; i += 200) {
+                const { data, error } = await supabaseClient
+                    .from('notificacoes')
+                    .select('processo_id')
+                    .in('processo_id', candidatos.slice(i, i + 200));
+                if (error) throw error;
+                (data || []).forEach(n => comNotificacao.add(n.processo_id));
+            }
+            candidatos.filter(id => !comNotificacao.has(id)).forEach(id => ids.add(id));
+        }
+        return [...ids];
+    } catch (e) {
+        console.warn('[PAINEL] Erro no filtro de etapa:', e?.message || e);
+        return null;
+    }
+}
+
 async function obterProcessosPorSituacaoDaNotificacao(situacao) {
     try {
         const { data, error } = await supabaseClient
@@ -215,7 +254,7 @@ async function anexarSituacoesDasNotificacoes(itens) {
     try {
         const { data, error } = await supabaseClient
             .from('notificacoes')
-            .select('id, numero, processo_id, situacao, dados')
+            .select('id, numero, processo_id, situacao, status, etapa_atual_id, dados')
             .in('processo_id', ids);
 
         if (error) {
@@ -245,7 +284,16 @@ async function anexarSituacoesDasNotificacoes(itens) {
             (pasPorProcesso[n.processo_id] = pasPorProcesso[n.processo_id] || []).push({ id: n.id, numero: n.numero || '' });
         });
 
+        // Etapa de cada NP/AF/Auto, para o filtro Responsável pela etapa
+        const etapasPorProcesso = {};
+        (data || []).forEach(n => {
+            if (!n.processo_id) return;
+            (etapasPorProcesso[n.processo_id] = etapasPorProcesso[n.processo_id] || [])
+                .push({ etapa: parseInt(n.etapa_atual_id, 10), situacao: n.situacao, status: n.status });
+        });
+
         itens.forEach(item => {
+            item.etapas_notificacoes = etapasPorProcesso[item.id] || [];
             item.notificacoes_pa = (pasPorProcesso[item.id] || [])
                 .sort((a, b) => String(a.numero).localeCompare(String(b.numero), 'pt-BR', { numeric: true }));
             item.situacoes_notificacoes = porProcesso[item.id] || null;
@@ -404,6 +452,15 @@ function itemPertenceAoCargo(item, cargoAlvo) {
     const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || ETAPAS_POR_CARGO[cargoAlvo] || ETAPAS_POR_CARGO['Gerente'] || [];
     if (etapasPermitidas.length === 0) return true;
 
+    // O processo fica parado na Etapa 2 e cada NP, AF e Auto segue a sua: vale a
+    // etapa de cada notificação ainda em aberto. A etapa do processo só conta
+    // quando ele não tem notificação (ex.: Etapa 1).
+    if (Array.isArray(item.etapas_notificacoes) && item.etapas_notificacoes.length) {
+        const fechada = n => ['encerrado', 'cancelado', 'arquivado'].includes(n.situacao) || n.status === 'encerrada';
+        return item.etapas_notificacoes.some(n => !fechada(n) && etapasPermitidas.includes(n.etapa));
+    }
+
+    // Sem a etapa das notificações (consulta falhou ou processo antigo), regra anterior:
     // 1. Verificar se a etapa calculada do processo pertence ao cargo
     const etapaCalculada = calcularEtapaProcesso(item);
     if (etapasPermitidas.includes(etapaCalculada)) return true;
@@ -908,7 +965,14 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             query = query.lte('created_at', filtros.dataFim + 'T23:59:59');
         }
         if (filtros.etapa) {
-            query = query.eq('etapa_atual_id', parseInt(filtros.etapa));
+            // A etapa é de cada notificação / Auto (o processo fica parado na 2 e
+            // cada NP, AF e AI segue a sua): ver obterProcessosPorEtapa
+            const idsPorEtapa = await obterProcessosPorEtapa(parseInt(filtros.etapa, 10));
+            if (idsPorEtapa) {
+                query = query.in('id', idsPorEtapa.length ? idsPorEtapa : ['00000000-0000-0000-0000-000000000000']);
+            } else {
+                query = query.eq('etapa_atual_id', parseInt(filtros.etapa, 10));
+            }
         }
         // Ordenar por vencimento: data mais antiga primeiro — vencidos há mais tempo,
         // depois os que vencem hoje e os mais próximos de vencer. Processos sem prazo
@@ -932,6 +996,10 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             query = query.ilike('dados->>descricao', `%${filtros.descricao}%`);
         }
         if (filtros.criador === 'meu' && currentUserId) {
+            query = query.eq('fiscal_id', currentUserId);
+        }
+        if (filtros.responsavel === 'minha_responsabilidade' && currentUserId
+            && normalizarCargo(window.currentUserProfile?.cargo || '') === 'Fiscal de Postura') {
             query = query.eq('fiscal_id', currentUserId);
         }
         if (filtros.decreto === 'sim') {
@@ -1013,10 +1081,14 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         let novosDados = rawData;
         if (filtros.responsavel) {
             let cargoAlvo = filtros.responsavel;
+            // Fiscal (Posturas ou Meio Ambiente): além da etapa do cargo, o processo tem que ser dele
+            let exigirDono = false;
             if (cargoAlvo === 'minha_responsabilidade') {
                 cargoAlvo = window.currentUserProfile?.cargo || 'Fiscal de Postura';
+                exigirDono = normalizarCargo(cargoAlvo) === 'Fiscal de Postura';
             }
-            novosDados = rawData.filter(item => itemPertenceAoCargo(item, cargoAlvo));
+            novosDados = rawData.filter(item => itemPertenceAoCargo(item, cargoAlvo)
+                && (!exigirDono || (currentUserId && item.fiscal_id === currentUserId)));
         }
 
         if (append) {

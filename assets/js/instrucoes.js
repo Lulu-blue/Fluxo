@@ -319,7 +319,8 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Emita a Réplica',
-                texto: 'Confira a prévia, baixe, assine e anexe a Réplica assinada. O anexo é obrigatório para avançar.'
+                texto: 'Confira a prévia, baixe, assine e anexe a Réplica assinada. O anexo é obrigatório para avançar.',
+                dica: 'Abaixo da Réplica, em Outros documentos, anexe o que mais precisar (opcional; pode arrastar ou colar). No processo unificado eles entram logo depois da Réplica.'
             }
         ],
         checklist: [
@@ -348,7 +349,8 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Emita a Réplica',
-                texto: 'Confira a prévia, adicione imagens se necessário, baixe, assine e anexe a Réplica assinada.'
+                texto: 'Confira a prévia, adicione imagens se necessário, baixe, assine e anexe a Réplica assinada.',
+                dica: 'Abaixo da Réplica, em Outros documentos, anexe o que mais precisar (opcional; pode arrastar ou colar). No processo unificado eles entram logo depois da Réplica.'
             }
         ],
         checklist: [
@@ -491,7 +493,8 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Anexe a Réplica assinada',
-                texto: 'Deferido, o Auto segue para o Gerente ajustar o valor. Indeferido, volta ao andamento do Auto.'
+                texto: 'Deferido, o Auto segue para o Gerente ajustar o valor. Indeferido, volta ao andamento do Auto.',
+                dica: 'Abaixo da Réplica, em Outros documentos, anexe o que mais precisar (opcional). No processo unificado eles entram logo depois da Réplica.'
             }
         ],
         checklist: [

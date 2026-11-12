@@ -440,9 +440,13 @@ body {
 }
 
 .filters-panel.open {
-    /* Nunca passa da altura da tela: em telas baixas o próprio painel rola */
-    max-height: min(400px, calc(100vh - var(--painel-header-h, 68px) - 48px));
+    /* Sem o limite fixo de 400px: com ele, os filtros passavam da altura e o
+       painel virava uma área com rolagem — e o Chrome fecha a lista de um
+       <select> quando a área em volta rola (abria e fechava ao clicar). Só
+       rola se não couber na tela inteira. */
+    max-height: calc(100vh - var(--painel-header-h, 68px) - 48px);
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 24px;
     opacity: 1;
     margin-bottom: 20px;

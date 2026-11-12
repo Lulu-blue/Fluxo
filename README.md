@@ -165,8 +165,16 @@ Quem pode **editar e avançar** cada etapa (`ETAPAS_POR_CARGO` em `assets/js/eta
 
 Regras extras:
 - **Fiscal que não criou o processo** só vê o documento oficial (modo leitura).
-- **Etapa 16** é exclusiva do Administrativo de Posturas. Os outros cargos veem só a NP ou o Auto, com o aviso "Retorno do AR em andamento".
+- **Etapa 16**: só o Administrativo de Posturas edita. Gerente, Fiscal do processo e os demais cargos veem a tela inteira (dados do AR, tentativas e anexos, com Visualizar), mas sem escrever, anexar, remover ou salvar. A mudança automática para a Etapa 30 (15 dias sem retorno) só roda quando quem edita abre a etapa.
 - Fora das etapas do seu cargo, o usuário vê o processo em **modo visualização**, sem editar.
+- **Dev ao anexar documento assinado** (NP/AF, Relatório Fiscal, Réplica, Certidão, Auto):
+  o seletor aceita qualquer formato e, se a conferência acusar outro documento ou outro número,
+  aparece "[Dev] Anexar mesmo assim?" em vez do bloqueio (`usuarioEhDev`,
+  `validarDocumentoAnexado`). Depois de anexar a **Réplica** ou a **Certidão**, o Dev pode
+  não usar a numeração reservada: o número sai da notificação e dos documentos, volta para a
+  fila (`devolver_numero`) e `dados.numeracao_dispensada` impede reservar outro
+  (`oferecerNaoGastarNumeracaoDev`). O número do **Auto de Infração** não entra nisso: ele é
+  obrigatório no registro do Auto (`autos_infracao.numero`).
 - O cargo é normalizado pelo texto: "interface" ou "gerente + jurídic" = Gerente de Interface Jurídica; "admin" = Administrativo; e assim por diante.
 - No painel, as linhas são coloridas pelo cargo responsável pela etapa atual (Gerente, Jurídico, Administrativo, Secretário).
 
@@ -376,7 +384,7 @@ Primeira tela depois do login (`painel.html`, `assets/js/solicitacoes.js`).
 **Filtros:** Protocolo, Nº Relatório Fiscal, Nº Auto de Infração, Nº Notificação / Auto de
 Fiscalização (aceita os dois formatos de número), Nome do Solicitante, CPF/CNPJ do
 contribuinte, Código reduzido do imóvel, Fiscal responsável, Data início/fim, Etapa,
-Situação, Decreto (todos, só por decreto ou só sem decreto), Tipo de infração (várias) e
+Situação, Decreto (todos, só por decreto ou só sem decreto), Etapa (pela etapa de cada NP/AF e Auto; o processo em si só conta quando não tem notificação, já que ele fica parado na 2), Responsável pela etapa (também pela etapa de cada NP/AF e Auto em aberto; em "Minha responsabilidade", o Fiscal de Posturas ou de Meio Ambiente vê só os processos que são dele), Tipo de infração (várias) e
 Ordenar por (prazo). Acima da tabela aparece o total de processos do filtro (ex.: "Total: 42
 processos por decreto"), além de quantos já foram carregados; com o filtro Responsável, que é
 aplicado no navegador, só a quantidade carregada.
@@ -582,6 +590,12 @@ para avançar.
 |---|---|---|
 | Defere | 25 (Gerente Cumpre o Decreto) | O valor da multa é ajustado lá, pelo desfecho escolhido |
 | Indefere | 18 | O Auto volta ao painel com o card em branco, para outra opção |
+
+**Outros documentos (Etapas 5, 13 e 26):** abaixo do anexo da Réplica, o mesmo bloco da
+defesa (anexar, arrastar, colar com Ctrl+V, Visualizar e Excluir), só com arquivos e opcional.
+Fica em `notificacoes.dados.anexos_replica` e na tabela `documentos` com o tipo
+`Anexo da Réplica`. No PDF do processo entram **logo depois da Réplica** da mesma notificação
+(no índice, como "Anexo da Réplica"); se a Réplica não estiver no PDF, entram no fim.
 
 O texto da réplica é "Após análise do pedido de desconto informamos que seu pedido foi
 deferido / indeferido, pois …".

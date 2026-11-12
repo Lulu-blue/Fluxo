@@ -1342,6 +1342,7 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
+                <div style="margin-top:16px;">${(ligarEventosBlocoDefesa(), htmlBlocoDefesaNotificacao(notificacaoAtual, 'replica'))}</div>
                 ${htmlBotaoParalisarJuridico()}
             </div>
         `;
@@ -1399,6 +1400,7 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
+                <div style="margin-top:16px;">${(ligarEventosBlocoDefesa(), htmlBlocoDefesaNotificacao(notificacaoAtual, 'replica'))}</div>
             </div>
         `;
     } else if (etapaNum === 11) {
@@ -1561,6 +1563,7 @@ function renderizarFormularioDinamico(etapaNum) {
                     </div>
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
+                <div style="margin-top:16px;">${(ligarEventosBlocoDefesa(), htmlBlocoDefesaNotificacao(notificacaoAtual, 'replica'))}</div>
                 ${htmlBotaoParalisarJuridico()}
             </div>
         `;
@@ -2958,11 +2961,9 @@ function determinarModoAcesso(proc, perfil) {
     const etapaAtual = parseInt(proc.etapa_atual || proc.etapa_atual_id || 1, 10);
     const isCriador = perfil.id && proc.fiscal_id && perfil.id === proc.fiscal_id;
 
-    // Etapa 1.2 (Dados do AR) é exclusiva do Administrativo de Posturas.
-    // Qualquer outro cargo visualiza apenas o PDF da Notificação Preliminar.
-    if (etapaAtual === 16 && cargo !== 'Administrativo de Posturas') {
-        return MODO_ACESSO.LEITURA_NOTIFICACAO;
-    }
+    // Etapa 1.2 / 16 (Dados do AR): só o Administrativo de Posturas edita. Os
+    // outros cargos veem a tela (visualização), sem escrever, anexar ou salvar —
+    // cai na regra geral abaixo, porque a 16 só está no mapa do Administrativo.
 
     // Fiscal de Posturas que NÃO é o criador: só visualiza a notificação
     if (cargo === 'Fiscal de Postura' && !isCriador) {
@@ -4235,6 +4236,7 @@ window.abrirOuBaixarDocumento = function (url, nomePadrao) {
 
         setTimeout(() => {
             printIframe.contentWindow.focus();
+            window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
             printIframe.contentWindow.print();
             setTimeout(() => {
                 if (document.body.contains(printIframe)) {
@@ -4547,6 +4549,7 @@ window.baixarDocUnico = async function (tipo) {
 
                 setTimeout(() => {
                     printIframe.contentWindow.focus();
+                    window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
                     printIframe.contentWindow.print();
                     setTimeout(() => {
                         if (document.body.contains(printIframe)) {
@@ -5850,6 +5853,70 @@ function numeroDocumentoCanonico(a, b) {
     return `${x}/${y}`;
 }
 
+// ── Dev: anexar sem conferência e sem gastar numeração ──────────────────────
+// O Dev pode anexar qualquer arquivo nos campos de documento assinado: o seletor
+// deixa de filtrar o formato e, quando a conferência acusa outro documento ou
+// outro número, ele confirma em vez de ser bloqueado. Os outros cargos seguem
+// bloqueados.
+function usuarioEhDev() {
+    return typeof normalizarCargo === 'function' && normalizarCargo(perfilAtual?.cargo) === 'Dev';
+}
+
+// Tira o filtro de formato (accept) do seletor de arquivos na hora do clique
+document.addEventListener('click', (e) => {
+    if (e.target?.matches?.('input[type="file"]') && usuarioEhDev()) e.target.removeAttribute('accept');
+}, true);
+
+// Depois de anexar a Réplica ou a Certidão, o Dev pode não usar o número que o
+// sistema reservou (ex.: anexou um documento pronto, com outro número). O número
+// sai da notificação e dos documentos e só então volta para a fila (nessa ordem:
+// devolver antes faria o reservar_numero achar o número ainda em uso e descartá-lo).
+// dados.numeracao_dispensada impede que a etapa reserve outro ao redesenhar.
+async function oferecerNaoGastarNumeracaoDev(tipo) {
+    if (!usuarioEhDev() || !notificacaoAtual?.id) return;
+    const ehReplica = tipo === 'replica';
+    const numero = String(ehReplica
+        ? (notificacaoAtual.dados?.numero_replica || '')
+        : (notificacaoAtual.numero_certidao || notificacaoAtual.dados?.certidao_numero_sequencial || '')).trim();
+    if (!numero) return;
+    const nome = ehReplica ? 'da Réplica' : 'da Certidão';
+    if (!confirm(`[Dev] Não usar a numeração ${nome} (nº ${numero})?\n\nO número sai deste documento e volta para a fila: o próximo documento gerado reaproveita. O arquivo anexado continua.`)) return;
+
+    try {
+        mostrarCarregamento('Devolvendo a numeração...');
+        const tiposDoc = ehReplica ? ['Réplica'] : ['Certidão', 'Certidão Sem Defesa', 'Certidão Assinada'];
+        await supabaseClient.from('documentos').update({ numero_sequencial: null })
+            .eq('notificacao_id', notificacaoAtual.id).in('tipo', tiposDoc);
+
+        const dados = { ...(notificacaoAtual.dados || {}) };
+        dados.numeracao_dispensada = { ...(dados.numeracao_dispensada || {}), [tipo]: numero };
+        if (ehReplica) delete dados.numero_replica;
+        else delete dados.certidao_numero_sequencial;
+        const alteracao = { dados };
+        if (!ehReplica) alteracao.numero_certidao = null;
+        await atualizarNotificacaoNoBanco(notificacaoAtual.id, alteracao);
+        notificacaoAtual.dados = dados;
+        if (!ehReplica) notificacaoAtual.numero_certidao = null;
+
+        if (!ehReplica && String(processoAtual?.dados?.certidao_numero_sequencial || '') === numero) {
+            delete processoAtual.dados.certidao_numero_sequencial;
+            await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+        }
+
+        const { error } = await supabaseClient.rpc('devolver_numero', {
+            p_numero: numero,
+            p_categoria: ehReplica ? 'Réplica' : 'Certidão Sem Defesa'
+        });
+        if (error) throw error;
+        ocultarCarregamento();
+        alert(`Numeração ${numero} devolvida.`);
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao devolver a numeração:', err);
+        alert('Não foi possível devolver a numeração: ' + (err?.message || err));
+    }
+}
+
 // Confere se o PDF anexado é mesmo o documento esperado: procura o título
 // (ex.: "AUTO DE INFRACAO") e o número que vem logo depois dele. PDF digitalizado
 // ou imagem não tem texto para ler, então nesses casos a pessoa confirma.
@@ -5883,11 +5950,12 @@ async function validarDocumentoAnexado(file, { titulo, nomeDocumento, numeroEspe
         .sort((a, b) => a.pos - b.pos)[0];
     if (!texto.includes(tituloNorm) || (primeiro && primeiro.t !== tituloNorm && titulos[tituloNorm])) {
         ocultarCarregamento();
-        alert('Documento incompatível!\n\n'
+        const motivo = 'Documento incompatível!\n\n'
             + (primeiro && primeiro.t !== tituloNorm
                 ? `O arquivo anexado parece ser ${titulos[primeiro.t]}, e não o documento esperado (${nomeDocumento}).`
-                : `O arquivo anexado não contém o texto "${titulo}".`)
-            + '\n\nVerifique se selecionou o documento correto.');
+                : `O arquivo anexado não contém o texto "${titulo}".`);
+        if (usuarioEhDev()) return confirm(`${motivo}\n\n[Dev] Anexar mesmo assim?`);
+        alert(motivo + '\n\nVerifique se selecionou o documento correto.');
         return false;
     }
 
@@ -5912,10 +5980,11 @@ async function validarDocumentoAnexado(file, { titulo, nomeDocumento, numeroEspe
 
     if (!bateu) {
         ocultarCarregamento();
-        alert(`Numeração incompatível!\n\n${artigo.toUpperCase()} ${nomeDocumento} anexad${artigo} não corresponde a este processo.\n\n`
+        const motivo = `Numeração incompatível!\n\n${artigo.toUpperCase()} ${nomeDocumento} anexad${artigo} não corresponde a este processo.\n\n`
             + `Número esperado: ${numeroEsperado}`
-            + (encontrados.length ? `\nNúmero encontrado no arquivo: ${[...new Set(encontrados)].join(', ')}` : '')
-            + '\n\nVerifique o arquivo e tente novamente.');
+            + (encontrados.length ? `\nNúmero encontrado no arquivo: ${[...new Set(encontrados)].join(', ')}` : '');
+        if (usuarioEhDev()) return confirm(`${motivo}\n\n[Dev] Anexar mesmo assim?`);
+        alert(motivo + '\n\nVerifique o arquivo e tente novamente.');
         return false;
     }
     return true;
@@ -6426,6 +6495,7 @@ window.configurarEventosReplicaAssinada = function () {
                     window.exibirReplicaAssinadaUI(file.name, fileUrl);
                     ocultarCarregamento();
                     alert('Réplica assinada anexada com sucesso!');
+                    await oferecerNaoGastarNumeracaoDev('replica');
                 })();
             } catch (errVal) {
                 ocultarCarregamento();
@@ -6742,6 +6812,7 @@ window.configurarEventosCertidaoAssinada = function () {
                     window.exibirCertidaoAssinadaUI(file.name, fileUrl);
                     ocultarCarregamento();
                     alert('Certidão assinada anexada com sucesso!');
+                    await oferecerNaoGastarNumeracaoDev('certidao');
                 })();
             } catch (errVal) {
                 ocultarCarregamento();
@@ -8434,7 +8505,7 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
             </div>
 
             <!-- 10. RODAPÉ LARANJA -->
-            <div class="doc-footer-orange-bar"></div>
+            <div class="doc-footer-orange-bar doc-rodape-laranja"></div>
         </div>
     `;
 
@@ -8648,8 +8719,19 @@ function formatarDiasRestantes(dataVencimentoISO) {
 //     atualizado_em, atualizado_por }
 // Os arquivos também vão para a tabela documentos (tipo 'Defesa').
 // O protocolo da Etapa 2 fica em dados.protocolo_np; o da 18 em dados.numero_protocolo.
+//
+// O mesmo bloco serve para os "Outros documentos" das Etapas 5, 13 e 26 (chave
+// 'replica'): só arquivos, em dados.anexos_replica, tipo 'Anexo da Réplica'. No
+// PDF do processo eles entram logo depois da Réplica.
+const CONFIG_BLOCO_ANEXOS = {
+    np: { campo: 'defesa_np', tipo: 'Defesa' },
+    ai: { campo: 'defesa_ai', tipo: 'Defesa' },
+    replica: { campo: 'anexos_replica', tipo: 'Anexo da Réplica' }
+};
+
 function obterDefesaNotificacao(notif, chave) {
     const d = notif?.dados || {};
+    if (chave === 'replica') return { texto: '', anexos: [...(d.anexos_replica?.anexos || [])] };
     const salvo = d[`defesa_${chave}`] || {};
     let texto = salvo.texto || '';
     const anexos = [...(salvo.anexos || [])];
@@ -8701,7 +8783,8 @@ function htmlListaAnexosDefesa(defesa, editavel) {
 function htmlBlocoDefesaNotificacao(notif, chave) {
     if (!notif?.id) return '';
     const defesa = obterDefesaNotificacao(notif, chave);
-    const rotulo = chave === 'ai' ? 'Defesa ou pedido de desconto' : 'Defesa';
+    const ehReplica = chave === 'replica';
+    const rotulo = ehReplica ? 'Outros documentos' : (chave === 'ai' ? 'Defesa ou pedido de desconto' : 'Defesa');
     const protocoloHtml = chave === 'np' ? `
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <label style="font-size:0.88rem; color:#334155; font-weight:600;">Nº do protocolo</label>
@@ -8710,20 +8793,21 @@ function htmlBlocoDefesaNotificacao(notif, chave) {
             <span style="font-size:0.8rem; color:#64748b;">Protocolo do Sistema Betha em que a defesa chegou.</span>
         </div>` : '';
     return `
-        <div class="bloco-defesa" data-notif-id="${escaparHtmlDefesa(notif.id)}" data-chave="${chave}"
-            style="display:flex; flex-direction:column; gap:10px; padding:12px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+        <div class="bloco-defesa" tabindex="0" data-notif-id="${escaparHtmlDefesa(notif.id)}" data-chave="${chave}"
+            style="outline:none; "display:flex; flex-direction:column; gap:10px; padding:12px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
             ${protocoloHtml}
-            <div style="font-size:0.88rem; color:#334155; font-weight:700;">${rotulo} <span style="font-weight:400; color:#64748b;">(anexe o documento e/ou escreva o texto)</span></div>
+            <div style="font-size:0.88rem; color:#334155; font-weight:700;">${rotulo} <span style="font-weight:400; color:#64748b;">${ehReplica ? '(opcional; no processo unificado entram logo depois da Réplica)' : '(anexe o documento e/ou escreva o texto)'}</span></div>
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                 <label style="padding:7px 14px; border:1px solid #cbd5e1; border-radius:8px; background:white; color:#0f172a; font-size:0.85rem; font-weight:600; cursor:pointer;">
                     + Anexar arquivos
-                    <input type="file" data-defesa-arquivos multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>
+                    <input type="file" data-defesa-arquivos multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.zip,application/zip,application/x-zip-compressed" hidden>
                 </label>
+                <span style="font-size:0.8rem; color:#64748b;">ou arraste os arquivos para este quadro (ou clique nele e cole com Ctrl+V)</span>
                 <span data-defesa-status style="font-size:0.82rem; color:#64748b;"></span>
             </div>
             <div data-defesa-lista style="display:flex; flex-direction:column; gap:6px;">${htmlListaAnexosDefesa(defesa, true)}</div>
-            <textarea data-defesa-texto rows="3" placeholder="Ou escreva aqui o texto da ${chave === 'ai' ? 'defesa ou do pedido' : 'defesa'}..."
-                style="width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.9rem; color:#0f172a; resize:vertical; background:white;">${escaparHtmlDefesa(notif.dados?.[`defesa_${chave}`]?.texto || '')}</textarea>
+            ${ehReplica ? '' : `<textarea data-defesa-texto rows="3" placeholder="Ou escreva aqui o texto da ${chave === 'ai' ? 'defesa ou do pedido' : 'defesa'}..."
+                style="width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.9rem; color:#0f172a; resize:vertical; background:white;">${escaparHtmlDefesa(notif.dados?.[`defesa_${chave}`]?.texto || '')}</textarea>`}
         </div>`;
 }
 
@@ -8769,7 +8853,8 @@ function acharNotificacaoEmMemoria(notifId) {
 async function idEtapaDoBlocoDefesa(bloco) {
     const notif = acharNotificacaoEmMemoria(bloco.dataset.notifId);
     if (notif.etapa_atual_id) return notif.etapa_atual_id;
-    const numero = bloco.dataset.chave === 'ai' ? 18 : 2;
+    const numero = bloco.dataset.chave === 'ai' ? 18
+        : bloco.dataset.chave === 'replica' ? parseInt(processoAtual?.etapa_atual || 5, 10) : 2;
     const { data } = await supabaseClient.from('etapas').select('id').eq('numero', numero).maybeSingle();
     return data?.id || numero;
 }
@@ -8785,11 +8870,74 @@ async function salvarDefesaDoBloco(bloco, alterar) {
     const notifId = bloco.dataset.notifId;
     const chave = bloco.dataset.chave;
     const notif = acharNotificacaoEmMemoria(notifId);
-    const atual = notif.dados?.[`defesa_${chave}`] || {};
+    const campo = CONFIG_BLOCO_ANEXOS[chave].campo;
+    const atual = notif.dados?.[campo] || {};
     const novo = alterar({ texto: atual.texto || '', anexos: [...(atual.anexos || [])] });
+    if (chave === 'replica') delete novo.texto;
     novo.atualizado_em = new Date().toISOString();
     novo.atualizado_por = perfilAtual?.nome || '';
-    await gravarCampoNaNotificacao(notifId, `defesa_${chave}`, novo);
+    await gravarCampoNaNotificacao(notifId, campo, novo);
+}
+
+// Envia os arquivos da defesa (do seletor, arrastados ou colados com Ctrl+V)
+async function enviarArquivosDefesa(bloco, arquivos) {
+    if (!arquivos.length) return;
+    const status = bloco.querySelector('[data-defesa-status]');
+    try {
+        const novos = [];
+        for (const arquivo of arquivos) {
+            if (status) status.textContent = `Enviando ${arquivo.name}...`;
+            const url = typeof window.uploadParaCloudinary === 'function'
+                ? await window.uploadParaCloudinary(arquivo, 'semac_documentos')
+                : null;
+            if (!url) {
+                alert(`Não foi possível enviar o arquivo "${arquivo.name}".`);
+                continue;
+            }
+            // Texto dos PDFs, para a leitura do Jurídico e o resumo com IA
+            let textoExtraido = '';
+            if (arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf')) {
+                try {
+                    textoExtraido = (await extrairTextoDoArquivo(arquivo) || '').replace(/\s+/g, ' ').trim();
+                } catch (errTexto) {
+                    console.warn('Não foi possível ler o texto do PDF da defesa:', errTexto);
+                }
+            }
+            const { data: doc, error } = await supabaseClient.from('documentos').insert([{
+                processo_id: processoAtual.id,
+                notificacao_id: bloco.dataset.notifId,
+                // documentos.etapa_id é obrigatório: a etapa do cartão (2 ou 18)
+                etapa_id: await idEtapaDoBlocoDefesa(bloco),
+                tipo: CONFIG_BLOCO_ANEXOS[bloco.dataset.chave].tipo,
+                nome_arquivo: arquivo.name,
+                url,
+                mime_type: arquivo.type || null,
+                gerado_automaticamente: false,
+                usuario_id: perfilAtual?.id || null
+            }]).select('id').single();
+            if (error) throw error;
+            novos.push({
+                documento_id: doc.id,
+                nome: arquivo.name,
+                url,
+                tipo: arquivo.type || '',
+                texto_extraido: textoExtraido,
+                data_upload: new Date().toISOString(),
+                enviado_por: perfilAtual?.nome || ''
+            });
+        }
+        if (novos.length) {
+            await salvarDefesaDoBloco(bloco, d => ({ ...d, anexos: [...d.anexos, ...novos] }));
+            if (status) status.textContent = novos.length === 1 ? 'Arquivo anexado.' : `${novos.length} arquivos anexados.`;
+        } else if (status) {
+            status.textContent = '';
+        }
+        atualizarListaBlocoDefesa(bloco);
+    } catch (err) {
+        console.error('Erro ao anexar a defesa:', err);
+        if (status) status.textContent = '';
+        alert('Não foi possível salvar: ' + (err?.message || err));
+    }
 }
 
 // Eventos dos blocos, ligados uma vez no documento (os cartões são redesenhados)
@@ -8813,61 +8961,46 @@ function ligarEventosBlocoDefesa() {
             } else if (e.target.matches('[data-defesa-arquivos]')) {
                 const arquivos = Array.from(e.target.files || []);
                 e.target.value = '';
-                const novos = [];
-                for (const arquivo of arquivos) {
-                    if (status) status.textContent = `Enviando ${arquivo.name}...`;
-                    const url = typeof window.uploadParaCloudinary === 'function'
-                        ? await window.uploadParaCloudinary(arquivo, 'semac_documentos')
-                        : null;
-                    if (!url) {
-                        alert(`Não foi possível enviar o arquivo "${arquivo.name}".`);
-                        continue;
-                    }
-                    // Texto dos PDFs, para a leitura do Jurídico e o resumo com IA
-                    let textoExtraido = '';
-                    if (arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf')) {
-                        try {
-                            textoExtraido = (await extrairTextoDoArquivo(arquivo) || '').replace(/\s+/g, ' ').trim();
-                        } catch (errTexto) {
-                            console.warn('Não foi possível ler o texto do PDF da defesa:', errTexto);
-                        }
-                    }
-                    const { data: doc, error } = await supabaseClient.from('documentos').insert([{
-                        processo_id: processoAtual.id,
-                        notificacao_id: bloco.dataset.notifId,
-                        // documentos.etapa_id é obrigatório: a etapa do cartão (2 ou 18)
-                        etapa_id: await idEtapaDoBlocoDefesa(bloco),
-                        tipo: 'Defesa',
-                        nome_arquivo: arquivo.name,
-                        url,
-                        mime_type: arquivo.type || null,
-                        gerado_automaticamente: false,
-                        usuario_id: perfilAtual?.id || null
-                    }]).select('id').single();
-                    if (error) throw error;
-                    novos.push({
-                        documento_id: doc.id,
-                        nome: arquivo.name,
-                        url,
-                        tipo: arquivo.type || '',
-                        texto_extraido: textoExtraido,
-                        data_upload: new Date().toISOString(),
-                        enviado_por: perfilAtual?.nome || ''
-                    });
-                }
-                if (novos.length) {
-                    await salvarDefesaDoBloco(bloco, d => ({ ...d, anexos: [...d.anexos, ...novos] }));
-                    if (status) status.textContent = novos.length === 1 ? 'Arquivo anexado.' : `${novos.length} arquivos anexados.`;
-                } else if (status) {
-                    status.textContent = '';
-                }
-                atualizarListaBlocoDefesa(bloco);
+                await enviarArquivosDefesa(bloco, arquivos);
             }
         } catch (err) {
             console.error('Erro ao salvar a defesa:', err);
             if (status) status.textContent = '';
             alert('Não foi possível salvar: ' + (err?.message || err));
         }
+    });
+
+    // Arrastar e soltar: o bloco inteiro recebe os arquivos
+    const destacar = (bloco, ligado) => {
+        bloco.style.borderColor = ligado ? '#3B82F6' : '#e2e8f0';
+        bloco.style.background = ligado ? '#eff6ff' : '#f8fafc';
+    };
+    document.addEventListener('dragover', (e) => {
+        const bloco = e.target.closest('.bloco-defesa');
+        if (!bloco || !Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        destacar(bloco, true);
+    });
+    document.addEventListener('dragleave', (e) => {
+        const bloco = e.target.closest('.bloco-defesa');
+        if (bloco && !bloco.contains(e.relatedTarget)) destacar(bloco, false);
+    });
+    document.addEventListener('drop', (e) => {
+        const bloco = e.target.closest('.bloco-defesa');
+        if (!bloco || !e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        destacar(bloco, false);
+        enviarArquivosDefesa(bloco, Array.from(e.dataTransfer.files));
+    });
+    // Colar (Ctrl+V) um arquivo copiado com o bloco em foco. Texto colado no
+    // campo de texto continua indo para o campo, como sempre.
+    document.addEventListener('paste', (e) => {
+        const bloco = e.target.closest?.('.bloco-defesa') || document.activeElement?.closest?.('.bloco-defesa');
+        const arquivos = Array.from(e.clipboardData?.files || []);
+        if (!bloco || !arquivos.length) return;
+        e.preventDefault();
+        enviarArquivosDefesa(bloco, arquivos);
     });
 
     document.addEventListener('click', async (e) => {
@@ -8896,7 +9029,7 @@ function ligarEventosBlocoDefesa() {
             return;
         }
 
-        if (!confirm(`Excluir o arquivo "${anexo.nome}" da defesa?`)) return;
+        if (!confirm(`Excluir o arquivo "${anexo.nome}"?`)) return;
         try {
             if (anexo.documento_id) await supabaseClient.from('documentos').delete().eq('id', anexo.documento_id);
             await salvarDefesaDoBloco(bloco, d => ({
@@ -10272,14 +10405,18 @@ async function renderizarEtapa16(proc) {
     renderizarListaTentativasAR(proc);
     await carregarEExibirAnexosAR(proc);
 
-    // Verifica prazo de 30 dias
-    verificarPrazoAR(proc, dadosAR);
+    // Prazo do AR sem retorno: a mudança automática para a Etapa 30 só roda para
+    // quem edita a etapa (Administrativo/Dev), como antes; quem só visualiza não grava
+    if (modo === MODO_ACESSO.NORMAL) verificarPrazoAR(proc, dadosAR);
 
-    // Desabilita o formulário para quem não tem permissão de edição
+    // Visualização (Gerente, Fiscal do processo...): vê tudo, mas não escreve,
+    // não anexa e não salva. "Visualizar" dos anexos continua funcionando.
     if (modo !== MODO_ACESSO.NORMAL && formulario16) {
-        formulario16.querySelectorAll('input, select, button').forEach(el => {
-            el.disabled = true;
+        formulario16.querySelectorAll('input, select, textarea, button').forEach(el => {
+            if (!el.classList.contains('btn-ver-ar-item')) el.disabled = true;
         });
+        const areaDrop = document.getElementById('areaDropAR');
+        if (areaDrop) areaDrop.style.display = 'none';
     }
 }
 
@@ -10480,7 +10617,7 @@ function renderizarListaAnexosAR() {
             </div>
             <div style="display:flex; gap:8px;">
                 <button type="button" class="btn-ver-ar-item" data-idx="${idx}" style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-size:0.82rem; font-weight:600; cursor:pointer;">Visualizar</button>
-                <button type="button" class="btn-remover-ar-item" data-idx="${idx}" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>
+                ${podeGerenciarEtapaAtual() ? `<button type="button" class="btn-remover-ar-item" data-idx="${idx}" style="padding:6px 12px; border-radius:8px; border:1px solid #fecaca; background:#fef2f2; color:#dc2626; font-size:0.82rem; font-weight:600; cursor:pointer;">Remover</button>` : ''}
             </div>
         `;
 
@@ -10633,12 +10770,14 @@ function configurarEventosEtapa16() {
     const areaDrop = document.getElementById('areaDropAR');
     const inputFile = document.getElementById('inputArquivoAR');
     if (areaDrop && inputFile) {
-        areaDrop.addEventListener('click', () => inputFile.click());
+        areaDrop.addEventListener('click', () => { if (!inputFile.disabled) inputFile.click(); });
         areaDrop.addEventListener('dragover', (e) => { e.preventDefault(); areaDrop.classList.add('dragover'); });
         areaDrop.addEventListener('dragleave', () => areaDrop.classList.remove('dragover'));
         areaDrop.addEventListener('drop', (e) => {
             e.preventDefault();
             areaDrop.classList.remove('dragover');
+            // Quem só visualiza (campo desabilitado) não anexa nem arrastando
+            if (inputFile.disabled) return;
             if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                 processarArquivosAR(e.dataTransfer.files);
             }
@@ -12389,6 +12528,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
 
             setTimeout(() => {
                 printIframe.contentWindow.focus();
+                window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
                 printIframe.contentWindow.print();
                 setTimeout(() => {
                     if (document.body.contains(printIframe)) {
@@ -12446,6 +12586,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
 
             setTimeout(() => {
                 printIframe.contentWindow.focus();
+                window.prepararImpressaoComRodape?.(printIframe.contentWindow.document, { forcarRodape: true });
                 printIframe.contentWindow.print();
                 setTimeout(() => {
                     if (document.body.contains(printIframe)) {
@@ -12728,7 +12869,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
                 </div>`;
             }
 
-            relatorioUrl = `<div style="font-family:Calibri,'Segoe UI',sans-serif;color:black;max-width:820px;margin:0 auto;line-height:1.3;font-size:10pt;padding:40px 55px 30px 55px;background:white;">${cabecalhoHtml}${tituloHtml}${corpoHtml}${assinaturaHtml}<div style="height:10px;background:#F78C26;margin-top:12px;"></div></div>`;
+            relatorioUrl = `<div style="font-family:Calibri,'Segoe UI',sans-serif;color:black;max-width:820px;margin:0 auto;line-height:1.3;font-size:10pt;padding:40px 55px 30px 55px;background:white;">${cabecalhoHtml}${tituloHtml}${corpoHtml}${assinaturaHtml}<div class="doc-rodape-laranja" style="height:10px;background:#F78C26;margin-top:12px;"></div></div>`;
 
             // Salva o novo relatório gerado na tabela 'documentos'
             if (relatorioUrl && processoAtual?.id) {
@@ -12830,6 +12971,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
 
         setTimeout(() => {
             printIframe.contentWindow.focus();
+            window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
             printIframe.contentWindow.print();
             setTimeout(() => {
                 if (document.body.contains(printIframe)) {
@@ -13015,6 +13157,7 @@ async function imprimirDocumentoOficial() {
 
         setTimeout(() => {
             iframe.contentWindow.focus();
+            window.prepararImpressaoComRodape?.(iframe.contentWindow.document);
             iframe.contentWindow.print();
             setTimeout(() => {
                 document.title = tituloOriginal;
@@ -13116,6 +13259,7 @@ async function imprimirDocumentoOficial() {
 
     setTimeout(() => {
         iframe.contentWindow.focus();
+        window.prepararImpressaoComRodape?.(iframe.contentWindow.document);
         iframe.contentWindow.print();
         setTimeout(() => {
             document.title = tituloOriginal;
@@ -13530,7 +13674,8 @@ async function garantirNumeroCertidaoDaNotificacao() {
         // Usa o número já persistido na notificação; reserva novo apenas na 1ª vez.
         let numCertidao = notificacaoAtual?.numero_certidao || '';
 
-        if (!numCertidao && notificacaoAtual?.id) {
+        // Numeração dispensada pelo Dev (oferecerNaoGastarNumeracaoDev): não reserva outra
+        if (!numCertidao && notificacaoAtual?.id && !notificacaoAtual.dados?.numeracao_dispensada?.certidao) {
             try {
                 const { data: numReservado, error: errRes } = await supabaseClient
                     .rpc('reservar_numero', { p_ano: _anoAtual, p_categoria: 'Certidão Sem Defesa' });
@@ -13622,6 +13767,45 @@ async function garantirNumeroCertidaoDaNotificacao() {
 }
 window.garantirNumeroCertidaoDaNotificacao = garantirNumeroCertidaoDaNotificacao;
 
+// ── Documento gerado como imagem no PDF (certidão, textos paginados) ───────
+// Antes da captura: tira a borda e a sombra do "cartão" da tela (saía como uma
+// linha no alto da página) e esconde a faixa laranja do fim do documento, que
+// depois é desenhada no pé de cada página do PDF — o mesmo da impressão.
+// Devolve true quando o documento tinha a faixa.
+function prepararHtmlParaPdfComRodape(container) {
+    container.querySelectorAll(':scope > div, :scope > div > div').forEach(el => {
+        if (el.style.border || el.style.boxShadow) {
+            el.style.border = 'none';
+            el.style.boxShadow = 'none';
+        }
+    });
+    let faixa = container.querySelector('.doc-rodape-laranja');
+    if (!faixa) {
+        const ehLaranja = el => /#f78c26|rgb\(\s*247\s*,\s*140\s*,\s*38\s*\)/i.test(el.getAttribute('style') || '');
+        const candidatos = Array.from(container.querySelectorAll('div'))
+            .filter(el => ehLaranja(el) && !el.textContent.replace(/ /g, '').trim() && !el.querySelector('img'));
+        const ultimo = candidatos[candidatos.length - 1];
+        if (ultimo) {
+            const andarilho = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+            andarilho.currentNode = ultimo;
+            let temTextoDepois = false;
+            for (let n = andarilho.nextNode(); n; n = andarilho.nextNode()) {
+                if (ultimo.contains(n)) continue;
+                if (n.textContent.replace(/ /g, '').trim()) { temTextoDepois = true; break; }
+            }
+            if (!temTextoDepois) faixa = ultimo;
+        }
+    }
+    if (!faixa) return false;
+    faixa.style.display = 'none';
+    return true;
+}
+
+// Faixa laranja no pé da página A4 do PDF: 16px de altura, ~6 mm acima da borda
+function desenharRodapeLaranjaNoPdf(page) {
+    page.drawRectangle({ x: 0, y: 17, width: 595.28, height: 12, color: PDFLib.rgb(247 / 255, 140 / 255, 38 / 255) });
+}
+
 // Coloca a certidão gerada pelo sistema como página do PDF (quando não há assinada)
 async function anexarCertidaoGeradaAoPdf(mergedPdf) {
     const html = await montarHtmlCertidaoEncerramento();
@@ -13638,6 +13822,7 @@ async function anexarCertidaoGeradaAoPdf(mergedPdf) {
     div.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:794px; min-height:1123px; background:white; box-sizing:border-box;';
     div.innerHTML = htmlPronto;
     document.body.appendChild(div);
+    const temRodape = prepararHtmlParaPdfComRodape(div);
     try {
         const canvas = await html2canvas(div, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
         const img = await mergedPdf.embedJpg(canvas.toDataURL('image/jpeg', 0.95));
@@ -13652,6 +13837,7 @@ async function anexarCertidaoGeradaAoPdf(mergedPdf) {
             width: larguraPagina,
             height: Math.min(alturaProporcional, 841.89)
         });
+        if (temRodape) desenharRodapeLaranjaNoPdf(page);
         return true;
     } catch (e) {
         console.warn('Não foi possível anexar a certidão gerada ao PDF:', e);
@@ -13662,28 +13848,31 @@ async function anexarCertidaoGeradaAoPdf(mergedPdf) {
 }
 
 // Baixa só a Certidão de Encerramento, em PDF
+// Como os outros documentos: abre a impressão do navegador ("Salvar como PDF"),
+// com texto de verdade (selecionável) e a faixa laranja no pé da página. Antes
+// era uma imagem montada com html2canvas. No PDF unificado, sem a certidão
+// assinada, ela continua entrando como página gerada (anexarCertidaoGeradaAoPdf).
 window.baixarCertidaoEncerramentoPdf = async function () {
     if (!processoAtual) return;
     mostrarCarregamento('Gerando a Certidão de Encerramento...');
     try {
-        await carregarBibliotecasPDF();
-        const pdf = await PDFLib.PDFDocument.create();
-        const ok = await anexarCertidaoGeradaAoPdf(pdf);
-        if (!ok) {
+        const html = await montarHtmlCertidaoEncerramento();
+        if (!html) {
             ocultarCarregamento();
             alert('Não foi possível gerar a Certidão de Encerramento.');
             return;
         }
-        const bytes = await pdf.save();
-        const blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+        const brasaoBase64 = await obterBrasaoBase64();
+        const temp = document.createElement('div');
+        temp.innerHTML = prepararConteudoDocumento(html, brasaoBase64 || '');
+        // O quadro da tela (borda e sombra) não vai para o papel
+        temp.querySelectorAll(':scope > div, :scope > div > div').forEach(el => {
+            el.style.border = 'none';
+            el.style.boxShadow = 'none';
+        });
         const numCert = (notificacaoAtual?.numero_certidao || 'certidao').replace(/[\/\\]/g, '-');
         ocultarCarregamento();
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = `Certidao_Encerramento_${numCert}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        window.abrirOuBaixarDocumento(temp.innerHTML, `Certidao_Encerramento_${numCert}`);
     } catch (err) {
         ocultarCarregamento();
         console.error('Erro ao baixar a Certidão de Encerramento:', err);
@@ -13907,7 +14096,7 @@ async function montarHtmlCertidaoEncerramento() {
                 </div>
 
                 <!-- RODAPÉ LARANJA -->
-                <div style="width: calc(100% + 110px); margin-left: -55px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                <div class="doc-rodape-laranja" style="width: calc(100% + 110px); margin-left: -55px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
             </div>
         </div>
     `;
@@ -14042,7 +14231,7 @@ window.gerarCertidaoSemDefesa = async function (auto = false) {
                 </div>
 
                 <!-- RODAPÉ LARANJA -->
-                <div style="width: calc(100% + 104px); margin-left: -52px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                <div class="doc-rodape-laranja" style="width: calc(100% + 104px); margin-left: -52px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
 
             </div>
         </div>
@@ -15108,7 +15297,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 </div>
 
                 <!-- RODAPÉ LARANJA -->
-                <div style="width: calc(100% + 80px); margin-left: -40px; height: 12px; background-color: #F78C26; margin-top: 15px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+                <div class="doc-rodape-laranja" style="width: calc(100% + 80px); margin-left: -40px; height: 12px; background-color: #F78C26; margin-top: 15px; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
 
             </div>
         </div>
@@ -15869,6 +16058,7 @@ window.anexarHtmlPaginadoAoPdf = async function (mergedPdf, htmlPagina) {
     div.style.color = '#1e293b';
     div.innerHTML = htmlPagina;
     document.body.appendChild(div);
+    const temRodape = prepararHtmlParaPdfComRodape(div);
 
     let canvas;
     try {
@@ -15899,6 +16089,7 @@ window.anexarHtmlPaginadoAoPdf = async function (mergedPdf, htmlPagina) {
         const img = await mergedPdf.embedJpg(fatia.toDataURL('image/jpeg', 0.95));
         const page = mergedPdf.addPage([595.28, 841.89]);
         page.drawImage(img, { x: 0, y: 0, width: 595.28, height: 841.89 });
+        if (temRodape) desenharRodapeLaranjaNoPdf(page);
         y += altura;
         primeira = false;
     }
@@ -16375,9 +16566,28 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             }
         };
 
+        // Outros documentos das Etapas 5, 13 e 26: logo depois da Réplica da
+        // notificação. Os que sobrarem (sem Réplica no PDF) entram no fim.
+        const docsAnexosReplica = docsBanco.filter(d => d.tipo === 'Anexo da Réplica');
+        docsAnexosReplica.forEach(d => { if (d.id) idsAnexados.add(d.id); });
+        const anexosReplicaIncluidos = new Set();
+        const anexarAnexosDaReplica = async (notificacaoId) => {
+            for (const d of docsAnexosReplica) {
+                if (anexosReplicaIncluidos.has(d.id)) continue;
+                if (notificacaoId && d.notificacao_id && String(d.notificacao_id) !== String(notificacaoId)) continue;
+                anexosReplicaIncluidos.add(d.id);
+                const u = d.url || d.dataUrl || d.base64;
+                if (u) await anexarArquivoAoPdf(u, d.nome_arquivo || 'Anexo da Réplica', { titulo: 'Anexo da Réplica', arquivo: d.nome_arquivo });
+            }
+        };
+        const ehDocReplica = d => ['Réplica', 'Réplica Assinada'].includes(d?.tipo);
+
         const anexarReplicaDoDesconto = async () => {
             const url = docReplicaDesconto?.url || docReplicaDesconto?.dataUrl || docReplicaDesconto?.base64;
-            if (url) await anexarArquivoAoPdf(url, 'Réplica Assinada (Análise para dar Desconto)');
+            if (url) {
+                await anexarArquivoAoPdf(url, 'Réplica Assinada (Análise para dar Desconto)');
+                await anexarAnexosDaReplica(docReplicaDesconto.notificacao_id || notificacaoAtual?.id);
+            }
         };
 
         if (decretoSim) {
@@ -16475,6 +16685,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                     if (!idsAnexados.has(doc.id)) {
                         let u = doc.url || doc.dataUrl || doc.base64;
                         if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro', { titulo: doc.tipo || 'Documento', arquivo: doc.nome_arquivo });
+                        if (u && ehDocReplica(doc)) await anexarAnexosDaReplica(doc.notificacao_id);
                     }
                 }
             }
@@ -16553,6 +16764,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                     if (!idsAnexados.has(doc.id)) {
                         let u = doc.url || doc.dataUrl || doc.base64;
                         if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro', { titulo: doc.tipo || 'Documento', arquivo: doc.nome_arquivo });
+                        if (u && ehDocReplica(doc)) await anexarAnexosDaReplica(doc.notificacao_id);
                     }
                 }
             }
@@ -16635,6 +16847,7 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                 if (!idsAnexados.has(doc.id)) {
                     const u = doc.url || doc.dataUrl || doc.base64;
                     if (u) await anexarArquivoAoPdf(u, doc.nome_arquivo || doc.tipo || 'Outro', { titulo: doc.tipo || 'Documento', arquivo: doc.nome_arquivo });
+                        if (u && ehDocReplica(doc)) await anexarAnexosDaReplica(doc.notificacao_id);
                 }
             }
         }
@@ -16669,6 +16882,9 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
         // Se o caminho acima não passou pelo AR, a página com os dados do AR
         // entra aqui, antes das peças finais.
         await incluirPaginaDadosAr(undefined);
+
+        // Outros documentos das Etapas 5, 13 e 26 cuja Réplica não entrou no PDF
+        await anexarAnexosDaReplica(null);
 
         // 3.3 Itens finais enviados pela tela que pediu o PDF.
         // A Etapa 24 usa isso para juntar a defesa, as movimentações com o
@@ -17288,7 +17504,8 @@ window.gerarReplica = async function () {
     let numReplica = notificacaoAtual?.dados?.numero_replica || '';
     const _anoAtual = new Date().getFullYear();
 
-    if (!numReplica && notificacaoAtual?.id) {
+    // Numeração dispensada pelo Dev (oferecerNaoGastarNumeracaoDev): não reserva outra
+    if (!numReplica && notificacaoAtual?.id && !notificacaoAtual.dados?.numeracao_dispensada?.replica) {
         try {
             // Verifica se já existe um documento gerado para esta réplica
             const { data: docExistente } = await supabaseClient
@@ -17500,7 +17717,7 @@ window.gerarReplica = async function () {
                     ${imgsHTML}
                 </div>
 
-                <div style="width: calc(100% + 104px); margin-left: -52px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin-top: 40px;"></div>
+                <div class="doc-rodape-laranja" style="width: calc(100% + 104px); margin-left: -52px; height: 16px; background-color: #F78C26; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin-top: 40px;"></div>
             </div>
         </div>
     `;
@@ -18128,6 +18345,7 @@ window.baixarOficioGfpPdf = async function () {
 
     setTimeout(() => {
         printIframe.contentWindow.focus();
+        window.prepararImpressaoComRodape?.(printIframe.contentWindow.document, { forcarRodape: true });
         printIframe.contentWindow.print();
         marcarOficioGfpComoBaixado();
         setTimeout(() => {

@@ -250,7 +250,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     {
         codigo: 'MA-23',
         rotulo: 'Deixar de executar análise ou medição solicitada pela FUMED (alínea p)',
-        descricao: 'Ocorrência de pertubação do sossego/emissão de ruídos provenientes do endereço identificado acima.',
+        descricao: 'Pertubação do sossego/emissão de ruídos provenientes do endereço identificado acima.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 13 e seguintes e 135, “p”, do Decreto Municipal nº 4748/2002 e da Lei Municipal nº 5380/2002.',
         providencias: ['Comprovação da adequação dos níveis de emissão sonora decorrente dos equipamentos instalados na área externa do estabelecimento;'],
         atencao: 'FICA O RESPONSÁVEL/AUTUADO A APRESENTAR LAUDO TÉCNICO DE RUÍDO, elaborado por profissional habilitado, contendo a avaliação dos níveis de pressão sonora emitidos pelos equipamentos utilizados no estabelecimento, de acordo com as legislações vigentes.',

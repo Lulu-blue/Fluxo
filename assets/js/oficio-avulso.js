@@ -251,7 +251,7 @@ function montarModeloOficioAvulso(numero, nomeGerente) {
                 </div>
             </div>
 
-            <div style="background-color: #F78C26; height: 14px; flex-shrink: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
+            <div class="doc-rodape-laranja" style="background-color: #F78C26; height: 14px; flex-shrink: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact;"></div>
         </div>
     `;
 }
@@ -744,6 +744,7 @@ async function prepararEImprimirOficio(vaiVirarDefinitivo) {
     const tituloOriginal = document.title;
     document.title = `Oficio GFP ${numLimpo}`;
     printIframe.contentWindow.focus();
+    window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
     printIframe.contentWindow.print();
     setTimeout(() => {
         if (document.body.contains(printIframe)) document.body.removeChild(printIframe);
@@ -1346,6 +1347,7 @@ async function baixarOficioEtapa15Pdf() {
     const tituloOriginal = document.title;
     document.title = `Oficio GFP ${numLimpo}`;
     printIframe.contentWindow.focus();
+    window.prepararImpressaoComRodape?.(printIframe.contentWindow.document, { forcarRodape: true });
     printIframe.contentWindow.print();
     setTimeout(() => {
         if (document.body.contains(printIframe)) document.body.removeChild(printIframe);

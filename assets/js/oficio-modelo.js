@@ -138,3 +138,63 @@ window.dataTextoOficio = function (data) {
     return (data ? new Date(data) : new Date())
         .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 };
+
+// ── Faixa laranja do fim do documento como rodapé da impressão ─────────────
+// Chamada em toda impressão (iframe) logo antes do print(). Na impressão, a faixa
+// laranja que fecha o documento some do fim do texto e o navegador a desenha no
+// pé de cada página (margem inferior do @page). A faixa é reconhecida pela classe
+// doc-rodape-laranja ou, em documento salvo antes dela (ofícios e relatórios
+// guardados no banco), como o último bloco laranja sem texto depois dele.
+// Também apaga o cabeçalho/rodapé automático do navegador (data, título, endereço
+// do arquivo), que aparecia nas margens.
+// opcoes.forcarRodape: documentos cujo modelo não tem a faixa no fim (Ofício GFP)
+// ou que podem vir de um HTML antigo sem ela (Réplica) ganham o rodapé assim mesmo.
+window.prepararImpressaoComRodape = function (doc, opcoes = {}) {
+    if (!doc?.body || !doc.head) return;
+
+    // O quadro de tela de alguns documentos (Certidão, Auto de Infração) tem
+    // borda e sombra; no papel isso virava uma linha no alto da página
+    doc.body.querySelectorAll('[style*="box-shadow"]').forEach(el => {
+        if (/border:\s*1px solid #cbd5e1/i.test(el.getAttribute('style') || '')) {
+            el.style.border = 'none';
+            el.style.boxShadow = 'none';
+        }
+    });
+
+    if (!doc.body.querySelector('.doc-rodape-laranja')) {
+        const ehLaranja = el => /#f78c26|rgb\(\s*247\s*,\s*140\s*,\s*38\s*\)/i.test(el.getAttribute('style') || '');
+        const candidatos = Array.from(doc.body.querySelectorAll('div'))
+            .filter(el => ehLaranja(el) && !el.textContent.replace(/\u00a0/g, '').trim() && !el.querySelector('img'));
+        const faixa = candidatos[candidatos.length - 1];
+        if (faixa) {
+            // A faixa do topo também é laranja: só vale a que não tem texto depois dela
+            const andarilho = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+            andarilho.currentNode = faixa;
+            let temTextoDepois = false;
+            for (let n = andarilho.nextNode(); n; n = andarilho.nextNode()) {
+                if (faixa.contains(n) || /^(SCRIPT|STYLE)$/.test(n.parentNode?.nodeName)) continue;
+                if (n.textContent.replace(/\u00a0/g, '').trim()) { temTextoDepois = true; break; }
+            }
+            if (!temTextoDepois) faixa.classList.add('doc-rodape-laranja');
+        }
+    }
+    if (opcoes.forcarRodape && !doc.body.querySelector('.doc-rodape-laranja')) {
+        const marcador = doc.createElement('div');
+        marcador.className = 'doc-rodape-laranja';
+        doc.body.appendChild(marcador);
+    }
+
+    if (doc.getElementById('estiloRodapeImpressao')) return;
+    const estilo = doc.createElement('style');
+    estilo.id = 'estiloRodapeImpressao';
+    estilo.textContent = `@media print {
+        @page { @top-left { content: ''; } @top-right { content: ''; } @bottom-left { content: ''; } @bottom-right { content: ''; } }
+        .doc-rodape-laranja { display: none !important; }
+        body:has(.doc-rodape-laranja) { page: comRodape; }
+        @page comRodape {
+            @bottom-left { content: none; } @bottom-right { content: none; }
+            @bottom-center { content: ''; width: 100%; vertical-align: bottom; border-bottom: 16px solid #F78C26; margin-bottom: 6mm; }
+        }
+    }`;
+    doc.head.appendChild(estilo);
+};

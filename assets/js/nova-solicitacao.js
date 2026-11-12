@@ -3025,7 +3025,7 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
             </div>
 
             <!-- Linha laranja inferior -->
-            <div style="height: 10px; background: #F78C26; margin-top: 12px;"></div>
+            <div class="doc-rodape-laranja" style="height: 10px; background: #F78C26; margin-top: 12px;"></div>
         </div>
     `;
 }
@@ -3467,6 +3467,7 @@ async function baixarRelatorioFiscalPdf() {
         // Aguarda renderização e aciona a impressão direta da caixa de diálogo do sistema
         setTimeout(() => {
             printIframe.contentWindow.focus();
+            window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
             printIframe.contentWindow.print();
 
             // Fecha o editor após imprimir
@@ -3543,6 +3544,7 @@ async function baixarCertidaoDecretoPdf() {
 
         setTimeout(() => {
             printIframe.contentWindow.focus();
+            window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
             printIframe.contentWindow.print();
             setTimeout(() => {
                 document.title = tituloOriginal;
