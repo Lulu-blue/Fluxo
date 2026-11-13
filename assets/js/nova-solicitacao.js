@@ -2690,8 +2690,8 @@ function coletarTodosDados() {
             assunto: document.getElementById('relAssunto').value,
             pa: document.getElementById('relPA').value,
             texto_vistoria: document.getElementById('relTextoVistoria').value,
-            // Aparece na NP e no AI (etapa.js → htmlObservacoesFiscal), não no Relatório
-            observacoes_fiscal: document.getElementById('relObservacoesFiscal')?.value?.trim() || '',
+            // A Nota do fiscal saiu do Novo processo: é escrita na Etapa 14 (Auto de Infração)
+            observacoes_fiscal: '',
             html_customizado: obterHtmlRelatorioDaTela()
         }
     };

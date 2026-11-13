@@ -7852,7 +7852,11 @@ async function preencherFormularioEdicao(proc) {
     setVal('editFiscDataVistoria', window.valorDataVistoriaParaInput(fisc.data_vistoria || proc?.data_vistoria));
     setVal('editFiscDecreto', fisc.decreto || 'não');
     setVal('editFiscDescricao', fisc.descricao);
-    setVal('editObservacoesFiscal', d.relatorio_fiscal?.observacoes_fiscal || '');
+    // Nota do fiscal: só na Etapa 14, e é a mesma da tela principal (Auto de Infração)
+    const ehEtapa14Edicao = parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 0, 10) === 14;
+    const grupoNotaEdit = document.getElementById('grupoEditObservacoesFiscal');
+    if (grupoNotaEdit) grupoNotaEdit.style.display = ehEtapa14Edicao ? '' : 'none';
+    setVal('editObservacoesFiscal', ehEtapa14Edicao ? obterObservacoesFiscalAuto() : '');
 
     // Preenche a lista de imagens da vistoria
     const containerImagensEdit = document.getElementById('lista-imagens-legenda-edit');
@@ -12021,11 +12025,8 @@ async function salvarEdicoesProcesso() {
                 decreto: document.getElementById('editFiscDecreto')?.value || 'não',
                 descricao: getVal('editFiscDescricao')
             },
-            relatorio_fiscal: {
-                ...(dadosAtuais.relatorio_fiscal || {}),
-                // Aparece na NP e no AI (htmlObservacoesFiscal)
-                observacoes_fiscal: getVal('editObservacoesFiscal')
-            }
+            // A Nota do fiscal é gravada à parte (salvarNotaFiscalAuto), só na Etapa 14
+            relatorio_fiscal: { ...(dadosAtuais.relatorio_fiscal || {}) }
         };
 
         // Expelir / Limpar referências de anexos de documentos gerados anteriormente no objeto processo
@@ -12372,6 +12373,14 @@ async function salvarEdicoesProcesso() {
         if (document.getElementById('listaInputsMultasAi')) window.configurarCardCalculoMultaAutoInfracao();
 
         if (typeof ocultarCarregamento === 'function') ocultarCarregamento();
+        // Nota do fiscal (Etapa 14): o mesmo campo da tela principal
+        if (parseInt(processoAtual.etapa_atual || processoAtual.etapa_atual_id || 0, 10) === 14) {
+            const notaEditada = getVal('editObservacoesFiscal');
+            await window.salvarNotaFiscalAuto(notaEditada);
+            const campoPrincipal = document.getElementById('inputNotaFiscalAuto');
+            if (campoPrincipal) campoPrincipal.value = notaEditada;
+        }
+
         alert('Alterações salvas com sucesso! Os documentos foram atualizados e os anexos antigos foram expelidos para permitir novos downloads com os dados corretos.');
     } catch (err) {
         if (typeof ocultarCarregamento === 'function') ocultarCarregamento();
