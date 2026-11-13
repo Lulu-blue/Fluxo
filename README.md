@@ -384,7 +384,7 @@ Primeira tela depois do login (`painel.html`, `assets/js/solicitacoes.js`).
 **Filtros:** Protocolo, Nº Relatório Fiscal, Nº Auto de Infração, Nº Notificação / Auto de
 Fiscalização (aceita os dois formatos de número), Nome do Solicitante, CPF/CNPJ do
 contribuinte, Código reduzido do imóvel, Fiscal responsável, Data início/fim, Etapa,
-Situação, Decreto (todos, só por decreto ou só sem decreto), Etapa (pela etapa de cada NP/AF e Auto; o processo em si só conta quando não tem notificação, já que ele fica parado na 2), Responsável pela etapa (também pela etapa de cada NP/AF e Auto em aberto; em "Minha responsabilidade", o Fiscal de Posturas ou de Meio Ambiente vê só os processos que são dele), Tipo de infração (várias) e
+Situação, Decreto (todos, só por decreto ou só sem decreto), Etapa (pela etapa de cada NP/AF e Auto; o processo em si só conta quando não tem notificação, já que ele fica parado na 2), **Com você** (processos cujo trabalho está numa etapa em que o seu cargo age; regra de `etapasInternasDoProcesso`: com o processo num painel — Etapa 2 ou 18 — vale a etapa de cada NP/AF/Auto em aberto; fora deles, quem anda é o processo e vale a etapa dele, ex.: notificação parada na 14 com o processo na 15 — as mesmas etapas que liberam a edição, `ETAPAS_POR_CARGO`; o Fiscal de Posturas ou de Meio Ambiente vê só os processos que ele abriu; Dev vê todos), Tipo de infração (várias) e
 Ordenar por (prazo). Acima da tabela aparece o total de processos do filtro (ex.: "Total: 42
 processos por decreto"), além de quantos já foram carregados; com o filtro Responsável, que é
 aplicado no navegador, só a quantidade carregada.
@@ -885,7 +885,7 @@ canvas deve ser completado.
 **Pendências:**
 - **Etapas sem uso:** resolvido em 14/10/2026 — 6, 7, 8, 9, 11, 12, 23, 27 e 32 saíram do código e do banco (ver "Etapas removidas do sistema"). A consulta ao Jurídico da antiga 32 virou o chat, com o botão de paralisar nas Etapas 5 e 13. A 26, que era "Fazenda Gera a Multa" sem tela, passou a ser a Análise para dar Desconto.
 - **Perfil Fazenda:** ficou sem etapas quando a 26 virou Análise de Desconto. Definir o que ele faz ou removê-lo.
-- **Permissões duplicadas:** `ETAPAS_POR_CARGO` de `solicitacoes.js` difere da de `etapa.js` (ex.: lá o Fiscal tem a 19, o Jurídico não tem a 19 e o Gerente de Interface Jurídica tem todas).
+- **Permissões duplicadas:** `ETAPAS_POR_CARGO` existe em `solicitacoes.js` e em `etapa.js`; hoje estão iguais, mas é preciso mudar as duas juntas.
 - **Chave do Supabase** repetida em `login.js` e `supabase-config.js`.
 - Itens jurídicos a validar: ver o fim do [Anexo C](#anexo-c--pesquisa-argumentos-comuns-nas-defesas).
 

@@ -116,7 +116,38 @@ function extrairEtapaNumero(proc) {
     return 1;
 }
 
+// Em que etapa está o trabalho de cada processo. Quem anda depende de onde o
+// processo está:
+//   - processo num PAINEL (Etapa 2 das notificações ou 18 dos Autos): ele fica
+//     parado e cada NP/AF/Auto anda sozinho — vale a etapa de cada um em aberto;
+//   - fora dos painéis (1, 14, 15, 16, 17, 30...): quem anda é o processo, e a
+//     notificação fica parada (ex.: notificação na 14 com o processo já na 15) —
+//     vale a etapa do processo, que é a tela que abre.
+// Sem notificação na tabela, usa os Autos/notificações guardados no processo.
+const ETAPAS_PAINEL = [2, 18];
+
+function etapasInternasDoProcesso(item) {
+    const etapaProcesso = extrairEtapaNumero(item);
+    if (!ETAPAS_PAINEL.includes(etapaProcesso)) return [etapaProcesso];
+
+    if (Array.isArray(item.etapas_notificacoes) && item.etapas_notificacoes.length) {
+        const fechada = n => ['encerrado', 'cancelado', 'arquivado'].includes(n.situacao) || n.status === 'encerrada';
+        return item.etapas_notificacoes.filter(n => !fechada(n) && n.etapa > 0).map(n => n.etapa);
+    }
+    const campos = item.dados?.campos || {};
+    const doCache = [...(campos.etapa18?.autos || []), ...(campos.etapa2?.notificacoes || [])]
+        .filter(n => n && !['encerrada', 'atendida'].includes(n.status))
+        .map(n => parseInt(n.etapa_atual, 10))
+        .filter(e => e > 0);
+    return doCache.length ? doCache : [etapaProcesso];
+}
+
 function calcularEtapaProcesso(item) {
+    // Com as notificações da tabela: a etapa onde o trabalho está (a mais avançada)
+    if (Array.isArray(item.etapas_notificacoes)) {
+        const abertas = etapasInternasDoProcesso(item);
+        if (abertas.length) return Math.max(...abertas);
+    }
     const notificacoes = obterNotificacoesProcesso(item);
     if (!notificacoes || notificacoes.length === 0) {
         return extrairEtapaNumero(item);
@@ -131,17 +162,21 @@ function calcularEtapaProcesso(item) {
     }, 0) || extrairEtapaNumero(item);
 }
 
+// Etapas em que cada cargo age (filtro "Com você"). Igual ao ETAPAS_POR_CARGO do
+// etapa.js, que libera a edição da etapa: o que aparece aqui é o que a pessoa
+// consegue fazer ao abrir.
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 29, 30, 31],
-    'Fiscal de Postura': [1, 2, 3, 4, 5, 10, 13, 14, 19, 21, 26, 29, 31],
+    'Fiscal de Postura': [1, 2, 3, 4, 5, 10, 13, 14, 21, 26, 29, 31],
     'Administrativo de Posturas': [15, 16, 17],
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
     // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
     'Gerente': [15, 17, 18, 20, 22, 25, 28, 29, 30],
     'Gerente de Posturas': [15, 17, 18, 20, 22, 25, 28, 29, 30],
-    'Gerente de Interface Jurídica': [1, 2, 3, 4, 5, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 29, 30, 31],
+    // Etapa 19 (Parecer Jurídico): Jurídico e Gerente de Interface Jurídica
+    'Gerente de Interface Jurídica': [19],
     'Secretário': [24],
-    'Jurídico': [18],
+    'Jurídico': [18, 19],
     // A Etapa 26 virou a Análise de Desconto; o perfil fica sem etapas até ser redefinido
     'Fazenda': []
 };
@@ -186,27 +221,34 @@ function montarBadgeSituacao(situacao, quantidade) {
 
 // Processos que têm ALGUMA notificação na situação escolhida (filtro Situação).
 // Devolve null quando a coluna não existe no banco.
-// Filtro Etapa: processos que têm alguma notificação / Auto nessa etapa, mais os
-// que estão nela e não têm notificação nenhuma (ex.: Etapa 1, ainda sem NP
-// criada). Um processo parado na Etapa 2 cujas notificações já andaram não
-// entra no filtro "Etapa 2". Devolve null se a consulta falhar (usa a etapa do processo).
+// Filtro Etapa, com a mesma regra de etapasInternasDoProcesso: notificação nessa
+// etapa conta quando o processo está num painel (2 ou 18); fora deles conta a
+// etapa do processo. Processo num painel sem notificação conta pela própria
+// etapa. Devolve null se a consulta falhar (usa só a etapa do processo).
 async function obterProcessosPorEtapa(numeroEtapa) {
     try {
+        const ids = new Set();
+
         const { data: notifsNaEtapa, error: errNotif } = await supabaseClient
             .from('notificacoes')
-            .select('processo_id')
-            .eq('etapa_atual_id', numeroEtapa);
+            .select('processo_id, processos!inner(etapa_atual_id)')
+            .eq('etapa_atual_id', numeroEtapa)
+            .in('processos.etapa_atual_id', ETAPAS_PAINEL);
         if (errNotif) throw errNotif;
-        const ids = new Set((notifsNaEtapa || []).map(n => n.processo_id).filter(Boolean));
+        (notifsNaEtapa || []).forEach(n => { if (n.processo_id) ids.add(n.processo_id); });
 
         const { data: procsNaEtapa, error: errProc } = await supabaseClient
             .from('processos')
             .select('id')
             .eq('etapa_atual_id', numeroEtapa);
         if (errProc) throw errProc;
-        const candidatos = (procsNaEtapa || []).map(p => p.id).filter(id => !ids.has(id));
+        const procs = (procsNaEtapa || []).map(p => p.id);
 
-        if (candidatos.length) {
+        if (!ETAPAS_PAINEL.includes(numeroEtapa)) {
+            procs.forEach(id => ids.add(id));
+        } else {
+            // No painel, o processo só conta pela própria etapa se não tiver notificação
+            const candidatos = procs.filter(id => !ids.has(id));
             const comNotificacao = new Set();
             for (let i = 0; i < candidatos.length; i += 200) {
                 const { data, error } = await supabaseClient
@@ -452,30 +494,9 @@ function itemPertenceAoCargo(item, cargoAlvo) {
     const etapasPermitidas = ETAPAS_POR_CARGO[cargoNorm] || ETAPAS_POR_CARGO[cargoAlvo] || ETAPAS_POR_CARGO['Gerente'] || [];
     if (etapasPermitidas.length === 0) return true;
 
-    // O processo fica parado na Etapa 2 e cada NP, AF e Auto segue a sua: vale a
-    // etapa de cada notificação ainda em aberto. A etapa do processo só conta
-    // quando ele não tem notificação (ex.: Etapa 1).
-    if (Array.isArray(item.etapas_notificacoes) && item.etapas_notificacoes.length) {
-        const fechada = n => ['encerrado', 'cancelado', 'arquivado'].includes(n.situacao) || n.status === 'encerrada';
-        return item.etapas_notificacoes.some(n => !fechada(n) && etapasPermitidas.includes(n.etapa));
-    }
-
-    // Sem a etapa das notificações (consulta falhou ou processo antigo), regra anterior:
-    // 1. Verificar se a etapa calculada do processo pertence ao cargo
-    const etapaCalculada = calcularEtapaProcesso(item);
-    if (etapasPermitidas.includes(etapaCalculada)) return true;
-
-    // 2. Verificar se a etapa bruta do processo pertence ao cargo
-    const etapaProcBruta = extrairEtapaNumero(item);
-    if (etapasPermitidas.includes(etapaProcBruta)) return true;
-
-    // 3. Verificar se alguma notificação do processo pertence ao cargo
-    const notificacoes = obterNotificacoesProcesso(item);
-    if (notificacoes && notificacoes.length > 0) {
-        return notificacoes.some(n => etapasPermitidas.includes(numeroEtapaNotificacao(n)));
-    }
-
-    return false;
+    // Vale o que está dentro do processo: a etapa de cada NP, AF e Auto em aberto
+    // (o processo fica parado na Etapa 2 ou 18 enquanto eles andam)
+    return etapasInternasDoProcesso(item).some(e => etapasPermitidas.includes(e));
 }
 
 function montarLinkEtapa(item) {
@@ -998,7 +1019,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
         if (filtros.criador === 'meu' && currentUserId) {
             query = query.eq('fiscal_id', currentUserId);
         }
-        if (filtros.responsavel === 'minha_responsabilidade' && currentUserId
+        if (filtros.responsavel === 'com_voce' && currentUserId
             && normalizarCargo(window.currentUserProfile?.cargo || '') === 'Fiscal de Postura') {
             query = query.eq('fiscal_id', currentUserId);
         }
@@ -1083,7 +1104,7 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             let cargoAlvo = filtros.responsavel;
             // Fiscal (Posturas ou Meio Ambiente): além da etapa do cargo, o processo tem que ser dele
             let exigirDono = false;
-            if (cargoAlvo === 'minha_responsabilidade') {
+            if (cargoAlvo === 'com_voce') {
                 cargoAlvo = window.currentUserProfile?.cargo || 'Fiscal de Postura';
                 exigirDono = normalizarCargo(cargoAlvo) === 'Fiscal de Postura';
             }
@@ -1151,7 +1172,7 @@ function renderizarTabela(dados, cargoFiltro) {
 
     let cargoAlvoNorm = null;
     if (cargoFiltro) {
-        let cargoNome = cargoFiltro === 'minha_responsabilidade' ? (window.currentUserProfile?.cargo || 'Fiscal de Postura') : cargoFiltro;
+        let cargoNome = cargoFiltro === 'com_voce' ? (window.currentUserProfile?.cargo || 'Fiscal de Postura') : cargoFiltro;
         cargoAlvoNorm = normalizarCargo(cargoNome);
     }
 
@@ -1166,8 +1187,16 @@ function renderizarTabela(dados, cargoFiltro) {
         const diasVenc = calcularDiasVencimento(item.data_vencimento);
         const profileObj = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
         const nomeFiscal = profileObj?.nome || item.dados?.fiscal?.nome || item.dados?.fiscal_nome || item.dados?.fiscal?.fiscNome || '—';
-        const etapaNumero = item.status === 'cancelado' ? '—' : (extrairEtapaNumero(item) || '—');
-        const etapaNome = item.status === 'cancelado' ? 'Cancelado' : (etapaNumero === '—' ? 'Concluído' : (item.etapas?.nome || ETAPAS_MAP[etapaNumero] || '—'));
+        // Etapa onde o trabalho está (dentro do processo, ver etapasInternasDoProcesso).
+        // Com o filtro Etapa, mostra a etapa filtrada; as outras aparecem ao lado.
+        const etapasDentro = [...new Set(etapasInternasDoProcesso(item))].filter(e => e > 0).sort((a, b) => a - b);
+        const etapaFiltrada = parseInt(document.getElementById('filtroEtapa')?.value || '', 10);
+        const etapaPrincipal = etapasDentro.includes(etapaFiltrada)
+            ? etapaFiltrada
+            : (etapasDentro.length ? Math.max(...etapasDentro) : extrairEtapaNumero(item));
+        const etapaNumero = item.status === 'cancelado' ? '—' : (etapaPrincipal || '—');
+        const outrasEtapas = etapaNumero === '—' ? [] : etapasDentro.filter(e => e !== etapaNumero);
+        const etapaNome = item.status === 'cancelado' ? 'Cancelado' : (etapaNumero === '—' ? 'Concluído' : (ETAPAS_MAP[etapaNumero] || item.etapas?.nome || '—'));
         const statusClass = item.status || 'em_aberto';
 
 
@@ -1200,6 +1229,7 @@ function renderizarTabela(dados, cargoFiltro) {
             <td class="col-etapa">
                 ${etapaNumero === '—' ? '' : `<span class="etapa-badge">E${etapaNumero}</span>`}
                 <span class="etapa-nome">${truncar(etapaNome, 25)}</span>
+                ${outrasEtapas.length ? `<div style="font-size:0.72rem; color:#64748b; margin-top:2px;" title="Outras NPs/AFs/Autos deste processo">também: ${outrasEtapas.map(e => `E${e}`).join(', ')}</div>` : ''}
             </td>
             <td class="col-acoes">
                 <a href="${linkProcesso}" class="btn-abrir-processo" data-id="${item.id}" data-etapa="${etapaNumero}" title="Abrir processo (botão direito para abrir em nova guia)">

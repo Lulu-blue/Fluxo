@@ -316,19 +316,11 @@
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label for="filtroResponsavel">Responsável da Etapa</label>
-                            <select id="filtroResponsavel">
+                            <label for="filtroResponsavel">Com você</label>
+                            <!-- "Com você": NP/AF/Auto numa etapa que depende do usuário (solicitacoes.js) -->
+                            <select id="filtroResponsavel" title="Notificações, Autos de Fiscalização e Autos de Infração que estão numa etapa em que é você quem age">
                                 <option value="">Todos</option>
-                                <option value="minha_responsabilidade">Minha responsabilidade (meu cargo)</option>
-                                <option value="Dev">Dev (desenvolvedor)</option>
-                                <option value="Fiscal de Postura">Fiscal de Posturas</option>
-                                <option value="Fiscal de Meio Ambiente">Fiscal de Meio Ambiente</option>
-                                <option value="Gerente">Gerente de Posturas</option>
-                                <option value="Gerente de Interface Jurídica">Gerente de Interface Jurídica</option>
-                                <option value="Administrativo de Posturas">Administrativo</option>
-                                <option value="Secretário">Secretário</option>
-                                <option value="Jurídico">Jurídico</option>
-                                <option value="Fazenda">Setor de Fazenda</option>
+                                <option value="com_voce">Com você (aguardando sua ação)</option>
                             </select>
                         </div>
                         <!-- Só aparece para Gerente de Posturas, Administrativo de Posturas e Dev -->
@@ -1614,7 +1606,7 @@
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/meio-ambiente.js?v=20261022"></script>
-    <script src="assets/js/solicitacoes.js?v=20261112b"></script>
+    <script src="assets/js/solicitacoes.js?v=20261113"></script>
     <script src="assets/js/instrucoes.js?v=20261111"></script>
     <script src="assets/js/nova-solicitacao.js?v=20261112b"></script>
     <script src="assets/js/oficio-modelo.js?v=20261112d"></script>
