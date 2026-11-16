@@ -175,7 +175,7 @@ const INSTRUCOES = [
             {
                 titulo: 'Retorno sem sucesso',
                 texto: 'Marque Não e informe a data da última tentativa, o motivo dado pelos Correios e o anexo do AR.',
-                dica: 'São 3 tentativas para a Notificação Preliminar / Auto de Fiscalização e 1 para o Auto de Infração. Esgotadas, o processo segue para o edital.'
+                dica: 'São 2 tentativas para a Notificação Preliminar / Auto de Fiscalização e 1 para o Auto de Infração. Esgotadas, o processo segue para o edital.'
             }
         ],
         checklist: [
@@ -359,33 +359,6 @@ const INSTRUCOES = [
             'Anexei a Réplica assinada.'
         ]
     },
-    {
-        id: 'etapa-10',
-        grupo: 'notificacao',
-        etapa: 'Etapa 10',
-        titulo: 'Certidão de cumprimento',
-        responsavel: 'Fiscal',
-        cargos: FISCAL,
-        objetivo: 'Certificar se a obrigação foi cumprida.',
-        passos: [
-            {
-                titulo: 'Confira o cumprimento',
-                texto: 'Em O problema foi resolvido?, marque Sim ou Não. A opção pode vir marcada pela etapa anterior.'
-            },
-            {
-                titulo: 'Emita a Certidão',
-                texto: 'Confira a prévia, baixe, assine e anexe a Certidão assinada.'
-            },
-            {
-                titulo: 'Avance a etapa',
-                texto: 'Com Sim, o processo segue para o encerramento. Com Não, segue para o Auto de Infração.'
-            }
-        ],
-        checklist: [
-            'Conferi se a obrigação foi cumprida.',
-            'Anexei a Certidão assinada.'
-        ]
-    },
 
     // ── Auto de Infração ───────────────────────────────────────────────────
     {
@@ -405,6 +378,10 @@ const INSTRUCOES = [
             {
                 titulo: 'Confira a multa',
                 texto: 'No quadro de cálculo, confira o valor e clique em salvar. Verifique o valor no texto do Auto.'
+            },
+            {
+                titulo: 'Relatório Fiscal do Auto',
+                texto: 'Se o Auto veio de uma Notificação Preliminar ou de um Auto de Fiscalização, informe a data e a hora da vistoria do Auto, adicione as fotos em Editar dados, gere o Relatório Fiscal do Auto (botão Imprimir / baixar), assine e anexe. Sem ele assinado a etapa não avança.'
             },
             {
                 titulo: 'Baixe, assine e anexe',
@@ -747,17 +724,17 @@ const PROXIMAS_ETAPAS = {
         { id: 'etapa-13', quando: 'Defesa' },
         { id: 'etapa-4', quando: 'Dilação de prazo' },
         { id: 'etapa-29', quando: 'Atendida' },
-        { id: 'etapa-10', quando: 'Prazo vencido' }
+        { id: 'etapa-14', quando: 'Prazo vencido sem atendimento' }
     ],
     'etapa-4': [{ id: 'etapa-5' }],
     'etapa-5': [
         { id: 'etapa-2', quando: 'Dilação deferida, ou indeferida dentro do prazo' },
-        { id: 'etapa-10', quando: 'Dilação indeferida com o prazo vencido' }
+        { id: 'etapa-14', quando: 'Dilação indeferida com o prazo vencido' }
     ],
-    'etapa-13': [{ id: 'etapa-10' }],
-    'etapa-10': [
-        { id: 'etapa-29', quando: 'Obrigação cumprida' },
-        { id: 'etapa-14', quando: 'Obrigação não cumprida' }
+    'etapa-13': [
+        { id: 'etapa-29', quando: 'Defesa deferida' },
+        { id: 'etapa-14', quando: 'Defesa indeferida, prazo vencido' },
+        { id: 'etapa-2', quando: 'Defesa indeferida, ainda no prazo (volta para o contribuinte cumprir)' }
     ],
     'etapa-14': [{ id: 'etapa-15' }],
     'etapa-15': [{ id: 'etapa-16', quando: 'Retorno do AR do Auto de Infração' }],
@@ -800,7 +777,6 @@ const POSICOES_FLUXOGRAMA = {
     'etapa-2': [2, 4],
     'etapa-4': [3, 5],
     'etapa-13': [1, 6], 'etapa-5': [3, 6],
-    'etapa-10': [2, 7],
     'etapa-14': [2, 8],
     'etapa-15': [2, 9],
     'etapa-18': [2, 10],

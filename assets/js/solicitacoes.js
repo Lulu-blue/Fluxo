@@ -2362,7 +2362,7 @@ async function coletarNumerosParaDevolver(pItem) {
     const { data: docs } = await supabaseClient.from('documentos').select('numero_sequencial, tipo').eq('processo_id', pid).not('numero_sequencial', 'is', null);
     (docs || []).forEach(d => {
         let cat = d.tipo;
-        if (cat === 'Relatório Fiscal Assinado') cat = 'Relatório Fiscal';
+        if (cat === 'Relatório Fiscal Assinado' || cat === 'Relatório Fiscal do Auto' || cat === 'Relatório Fiscal do Auto Assinado') cat = 'Relatório Fiscal';
         else if (cat === 'Auto de Infração Assinado') cat = 'Auto de Infração';
         else if (cat === 'Notificação Preliminar Assinada' || cat === 'Notificação Preliminar') cat = 'Notificação';
         else if (cat === 'Certidão Assinada') cat = 'Certidão Sem Defesa';

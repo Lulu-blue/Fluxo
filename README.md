@@ -106,7 +106,7 @@ fiscal e as infrações marcadas. Tem um número de protocolo único.
 **cada notificação segue o seu caminho**: num mesmo processo uma pode estar atendida,
 outra em defesa e outra já virando Auto de Infração.
 
-**Auto de Infração.** Quando a notificação não é cumprida (Etapa 10 → 14), ela vira Auto:
+**Auto de Infração.** Quando a notificação não é cumprida (vencida, dilação indeferida já vencida ou defesa indeferida → Etapa 14), ela vira Auto:
 o `status` passa a `auto_infracao` e o número do Auto também é gravado em `autos_infracao`.
 
 **Painéis de etapa.** O processo "mora" num painel enquanto as notificações andam:
@@ -167,6 +167,7 @@ Regras extras:
 - **Fiscal que não criou o processo** só vê o documento oficial (modo leitura).
 - **Etapa 16**: só o Administrativo de Posturas edita. Gerente, Fiscal do processo e os demais cargos veem a tela inteira (dados do AR, tentativas e anexos, com Visualizar), mas sem escrever, anexar, remover ou salvar. A mudança automática para a Etapa 30 (15 dias sem retorno) só roda quando quem edita abre a etapa.
 - Fora das etapas do seu cargo, o usuário vê o processo em **modo visualização**, sem editar.
+- **Gerente pode voltar etapa** também nas etapas do Fiscal e do Administrativo (`podeVoltarEtapaAtual`), mesmo sem poder editá-las; a regra do Auto por decreto na Etapa 14 (sem etapa anterior) continua.
 - **Dev ao anexar documento assinado** (NP/AF, Relatório Fiscal, Réplica, Certidão, Auto):
   o seletor aceita qualquer formato e, se a conferência acusar outro documento ou outro número,
   aparece "[Dev] Anexar mesmo assim?" em vez do bloqueio (`usuarioEhDev`,
@@ -306,7 +307,7 @@ flowchart TD
     E1 -->|NP ou Auto de Fiscalização| E16[16 Retorno do AR<br/>'1.2' no fluxo da NP]
     E16 -->|AR efetivado, fluxo NP| E2[2 Defesa ou Dilação<br/>painel das notificações]
     E16 -->|AR efetivado, fluxo Auto| E18
-    E16 -->|sem sucesso: 3 tentativas NP / 1 Auto| E17[17 Gerência gera o Edital]
+    E16 -->|sem sucesso: 2 tentativas NP / 1 Auto| E17[17 Gerência gera o Edital]
     E16 -->|15 dias sem retorno| E30[30 Gerente localiza o AR]
     E30 -->|efetivado| E2
     E30 -->|efetivado, fluxo Auto| E18
@@ -317,13 +318,13 @@ flowchart TD
     E2 -->|Defesa registrada no quadro| E13[13 Fiscal analisa a Defesa]
     E2 -->|Dilação| E4[4 Documentos da Dilação]
     E2 -->|Atendida| E29
-    E2 -->|Vencida| E10[10 Certidão]
+    E2 -->|Vencida| E14[14 Auto de Infração]
     E4 --> E5[5 Análise da Dilação]
     E5 -->|defere / indefere no prazo| E2
-    E5 -->|indefere vencido| E10
-    E13 -->|defere / indefere| E10
-    E10 -->|resolvido| E29
-    E10 -->|não resolvido| E14[14 Auto de Infração]
+    E5 -->|indefere vencido| E14
+    E13 -->|defere| E29
+    E13 -->|indefere, prazo vencido| E14
+    E13 -->|indefere, no prazo| E2
 
     E14 --> E15[15 Gerente gera a Multa]
     E15 --> E16
@@ -351,11 +352,10 @@ flowchart TD
 | Etapa | Nome | Responsável | Saídas |
 |---|---|---|---|
 | 1 | Notificação / Auto de Fiscalização | Fiscal | → 16 |
-| 2 | Andamento | Fiscal | por notificação: Defesa → 13; Dilação → 4; Atendida → 29; Vencida → 10 |
+| 2 | Andamento | Fiscal | por notificação: Defesa → 13; Dilação → 4; Atendida → 29; Vencida → 14 |
 | 4 | Comprovantes | Fiscal | sempre → 5 |
-| 5 | Análise Dilação de Prazo | Fiscal | defere → 2; indefere no prazo → 2; indefere vencido → 10 |
-| 10 | Certidão de Cumprimento | Fiscal | resolvido → 29; não → 14 |
-| 13 | Análise da defesa | Fiscal | defere / indefere → 10 |
+| 5 | Análise Dilação de Prazo | Fiscal | defere → 2; indefere no prazo → 2; indefere vencido → 14 |
+| 13 | Análise da defesa | Fiscal | defere → 29; indefere: prazo vencido → 14, no prazo → 2 |
 | 14 | Auto de Infração (AI) | Fiscal | → 15 |
 | 15 | Multa do AI | Gerente / Administrativo | → 16 |
 | 16 | Dados do AR (1.2) | Administrativo | → 2 / 18 / 17 / 30 |
@@ -430,7 +430,7 @@ marca uma opção:
 - **Atendida** → Etapa **29**, direto para a Certidão de Encerramento (não passa pela 10)
 - **Defesa** → Etapa **13** (análise da defesa). Exige a defesa registrada no quadro.
 - **Dilação de prazo** → Etapa 4. Fica desabilitada se a notificação já teve dilação.
-- **Em branco:** fica aguardando. Vencido o prazo, pode avançar como "vencida" → Etapa 10, já com "O problema foi resolvido?" marcado como **Não** (gera o Auto, Etapa 14).
+- **Em branco:** fica aguardando. Vencido o prazo, pode avançar como "vencida" → direto para a **Etapa 14** (Auto de Infração).
 
 **Protocolo e defesa no quadro:** cada notificação ainda na Etapa 2 tem o **Nº do protocolo**
 (`dados.protocolo_np`) e, logo abaixo, a **defesa**: anexar arquivos (vários, com Visualizar e
@@ -448,7 +448,7 @@ O processo **permanece na Etapa 2**: só as notificações andam.
 
 **Não é mais usada:** a defesa é registrada no quadro da notificação, na Etapa 2, e a
 notificação vai direto para a 13. A tela continua no código só para os processos antigos
-que ficaram parados nela (com anexo → 13; sem anexo e vencida → 10). Os anexos antigos
+que ficaram parados nela (com anexo → 13; sem anexo e vencida → 14). Os anexos antigos
 (`dados.etapa3.anexos`) continuam aparecendo junto da defesa nas Etapas 13 e no PDF.
 
 ### Etapa 4 — Documentos da Dilação de Prazo
@@ -474,7 +474,7 @@ opcionais, nenhum deles muda o destino.
 - **Defere:** informa quantos dias. Soma ao vencimento e volta para a **Etapa 2**, sem a opção de nova dilação.
 - **Indeferimento:** motivo obrigatório ("pois: …"). O destino depende do prazo da notificação:
   ainda **no prazo** → volta para a **Etapa 2** (o contribuinte continua tendo o prazo original
-  para cumprir); **vencida** → **Etapa 10**, já com "O problema foi resolvido?" marcado como **Não**.
+  para cumprir); **vencida** → direto para a **Etapa 14** (Auto de Infração).
 
 A opção "Mandar para o gerente" foi removida: para falar com a Gerência ou com o Jurídico,
 use o **chat**. Quando for esperar a resposta do Jurídico, o botão **Paralisar aguardando
@@ -483,7 +483,12 @@ o Jurídico** para a contagem do prazo e avisa os outros no painel.
 Pode **adicionar imagens com legenda** à réplica. É **obrigatório anexar a Réplica assinada** antes de avançar.
 Botão de topo: "Imprimir / Baixar → Réplica (.pdf)". Textos da réplica no [Anexo B](#anexo-b--textos-padrão).
 
-### Etapa 10 — Certidão Sem Defesa / Encerramento
+### Etapa 10 — Certidão Sem Defesa / Encerramento (fora do fluxo)
+
+**Não é mais usada:** quem antes ia para a 10 segue a regra do prazo da notificação —
+**vencido → 14** (Auto de Infração); **ainda no prazo → volta para a 2**. A exceção é a defesa
+deferida na Etapa 13, que vai direto para a **29**. A tela continua
+só para os processos antigos que ficaram parados nela:
 
 **Quem:** Fiscal. Gera a **Certidão** com os dados do autuado, do imóvel e da vistoria.
 Campos: Nº da notificação, tipo da infração e **"O problema foi resolvido?"**.
@@ -497,12 +502,25 @@ Com **Sim**, a última frase da certidão passa a ser *"certificamos que houve o
 ### Etapa 13 — Fiscal Analisa a Defesa (1ª)
 
 **Quem:** Fiscal. Mostra a defesa registrada no quadro da Etapa 2 (texto e arquivos) e os comprovantes (Etapa 4) e gera a **Réplica**.
-- **Defere** → **10** (com "resolvido" já marcado como Sim).
-- **Indeferimento:** motivo obrigatório → **10**.
+- **Defere** → **29** (Certidão de encerramento).
+- **Indefere** (motivo obrigatório): o destino depende do prazo da notificação — **vencido** →
+  **14** (Auto de Infração); **ainda no prazo** → volta para a **Etapa 2**, para o contribuinte cumprir.
 
 Imagens com legenda opcionais. **Réplica assinada obrigatória** para avançar.
 
 ### Etapa 14 — Auto de Infração
+
+**Relatório Fiscal do Auto (2º relatório):** quando o Auto vem de uma NP ou de um AF (não vale
+para decreto, Meio Ambiente direto ao Auto e reincidência, que usam o relatório do processo), a
+etapa gera um relatório próprio do Auto, no mesmo modelo do Relatório Fiscal, com **número novo**
+da sequência, a **data e hora da vistoria do Auto** (campo na etapa) e **fotos próprias**
+(aba Editar dados, que na 14 abre só com essas fotos e salva na hora). O botão
+"Imprimir / baixar" da etapa passa a gerar este relatório (ou abrir o assinado). O assinado é
+**obrigatório** para avançar. Fica em `notificacoes.dados.relatorio_ai`
+(`{ numero, data_vistoria, imagens, anexo }`) e em `documentos` (tipos `Relatório Fiscal do
+Auto` e `Relatório Fiscal do Auto Assinado`). No PDF do processo: Relatório Fiscal → NP →
+… → **Relatório Fiscal do Auto** → Auto de Infração. Processos que já passaram da 14 seguem sem
+ele; no "Processo já existente" ele pode ser anexado a partir da Etapa 15.
 
 **Quem:** Fiscal. Também é a **porta de entrada dos processos por decreto**. Ao abrir, a notificação passa a `auto_infracao`.
 
@@ -865,7 +883,6 @@ e uma **sugestão de decisão**, com o botão "Usar esta sugestão".
 
 | Etapa | Fluxo oficial | Código hoje |
 |---|---|---|
-| 13 | Deferida → **29** | Deferida → **10** (certidão já com "resolvido = Sim"), depois 29 |
 | 13 | Opção **Enviar para o Jurídico (32)**, com chat e possibilidade de paralisar o processo | Feito pelo chat do Jurídico + botão de paralisar |
 | 1 | Sem decreto → 2 | 1 → 16 (AR) → 2. O canvas omite o ciclo do AR nesse caminho |
 | 17 | Sempre → 18 | → 18 no fluxo do Auto e → 2 no fluxo da NP (Edital da Notificação Preliminar) |
@@ -880,7 +897,7 @@ canvas deve ser completado.
 - **Etapa 18:** antes era um checklist → 19 / 20 ("Realizar Pagamento"). Hoje são três opções por Auto: Defesa → 19, Pagamento → 29, Não pagou → 28.
 - **Etapa 20:** deixou de ser "Realizar Pagamento" e virou **Arquivamento do Processo**.
 - **Etapa 19:** passou a ser o Parecer Jurídico (antes era a 23).
-- **Etapa 16:** 3 tentativas valem só para a NP; no fluxo do Auto, 1 tentativa leva ao Edital.
+- **Etapa 16:** 2 tentativas valem só para a NP; no fluxo do Auto, 1 tentativa leva ao Edital.
 
 **Pendências:**
 - **Etapas sem uso:** resolvido em 14/10/2026 — 6, 7, 8, 9, 11, 12, 23, 27 e 32 saíram do código e do banco (ver "Etapas removidas do sistema"). A consulta ao Jurídico da antiga 32 virou o chat, com o botão de paralisar nas Etapas 5 e 13. A 26, que era "Fazenda Gera a Multa" sem tela, passou a ser a Análise para dar Desconto.

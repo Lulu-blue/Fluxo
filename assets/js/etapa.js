@@ -1105,13 +1105,17 @@ function renderizarFormularioDinamico(etapaNum) {
     const btnTabDoc = document.querySelector('.tab-button[data-tab="tabDocumentoOficial"]');
     const btnTabEdit = document.querySelector('.tab-button[data-tab="tabEditarProcesso"]');
 
+    // Na Etapa 14 do Auto vindo de NP/AF, a aba de edição abre só com as fotos
+    // do Relatório Fiscal do Auto (prepararAbaEditarRelatorioAuto)
+    const editarSoRelatorioAuto = etapaNum === 14 && etapa14TemRelatorioDoAuto();
     if (notificacaoAtual && etapaNum !== 1) {
         if (btnTabDoc) btnTabDoc.textContent = `Ações`;
-        if (btnTabEdit) btnTabEdit.style.display = 'none';
+        if (btnTabEdit) btnTabEdit.style.display = editarSoRelatorioAuto ? 'inline-block' : 'none';
     } else {
         if (btnTabDoc) btnTabDoc.textContent = `Notificação Preliminar`;
         if (btnTabEdit) btnTabEdit.style.display = 'inline-block';
     }
+    prepararAbaEditarRelatorioAuto(editarSoRelatorioAuto);
 
     const decretoSim = processoAtual?.possui_decreto
         || processoAtual?.campos?.fiscDecreto === 'sim'
@@ -1127,6 +1131,10 @@ function renderizarFormularioDinamico(etapaNum) {
             btnBaixar.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg> Imprimir / baixar → relatório de vistoria (.pdf)`;
             // Queimada com REDS sem Relatório Fiscal: não há o que baixar
             btnBaixar.style.display = processoSemRelatorioFiscal(processoAtual) ? 'none' : '';
+            if (etapaNum === 14 && etapa14TemRelatorioDoAuto()) {
+                btnBaixar.innerHTML = btnBaixar.innerHTML.replace('relatório de vistoria', 'Relatório Fiscal do Auto');
+                btnBaixar.style.display = '';
+            }
         }
     }
 
@@ -1157,6 +1165,9 @@ function renderizarFormularioDinamico(etapaNum) {
                 <!-- Bloco 1: Valores das Multas (card compartilhado com a Etapa 14) -->
                 ${window.obterHtmlCardCalculoMulta({ suffix: '' })}
 
+                <!-- Nota do fiscal da NP/AF -->
+                ${htmlCampoNotaFiscalNotificacao()}
+
                 <!-- Meio Ambiente: testemunhas do Auto de Fiscalização -->
                 ${htmlCampoTestemunhas('af')}
 
@@ -1174,8 +1185,8 @@ function renderizarFormularioDinamico(etapaNum) {
                         <!-- Anexo 1: Notificação Preliminar Assinada -->
                         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
                             <label style="font-weight:700; color:#1e293b; font-size:0.92rem; display:block; margin-bottom:8px;">1. Notificação Preliminar assinada <span style="color:#ef4444;">*</span></label>
-                            <div id="areaDropNP" class="drop-area-clean">
-                                <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique para selecionar ou arraste a notificação assinada aqui</p>
+                            <div id="areaDropNP" class="drop-area-clean" style="border: 2px dashed #ef4444; border-radius: 10px; padding: 20px; text-align: center; background: #fff5f5; cursor: pointer;">
+                                <p style="margin:0; font-weight:600; color:#991b1b; font-size:0.95rem;">Clique para selecionar ou arraste a notificação assinada aqui</p>
                                 <input type="file" id="inputArquivoNP" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
                             </div>
 
@@ -1196,8 +1207,8 @@ function renderizarFormularioDinamico(etapaNum) {
                         <!-- Anexo 2: Relatório Fiscal Assinado -->
                         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
                             <label style="font-weight:700; color:#1e293b; font-size:0.92rem; display:block; margin-bottom:8px;">2. Relatório Fiscal assinado <span style="color:#ef4444;">*</span></label>
-                            <div id="areaDropRF" class="drop-area-clean">
-                                <p style="margin:0; font-weight:600; color:#1e293b; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal assinado aqui</p>
+                            <div id="areaDropRF" class="drop-area-clean" style="border: 2px dashed #10b981; border-radius: 10px; padding: 20px; text-align: center; background: #ecfdf5; cursor: pointer;">
+                                <p style="margin:0; font-weight:600; color:#047857; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal assinado aqui</p>
                                 <input type="file" id="inputArquivoRF" accept=".pdf,.jpg,.jpeg,.png" style="display:none;">
                             </div>
 
@@ -1778,6 +1789,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 })}
 
                 ${etapa14PedeRelatorioFiscalAssinado() && typeof window.obterHtmlBlocoRelatorioFiscalAssinado === 'function' ? window.obterHtmlBlocoRelatorioFiscalAssinado() : ''}
+                ${htmlCardRelatorioAuto()}
                 ${obterHtmlBlocoAutoInfracaoAssinado()}
 
                 <div style="background:#FFF9EB; padding:14px; border-radius:10px; border:1px solid #F6D58E; color:#996B00; font-size:0.88rem; display:flex; align-items:center; gap:10px; margin-top:20px;">
@@ -3070,6 +3082,18 @@ function podeGerenciarEtapaAtual() {
     return etapasPermitidas.includes(etapaAtual);
 }
 
+// O Gerente pode voltar a etapa também nas etapas do Fiscal e do Administrativo
+// (além das dele), para corrigir um avanço feito por engano
+function podeVoltarEtapaAtual() {
+    if (podeGerenciarEtapaAtual()) return true;
+    if (!processoAtual || normalizarCargo(perfilAtual?.cargo) !== 'Gerente') return false;
+    const etapaAtual = notificacaoAtual
+        ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 2, 10)
+        : parseInt(processoAtual.etapa_atual || processoAtual.etapa_atual_id || 1, 10);
+    return [...(ETAPAS_POR_CARGO['Fiscal de Postura'] || []), ...(ETAPAS_POR_CARGO['Administrativo de Posturas'] || [])]
+        .includes(etapaAtual);
+}
+
 // ── Retorna a etapa anterior com base no histórico ────────────────────────
 // Ignora registros de "volta de etapa" para não criar ciclos (B->A->B->A).
 // Busca a última transição NORMAL que levou o processo até a etapa atual
@@ -3197,7 +3221,7 @@ function configurarBotoesNavegacaoPadrao() {
             (etapaAtual === 14 && !notificacaoAtual)
         );
 
-        if (!podeGerenciar || (etapaAtual === 14 && ehProcessoDecretoAi)) {
+        if (!podeVoltarEtapaAtual() || (etapaAtual === 14 && ehProcessoDecretoAi)) {
             btnVoltar.style.display = 'none';
         } else {
             btnVoltar.style.display = '';
@@ -3343,7 +3367,7 @@ async function avancarEtapa3() {
     } else {
         const info = formatarDiasRestantes(notificacaoAtual.data_vencimento);
         if (info.vencido) {
-            await moverProcessoParaEtapa(10, 'Prazo de defesa esgotado (Sem defesa)');
+            await moverProcessoParaEtapa(14, 'Prazo de defesa esgotado (Sem defesa)');
         } else {
             ocultarCarregamento();
             alert('A notificação ainda está no prazo. Para avançar sem anexar, aguarde o vencimento do prazo. Se possui a defesa, anexe o documento acima.');
@@ -3611,9 +3635,8 @@ async function avancarEtapa5() {
             : { vencido: false };
 
         if (prazo.vencido) {
-            // Prazo acabou: vai direto para a certidão, já marcada como não resolvido
-            marcarResolvidoParaCertidao(notificacaoAtual, 'nao');
-            proxEtapa = 10;
+            // Prazo acabou: vai direto para o Auto de Infração (a Etapa 10 saiu do fluxo)
+            proxEtapa = 14;
             motivo = 'Dilação indeferida (prazo vencido)';
         } else {
             notificacaoAtual.status = 'pendente';
@@ -3739,15 +3762,25 @@ async function avancarEtapa13() {
         await window.gerarReplica();
     }
 
-    let proxEtapa = 10;
-    let motivo = 'Defesa analisada';
-
+    // Sem a Etapa 10: deferida encerra (29). Indeferida segue o prazo da notificação:
+    // vencido → Auto de Infração (14); ainda no prazo → volta para a Etapa 2, para o
+    // contribuinte cumprir. Sem vencimento (não começou ou paralisado), conta como no prazo.
+    const prazo13 = notificacaoAtual.data_vencimento
+        ? formatarDiasRestantes(notificacaoAtual.data_vencimento)
+        : { vencido: false };
+    let proxEtapa;
+    let motivo;
     if (decisao === 'defere') {
-        proxEtapa = 10;
-        motivo = 'Defesa deferida pelo Fiscal (encaminhado para Certidão)';
-    } else if (decisao === 'indefere') {
-        proxEtapa = 10;
-        motivo = 'Defesa indeferida pelo Fiscal';
+        // Defesa deferida encerra a notificação
+        proxEtapa = 29;
+        motivo = 'Defesa deferida pelo Fiscal (encerramento)';
+    } else if (prazo13.vencido) {
+        proxEtapa = 14;
+        motivo = 'Defesa indeferida pelo Fiscal (prazo vencido)';
+    } else {
+        proxEtapa = 2;
+        notificacaoAtual.status = 'pendente';
+        motivo = 'Defesa indeferida pelo Fiscal (ainda no prazo)';
     }
 
     await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, status: notificacaoAtual.status });
@@ -4071,6 +4104,9 @@ window.gerarZipComTodosDocumentos = async function () {
             const u = d.url || d.dataUrl || d.base64;
             if (u) await helperAddZip(`2_REDS_${d.nome_arquivo || numNotifLimpo}`, u);
         }
+        // Relatório Fiscal do Auto (Etapa 14), o assinado
+        const docRFAuto = docsBanco.find(doc => doc.tipo === TIPO_RF_AUTO_ASSINADO && doc.url);
+        if (docRFAuto) await helperAddZip(`12a_Relatorio_Fiscal_Auto_${docRFAuto.nome_arquivo || numNotifLimpo}`, docRFAuto.url);
 
         // 3. BIC (Espelho Cadastral Imobiliário) ou Comprovante de Inscrição no CNPJ
         const docBIC = docsBanco.find(d => ['BIC Espelho Cadastral', 'BIC', 'Espelho Cadastral', 'Boletim Informativo', 'Comprovante de Inscrição CNPJ'].includes(d.tipo))
@@ -4234,7 +4270,13 @@ window.abrirOuBaixarDocumento = function (url, nomePadrao) {
         printDoc.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${nomeTitulo}</title><style>* { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } body { margin: 0; padding: 20px; background: #fff; font-family: Calibri, 'Segoe UI', sans-serif; color: black; } img { max-width: 100%; height: auto; } @media print { body { padding: 0; margin: 0; } @page { size: A4; margin: 12mm 0 15mm 0; } @page :first { margin-top: 0; } }</style></head><body>${url}</body></html>`);
         printDoc.close();
 
-        setTimeout(() => {
+        // Espera as imagens (fotos do Cloudinary) carregarem, senão saem em branco
+        // no PDF; no máximo 15 s
+        const pendentes = Array.from(printDoc.images).filter(img => !img.complete);
+        Promise.race([
+            Promise.all(pendentes.map(img => new Promise(r => { img.onload = img.onerror = r; }))),
+            new Promise(r => setTimeout(r, 15000))
+        ]).then(() => setTimeout(() => {
             printIframe.contentWindow.focus();
             window.prepararImpressaoComRodape?.(printIframe.contentWindow.document);
             printIframe.contentWindow.print();
@@ -4244,7 +4286,7 @@ window.abrirOuBaixarDocumento = function (url, nomePadrao) {
                 }
                 document.title = tituloOriginal;
             }, 1000);
-        }, 500);
+        }, 300));
         return true;
     }
 
@@ -4732,7 +4774,7 @@ async function liberarNumerosEReservasEtapa(etapaOrigemNum) {
 
 async function voltarEtapaPadrao() {
     if (!processoAtual) return;
-    if (!podeGerenciarEtapaAtual()) {
+    if (!podeVoltarEtapaAtual()) {
         alert('Você não tem permissão para voltar esta etapa.');
         return;
     }
@@ -7015,6 +7057,489 @@ function etapa14PedeRelatorioFiscalAssinado() {
     return dispositivos.length > 0 && dispositivos.every(d => window.infracaoMeioAmbienteVaiDiretoAoAuto(d));
 }
 
+// ── Relatório Fiscal do Auto de Infração (2º relatório, Etapa 14) ──────────
+// Quando o Auto vem de uma NP ou de um AF, a Etapa 14 gera um relatório próprio
+// do Auto: mesmo modelo do Relatório Fiscal, número novo da sequência, data da
+// vistoria do Auto (informada na etapa) e fotos próprias (Editar dados). Pede o
+// assinado para avançar. No PDF do processo entra logo antes do Auto.
+// Fica em notificacoes.dados.relatorio_ai:
+//   { numero, data_vistoria, imagens: [{ url, legenda }], anexo: { documento_id, url, nome } }
+// Documentos: tipo 'Relatório Fiscal do Auto' (o gerado) e '... Assinado'.
+// Processos que já passaram da Etapa 14 sem ele continuam como estão.
+const TIPO_RF_AUTO = 'Relatório Fiscal do Auto';
+const TIPO_RF_AUTO_ASSINADO = 'Relatório Fiscal do Auto Assinado';
+window.TIPO_RF_AUTO = TIPO_RF_AUTO;
+window.TIPO_RF_AUTO_ASSINADO = TIPO_RF_AUTO_ASSINADO;
+
+// Só o Auto que veio de uma NP/AF: decreto, Meio Ambiente direto e reincidência
+// nascem na 14 com o relatório do próprio processo (ou do anterior)
+// A notificação dona do relatório: a aberta na tela; sem notificação aberta, com
+// o processo na Etapa 14 (ex.: "Processo já existente" cadastrado na 14, que abre
+// pelo processo), a notificação dele que está na 14.
+function notifRA() {
+    if (notificacaoAtual?.id) return notificacaoAtual;
+    const etapaProc = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 0, 10);
+    if (etapaProc !== 14) return null;
+    const lista = (typeof obterNotificacoesProcesso === 'function' ? obterNotificacoesProcesso(processoAtual) : processoAtual?.notificacoes) || [];
+    return lista.find(n => n?.id && parseInt(n.etapas?.numero || n.etapa_atual_id || n.etapa_atual || 0, 10) === 14)
+        || lista.find(n => n?.id) || null;
+}
+
+function etapa14TemRelatorioDoAuto() {
+    const notif = notifRA();
+    if (!notif?.id || !processoAtual) return false;
+    const etapa = notificacaoAtual
+        ? parseInt(notificacaoAtual.etapas?.numero || notificacaoAtual.etapa_atual || notificacaoAtual.etapa_atual_id || 0, 10)
+        : parseInt(processoAtual.etapa_atual || processoAtual.etapa_atual_id || 0, 10);
+    if (etapa !== 14) return false;
+    if (etapa14PedeRelatorioFiscalAssinado()) return false;
+    if (typeof processoEhReincidencia === 'function' && processoEhReincidencia(processoAtual)) return false;
+    return true;
+}
+window.etapa14TemRelatorioDoAuto = etapa14TemRelatorioDoAuto;
+
+function dadosRelatorioAuto() {
+    return notifRA()?.dados?.relatorio_ai || {};
+}
+
+async function gravarRelatorioAuto(alteracoes) {
+    const novo = { ...dadosRelatorioAuto(), ...alteracoes };
+    await gravarCampoNaNotificacao(notifRA().id, 'relatorio_ai', novo);
+    return novo;
+}
+
+// Número próprio, da sequência dos Relatórios Fiscais; reservado uma vez só
+async function garantirNumeroRelatorioAuto() {
+    const atual = dadosRelatorioAuto().numero;
+    if (atual) return atual;
+    const ano = new Date().getFullYear();
+    const { data: numero, error } = await supabaseClient.rpc('reservar_numero', { p_ano: ano, p_categoria: 'Relatório Fiscal' });
+    if (error || !numero) throw new Error('Não foi possível reservar o número do Relatório Fiscal do Auto: ' + (error?.message || 'sem resposta'));
+    await gravarRelatorioAuto({ numero });
+    return numero;
+}
+
+function dataHoraParaTextoRelatorio(valor) {
+    const [dp, hp] = String(valor || '').split('T');
+    if (!dp) return '';
+    const da = dp.split('-');
+    const df = da.length === 3 ? `${da[2]}/${da[1]}/${da[0]}` : dp;
+    return hp ? ` no dia ${df} às ${hp.substring(0, 5)}` : ` no dia ${df}`;
+}
+
+function montarHtmlRelatorioFiscalAuto(numero) {
+    const d = processoAtual.dados || {};
+    const iProc = d.imovel || {};
+    const fProc = d.fiscal || {};
+    const rAuto = dadosRelatorioAuto();
+    const esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const dataAtualFmt = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const brasaoImg = window.BRASAO_SEMAC_BASE64 || 'assets/img/brasao_semac.jpeg';
+
+    const fiscAutor = (typeof window.obterFiscalAutorDoProcesso === 'function') ? window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual) : {};
+    const fNome = fProc.nome || fProc.fiscNome || fiscAutor.nome || perfilAtual?.nome || 'Nome do Fiscal';
+    const fCargo = fProc.cargo || fiscAutor.cargo || perfilAtual?.cargo || 'Cargo do Fiscal';
+    const fMatricula = fProc.matricula || fProc.fiscMatricula || fiscAutor.matricula || perfilAtual?.matricula || 'XXXXXXXX';
+    const assinaturasComContribuidor = (window.htmlAssinaturasRelatorioComContribuidor && window.processoEhMeioAmbiente?.(processoAtual))
+        ? window.htmlAssinaturasRelatorioComContribuidor({ nome: fNome, cargo: fCargo, matricula: fMatricula }, window.contribuidoresDoProcesso(d))
+        : '';
+
+    const htmlImagens = (rAuto.imagens || []).filter(img => img?.url).map(img => `<div style="text-align:center;margin:20px 0;page-break-inside:avoid;"><div style="display:inline-block;max-width:100%;min-width:150px;padding:4px;"><img src="${esc(img.url)}" style="max-width:100%;max-height:420px;object-fit:contain;display:block;"/></div>${img.legenda ? `<p style="margin-top:5px;font-style:italic;color:#555;">${esc(img.legenda)}</p>` : ''}</div>`).join('');
+
+    // A infração deste Auto, como na frase do relatório ("houve a falta de ...")
+    const infracao = (window.obterDescricaoInfracao ? window.obterDescricaoInfracao(notifRA()?.descricao || '') : (notifRA()?.descricao || '')).toLowerCase();
+    const textoVistoria = textoInfracoesParaRelatorio(infracao || 'falta de limpeza e conservação de imóvel não edificado');
+    const inscricaoValor = iProc.inscricao || 'Não informada';
+    const inscricaoLabel = inscricaoValor.replace(/\D/g, '').length === 14 ? 'CNPJ' : 'Inscrição Imobiliária';
+
+    const cabecalhoHtml = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;border-collapse:collapse;"><tr><td width="100" rowspan="2" align="center" valign="top" style="padding-right:12px;width:100px;"><img src="${brasaoImg}" alt="Brasão" style="width:85px;height:auto;display:block;margin:0 auto;"></td><td bgcolor="#F78C26" style="background-color:#F78C26;height:14px;font-size:1px;line-height:14px;">&nbsp;</td></tr><tr><td valign="top" style="padding-top:10px;font-size:9.5pt;color:#000;line-height:1.4;"><strong>SECRETARIA MUNICIPAL DE MEIO AMBIENTE E CUIDADO ANIMAL - SEMAC</strong><br>DIRETORIA DE MEIO AMBIENTE<br>GERÊNCIA DE FISCALIZAÇÃO DE POSTURAS<br><span style="font-size:9pt;">Av. Paraná, nº2061, sala 207 - Bairro São José - Divinópolis, Minas Gerais</span><br><span style="font-size:9pt;">CEP: 35.501-170 Tel: (37) 3229-8176</span></td></tr></table>`;
+    const tituloHtml = `<div style="text-align:center;font-weight:bold;margin-top:25px;margin-bottom:5px;"><p style="margin:0;font-size:12pt;">RELATÓRIO FISCAL ${esc(numero)}</p></div><div style="text-align:center;margin-bottom:15px;"><p style="margin:0;">${window.subtituloFiscalizacao ? window.subtituloFiscalizacao(processoAtual) : 'Fiscalização de Posturas'}</p></div><div style="text-align:right;margin-bottom:20px;"><p style="margin:0;">Divinópolis- MG ${dataAtualFmt}</p></div>`;
+    const assinaturaHtml = `<div style="page-break-inside:avoid;break-inside:avoid;">${htmlImagens}<div style="margin-top:40px;page-break-inside:avoid;break-inside:avoid;">${assinaturasComContribuidor || `<div style="text-align:center;"><p style="margin:0;">_________________________________________</p><p style="margin:5px 0 0 0;"><strong>${esc(fNome)}</strong></p><p style="margin:2px 0 0 0;">${esc(fCargo)}</p><p style="margin:2px 0 0 0;">Matrícula: ${esc(fMatricula)}</p></div>`}</div></div>`;
+    const corpoHtml = `<div style="margin-bottom:20px;">
+        <p style="margin:0 0 6px 0;"><strong>Para atendimento:</strong> ${esc(`${rAuto.atendimento_tipo || ''} ${rAuto.atendimento_valor || ''}`.trim() || '—')}</p>
+        <p style="margin:0 0 6px 0;"><strong>Assunto:</strong> ${esc(rAuto.assunto || '—')}</p>
+        <p style="margin:0 0 6px 0;"><strong>Processo:</strong> ${esc(processoAtual.numero_processo || 'XXX')}</p>
+        <p style="margin:0 0 6px 0;"><strong>Auto de Infração:</strong> ${esc(notifRA()?.numero_auto_infracao || notifRA()?.dados?.numero_auto_infracao || '—')}</p>
+    </div>
+    <div style="margin-bottom:30px;"><div style="font-size:10.5pt;font-weight:bold;margin-bottom:6px;">Local da Autuação</div>
+    <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size:10pt;line-height:1.45;"><tr><td width="58%" valign="top"><div><strong>Logradouro:</strong> ${esc(iProc.logradouro || 'XXX')}, n° ${esc(iProc.numero || 'XXXX')}</div><div><strong>Bairro:</strong> ${esc(iProc.bairro || 'XXXX')}</div></td><td width="42%" valign="top"><div><strong>${inscricaoLabel}:</strong> ${esc(inscricaoValor)}</div></td></tr></table></div>
+    <div style="margin-bottom:20px;text-align:justify;">
+        <p style="margin:0 0 6px 0;">Prezado(a),</p>
+        <p style="text-indent:30px;margin:0 0 6px 0;">informamos que em vistoria${dataHoraParaTextoRelatorio(rAuto.data_vistoria)} ao local indicado, verificamos que houve ${esc(textoVistoria)}.</p>
+    </div>`;
+    return `<div style="font-family:Calibri,'Segoe UI',sans-serif;color:black;max-width:820px;margin:0 auto;line-height:1.3;font-size:10pt;padding:40px 55px 30px 55px;background:white;">${cabecalhoHtml}${tituloHtml}${corpoHtml}${assinaturaHtml}<div class="doc-rodape-laranja" style="height:10px;background:#F78C26;margin-top:12px;"></div></div>`;
+}
+
+// Botão "Imprimir / baixar" da Etapa 14: o assinado, se já houver; senão gera
+window.baixarRelatorioFiscalAuto = async function () {
+    const anexo = dadosRelatorioAuto().anexo;
+    if (anexo?.url) {
+        window.abrirOuBaixarDocumento(anexo.url, anexo.nome || 'Relatorio_Fiscal_Auto.pdf');
+        return;
+    }
+    if (!validarAtendimentoRelatorioAuto()) return;
+
+    // Sem foto: só avisa (o fiscal pode gerar assim mesmo)
+    if (!(dadosRelatorioAuto().imagens || []).length
+        && !confirm('O Relatório Fiscal do Auto ainda não tem nenhuma foto.\n\nAntes de gerar, confira a data da vistoria e inclua as fotos (no quadro do relatório ou em "Editar dados").\n\nOK gera o relatório assim mesmo; Cancelar volta para você ajustar.')) {
+        return;
+    }
+    try {
+        mostrarCarregamento('Gerando o Relatório Fiscal do Auto...');
+        const numero = await garantirNumeroRelatorioAuto();
+        const html = montarHtmlRelatorioFiscalAuto(numero);
+        // Guarda o gerado em documentos (o número fica registrado e o PDF do processo o encontra)
+        const { data: existente } = await supabaseClient.from('documentos').select('id')
+            .eq('notificacao_id', notifRA().id).eq('tipo', TIPO_RF_AUTO).maybeSingle();
+        if (existente?.id) {
+            await supabaseClient.from('documentos').update({ url: html }).eq('id', existente.id);
+        } else {
+            await supabaseClient.from('documentos').insert([{
+                processo_id: processoAtual.id,
+                notificacao_id: notifRA().id,
+                etapa_id: 14,
+                tipo: TIPO_RF_AUTO,
+                nome_arquivo: `Relatorio_Auto_${String(numero).replace(/[\/\\]/g, '-')}.html`,
+                url: html,
+                gerado_automaticamente: true,
+                numero_sequencial: numero,
+                usuario_id: perfilAtual?.id || null
+            }]);
+        }
+        ocultarCarregamento();
+        atualizarCardRelatorioAuto();
+        window.abrirOuBaixarDocumento(html, `Relatorio_Fiscal_Auto_${String(numero).replace(/[\/\\]/g, '-')}`);
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao gerar o Relatório Fiscal do Auto:', err);
+        alert(err?.message || 'Não foi possível gerar o Relatório Fiscal do Auto.');
+    }
+};
+
+function htmlCardRelatorioAuto() {
+    if (!etapa14TemRelatorioDoAuto()) return '';
+    return `<div id="cardRelatorioAuto" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin:20px 0; box-shadow:0 1px 3px 0 rgba(0,0,0,0.1);">${htmlConteudoCardRelatorioAuto()}</div>`;
+}
+
+function htmlConteudoCardRelatorioAuto() {
+    const r = dadosRelatorioAuto();
+    const podeEditar = typeof podeGerenciarEtapaAtual !== 'function' || podeGerenciarEtapaAtual();
+    const esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const qtdFotos = (r.imagens || []).length;
+    return `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+            <div>
+                <h4 style="margin:0; font-size:1rem; font-weight:700; color:#1e293b;">Relatório Fiscal do Auto de Infração <span style="color:#ef4444;">*</span></h4>
+                <div style="font-size:0.82rem; color:#64748b; margin-top:2px;">${r.numero ? `Nº ${esc(r.numero)}` : 'O número é reservado ao gerar o relatório.'} · ${qtdFotos} foto(s)</div>
+            </div>
+            <span style="padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:600; ${r.anexo?.url ? 'background:#dcfce7; color:#166534;' : 'background:#f1f5f9; color:#64748b;'}">${r.anexo?.url ? 'Assinado anexado' : 'Pendente'}</span>
+        </div>
+        ${htmlCamposAtendimentoRelatorioAuto(r, podeEditar)}
+        <div style="margin-bottom:14px;">
+            <div style="font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">Fotos do relatório</div>
+            ${htmlFotosRelatorioAuto(podeEditar)}
+        </div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px;">
+            <div>
+                <label for="inputDataVistoriaAuto" style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:4px;">Data e hora da vistoria do Auto</label>
+                <input type="datetime-local" id="inputDataVistoriaAuto" value="${esc(r.data_vistoria || '')}" ${podeEditar ? '' : 'disabled'}
+                    onchange="window.salvarDataVistoriaRelatorioAuto(this.value)"
+                    style="padding:8px 10px; border:1px solid #94a3b8; border-radius:8px; font-family:inherit;">
+            </div>
+            <button type="button" onclick="window.baixarRelatorioFiscalAuto()" class="btn-primary" style="padding:10px 16px;">Gerar o Relatório Fiscal do Auto</button>
+        </div>
+        ${r.anexo?.url
+            ? `<div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc;">
+                    <span style="flex:1; font-size:0.88rem; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(r.anexo.nome || 'relatorio_fiscal_auto_assinado.pdf')}</span>
+                    <button type="button" onclick="window.abrirOuBaixarDocumento(${esc(JSON.stringify(r.anexo.url))}, ${esc(JSON.stringify(r.anexo.nome || 'Relatorio_Fiscal_Auto.pdf'))})" style="padding:5px 12px; border-radius:6px; border:1px solid #bfdbfe; background:#eff6ff; color:#1e40af; font-weight:600; cursor:pointer;">Visualizar</button>
+                    ${podeEditar ? `<button type="button" onclick="window.removerRelatorioAutoAssinado()" style="padding:5px 12px; border-radius:6px; border:1px solid #fecaca; background:white; color:#b91c1c; font-weight:600; cursor:pointer;">Remover</button>` : ''}
+               </div>`
+            : (podeEditar ? `<label class="drop-relatorio-auto" style="display:block; border: 2px dashed #10b981; border-radius: 10px; padding: 20px; text-align: center; background: #ecfdf5; cursor: pointer; transition: all 0.2s ease;">
+                    <p style="margin:0; font-weight:600; color:#047857; font-size:0.95rem;">Clique para selecionar ou arraste o Relatório Fiscal do Auto assinado aqui</p>
+                    <p style="margin:4px 0 12px 0; color:#059669; font-size:0.82rem;">Formato aceito: PDF (máx. 10MB)</p>
+                    <span style="display:inline-block; padding:8px 16px; border-radius:6px; background:#10b981; font-weight:600; color:#ffffff; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Escolher arquivo PDF</span>
+                    <input type="file" accept=".pdf" hidden onchange="window.anexarRelatorioAutoAssinado(this)">
+               </label>` : '')}`;
+}
+
+// "Para atendimento" e "Assunto", como no passo do Relatório Fiscal do Novo processo
+const TIPOS_ATENDIMENTO_RELATORIO = [
+    ['Protocolo', 'Protocolo'],
+    ['Denúncia', 'Denúncia'],
+    ['Comunicação Interna', 'Comunicação interna'],
+    ['Ofício', 'Ofício'],
+    ['Constatação do fiscal in loco sem denúncia formalizada', 'Constatação do fiscal in loco sem denúncia formalizada']
+];
+
+// In loco não tem número (mesma regra do Novo processo)
+function atendimentoRelatorioDispensaNumero(tipo) {
+    return String(tipo || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '').includes('inloco');
+}
+
+function htmlCamposAtendimentoRelatorioAuto(r, podeEditar) {
+    const esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const dis = podeEditar ? '' : 'disabled';
+    const semNumero = atendimentoRelatorioDispensaNumero(r.atendimento_tipo);
+    const estiloCampo = 'padding:8px 10px; border:1px solid #94a3b8; border-radius:8px; font-family:inherit; background:white; min-width:0;';
+    return `
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+            <div style="flex:2 1 320px;">
+                <label for="selAtendimentoRelatorioAuto" style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:4px;">Para atendimento <span style="color:#ef4444;">*</span></label>
+                <div style="display:flex; gap:8px;">
+                    <select id="selAtendimentoRelatorioAuto" ${dis} onchange="window.salvarAtendimentoRelatorioAuto()" style="${estiloCampo} flex:1;">
+                        <option value="" ${r.atendimento_tipo ? '' : 'selected'} disabled>Selecione...</option>
+                        ${TIPOS_ATENDIMENTO_RELATORIO.map(([valor, rotulo]) => `<option value="${esc(valor)}" ${r.atendimento_tipo === valor ? 'selected' : ''}>${esc(rotulo)}</option>`).join('')}
+                    </select>
+                    <input type="text" id="inputAtendimentoValorRelatorioAuto" ${dis} value="${esc(r.atendimento_valor || '')}" placeholder="Nº / descrição"
+                        onchange="window.salvarAtendimentoRelatorioAuto()" style="${estiloCampo} flex:1; ${semNumero ? 'display:none;' : ''}">
+                </div>
+            </div>
+            <div style="flex:1 1 220px;">
+                <label for="inputAssuntoRelatorioAuto" style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:4px;">Assunto <span style="color:#ef4444;">*</span></label>
+                <input type="text" id="inputAssuntoRelatorioAuto" ${dis} value="${esc(r.assunto || '')}" placeholder="Ex: Lote vago com mato alto"
+                    onchange="window.salvarAtendimentoRelatorioAuto()" style="${estiloCampo} width:100%; box-sizing:border-box;">
+            </div>
+        </div>`;
+}
+
+window.salvarAtendimentoRelatorioAuto = async function () {
+    const tipo = document.getElementById('selAtendimentoRelatorioAuto')?.value || '';
+    const campoValor = document.getElementById('inputAtendimentoValorRelatorioAuto');
+    const semNumero = atendimentoRelatorioDispensaNumero(tipo);
+    if (campoValor) {
+        campoValor.style.display = semNumero ? 'none' : '';
+        if (semNumero) campoValor.value = '';
+    }
+    try {
+        await gravarRelatorioAuto({
+            atendimento_tipo: tipo,
+            atendimento_valor: semNumero ? '' : (campoValor?.value || '').trim(),
+            assunto: (document.getElementById('inputAssuntoRelatorioAuto')?.value || '').trim()
+        });
+    } catch (err) {
+        alert('Não foi possível salvar: ' + (err?.message || err));
+    }
+};
+
+// Mesma conferência do Novo processo: tipo, número (exceto in loco) e assunto
+function validarAtendimentoRelatorioAuto() {
+    const r = dadosRelatorioAuto();
+    if (!r.atendimento_tipo) {
+        alert('Selecione o tipo em "Para atendimento" (Ex: Denúncia, memorando, etc.).');
+        document.getElementById('selAtendimentoRelatorioAuto')?.focus();
+        return false;
+    }
+    if (!atendimentoRelatorioDispensaNumero(r.atendimento_tipo) && !String(r.atendimento_valor || '').trim()) {
+        alert('Informe o número/descrição em "Para atendimento" (Ex: 123/2026).');
+        document.getElementById('inputAtendimentoValorRelatorioAuto')?.focus();
+        return false;
+    }
+    if (!String(r.assunto || '').trim()) {
+        alert('Informe o "Assunto" do Relatório Fiscal do Auto.');
+        document.getElementById('inputAssuntoRelatorioAuto')?.focus();
+        return false;
+    }
+    return true;
+}
+
+function atualizarCardRelatorioAuto() {
+    const card = document.getElementById('cardRelatorioAuto');
+    if (card) card.innerHTML = htmlConteudoCardRelatorioAuto();
+}
+
+window.salvarDataVistoriaRelatorioAuto = async function (valor) {
+    try {
+        await gravarRelatorioAuto({ data_vistoria: valor || '' });
+        // O mesmo campo aparece na tela da etapa e em Editar dados
+        ['inputDataVistoriaAuto', 'inputDataVistoriaAutoEdit'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.value !== (valor || '')) el.value = valor || '';
+        });
+    } catch (err) {
+        alert('Não foi possível salvar a data da vistoria: ' + (err?.message || err));
+    }
+};
+
+// Arrastar o PDF para o quadro (o cartão é redesenhado, então os eventos ficam no documento)
+document.addEventListener('dragover', (e) => {
+    const area = e.target.closest?.('.drop-relatorio-auto');
+    if (!area || !Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    e.preventDefault();
+    area.style.background = '#d1fae5';
+});
+document.addEventListener('dragleave', (e) => {
+    const area = e.target.closest?.('.drop-relatorio-auto');
+    if (area && !area.contains(e.relatedTarget)) area.style.background = '#ecfdf5';
+});
+document.addEventListener('drop', (e) => {
+    const area = e.target.closest?.('.drop-relatorio-auto');
+    if (!area || !e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    area.style.background = '#ecfdf5';
+    window.anexarRelatorioAutoAssinado({ files: e.dataTransfer.files });
+});
+
+window.anexarRelatorioAutoAssinado = async function (input) {
+    let file = input.files?.[0];
+    if ('value' in input) input.value = '';
+    if (!file) return;
+    try {
+        mostrarCarregamento('Validando o Relatório Fiscal do Auto assinado...');
+        const numero = await garantirNumeroRelatorioAuto();
+        const ok = await validarDocumentoAnexado(file, { titulo: 'RELATÓRIO FISCAL', nomeDocumento: 'Relatório Fiscal', numeroEsperado: numero });
+        if (!ok) { ocultarCarregamento(); return; }
+        if (typeof window.otimizarPdfParaUpload === 'function') file = await window.otimizarPdfParaUpload(file);
+        mostrarCarregamento('Enviando o Relatório Fiscal do Auto assinado...');
+        const url = await window.uploadParaCloudinary(file, 'semac_documentos');
+        if (!url) { ocultarCarregamento(); return; }
+        const { data: doc, error } = await supabaseClient.from('documentos').insert([{
+            processo_id: processoAtual.id,
+            notificacao_id: notifRA().id,
+            etapa_id: 14,
+            tipo: TIPO_RF_AUTO_ASSINADO,
+            nome_arquivo: file.name,
+            url,
+            mime_type: file.type || 'application/pdf',
+            gerado_automaticamente: false,
+            numero_sequencial: numero,
+            usuario_id: perfilAtual?.id || null
+        }]).select('id').single();
+        if (error) throw error;
+        await gravarRelatorioAuto({ anexo: { documento_id: doc.id, url, nome: file.name } });
+        ocultarCarregamento();
+        atualizarCardRelatorioAuto();
+    } catch (err) {
+        ocultarCarregamento();
+        console.error('Erro ao anexar o Relatório Fiscal do Auto:', err);
+        alert('Não foi possível anexar: ' + (err?.message || err));
+    }
+};
+
+window.removerRelatorioAutoAssinado = async function () {
+    const anexo = dadosRelatorioAuto().anexo;
+    if (!anexo || !confirm('Remover o Relatório Fiscal do Auto assinado?')) return;
+    try {
+        if (anexo.documento_id) await supabaseClient.from('documentos').delete().eq('id', anexo.documento_id);
+        await gravarRelatorioAuto({ anexo: null });
+        atualizarCardRelatorioAuto();
+    } catch (err) {
+        alert('Não foi possível remover: ' + (err?.message || err));
+    }
+};
+
+// ── Editar dados na Etapa 14: só as fotos do Relatório Fiscal do Auto ─────
+// A aba normal de edição fica fechada na 14 (salvar ali refaz os documentos);
+// com o relatório do Auto, ela abre só com esta parte, que salva na hora.
+function prepararAbaEditarRelatorioAuto(ativo) {
+    const aba = document.getElementById('tabEditarProcesso');
+    if (!aba) return;
+    // Data e fotos da vistoria original são do 1º relatório: aqui não aparecem,
+    // para o relatório do Auto não puxar nada dele
+    const gruposDoRelatorioAnterior = [
+        document.getElementById('editFiscDataVistoria')?.closest('.form-group'),
+        document.getElementById('container-imagens-legenda-edit')?.closest('.form-group')
+    ].filter(Boolean);
+    gruposDoRelatorioAnterior.forEach(g => { g.style.display = ativo ? 'none' : ''; });
+
+    let secao = document.getElementById('secaoEditarRelatorioAuto');
+    if (!ativo) {
+        if (secao) secao.style.display = 'none';
+        return;
+    }
+    if (!secao) {
+        secao = document.createElement('div');
+        secao.id = 'secaoEditarRelatorioAuto';
+        // Logo antes do botão de salvar
+        const linhaSalvar = document.getElementById('btnSalvarEdicaoProcesso')?.closest('div');
+        if (linhaSalvar && linhaSalvar.parentElement === aba) aba.insertBefore(secao, linhaSalvar);
+        else aba.appendChild(secao);
+    }
+    secao.style.display = '';
+    renderizarSecaoEditarRelatorioAuto();
+}
+
+// Fotos do Relatório Fiscal do Auto: a mesma lista no cartão da Etapa 14 e em Editar dados
+function htmlFotosRelatorioAuto(podeEditar) {
+    const esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const imagens = dadosRelatorioAuto().imagens || [];
+    const dis = podeEditar ? '' : 'disabled';
+    return `
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                ${imagens.map((img, i) => `
+                    <div style="display:flex; gap:12px; align-items:center; padding:10px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc;">
+                        <img src="${esc(img.url)}" style="width:90px; height:70px; object-fit:cover; border-radius:6px; border:1px solid #cbd5e1;">
+                        <input type="text" ${dis} value="${esc(img.legenda || '')}" placeholder="Legenda (opcional)" onchange="window.salvarLegendaFotoRelatorioAuto(${i}, this.value)"
+                            style="flex:1; padding:8px 10px; border:1px solid #94a3b8; border-radius:8px; font-family:inherit;">
+                        ${podeEditar ? `<button type="button" onclick="window.removerFotoRelatorioAuto(${i})" style="padding:6px 12px; border-radius:6px; border:1px solid #fecaca; background:white; color:#b91c1c; font-weight:600; cursor:pointer;">Remover</button>` : ''}
+                    </div>`).join('') || '<div style="font-size:0.88rem; color:#64748b;">Nenhuma foto adicionada.</div>'}
+            </div>
+            ${podeEditar ? `<label style="display:inline-block; margin-top:12px; padding:8px 14px; border:1px solid #cbd5e1; border-radius:8px; background:white; font-weight:600; font-size:0.88rem; cursor:pointer;">
+                + Adicionar fotos
+                <input type="file" accept="image/*" multiple hidden onchange="window.adicionarFotosRelatorioAuto(this)">
+            </label>
+            <span class="status-fotos-relatorio-auto" style="margin-left:10px; font-size:0.85rem; color:#64748b;"></span>` : ''}`;
+}
+
+function renderizarSecaoEditarRelatorioAuto() {
+    const secao = document.getElementById('secaoEditarRelatorioAuto');
+    if (!secao) return;
+    const esc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    secao.innerHTML = `
+        <div class="step-section" style="margin-bottom:20px;">
+            <h3 style="font-size:1.1rem; color:#1e293b; border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom:12px;">Fotos do Relatório Fiscal do Auto de Infração</h3>
+            <p style="margin:0 0 12px 0; font-size:0.88rem; color:#64748b;">Estas fotos entram só no relatório do Auto (as da vistoria original continuam no 1º relatório). Tudo é salvo na hora.</p>
+            <div style="margin-bottom:14px;">
+                <label for="inputDataVistoriaAutoEdit" style="display:block; font-size:0.88rem; font-weight:600; color:#334155; margin-bottom:4px;">Data e hora da vistoria do Auto</label>
+                <input type="datetime-local" id="inputDataVistoriaAutoEdit" value="${esc(dadosRelatorioAuto().data_vistoria || '')}"
+                    onchange="window.salvarDataVistoriaRelatorioAuto(this.value)"
+                    style="padding:8px 10px; border:1px solid #94a3b8; border-radius:8px; font-family:inherit;">
+            </div>
+            ${htmlFotosRelatorioAuto(true)}
+        </div>`;
+}
+
+window.adicionarFotosRelatorioAuto = async function (input) {
+    const arquivos = Array.from(input.files || []);
+    input.value = '';
+    if (!arquivos.length) return;
+    const mostrarStatus = texto => document.querySelectorAll('.status-fotos-relatorio-auto').forEach(el => { el.textContent = texto; });
+    try {
+        const novas = [];
+        for (const arquivo of arquivos) {
+            mostrarStatus(`Enviando ${arquivo.name}...`);
+            const url = await window.uploadParaCloudinary(arquivo, 'semac_relatorios');
+            if (url) novas.push({ url, legenda: '' });
+        }
+        if (novas.length) await gravarRelatorioAuto({ imagens: [...(dadosRelatorioAuto().imagens || []), ...novas] });
+        renderizarSecaoEditarRelatorioAuto();
+        atualizarCardRelatorioAuto();
+    } catch (err) {
+        mostrarStatus('');
+        alert('Não foi possível adicionar as fotos: ' + (err?.message || err));
+    }
+};
+
+window.salvarLegendaFotoRelatorioAuto = async function (indice, legenda) {
+    const imagens = [...(dadosRelatorioAuto().imagens || [])];
+    if (!imagens[indice]) return;
+    imagens[indice] = { ...imagens[indice], legenda: String(legenda || '').trim() };
+    try {
+        await gravarRelatorioAuto({ imagens });
+        renderizarSecaoEditarRelatorioAuto();
+        atualizarCardRelatorioAuto();
+    } catch (err) { alert('Não foi possível salvar a legenda: ' + (err?.message || err)); }
+};
+
+window.removerFotoRelatorioAuto = async function (indice) {
+    if (!confirm('Remover esta foto do Relatório Fiscal do Auto?')) return;
+    const imagens = (dadosRelatorioAuto().imagens || []).filter((_, i) => i !== indice);
+    try {
+        await gravarRelatorioAuto({ imagens });
+        renderizarSecaoEditarRelatorioAuto();
+        atualizarCardRelatorioAuto();
+    } catch (err) { alert('Não foi possível remover a foto: ' + (err?.message || err)); }
+};
+
 // ── Bloco de Anexo do Relatório Fiscal Assinado (Etapa 14) ───────────────────
 window.obterHtmlBlocoRelatorioFiscalAssinado = function () {
     return `
@@ -7852,11 +8377,19 @@ async function preencherFormularioEdicao(proc) {
     setVal('editFiscDataVistoria', window.valorDataVistoriaParaInput(fisc.data_vistoria || proc?.data_vistoria));
     setVal('editFiscDecreto', fisc.decreto || 'não');
     setVal('editFiscDescricao', fisc.descricao);
-    // Nota do fiscal: só na Etapa 14, e é a mesma da tela principal (Auto de Infração)
-    const ehEtapa14Edicao = parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 0, 10) === 14;
+    // Nota do fiscal: na Etapa 1 é a da NP/AF e na 14 a do Auto — a mesma da tela
+    // principal de cada uma. Nas outras etapas o campo não aparece.
+    const etapaEdicao = parseInt(proc?.etapa_atual || proc?.etapa_atual_id || 0, 10);
     const grupoNotaEdit = document.getElementById('grupoEditObservacoesFiscal');
-    if (grupoNotaEdit) grupoNotaEdit.style.display = ehEtapa14Edicao ? '' : 'none';
-    setVal('editObservacoesFiscal', ehEtapa14Edicao ? obterObservacoesFiscalAuto() : '');
+    if (grupoNotaEdit) grupoNotaEdit.style.display = [1, 14].includes(etapaEdicao) ? '' : 'none';
+    setVal('editObservacoesFiscal', etapaEdicao === 14 ? obterObservacoesFiscalAuto()
+        : (etapaEdicao === 1 ? obterObservacoesFiscal(proc) : ''));
+    const ajudaNotaEdit = grupoNotaEdit?.querySelector('small');
+    if (ajudaNotaEdit) {
+        ajudaNotaEdit.innerHTML = etapaEdicao === 1
+            ? 'Aparece na <strong>Notificação Preliminar</strong>, como "Nota do fiscal:", abaixo do valor da multa e acima do prazo de defesa. É o mesmo campo da tela da Etapa 1.'
+            : 'Aparece no <strong>Auto de Infração</strong>, como "Nota do fiscal:", abaixo do valor da multa e acima do prazo de defesa. É o mesmo campo da tela da Etapa 14.';
+    }
 
     // Preenche a lista de imagens da vistoria
     const containerImagensEdit = document.getElementById('lista-imagens-legenda-edit');
@@ -8126,18 +8659,55 @@ function htmlObservacoesFiscal(proc, estiloParagrafo) {
 }
 window.htmlObservacoesFiscal = htmlObservacoesFiscal;
 
+// ── Nota do fiscal da Notificação Preliminar / Auto de Fiscalização ────────
+// Escrita na Etapa 1 (tela da etapa ou Editar dados), como a do Auto na Etapa 14.
+// Fica em dados.relatorio_fiscal.observacoes_fiscal, que é o que a NP/AF mostra.
+function htmlCampoNotaFiscalNotificacao() {
+    if (typeof podeGerenciarEtapaAtual === 'function' && !podeGerenciarEtapaAtual()) return '';
+    const texto = obterObservacoesFiscal(processoAtual)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `
+        <div style="margin: 18px 0 20px 0; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
+            <label for="inputNotaFiscalNP" style="display: block; font-weight: 700; color: #1e293b; margin-bottom: 8px; font-size: 0.95rem;">Nota do fiscal <span style="font-weight: 400; color: #64748b;">(opcional)</span></label>
+            <textarea id="inputNotaFiscalNP" rows="3" onchange="window.salvarNotaFiscalNotificacao(this.value)"
+                placeholder="Ex: Retirar entulho acumulado na lateral esquerda."
+                style="width: 100%; padding: 10px 14px; border: 1px solid #94a3b8; border-radius: 8px; font-size: 0.95rem; font-family: inherit; background: white; color: #0f172a; resize: vertical;">${texto}</textarea>
+            <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">Aparece na Notificação Preliminar como "Nota do fiscal:", abaixo do valor da multa e acima do prazo de defesa. Deixe em branco para não aparecer.</p>
+        </div>`;
+}
+
+window.salvarNotaFiscalNotificacao = async function (valor) {
+    if (!processoAtual) return;
+    const texto = String(valor || '').trim();
+    try {
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.relatorio_fiscal = { ...(processoAtual.dados.relatorio_fiscal || {}), observacoes_fiscal: texto };
+        const { error } = await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+        if (error) throw error;
+        // O mesmo campo em Editar dados: sem isto, salvar lá gravava o valor antigo por cima
+        const campoEdicao = document.getElementById('editObservacoesFiscal');
+        if (campoEdicao) campoEdicao.value = texto;
+    } catch (err) {
+        console.error('Erro ao salvar a nota do fiscal da notificação:', err);
+        alert('Não foi possível salvar a nota do fiscal: ' + (err?.message || err));
+        return;
+    }
+    if (typeof renderizarDocumentoOficial === 'function') renderizarDocumentoOficial(processoAtual);
+};
+
 // ── Nota do fiscal do Auto de Infração ────────────────────────────────────
 // Na Etapa 14 a aba "Editar dados" some quando o Auto vem de uma NP ou de um
 // AF, então a nota do Auto é editada no próprio formulário da etapa. Fica no
 // Auto (notificacoes.dados.observacoes_fiscal_ai; sem Auto em foco, em
-// dados.campos do processo) para não mudar a NP/AF já entregue. Enquanto
-// ninguém mexer nela, vale a nota do cadastro do processo.
+// dados.campos do processo) para não mudar a NP/AF já entregue. A nota da
+// NP/AF (Etapa 1) não passa para o Auto: sem nota própria, o Auto sai sem nota.
 function obterObservacoesFiscalAuto() {
     const dadosNotif = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual.dados : null;
     if (dadosNotif && typeof dadosNotif.observacoes_fiscal_ai === 'string') return dadosNotif.observacoes_fiscal_ai.trim();
     const campos = processoAtual?.campos;
     if (!dadosNotif && campos && typeof campos.observacoes_fiscal_ai === 'string') return campos.observacoes_fiscal_ai.trim();
-    return obterObservacoesFiscal(processoAtual);
+    // Sem nota própria do Auto, fica sem nota: a da NP/AF (Etapa 1) não passa para o Auto
+    return '';
 }
 
 // ── Testemunhas (Meio Ambiente: Auto de Fiscalização e Auto de Infração) ─────
@@ -8333,6 +8903,8 @@ window.salvarNotaFiscalAuto = async function (valor) {
         alert('Não foi possível salvar a nota do fiscal: ' + (err?.message || err));
         return;
     }
+    const campoEdicao = document.getElementById('editObservacoesFiscal');
+    if (campoEdicao) campoEdicao.value = texto;
     if (typeof window.gerarAutoDeInfracao === 'function') window.gerarAutoDeInfracao(true);
 };
 
@@ -9439,19 +10011,17 @@ window.anexoEtapa4Por = anexoEtapa4Por;
 // Para onde cada notificação vai ao sair da Etapa 2:
 //   defesa   -> Etapa 13 (a defesa é registrada no próprio cartão; a Etapa 3 saiu)
 //   dilação  -> Etapa 4 (Documentos da Dilação de Prazo)
-//   atendida -> Etapa 29 (não há o que certificar na Etapa 10)
-//   vencida sem atendimento -> Etapa 10
+//   atendida -> Etapa 29
+//   vencida sem atendimento -> Etapa 14 (Auto de Infração; a Etapa 10 saiu do fluxo)
 const ETAPA_DESTINO_SAIDA_ETAPA_2 = {
     defesa: 13,
     dilacao: 4,
     atendida: 29,
-    pendente_vencida: 10
+    pendente_vencida: 14
 };
 
-// A Etapa 10 abre com "O problema foi resolvido?" já marcado conforme o que
-// aconteceu antes. Hoje só chega aqui quem venceu sem atender, que abre em Não
-// (gera o Auto, Etapa 14) — quem cumpriu vai da Etapa 2 direto para a 29.
-// Fica gravado na notificação para a tela não ter que adivinhar.
+// A Etapa 10 (Certidão) saiu do fluxo: a tela dela só serve aos processos antigos
+// que ficaram parados nela, que abrem com "O problema foi resolvido?" já marcado.
 const RESOLVIDO_PARA_CERTIDAO = { atendida: 'sim', pendente_vencida: 'nao' };
 
 function marcarResolvidoParaCertidao(notif, valor) {
@@ -10454,6 +11024,9 @@ function toggleBlocoRetornoSemSucesso() {
     if (select && bloco) {
         // Exibe o bloco de retorno sem sucesso quando Notificação efetivada? for 'nao'
         bloco.style.display = select.value === 'nao' ? 'block' : 'none';
+        // A data de recebimento só é obrigatória quando a notificação foi efetivada
+        const obrigData = document.getElementById('obrigDataRecebimentoAR');
+        if (obrigData) obrigData.style.display = select.value === 'nao' ? 'none' : '';
         if (select.value === 'nao') {
             atualizarAvisoTentativasAR(processoAtual);
             renderizarListaTentativasAR(processoAtual);
@@ -10939,7 +11512,7 @@ async function persistirAnexosAR(exigirObrigatorio = false) {
 // O fluxo da Notificação Preliminar (origem Etapa 1) dá 3 chances de entrega ao
 // contribuinte antes de partir para o Edital. O fluxo do Auto de Infração
 // (origem Etapa 14) não tem essa repetição: a 1ª devolução já vai para a Etapa 17.
-const TENTATIVAS_AR_NOTIFICACAO_PRELIMINAR = 3;
+const TENTATIVAS_AR_NOTIFICACAO_PRELIMINAR = 2;
 const TENTATIVAS_AR_AUTO_INFRACAO = 1;
 
 function limiteTentativasAR(proc) {
@@ -11086,12 +11659,31 @@ async function salvarTentativaARNaEtapa16(tentativas, limite) {
 async function avancarEtapa16() {
     if (!processoAtual) return;
 
-    const anexosOK = await persistirAnexosAR(true);
-    if (!anexosOK) return;
-
     const getVal = id => document.getElementById(id)?.value?.trim() || '';
     const notificacaoEfetivada = getVal('arRetornoSemSucesso') || 'sim';
     const dataRecebimento = getVal('arDataRecebimento');
+
+    // Efetivada: a data de recebimento é obrigatória. Sem sucesso: os dados do retorno.
+    if (notificacaoEfetivada === 'sim' && !dataRecebimento) {
+        alert('Informe a data de recebimento pelo proprietário.');
+        document.getElementById('arDataRecebimento')?.focus();
+        return;
+    }
+    if (notificacaoEfetivada === 'nao') {
+        if (!getVal('arDataUltimaTentativa')) {
+            alert('Informe a data da última tentativa de entrega.');
+            document.getElementById('arDataUltimaTentativa')?.focus();
+            return;
+        }
+        if (!getVal('arMotivoCorreios')) {
+            alert('Informe o motivo dado pelos Correios.');
+            document.getElementById('arMotivoCorreios')?.focus();
+            return;
+        }
+    }
+
+    const anexosOK = await persistirAnexosAR(true);
+    if (!anexosOK) return;
 
     // Grava o que está no formulário antes de decidir o destino
     const ciclo = camposCicloAR(processoAtual);
@@ -12025,46 +12617,58 @@ async function salvarEdicoesProcesso() {
                 decreto: document.getElementById('editFiscDecreto')?.value || 'não',
                 descricao: getVal('editFiscDescricao')
             },
-            // A Nota do fiscal é gravada à parte (salvarNotaFiscalAuto), só na Etapa 14
-            relatorio_fiscal: { ...(dadosAtuais.relatorio_fiscal || {}) }
+            // Nota do fiscal: na Etapa 1 é a da NP/AF (aqui); na 14, a do Auto (salvarNotaFiscalAuto, abaixo)
+            relatorio_fiscal: {
+                ...(dadosAtuais.relatorio_fiscal || {}),
+                ...(parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 0, 10) === 1
+                    ? { observacoes_fiscal: getVal('editObservacoesFiscal') } : {})
+            }
         };
 
-        // Expelir / Limpar referências de anexos de documentos gerados anteriormente no objeto processo
-        delete novosDados.anexo_np_assinada;
-        delete novosDados.anexo_rf_assinado;
-        delete novosDados.notificacao_assinada_url;
-        delete novosDados.notificacao_assinada_nome;
-        delete novosDados.relatorio_fiscal_url;
-        delete novosDados.relatorio_fiscal_nome;
-        delete novosDados.relatorio_fiscal_html;
-        delete novosDados.replica_assinada_url;
-        delete novosDados.replica_assinada_nome;
-        delete novosDados.anexo_replica_url;
-        delete novosDados.certidao_assinada_url;
-        delete novosDados.certidao_assinada_nome;
-        if (novosDados.relatorio_fiscal) {
-            delete novosDados.relatorio_fiscal.url;
-            delete novosDados.relatorio_fiscal.anexo_url;
-            delete novosDados.relatorio_fiscal.anexo_nome;
-            delete novosDados.relatorio_fiscal.html;
-        }
-        if (novosDados.etapa14) {
-            delete novosDados.etapa14.anexo_url;
-            delete novosDados.etapa14.anexo_nome;
-            delete novosDados.etapa14.anexo_auto_infracao;
-        }
+        // Na Etapa 1 a edição refaz os documentos: os anexos antigos saem. Depois dela
+        // (ex.: Etapa 14) a NP/AF e o Relatório Fiscal assinados já foram entregues e
+        // ficam como estão — nada é apagado.
+        const etapaDaEdicao = parseInt(processoAtual?.etapa_atual || processoAtual?.etapa_atual_id || 1, 10);
+        const limparDocumentosAntigos = etapaDaEdicao <= 1;
 
         processoAtual.campos = processoAtual.campos || {};
-        delete processoAtual.campos.anexo_np_assinada;
-        delete processoAtual.campos.anexo_rf_assinado;
-        delete processoAtual.campos.anexo_replica_assinada;
-        delete processoAtual.campos.anexo_certidao_assinada;
-        delete processoAtual.campos.relatorio_fiscal_url;
-        delete processoAtual.campos.relatorio_fiscal_nome;
-        if (processoAtual.campos.etapa14) {
-            delete processoAtual.campos.etapa14.anexo_url;
-            delete processoAtual.campos.etapa14.anexo_nome;
-            delete processoAtual.campos.etapa14.anexo_auto_infracao;
+        if (limparDocumentosAntigos) {
+            // Expelir / Limpar referências de anexos de documentos gerados anteriormente no objeto processo
+            delete novosDados.anexo_np_assinada;
+            delete novosDados.anexo_rf_assinado;
+            delete novosDados.notificacao_assinada_url;
+            delete novosDados.notificacao_assinada_nome;
+            delete novosDados.relatorio_fiscal_url;
+            delete novosDados.relatorio_fiscal_nome;
+            delete novosDados.relatorio_fiscal_html;
+            delete novosDados.replica_assinada_url;
+            delete novosDados.replica_assinada_nome;
+            delete novosDados.anexo_replica_url;
+            delete novosDados.certidao_assinada_url;
+            delete novosDados.certidao_assinada_nome;
+            if (novosDados.relatorio_fiscal) {
+                delete novosDados.relatorio_fiscal.url;
+                delete novosDados.relatorio_fiscal.anexo_url;
+                delete novosDados.relatorio_fiscal.anexo_nome;
+                delete novosDados.relatorio_fiscal.html;
+            }
+            if (novosDados.etapa14) {
+                delete novosDados.etapa14.anexo_url;
+                delete novosDados.etapa14.anexo_nome;
+                delete novosDados.etapa14.anexo_auto_infracao;
+            }
+
+            delete processoAtual.campos.anexo_np_assinada;
+            delete processoAtual.campos.anexo_rf_assinado;
+            delete processoAtual.campos.anexo_replica_assinada;
+            delete processoAtual.campos.anexo_certidao_assinada;
+            delete processoAtual.campos.relatorio_fiscal_url;
+            delete processoAtual.campos.relatorio_fiscal_nome;
+            if (processoAtual.campos.etapa14) {
+                delete processoAtual.campos.etapa14.anexo_url;
+                delete processoAtual.campos.etapa14.anexo_nome;
+                delete processoAtual.campos.etapa14.anexo_auto_infracao;
+            }
         }
 
         // Testada, área ou profundidade mudaram: valores de multa digitados à mão
@@ -12123,6 +12727,7 @@ async function salvarEdicoesProcesso() {
                     ...novosDados.fiscal
                 }
             };
+            if (limparDocumentosAntigos) {
             delete notificacaoAtual.dados.notificacao_assinada_url;
             delete notificacaoAtual.dados.notificacao_assinada_nome;
             delete notificacaoAtual.dados.relatorio_fiscal_url;
@@ -12144,6 +12749,7 @@ async function salvarEdicoesProcesso() {
                 delete notificacaoAtual.dados.relatorio_fiscal.anexo_nome;
                 delete notificacaoAtual.dados.relatorio_fiscal.html;
             }
+            }
 
             await supabaseClient
                 .from('notificacoes')
@@ -12153,7 +12759,7 @@ async function salvarEdicoesProcesso() {
 
         // 3. Atualiza tabela autos_infracao se existir registro vinculado
         try {
-            if (processoId) {
+            if (processoId && limparDocumentosAntigos) {
                 const { data: autoObj } = await supabaseClient
                     .from('autos_infracao')
                     .select('dados')
@@ -12198,6 +12804,7 @@ async function salvarEdicoesProcesso() {
                 'Certidão',
                 'Réplica'
             ];
+            if (!limparDocumentosAntigos) throw null; // depois da Etapa 1 nada é apagado
             let queryDel = supabaseClient.from('documentos').delete().in('tipo', tiposParaLimpar);
             if (notificacaoAtual?.id && processoId) {
                 queryDel = queryDel.or(`processo_id.eq.${processoId},notificacao_id.eq.${notificacaoAtual.id}`);
@@ -12208,7 +12815,7 @@ async function salvarEdicoesProcesso() {
             }
             await queryDel;
         } catch (eDel) {
-            console.warn('Aviso ao expurgar anexos gerados do banco:', eDel);
+            if (eDel) console.warn('Aviso ao expurgar anexos gerados do banco:', eDel);
         }
 
         // 5. Atualiza registro na tabela 'contribuintes' do banco de dados.
@@ -12373,7 +12980,9 @@ async function salvarEdicoesProcesso() {
         if (document.getElementById('listaInputsMultasAi')) window.configurarCardCalculoMultaAutoInfracao();
 
         if (typeof ocultarCarregamento === 'function') ocultarCarregamento();
-        // Nota do fiscal (Etapa 14): o mesmo campo da tela principal
+        // Nota do fiscal: o mesmo campo da tela principal da etapa
+        const campoNotaNP = document.getElementById('inputNotaFiscalNP');
+        if (campoNotaNP) campoNotaNP.value = obterObservacoesFiscal(processoAtual);
         if (parseInt(processoAtual.etapa_atual || processoAtual.etapa_atual_id || 0, 10) === 14) {
             const notaEditada = getVal('editObservacoesFiscal');
             await window.salvarNotaFiscalAuto(notaEditada);
@@ -12381,7 +12990,9 @@ async function salvarEdicoesProcesso() {
             if (campoPrincipal) campoPrincipal.value = notaEditada;
         }
 
-        alert('Alterações salvas com sucesso! Os documentos foram atualizados e os anexos antigos foram expelidos para permitir novos downloads com os dados corretos.');
+        alert(limparDocumentosAntigos
+            ? 'Alterações salvas com sucesso! Os documentos foram atualizados e os anexos antigos foram expelidos para permitir novos downloads com os dados corretos.'
+            : 'Alterações salvas com sucesso! Os documentos já assinados (Notificação/AF e Relatório Fiscal) foram mantidos.');
     } catch (err) {
         if (typeof ocultarCarregamento === 'function') ocultarCarregamento();
         console.error('Erro ao salvar alterações:', err);
@@ -12417,6 +13028,12 @@ async function baixarRelatorioFiscalPdfEtapa() {
         const decretoSim = processoAtual?.possui_decreto
             || processoAtual?.campos?.fiscDecreto === 'sim'
             || notificacaoAtual?.dados?.possui_decreto;
+
+        // Etapa 14 com Auto vindo de NP/AF: o relatório é o do Auto
+        if (etapaNum === 14 && etapa14TemRelatorioDoAuto()) {
+            await window.baixarRelatorioFiscalAuto();
+            return;
+        }
 
         // Se for Etapa 10 (Certidão Sem Defesa), baixa a Certidão do processo
         if (etapaNum === 10) {
@@ -15188,11 +15805,30 @@ window.gerarAutoDeInfracao = async function (auto = false) {
             </div>
         `;
         } else {
+            // Mesmo modelo do Auto por decreto ("Modelo completo Ai decreto.docx"):
+            // número do processo e os quadros do contribuinte e do imóvel no lugar
+            // da frase "O imóvel, situado na ..., foi fiscalizado no dia ..."
             corpoHtmlAuto = `
             <div style="font-size: 10pt; line-height: 1.35; color: #000; margin-top: 10px;">
-                <p style="margin: 0 0 8px 0; text-align: justify;">
-                    O imóvel, situado na <strong>${imvRua}, n° ${imvNum}${imvComplemento ? ' - ' + imvComplemento : ''}, bairro ${imvBairro}</strong>, foi fiscalizado no dia <strong>${dataVistoriaFmt}</strong> pelo motivo descrito: <strong>${inputInfracao}</strong>.
-                </p>
+                <p style="margin: 0 0 6px 0;"><strong>Processo:</strong> ${numProc}</p>
+
+                <!-- Informações do Contribuinte -->
+                <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do Contribuinte</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 8px;">
+                    <tr>
+                        <td width="58%" valign="top">${linhasInfoContribuinte(cont).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoContribuinte(cont).direita}</td>
+                    </tr>
+                </table>
+
+                <!-- Informações do imóvel -->
+                <div style="font-size: 10pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do imóvel</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 9.5pt; line-height: 1.3; margin-bottom: 10px;">
+                    <tr>
+                        <td width="58%" valign="top">${linhasInfoImovel(imv).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoImovel(imv).direita}</td>
+                    </tr>
+                </table>
 
                 <p style="margin: 0 0 8px 0; text-align: justify;">
                     ${textoOrigemDoAuto}
@@ -15662,6 +16298,12 @@ window.carregarEExibirAnexoAIAssinado = async function () {
 
 window.avancarEtapa14 = async function () {
     if (!processoAtual) return;
+
+    // Auto vindo de uma NP/AF: o Relatório Fiscal do Auto assinado é obrigatório
+    if (etapa14TemRelatorioDoAuto() && !dadosRelatorioAuto().anexo?.url) {
+        alert('Anexo obrigatório!\n\nAnexe o Relatório Fiscal do Auto de Infração assinado antes de avançar para a Etapa 15.');
+        return;
+    }
 
     // Relatório Fiscal assinado obrigatório quando o processo nasceu na Etapa 14 com relatório próprio
     if (etapa14PedeRelatorioFiscalAssinado()) {
@@ -16563,6 +17205,16 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             : null;
         if (docReplicaDesconto?.id) idsAnexados.add(docReplicaDesconto.id);
 
+        // Relatório Fiscal do Auto (2º relatório): entra logo antes do Auto de Infração.
+        // O assinado vale sobre o gerado; processos antigos simplesmente não têm.
+        const docsRelatorioAuto = docsBanco.filter(d => [TIPO_RF_AUTO, TIPO_RF_AUTO_ASSINADO].includes(d.tipo));
+        docsRelatorioAuto.forEach(d => { if (d.id) idsAnexados.add(d.id); });
+        const anexarRelatorioDoAuto = async () => {
+            const doc = docsRelatorioAuto.find(d => d.tipo === TIPO_RF_AUTO_ASSINADO && d.url)
+                || docsRelatorioAuto.find(d => d.tipo === TIPO_RF_AUTO && d.url);
+            if (doc) await anexarArquivoAoPdf(doc.url, 'Relatório Fiscal do Auto', { titulo: 'Relatório Fiscal do Auto de Infração', arquivo: doc.nome_arquivo });
+        };
+
         const docsAnexosOutros = docsBanco.filter(ehOutroDocumento);
         docsAnexosOutros.forEach(d => { if (d.id) idsAnexados.add(d.id); });
         const anexarOutrosDocumentos = async () => {
@@ -16728,7 +17380,8 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
             }
 
             // 2. Relatório Fiscal Assinado
-            const docRF = docsBanco.find(d => ['Relatório Fiscal Assinado', 'Relatório Fiscal'].includes(d.tipo) || (d.nome_arquivo || '').toLowerCase().includes('relatorio_fiscal'))
+            const docRF = docsBanco.find(d => ['Relatório Fiscal Assinado', 'Relatório Fiscal'].includes(d.tipo)
+                || (![TIPO_RF_AUTO, TIPO_RF_AUTO_ASSINADO].includes(d.tipo) && (d.nome_arquivo || '').toLowerCase().includes('relatorio_fiscal')))
                 || (notificacaoAtual?.dados?.relatorio_fiscal_url ? { url: notificacaoAtual.dados.relatorio_fiscal_url } : null)
                 || (processoAtual?.campos?.anexo_rf_assinado ? { url: processoAtual.campos.anexo_rf_assinado } : null);
             let urlRF = docRF?.url || docRF?.dataUrl || docRF?.base64;
@@ -16777,6 +17430,9 @@ window.gerarPdfProcessoCompletoEtapa15 = async function (acao = 'download', opco
                     }
                 }
             }
+
+            // 5.1 Relatório Fiscal do Auto, logo antes do Auto
+            await anexarRelatorioDoAuto();
 
             // 6. Auto de Infração Assinado e, logo abaixo, o AR dele
             if (urlAI) await anexarArquivoAoPdf(urlAI, 'Auto de Infração Assinado');
@@ -17700,14 +18356,29 @@ window.gerarReplica = async function () {
                     Divinópolis - MG, ${dataAtual}
                 </div>
 
-                <div style="margin-bottom: 20px; font-size: 11pt; line-height: 1.4;">
-                    <strong>Autuado(a):</strong> ${cont.nome || '—'}<br>
-                    <strong>PA:</strong> ${pa}
+                <div style="margin-bottom: 14px; font-size: 11pt; line-height: 1.4;">
+                    <strong>Processo:</strong> ${pa}
                 </div>
+
+                <!-- Informações do contribuinte e do imóvel (como no Auto de Infração por decreto) -->
+                <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do Contribuinte</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.35; margin-bottom: 10px;">
+                    <tr>
+                        <td width="58%" valign="top">${linhasInfoContribuinte(cont).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoContribuinte(cont).direita}</td>
+                    </tr>
+                </table>
+                <div style="font-size: 10.5pt; font-weight: bold; margin-bottom: 4px; margin-top: 8px;">Informações do imóvel</div>
+                <table width="100%" cellpadding="1" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.35; margin-bottom: 18px;">
+                    <tr>
+                        <td width="58%" valign="top">${linhasInfoImovel(imovel).esquerda}</td>
+                        <td width="42%" valign="top">${linhasInfoImovel(imovel).direita}</td>
+                    </tr>
+                </table>
 
                 <div style="font-size: 11pt; line-height: 1.6; text-align: justify; margin-bottom: 20px;">
                     <p style="margin-bottom: 12px; text-indent: 40px;">
-                        O contribuinte acima qualificado, com base no artigo 231 da Lei 6.907/08, diante da notificação ${numNotificacao}, a qual afirma que o imóvel de sua propriedade, situado na Rua/Av ${imvLogradouro} Nº: ${imvNumero}, precisa da(s) seguinte(s) regularização(es): ${motivoInfracao}, cuja notificação foi enviada via Aviso de Recebimento (AR) no dia ${arDataFmt}, com vencimento dia ${vencDataFmt}.
+                        O contribuinte acima qualificado, com base no artigo 231 da Lei 6.907/08, diante da notificação ${numNotificacao}, a qual afirma que o imóvel de sua propriedade, precisa da(s) seguinte(s) regularização(es): ${motivoInfracao}, cuja notificação foi enviada via Aviso de Recebimento (AR) no dia ${arDataFmt}, com vencimento dia ${vencDataFmt}.
                     </p>
                     <p style="margin-bottom: 12px; text-indent: 40px;">
                         ${textoDecisao}
