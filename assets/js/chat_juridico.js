@@ -41,6 +41,8 @@
         if (c.includes('secretar')) return 'secretario';
         if (c.includes('admin')) return 'admin';
         if (c.includes('gerente')) return 'gerente';
+        // Diretor(a) de Meio Ambiente fala no chat como a Gerência
+        if (c.includes('diretor') && c.includes('meio ambiente')) return 'gerente';
         if (c.includes('fiscal')) return 'fiscal';
         if (c.includes('fazend')) return 'fazenda';
         return 'outro';

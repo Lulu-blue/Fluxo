@@ -157,7 +157,7 @@ Quem pode **editar e avançar** cada etapa (`ETAPAS_POR_CARGO` em `assets/js/eta
 | Dev | todas |
 | Fiscal de Postura | 1, 2, 3, 4, 5, 10, 13, 14, 21, 26, 29, 31 |
 | Administrativo de Posturas | 15, 16, 17 |
-| Gerente (de Posturas) | 15, 17, 18, 20, 22, 25, 28, 29, 30 |
+| Gerente (de Posturas) e Diretor(a) de Meio Ambiente | 15, 16, 17, 18, 20, 22, 25, 28, 29, 30 (inclui as do Administrativo; a 16 não entra no filtro "Com você") |
 | Jurídico | 18, 19 |
 | Gerente de Interface Jurídica | 19 |
 | Secretário | 24 |
@@ -165,7 +165,7 @@ Quem pode **editar e avançar** cada etapa (`ETAPAS_POR_CARGO` em `assets/js/eta
 
 Regras extras:
 - **Fiscal que não criou o processo** só vê o documento oficial (modo leitura).
-- **Etapa 16**: só o Administrativo de Posturas edita. Gerente, Fiscal do processo e os demais cargos veem a tela inteira (dados do AR, tentativas e anexos, com Visualizar), mas sem escrever, anexar, remover ou salvar. A mudança automática para a Etapa 30 (15 dias sem retorno) só roda quando quem edita abre a etapa.
+- **Etapa 16**: o Administrativo de Posturas e o Gerente (ou Diretor(a) de Meio Ambiente) editam. O Fiscal do processo e os demais cargos veem a tela inteira (dados do AR, tentativas e anexos, com Visualizar), mas sem escrever, anexar, remover ou salvar. A mudança automática para a Etapa 30 (15 dias sem retorno) só roda quando quem edita abre a etapa.
 - Fora das etapas do seu cargo, o usuário vê o processo em **modo visualização**, sem editar.
 - **Gerente pode voltar etapa** também nas etapas do Fiscal e do Administrativo (`podeVoltarEtapaAtual`), mesmo sem poder editá-las; a regra do Auto por decreto na Etapa 14 (sem etapa anterior) continua.
 - **Dev ao anexar documento assinado** (NP/AF, Relatório Fiscal, Réplica, Certidão, Auto):
@@ -176,7 +176,7 @@ Regras extras:
   fila (`devolver_numero`) e `dados.numeracao_dispensada` impede reservar outro
   (`oferecerNaoGastarNumeracaoDev`). O número do **Auto de Infração** não entra nisso: ele é
   obrigatório no registro do Auto (`autos_infracao.numero`).
-- O cargo é normalizado pelo texto: "interface" ou "gerente + jurídic" = Gerente de Interface Jurídica; "admin" = Administrativo; e assim por diante.
+- O cargo é normalizado pelo texto: "interface" ou "gerente + jurídic" = Gerente de Interface Jurídica; "admin" = Administrativo; "diretor + meio ambiente" = Gerente (mesmas opções do Gerente de Posturas: etapas, ofícios, destaque de multa, chat como Gerência); e assim por diante.
 - No painel, as linhas são coloridas pelo cargo responsável pela etapa atual (Gerente, Jurídico, Administrativo, Secretário).
 
 > O painel (`assets/js/solicitacoes.js`) tem uma cópia própria dessa tabela, usada para
@@ -358,7 +358,7 @@ flowchart TD
 | 13 | Análise da defesa | Fiscal | defere → 29; indefere: prazo vencido → 14, no prazo → 2 |
 | 14 | Auto de Infração (AI) | Fiscal | → 15 |
 | 15 | Multa do AI | Gerente / Administrativo | → 16 |
-| 16 | Dados do AR (1.2) | Administrativo | → 2 / 18 / 17 / 30 |
+| 16 | Dados do AR (1.2) | Administrativo / Gerente | → 2 / 18 / 17 / 30 |
 | 17 | Publicação do edital | Gerente / Administrativo | → 2 (NP) ou 18 (Auto) |
 | 18 | Andamento do AI | Gerente / Jurídico | por Auto: → 19 / 28 / 29 / 26 |
 | 19 | Parecer Jurídico | Jurídico / Interface Jurídica | → 21, 22 (voltam à 19) ou 24 |
@@ -539,13 +539,13 @@ O Auto traz fundamento legal, valores e prazo de defesa ([5.2](#52-prazo-de-defe
 - **Capa do processo:** nº do PA, autuado, CPF/CNPJ, nº do Auto, situação da defesa, data e fiscal responsável.
 - **Anexo da Multa:** obrigatório para avançar.
 - **PDF unificado:** Capa → BIC → Relatório Fiscal → Notificação/Decreto → AR → outros → Auto de Infração.
-- **Ofício SEMAC – GFP** ao Secretário Municipal de Fazenda, pedindo a guia de pagamento. Tem numeração própria, situação (sem movimentação / baixado / assinado) e destinatário editável (vale para os próximos ofícios). Assina o Gerente de Fiscalização de Posturas.
+- **Ofício SEMAC – GFP** ao Secretário Municipal de Fazenda, pedindo a guia de pagamento. Tem numeração própria, situação (sem movimentação / baixado / assinado) e destinatário editável (vale para os próximos ofícios). O assinante é escolhido na própria etapa: um Gerente de Posturas ou o(a) Diretor(a) de Meio Ambiente (fica em `processos.dados.oficio_gfp_assinante`; sem escolha, assina o Gerente de Fiscalização de Posturas). O "Ver ofício" do painel mostra o mesmo assinante.
 
 **Avanço:** → **16** (agora no ciclo do Auto).
 
 ### Etapa 16 — Retorno do AR ("Etapa 1.2" no fluxo da NP)
 
-**Quem:** Administrativo de Posturas. Os demais veem só o documento, com o aviso de que o processo está com o Administrativo.
+**Quem:** Administrativo de Posturas ou Gerente. Os demais veem a tela sem editar, com o aviso de que o processo está com o Administrativo.
 
 Campos:
 - **Número do AR.** Ao cadastrar ou trocar, grava a data de cadastro, que inicia a contagem de 15 dias.
@@ -814,7 +814,7 @@ Menu lateral de `painel.html`:
   mesma ordem de documentos; se ela já está encerrada, sai como a cópia do encerramento.
   Link: `etapa.html?processo=<id>&notificacao=<id>&pdf_unido=1`.
 - **Notificações:** sino com avisos ao usuário (ex.: devolução do AR, gerente pediu certidão).
-- **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível para Gerente de Posturas e Dev; gerado por Gerente, Administrativo e Dev. Imagens vão para o Cloudinary.
+- **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível e gerado por Gerente de Posturas, Diretor(a) de Meio Ambiente, Administrativo e Dev. Imagens vão para o Cloudinary.
 - **Instruções:** índice com uma instrução por etapa (objetivo, passos, checklist próprio salvo no navegador e "Próxima etapa" com os caminhos possíveis), em **Lista** ou **Fluxograma** (da esquerda para a direita, em 3 faixas; cards com etapa e cargo, setas a partir de `PROXIMAS_ETAPAS`; clicar no card abre a instrução). Filtro "só as etapas do meu cargo". O "Processo já existente" tem instrução própria, só na lista. Conteúdo em `assets/js/instrucoes.js`.
 - **Apuração de dados:** gráficos de processos e valor de multas por fiscal. O valor vem de
   `processos.valor_total_multas`, que é a soma dos Autos de Infração do processo. Cada Auto

@@ -162,15 +162,18 @@ function calcularEtapaProcesso(item) {
     }, 0) || extrairEtapaNumero(item);
 }
 
-// Etapas em que cada cargo age (filtro "Com você"). Igual ao ETAPAS_POR_CARGO do
-// etapa.js, que libera a edição da etapa: o que aparece aqui é o que a pessoa
-// consegue fazer ao abrir.
+// Etapas em que cada cargo age (filtro "Com você"). Segue o ETAPAS_POR_CARGO do
+// etapa.js, que libera a edição da etapa, com uma exceção: o Gerente também pode
+// fazer a Etapa 16 (do Administrativo), mas ela não aparece no "Com você" dele —
+// o filtro mostra só o que é de fato da Gerência.
 const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 29, 30, 31],
     'Fiscal de Postura': [1, 2, 3, 4, 5, 10, 13, 14, 21, 26, 29, 31],
     'Administrativo de Posturas': [15, 16, 17],
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
     // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
+    // "Gerente" inclui o(a) Diretor(a) de Meio Ambiente (ver normalizarCargo).
+    // Sem a 16: o Gerente pode fazê-la, mas ela é do Administrativo.
     'Gerente': [15, 17, 18, 20, 22, 25, 28, 29, 30],
     'Gerente de Posturas': [15, 17, 18, 20, 22, 25, 28, 29, 30],
     // Etapa 19 (Parecer Jurídico): Jurídico e Gerente de Interface Jurídica
@@ -185,6 +188,8 @@ function normalizarCargo(cargo) {
     if (!cargo) return 'Fiscal de Postura';
     const c = cargo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     if (c === 'dev' || c.includes('desenvolvedor') || c.includes('developer')) return 'Dev';
+    // Diretor(a) de Meio Ambiente tem as mesmas permissões do Gerente de Posturas
+    if (c.includes('diretor') && c.includes('meio ambiente')) return 'Gerente';
     if (c.includes('interface') || (c.includes('gerente') && c.includes('juridic'))) return 'Gerente de Interface Jurídica';
     if (c.includes('gerente')) return 'Gerente';
     if (c.includes('fiscal')) return 'Fiscal de Postura';
@@ -407,6 +412,11 @@ function obterCargoResponsavelPelaEtapa(etapaNum) {
 // gerências, como a de Meio Ambiente.
 const CARGOS_COM_DESTAQUE_MULTA = ['gerente de posturas', 'administrativo de posturas'];
 
+// O(a) Diretor(a) de Meio Ambiente tem as mesmas opções do Gerente de Posturas
+function ehCargoDiretorMeioAmbiente(cargoSimples) {
+    return cargoSimples.includes('diretor') && cargoSimples.includes('meio ambiente');
+}
+
 function cargoPodeUsarDestaqueMulta() {
     const cargoBruto = window.currentUserProfile?.cargo || '';
     if (normalizarCargo(cargoBruto) === 'Dev') return true;
@@ -416,7 +426,7 @@ function cargoPodeUsarDestaqueMulta() {
         .replace(/[̀-ͯ]/g, '')
         .replace(/\s+/g, ' ')
         .trim();
-    return CARGOS_COM_DESTAQUE_MULTA.includes(cargo);
+    return CARGOS_COM_DESTAQUE_MULTA.includes(cargo) || ehCargoDiretorMeioAmbiente(cargo);
 }
 
 function usuarioVeDestaqueMulta() {
@@ -448,7 +458,7 @@ function usuarioPodeGerarOficioAvulso() {
         .replace(/[̀-ͯ]/g, '')
         .replace(/\s+/g, ' ')
         .trim();
-    return CARGOS_GERAM_OFICIO_AVULSO.includes(cargo);
+    return CARGOS_GERAM_OFICIO_AVULSO.includes(cargo) || ehCargoDiretorMeioAmbiente(cargo);
 }
 
 function configurarBotoesAcaoPorCargo() {

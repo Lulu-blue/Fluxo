@@ -10,6 +10,63 @@
 window.CARGO_SECRETARIO_FAZENDA_OFICIO = 'Secretário Municipal de Fazenda';
 window.CARGO_ASSINATURA_OFICIO = 'Gerente de Fiscalização de Posturas';
 
+// ── Assinante do ofício da Etapa 15 ──
+// Pode assinar um Gerente de Posturas ou o(a) Diretor(a) de Meio Ambiente.
+// A escolha fica em processos.dados.oficio_gfp_assinante = { nome, cargo };
+// sem escolha, assina o (primeiro) Gerente de Posturas, como antes.
+function normalizarCargoAssinanteOficio(txt) {
+    return (txt || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+window.cargoAssinaturaOficioDoPerfil = function (cargoPerfil) {
+    const c = normalizarCargoAssinanteOficio(cargoPerfil);
+    if (c === 'gerente de posturas') return window.CARGO_ASSINATURA_OFICIO;
+    return cargoPerfil || window.CARGO_ASSINATURA_OFICIO;
+};
+
+let assinantesOficioGfpCache = null;
+
+// Lista [{ nome, cargo }] com o cargo já no formato da assinatura.
+// Gerentes de Posturas primeiro, depois Diretor(a) de Meio Ambiente.
+window.listarAssinantesOficioGfp = async function () {
+    if (assinantesOficioGfpCache) return assinantesOficioGfpCache;
+    try {
+        const { data } = await supabaseClient
+            .from('profiles')
+            .select('nome, cargo')
+            .or('cargo.ilike.%postura%,cargo.ilike.%diretor%');
+        const lista = (data || []).filter(p => p.nome);
+        const gerentes = lista.filter(p => normalizarCargoAssinanteOficio(p.cargo) === 'gerente de posturas');
+        const diretores = lista.filter(p => {
+            const c = normalizarCargoAssinanteOficio(p.cargo);
+            return c.startsWith('diretor') && c.includes('meio ambiente');
+        });
+        const ordenar = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+        assinantesOficioGfpCache = [...gerentes.sort(ordenar), ...diretores.sort(ordenar)]
+            .map(p => ({ nome: p.nome, cargo: window.cargoAssinaturaOficioDoPerfil(p.cargo) }));
+        return assinantesOficioGfpCache;
+    } catch (e) {
+        console.warn('[OFÍCIO GFP] Erro ao buscar os assinantes:', e);
+        return [];
+    }
+};
+
+// Assinante salvo no processo ou, sem escolha, o primeiro Gerente de Posturas
+window.resolverAssinanteOficioGfp = async function (dadosProcesso) {
+    const salvo = dadosProcesso?.oficio_gfp_assinante;
+    if (salvo && salvo.nome) {
+        return { nome: salvo.nome, cargo: salvo.cargo || window.CARGO_ASSINATURA_OFICIO };
+    }
+    const lista = await window.listarAssinantesOficioGfp();
+    const gerente = lista.find(a => a.cargo === window.CARGO_ASSINATURA_OFICIO);
+    return { nome: gerente?.nome || '', cargo: window.CARGO_ASSINATURA_OFICIO };
+};
+
 window.escaparHtmlOficio = function (txt) {
     const div = document.createElement('div');
     div.textContent = txt == null ? '' : String(txt);
@@ -24,6 +81,7 @@ window.escaparHtmlOficio = function (txt) {
  * @param {String} d.secretarioNome      Destinatário (Secretário Municipal de Fazenda)
  * @param {String} d.secretarioCargo
  * @param {String} d.gerenteNome         Quem assina
+ * @param {String} d.gerenteCargo        Cargo de quem assina (padrão: Gerente de Fiscalização de Posturas)
  * @param {String} d.autuado             Nome do contribuinte
  * @param {String} d.numeroAutoInfracao
  * @param {String} d.pa                  Processo administrativo
@@ -88,7 +146,7 @@ window.montarHtmlOficioSemac = function (d) {
                 <div style="text-align: center; margin-top: 70px; padding-bottom: 28px; font-size: 11pt; line-height: 1.5;">
                     <div><em>(assinado digitalmente)</em></div>
                     <div><strong>${esc(d.gerenteNome)}</strong></div>
-                    <div><strong>${window.CARGO_ASSINATURA_OFICIO}</strong></div>
+                    <div><strong>${esc(d.gerenteCargo || window.CARGO_ASSINATURA_OFICIO)}</strong></div>
                 </div>
             </div>
         </div>

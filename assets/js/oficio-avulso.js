@@ -1223,13 +1223,14 @@ async function abrirOficioEtapa15(processoId) {
     oficioEtapa15Atual = { processoId, numero: '' };
 
     try {
-        const [processo, documento, auto, secretario, gerenteNome] = await Promise.all([
+        const [processo, documento, auto, secretario] = await Promise.all([
             buscarDadosProcessoDoOficio(processoId),
             buscarDocumentoOficioEtapa15(processoId),
             buscarAutoInfracaoDoProcesso(processoId),
-            buscarSecretarioFazenda(),
-            buscarNomeGerentePosturas()
+            buscarSecretarioFazenda()
         ]);
+        // Mesmo assinante escolhido na Etapa 15 (Gerente de Posturas ou Diretor(a) de Meio Ambiente)
+        const assinante = await window.resolverAssinanteOficioGfp(processo);
 
         const numero = documento?.numero_sequencial || '—';
         oficioEtapa15Atual = { processoId, numero };
@@ -1243,7 +1244,8 @@ async function abrirOficioEtapa15(processoId) {
             dataTexto: window.dataTextoOficio(),
             secretarioNome: secretario.nome,
             secretarioCargo: secretario.cargo,
-            gerenteNome,
+            gerenteNome: assinante.nome,
+            gerenteCargo: assinante.cargo,
             autuado: processo?.contribuinte?.nome || processo?.campos?.contNome || '—',
             numeroAutoInfracao: auto || processo?.numero_auto_infracao || '—',
             pa: processo?.relatorio_fiscal?.pa
@@ -1265,7 +1267,7 @@ async function abrirOficioEtapa15(processoId) {
 async function buscarDadosProcessoDoOficio(processoId) {
     const { data, error } = await supabaseClient
         .from('processos')
-        .select('numero_processo, contribuinte:dados->contribuinte, campos:dados->campos, relatorio_fiscal:dados->relatorio_fiscal, numero_auto_infracao:dados->>numero_auto_infracao')
+        .select('numero_processo, contribuinte:dados->contribuinte, campos:dados->campos, relatorio_fiscal:dados->relatorio_fiscal, numero_auto_infracao:dados->>numero_auto_infracao, oficio_gfp_assinante:dados->oficio_gfp_assinante')
         .eq('id', processoId)
         .single();
     if (error) throw error;

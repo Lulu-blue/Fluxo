@@ -873,7 +873,9 @@ const ETAPAS_POR_CARGO = {
     'Administrativo de Posturas': [15, 16, 17],
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
     // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
-    'Gerente': [15, 17, 18, 20, 22, 25, 28, 29, 30],
+    // O Gerente também faz as etapas do Administrativo (15, 16 e 17).
+    // "Gerente" inclui o(a) Diretor(a) de Meio Ambiente (ver normalizarCargo).
+    'Gerente': [15, 16, 17, 18, 20, 22, 25, 28, 29, 30],
     'Secretário': [24],
     // Etapa 19 (Parecer Jurídico): Jurídico e Gerente de Interface Jurídica
     'Jurídico': [18, 19],
@@ -1930,6 +1932,16 @@ function renderizarFormularioDinamico(etapaNum) {
                         Solicita ao Secretário Municipal de Fazenda a emissão da guia para pagamento da penalidade.
                         ${ehGerente ? 'O nome do destinatário é editável: clique sobre ele para alterar (a mudança vale para todos os ofícios futuros).' : ''}
                     </p>
+                    ${ehGerente ? `
+                        <label style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 14px 0; font-size:0.85rem; color:#475569; font-weight:600;">
+                            Assinante do ofício:
+                            <select id="selectAssinanteOficioGfp" onchange="window.salvarAssinanteOficioGfp(this.value)" disabled
+                                    style="padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:0.85rem; font-weight:600; color:#0f172a; background:#fff; cursor:pointer; min-width:260px; max-width:100%;">
+                                <option value="">Carregando...</option>
+                            </select>
+                            <span id="avisoAssinanteOficioGfp" style="font-size:0.8rem; color:#15803d; font-weight:700; display:none;">✓ salvo</span>
+                        </label>
+                    ` : ''}
                     <div id="containerOficioGfp" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; overflow:auto;">
                         <div style="padding:20px; color:#64748b; font-size:0.9rem;">Gerando Ofício...</div>
                     </div>
@@ -2954,6 +2966,8 @@ function normalizarCargo(cargo) {
     if (!cargo) return 'Fiscal de Postura';
     const limpo = cargo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     if (limpo === 'dev' || limpo.includes('desenvolvedor') || limpo.includes('developer')) return 'Dev';
+    // Diretor(a) de Meio Ambiente tem as mesmas permissões do Gerente de Posturas
+    if (limpo.includes('diretor') && limpo.includes('meio ambiente')) return 'Gerente';
     if (limpo.includes('interface') || (limpo.includes('gerente') && limpo.includes('juridic'))) return 'Gerente de Interface Jurídica';
     if (limpo.includes('administrativo')) return 'Administrativo de Posturas';
     if (limpo.includes('fiscal')) return 'Fiscal de Postura';
@@ -2973,9 +2987,9 @@ function determinarModoAcesso(proc, perfil) {
     const etapaAtual = parseInt(proc.etapa_atual || proc.etapa_atual_id || 1, 10);
     const isCriador = perfil.id && proc.fiscal_id && perfil.id === proc.fiscal_id;
 
-    // Etapa 1.2 / 16 (Dados do AR): só o Administrativo de Posturas edita. Os
-    // outros cargos veem a tela (visualização), sem escrever, anexar ou salvar —
-    // cai na regra geral abaixo, porque a 16 só está no mapa do Administrativo.
+    // Etapa 1.2 / 16 (Dados do AR): o Administrativo de Posturas e o Gerente
+    // (que pode fazer as etapas do Administrativo) editam. Os outros cargos veem a
+    // tela (visualização), sem escrever, anexar ou salvar — cai na regra geral abaixo.
 
     // Fiscal de Posturas que NÃO é o criador: só visualiza a notificação
     if (cargo === 'Fiscal de Postura' && !isCriador) {
@@ -14238,7 +14252,8 @@ function configurarTabsPorCargoEtapa(perfil) {
         .trim();
 
     const podeOficios = cargoNorm === 'Dev' ||
-        ['gerente de posturas', 'administrativo de posturas'].includes(cargoSimples);
+        ['gerente de posturas', 'administrativo de posturas'].includes(cargoSimples) ||
+        (cargoSimples.includes('diretor') && cargoSimples.includes('meio ambiente'));
     const podeApuracao = cargoNorm === 'Dev' || cargoNorm === 'Secretário';
 
     const tabOficios = document.getElementById('tab-oficios-etapa');
@@ -18902,7 +18917,7 @@ window.gerarOficioGfp = async function () {
     const anoAtual = new Date().getFullYear();
     const numOficio = (await obterNumeroOficioGfp()) || `XXX/${anoAtual}`;
     const secretario = await window.obterSecretarioFazenda();
-    const gerente = await window.obterGerentePosturas();
+    const assinante = await window.resolverAssinanteOficioGfp(processoAtual?.dados);
     const podeEditar = podeGerenciarOficioGfp();
 
     const contObj = processoAtual?.contribuinte || processoAtual?.dados?.contribuinte || {};
@@ -18926,15 +18941,81 @@ window.gerarOficioGfp = async function () {
         dataTexto: window.dataTextoOficio(),
         secretarioNome: secretario.nome,
         secretarioCargo: secretario.cargo || CARGO_SECRETARIO_FAZENDA,
-        gerenteNome: gerente.nome,
+        gerenteNome: assinante.nome,
+        gerenteCargo: assinante.cargo,
         autuado: nomeAutuado,
         numeroAutoInfracao: numAutoInfracao,
         pa: pa,
         nomeEditavel: podeEditar
     });
 
-    if (podeEditar) configurarEdicaoNomeSecretarioOficio();
+    if (podeEditar) {
+        configurarEdicaoNomeSecretarioOficio();
+        preencherSelectAssinanteOficioGfp(assinante);
+    }
     carregarSituacaoOficioGfp();
+};
+
+// ── Assinante: Gerente de Posturas ou Diretor(a) de Meio Ambiente ──
+// O valor de cada opção é o índice na lista; a escolha vai para
+// processos.dados.oficio_gfp_assinante e é lida também pelo "Ver ofício" do painel.
+let assinantesOficioGfpOpcoes = [];
+
+async function preencherSelectAssinanteOficioGfp(assinanteAtual) {
+    const select = document.getElementById('selectAssinanteOficioGfp');
+    if (!select) return;
+
+    const lista = [...await window.listarAssinantesOficioGfp()];
+    // Assinante salvo que não está mais na lista (trocou de cargo, saiu) continua visível
+    const jaListado = lista.some(a => a.nome === assinanteAtual.nome && a.cargo === assinanteAtual.cargo);
+    if (assinanteAtual.nome && !jaListado) lista.unshift(assinanteAtual);
+    assinantesOficioGfpOpcoes = lista;
+
+    if (!lista.length) {
+        select.innerHTML = '<option value="">Nenhum Gerente de Posturas ou Diretor(a) de Meio Ambiente cadastrado</option>';
+        return;
+    }
+    select.innerHTML = lista.map((a, i) => {
+        const marcado = a.nome === assinanteAtual.nome && a.cargo === assinanteAtual.cargo ? ' selected' : '';
+        return `<option value="${i}"${marcado}>${window.escaparHtmlOficio(a.nome)} — ${window.escaparHtmlOficio(a.cargo)}</option>`;
+    }).join('');
+    select.disabled = false;
+}
+
+window.salvarAssinanteOficioGfp = async function (indice) {
+    const select = document.getElementById('selectAssinanteOficioGfp');
+    const escolhido = assinantesOficioGfpOpcoes[Number(indice)];
+    if (!select || !escolhido || !processoAtual?.id) return;
+
+    if (!podeGerenciarOficioGfp()) {
+        alert('Apenas o Gerente de Fiscalização ou Administrativo de Posturas pode escolher o assinante do ofício.');
+        return;
+    }
+
+    select.disabled = true;
+    try {
+        const { data: atual, error: errLeitura } = await supabaseClient
+            .from('processos').select('dados').eq('id', processoAtual.id).maybeSingle();
+        if (errLeitura) throw errLeitura;
+        const dados = { ...(atual?.dados || {}), oficio_gfp_assinante: { nome: escolhido.nome, cargo: escolhido.cargo } };
+        const { error } = await supabaseClient.from('processos').update({ dados }).eq('id', processoAtual.id);
+        if (error) throw error;
+        processoAtual.dados = { ...(processoAtual.dados || {}), oficio_gfp_assinante: dados.oficio_gfp_assinante };
+
+        await window.gerarOficioGfp();
+        const aviso = document.getElementById('avisoAssinanteOficioGfp');
+        if (aviso) {
+            aviso.style.display = 'inline';
+            setTimeout(() => { aviso.style.display = 'none'; }, 2000);
+        }
+    } catch (e) {
+        console.error('[OFÍCIO GFP] Erro ao salvar o assinante:', e);
+        alert('Não foi possível salvar o assinante do ofício. Tente novamente.');
+        const atual = await window.resolverAssinanteOficioGfp(processoAtual?.dados);
+        preencherSelectAssinanteOficioGfp(atual);
+    } finally {
+        if (assinantesOficioGfpOpcoes.length) select.disabled = false;
+    }
 };
 
 // Salva o nome do destinatário ao sair do campo (blur) ou ao teclar Enter

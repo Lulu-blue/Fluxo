@@ -160,8 +160,8 @@ const INSTRUCOES = [
         grupo: 'ar',
         etapa: 'Etapa 1.2 / 16',
         titulo: 'Retorno do AR',
-        responsavel: 'Administrativo de Posturas',
-        cargos: ['Administrativo de Posturas'],
+        responsavel: 'Administrativo de Posturas (ou Gerente)',
+        cargos: ['Administrativo de Posturas', 'Gerente'],
         objetivo: 'Registrar o Aviso de Recebimento (AR) e a data em que o contribuinte recebeu o documento.',
         passos: [
             {
@@ -413,7 +413,7 @@ const INSTRUCOES = [
             },
             {
                 titulo: 'Emita o Ofício SEMAC – GFP',
-                texto: 'Gere o ofício ao Secretário Municipal de Fazenda, baixe e registre a situação.'
+                texto: 'Gere o ofício ao Secretário Municipal de Fazenda, escolha o assinante (Gerente de Posturas ou Diretor(a) de Meio Ambiente), baixe e registre a situação.'
             }
         ],
         checklist: [
