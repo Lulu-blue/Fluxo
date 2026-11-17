@@ -262,7 +262,7 @@ const INFRACOES_MEIO_AMBIENTE = [
         rotulo: 'Utilização ou detonação de explosivos sem autorização da FUMED',
         descricao: 'Utilização\detonação de explosivos ou similares sem autorização da FUMED.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 16 e 135, “i”, do Decreto Municipal nº 4748/2002.',
-        providencias: [' <strong>Atenção: <strong> paralisar a utilização ou detonação de explosivos ou similares no local.'],
+        providencias: ['Atenção: paralisar a utilização ou detonação de explosivos ou similares no local.'],
         valor: 571.00,
         penalidade: `${PENALIDADE_ART133_II}.`
     },
