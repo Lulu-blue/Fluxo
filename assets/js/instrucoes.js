@@ -175,7 +175,7 @@ const INSTRUCOES = [
             {
                 titulo: 'Retorno sem sucesso',
                 texto: 'Marque Não e informe a data da última tentativa, o motivo dado pelos Correios e o anexo do AR.',
-                dica: 'São 2 tentativas para a Notificação Preliminar / Auto de Fiscalização e 1 para o Auto de Infração. Esgotadas, o processo segue para o edital.'
+                dica: 'São 2 tentativas para a Notificação Preliminar / Auto de Fiscalização e 1 para o Auto de Infração. Esgotadas, o processo segue para o edital. Enquanto espera a nova tentativa, o prazo não corre: sem o AR recebido, ele começa na data de publicação do edital. Parado mais de 30 dias esperando a nova tentativa, o processo vai para a Etapa 30 e o Gerente é avisado.'
             }
         ],
         checklist: [
@@ -427,8 +427,8 @@ const INSTRUCOES = [
         grupo: 'auto',
         etapa: 'Etapa 18',
         titulo: 'Andamento do Auto de Infração',
-        responsavel: 'Gerente e Jurídico',
-        cargos: ['Gerente', 'Jurídico'],
+        responsavel: 'Gerente, Jurídico e Administrativo',
+        cargos: ['Gerente', 'Jurídico', 'Administrativo de Posturas'],
         objetivo: 'Indicar o que aconteceu com cada Auto dentro do prazo de defesa.',
         passos: [
             {

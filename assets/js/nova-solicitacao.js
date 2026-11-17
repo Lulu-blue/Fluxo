@@ -2689,7 +2689,6 @@ function coletarTodosDados() {
         relatorio_fiscal: relatorioFiscalDispensado() ? { dispensado: true } : {
             atendimento: (document.getElementById('relAtendimentoTipo').value + ' ' + document.getElementById('relAtendimentoValor').value).trim(),
             assunto: document.getElementById('relAssunto').value,
-            pa: document.getElementById('relPA').value,
             texto_vistoria: document.getElementById('relTextoVistoria').value,
             // A Nota do fiscal saiu do Novo processo: é escrita na Etapa 14 (Auto de Infração)
             observacoes_fiscal: '',
@@ -2853,7 +2852,8 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
     const atendimento = (atendimentoTipo || atendimentoValor) ? (atendimentoTipo + ' ' + atendimentoValor).trim() : (rProc.atendimento || 'campo escrito');
 
     const assunto = document.getElementById('relAssunto')?.value || rProc.assunto || 'colocar aqui o assunto do relatório';
-    const pa = document.getElementById('relPA')?.value || rProc.pa || '';
+    // O campo PA saiu do Novo processo; processos antigos ainda podem ter o valor salvo
+    const pa = rProc.pa || '';
 
     // Imovel info
     const logradouroImv = document.getElementById('imvLogradouro')?.value || iProc.logradouro || 'XXX';
@@ -3665,7 +3665,7 @@ function bindWizardEventos() {
     }
 
     // Eventos do Step 5 - Atualização do Preview e Editor
-    ['relAtendimentoTipo', 'relAtendimentoValor', 'relAssunto', 'relPA', 'relTextoVistoria'].forEach(id => {
+    ['relAtendimentoTipo', 'relAtendimentoValor', 'relAssunto', 'relTextoVistoria'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.addEventListener('input', () => {

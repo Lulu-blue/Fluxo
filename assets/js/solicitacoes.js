@@ -173,7 +173,8 @@ const ETAPAS_POR_CARGO = {
     // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
     // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
     // "Gerente" inclui o(a) Diretor(a) de Meio Ambiente (ver normalizarCargo).
-    // Sem a 16: o Gerente pode fazê-la, mas ela é do Administrativo.
+    // Sem a 16: o Gerente pode fazê-la, mas ela é do Administrativo. Do mesmo jeito,
+    // o Administrativo pode dar andamento à 18, mas ela fica fora do "Com você" dele.
     'Gerente': [15, 17, 18, 20, 22, 25, 28, 29, 30],
     'Gerente de Posturas': [15, 17, 18, 20, 22, 25, 28, 29, 30],
     // Etapa 19 (Parecer Jurídico): Jurídico e Gerente de Interface Jurídica
@@ -560,6 +561,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sessaoValida = await verificarSessao();
     if (sessaoValida) {
         await carregarSolicitacoes();
+        // AR parado mais de 30 dias esperando a nova tentativa → Etapa 30 + aviso ao Gerente
+        if (typeof window.verificarARsAguardandoNovaTentativa === 'function') {
+            window.verificarARsAguardandoNovaTentativa(window.currentUserProfile?.id)
+                .then(movidos => { if (movidos > 0) carregarSolicitacoes(); });
+        }
     }
 
     setTimeout(limparAutofillInvasivoFiltros, 300);
@@ -2348,6 +2354,9 @@ async function coletarNumerosParaDevolver(pItem) {
     const add = (numero, categoria) => {
         const n = String(numero || '').trim();
         if (!n || !categoria) return;
+        // Só número de verdade ("2026/123" ou "123/2026"); "XXX/2026" e afins são
+        // marcadores de tela e não podem entrar na fila de reaproveitamento
+        if (!/^\d{4}\/\d+$/.test(n) && !/^\d+\/\d{4}$/.test(n)) return;
         const chave = `${categoria}|${n}`;
         if (vistos.has(chave)) return;
         vistos.add(chave);
@@ -2356,7 +2365,9 @@ async function coletarNumerosParaDevolver(pItem) {
 
     // 1. Número do Processo e do Relatório
     add(pItem.numero_processo, 'Processo');
-    add(pItem.dados?.relatorio_fiscal?.numero_relatorio || pItem.numero_relatorio || pItem.dados?.numero_relatorio, 'Relatório Fiscal');
+    add(pItem.numero_relatorio, 'Relatório Fiscal');
+    add(pItem.dados?.relatorio_fiscal?.numero_relatorio, 'Relatório Fiscal');
+    add(pItem.dados?.numero_relatorio, 'Relatório Fiscal');
 
     // 2. Notificações NÃO têm numeração própria reservada (reservar_numero nunca é
     // chamado com categoria 'Notificação') — o campo `numero` de cada notificação é
@@ -2367,6 +2378,8 @@ async function coletarNumerosParaDevolver(pItem) {
     // 3. Autos de Infração
     const { data: autos } = await supabaseClient.from('autos_infracao').select('numero').eq('processo_id', pid);
     (autos || []).forEach(a => add(a.numero, 'Auto de Infração'));
+    add(pItem.dados?.numero_auto_infracao, 'Auto de Infração');
+    add(pItem.dados?.etapa14?.numero_auto_infracao, 'Auto de Infração');
 
     // 4. Documentos com numeração própria (Certidão, Réplica, Ofício GFP da Etapa 15...)
     const { data: docs } = await supabaseClient.from('documentos').select('numero_sequencial, tipo').eq('processo_id', pid).not('numero_sequencial', 'is', null);
@@ -2374,8 +2387,10 @@ async function coletarNumerosParaDevolver(pItem) {
         let cat = d.tipo;
         if (cat === 'Relatório Fiscal Assinado' || cat === 'Relatório Fiscal do Auto' || cat === 'Relatório Fiscal do Auto Assinado') cat = 'Relatório Fiscal';
         else if (cat === 'Auto de Infração Assinado') cat = 'Auto de Infração';
-        else if (cat === 'Notificação Preliminar Assinada' || cat === 'Notificação Preliminar') cat = 'Notificação';
-        else if (cat === 'Certidão Assinada') cat = 'Certidão Sem Defesa';
+        // A Notificação Preliminar não tem numeração própria (ver item 2)
+        else if (cat === 'Notificação Preliminar Assinada' || cat === 'Notificação Preliminar') return;
+        else if (cat === 'Certidão Assinada' || cat === 'Certidão') cat = 'Certidão Sem Defesa';
+        else if (cat === 'Réplica Assinada') cat = 'Réplica';
         add(d.numero_sequencial, cat);
     });
 
@@ -2383,8 +2398,21 @@ async function coletarNumerosParaDevolver(pItem) {
     // (do processo ou de cada notificação). Pega daqui também, para o caso de a
     // linha em documentos não ter sido gravada — senão o número nunca voltaria.
     add(pItem.dados?.numero_oficio_gfp, 'Ofício GFP');
-    const { data: notifs } = await supabaseClient.from('notificacoes').select('numero_oficio_gfp:dados->>numero_oficio_gfp').eq('processo_id', pid);
-    (notifs || []).forEach(n => add(n.numero_oficio_gfp, 'Ofício GFP'));
+
+    // 6. Números guardados só na notificação (nem sempre há linha em documentos):
+    // Certidão (coluna numero_certidao), Réplica, Auto e o Relatório Fiscal do
+    // Auto da Etapa 14 (dados.relatorio_ai.numero)
+    const { data: notifs } = await supabaseClient
+        .from('notificacoes')
+        .select('numero_certidao, numero_oficio_gfp:dados->>numero_oficio_gfp, numero_replica:dados->>numero_replica, numero_auto_infracao:dados->>numero_auto_infracao, numero_relatorio_auto:dados->relatorio_ai->>numero')
+        .eq('processo_id', pid);
+    (notifs || []).forEach(n => {
+        add(n.numero_oficio_gfp, 'Ofício GFP');
+        add(n.numero_certidao, 'Certidão Sem Defesa');
+        add(n.numero_replica, 'Réplica');
+        add(n.numero_auto_infracao, 'Auto de Infração');
+        add(n.numero_relatorio_auto, 'Relatório Fiscal');
+    });
 
     return lista;
 }

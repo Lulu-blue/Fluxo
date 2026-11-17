@@ -610,6 +610,14 @@ function obterInicioPrazoAR(proc, notif = null) {
     const cadastroBruto = ar.data_insercao_ar;
     const editalBruto = obterDataEditalProcesso(proc, notif);
 
+    // Já houve tentativa de entrega sem sucesso e o AR não foi recebido: só o
+    // Edital (data de publicação) inicia o prazo. Nem a data da tentativa nem a
+    // do cadastro do AR contam (ver ar-nova-tentativa.js).
+    if (window.arAguardandoNovaTentativa && window.arAguardandoNovaTentativa(ar)) {
+        const edital = dataLocalMeioDiaISO(editalBruto);
+        return edital ? { dataISO: edital, origem: 'edital' } : null;
+    }
+
     // Se veio um AR novo depois do edital, é o AR novo que vale
     const editalMaisRecente = editalBruto && (!cadastroBruto || new Date(editalBruto) >= new Date(cadastroBruto));
     if (editalMaisRecente) {
@@ -723,6 +731,24 @@ async function aplicarInicioPrazoAR(proc, opcoes = {}) {
     }
 
     const dataMov = new Date().toISOString();
+
+    // Esperando a nova tentativa de entrega (sem AR recebido nem Edital): o prazo
+    // não corre. Tira o vencimento, e o painel mostra "—" até o Edital.
+    const arCiclo = obterDadosARProcesso(proc, opcoes.notificacao || null);
+    if (!inicio && window.arAguardandoNovaTentativa && window.arAguardandoNovaTentativa(arCiclo)) {
+        for (const n of notificacoes) {
+            if (!n.data_vencimento && !n.prazo_origem) continue;
+            const campos = { data_vencimento: null, prazo_origem: null };
+            try {
+                await gravarPrazoNotificacao(n.id, campos);
+                refletirPrazoEmMemoria(proc, n.id, campos);
+            } catch (err) {
+                console.warn('Erro ao tirar o prazo da notificação', n.numero || n.id, err);
+            }
+        }
+        return true;
+    }
+
     for (const n of notificacoes) {
         const prazoDias = prazoDoCicloNotificacao(n, !!opcoes.ehAuto, passouEtapa17);
         const dataInicio = inicio?.dataISO || n.data_inicio || proc.created_at || dataMov;
@@ -870,8 +896,9 @@ const ETAPAS_POR_CARGO = {
     'Dev': [1, 2, 3, 4, 5, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 29, 30, 31],
     // Etapa 26 (Análise para dar Desconto): mesma mão da Análise de Dilação de Prazo
     'Fiscal de Postura': [1, 2, 3, 4, 5, 10, 13, 14, 21, 26, 29, 31],
-    'Administrativo de Posturas': [15, 16, 17],
-    // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas e Jurídico
+    // O Administrativo também pode dar andamento à Etapa 18
+    'Administrativo de Posturas': [15, 16, 17, 18],
+    // Etapa 18 (defesa do Auto de Infração): Gerente de Posturas, Jurídico e Administrativo
     // Etapas 28 (Certificação do Vencimento) e 20 (Arquivamento): só o Gerente de Posturas
     // O Gerente também faz as etapas do Administrativo (15, 16 e 17).
     // "Gerente" inclui o(a) Diretor(a) de Meio Ambiente (ver normalizarCargo).
@@ -11268,6 +11295,17 @@ function verificarPrazoAR(proc, dadosAR) {
     const badge = document.getElementById('badgeStatusAR');
     if (!badge || !dadosAR.numero_ar) return;
 
+    // Esperando a nova tentativa de entrega: conta o limite de 30 dias parado
+    if (window.arAguardandoNovaTentativa && window.arAguardandoNovaTentativa(dadosAR)) {
+        const inicioEspera = window.inicioEsperaNovaTentativaAR(dadosAR);
+        const dias = inicioEspera ? Math.floor((Date.now() - inicioEspera.getTime()) / 86400000) : 0;
+        const limite = window.AR_DIAS_ESPERA_NOVA_TENTATIVA;
+        badge.textContent = `Aguardando nova tentativa (${Math.max(0, limite - dias)} de ${limite} dias restantes)`;
+        badge.style.background = '#fef3c7';
+        badge.style.color = '#92400e';
+        return;
+    }
+
     const dataAR = dadosAR.data_insercao_ar || proc.data_criacao;
     if (!dataAR) return;
 
@@ -11290,6 +11328,13 @@ function verificarPrazoAR(proc, dadosAR) {
 
 async function verificarPrazo15DiasEtapa16(proc) {
     const dadosAR = camposCicloAR(proc).etapa16 || {};
+
+    // Esperando a nova tentativa de entrega (fluxo da Notificação Preliminar):
+    // vale o limite de 30 dias parado, não o de 15 dias do cadastro do AR
+    if (!notificacaoDoCicloAR() && window.arAguardandoNovaTentativa(dadosAR)) {
+        return await verificarEsperaNovaTentativaAR(proc, dadosAR);
+    }
+
     if (!dadosAR.numero_ar || dadosAR.data_recebimento) return false;
 
     const params = new URLSearchParams(window.location.search);
@@ -11350,6 +11395,41 @@ async function verificarPrazo15DiasEtapa16(proc) {
         }
     }
 
+    return false;
+}
+
+// Parado mais de 30 dias esperando a nova tentativa: vai para a Etapa 30 e avisa
+// o Gerente. Antes disso, corrige o prazo que estivesse correndo pela data do
+// cadastro do AR (processos gravados antes desta regra).
+async function verificarEsperaNovaTentativaAR(proc, dadosAR) {
+    if (window.esperaNovaTentativaARExpirou(dadosAR)) {
+        try {
+            const moveu = await window.encaminharNovaTentativaARParaEtapa30({
+                processoId: proc.id,
+                numeroProcesso: proc.numero_processo,
+                e16: dadosAR,
+                usuarioId: perfilAtual?.id
+            });
+            if (moveu) {
+                alert(`O AR da nova tentativa de entrega está sem retorno há mais de ${window.AR_DIAS_ESPERA_NOVA_TENTATIVA} dias.\n\n`
+                    + 'O processo foi encaminhado para a Etapa 30 (Gerência localiza o AR) e o Gerente foi avisado.');
+            }
+            window.location.href = `etapa.html?processo=${proc.id}`;
+            return true;
+        } catch (err) {
+            console.error('Erro ao mover o processo para a Etapa 30:', err);
+            return false;
+        }
+    }
+
+    try {
+        const correndo = (await carregarNotificacoesDoBanco(proc.id) || []).some(n =>
+            parseInt(n.etapas?.numero || n.etapa_atual_id || 0, 10) === 16
+            && n.prazo_origem && n.prazo_origem !== 'recebimento');
+        if (correndo) await aplicarInicioPrazoAR(proc, opcoesCicloAR(16, false));
+    } catch (err) {
+        console.warn('Aviso ao corrigir o prazo do AR aguardando nova tentativa:', err);
+    }
     return false;
 }
 
@@ -11614,6 +11694,11 @@ async function salvarEtapa16() {
 
     registrarDataInsercaoAR(dadosAR, numeroARAnterior);
 
+    // Retorno sem sucesso: o prazo para de correr até o AR ser recebido ou o Edital sair
+    if (notificacaoEfetivada === 'nao') {
+        await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(16, cicloDoAREhAuto()));
+    }
+
     // AR efetivado: o prazo começa (recebimento; sem ele, data de cadastro do AR)
     if (notificacaoEfetivada === 'sim') {
         registrarDataRecebimentoAR(processoAtual, dadosAR.data_recebimento);
@@ -11639,6 +11724,10 @@ async function salvarEtapa16() {
 // Usado no fluxo da Notificação Preliminar enquanto ainda restam tentativas.
 async function salvarTentativaARNaEtapa16(tentativas, limite) {
     try {
+        // A data da tentativa não inicia prazo: ele fica parado até o AR da nova
+        // tentativa ser recebido ou o Edital ser publicado
+        await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(16, cicloDoAREhAuto()));
+
         processoAtual.dados = processoAtual.dados || {};
         processoAtual.dados.campos = processoAtual.campos;
 
@@ -11765,8 +11854,11 @@ async function avancarEtapa16() {
 
         // Indo para a Etapa 18 (defesa do Auto): o prazo do Auto começa pelo AR.
         // Indo para a Etapa 2, atualizarNotificacoesParaEtapa2 aplica o prazo da NP.
+        // Indo para o Edital (17): o prazo para até a data de publicação do Edital.
         if (proximaEtapaNumero === 18) {
             await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(16, true));
+        } else if (proximaEtapaNumero === 17) {
+            await aplicarInicioPrazoAR(processoAtual, opcoesCicloAR(16, veioDaEtapa14));
         }
 
         processoAtual.dados = processoAtual.dados || {};

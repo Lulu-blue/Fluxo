@@ -89,6 +89,7 @@ assets/
     ia_defesa.js           resumo da defesa com IA local (WebLLM)
     chat_juridico.js       chat com o Gerente de Interface Jurídica
     oficio-modelo.js       papel timbrado do Ofício SEMAC – GFP
+    ar-nova-tentativa.js   AR esperando a nova tentativa de entrega (prazo parado; 30 dias → Etapa 30)
     oficio-avulso.js       ofícios avulsos (aba Ofícios do painel)
     brasao-base64.js       brasão embutido para os PDFs
 banco_de_dados.sql         esquema do banco (Supabase)
@@ -156,7 +157,7 @@ Quem pode **editar e avançar** cada etapa (`ETAPAS_POR_CARGO` em `assets/js/eta
 |---|---|
 | Dev | todas |
 | Fiscal de Postura | 1, 2, 3, 4, 5, 10, 13, 14, 21, 26, 29, 31 |
-| Administrativo de Posturas | 15, 16, 17 |
+| Administrativo de Posturas | 15, 16, 17, 18 (a 18 não entra no filtro "Com você") |
 | Gerente (de Posturas) e Diretor(a) de Meio Ambiente | 15, 16, 17, 18, 20, 22, 25, 28, 29, 30 (inclui as do Administrativo; a 16 não entra no filtro "Com você") |
 | Jurídico | 18, 19 |
 | Gerente de Interface Jurídica | 19 |
@@ -291,6 +292,7 @@ Notificações `encerrada`, `atendida` ou `pagamento` não contam prazo.
 ### 5.4 Outros prazos
 
 - **AR sem retorno:** 15 dias depois de cadastrado o número do AR sem data de recebimento, o processo vai **sozinho** para a Etapa 30 (verificado ao abrir a Etapa 16). Para testar, use `?teste_prazo_ar=<segundos>` na URL.
+- **AR esperando a nova tentativa de entrega** (NP/AF, depois de um retorno sem sucesso): o prazo do contribuinte **não corre**. Sem o AR recebido, só a **data de publicação do Edital** inicia o prazo; a data da tentativa e a do cadastro do AR não contam (`obterInicioPrazoAR`). Parado **mais de 30 dias** (contados do registro do último retorno sem sucesso), o processo vai para a Etapa 30 e o Gerente recebe um aviso no sino. A verificação roda ao abrir a Etapa 1.2 e também no painel, no máximo a cada 6 horas por navegador (`ar-nova-tentativa.js`).
 - **Etapa 25:** redução de 50% e alteração de valor **reiniciam** o prazo com 30 dias (a partir da entrada na Etapa 31). Continuidade na cobrança **retoma** os dias que faltavam e nunca reinicia: se já venceu, continua vencido. Origem gravada: `prazo_origem = 'etapa25'`.
 - **Dilação:** deferida pelo Fiscal (Etapa 5), soma N dias ao vencimento. A Etapa 2 deixa de oferecer "Dilação" para aquela notificação.
 
@@ -308,7 +310,7 @@ flowchart TD
     E16 -->|AR efetivado, fluxo NP| E2[2 Defesa ou Dilação<br/>painel das notificações]
     E16 -->|AR efetivado, fluxo Auto| E18
     E16 -->|sem sucesso: 2 tentativas NP / 1 Auto| E17[17 Gerência gera o Edital]
-    E16 -->|15 dias sem retorno| E30[30 Gerente localiza o AR]
+    E16 -->|15 dias sem retorno / 30 dias esperando a nova tentativa| E30[30 Gerente localiza o AR]
     E30 -->|efetivado| E2
     E30 -->|efetivado, fluxo Auto| E18
     E30 -->|não efetivado| E17
@@ -360,7 +362,7 @@ flowchart TD
 | 15 | Multa do AI | Gerente / Administrativo | → 16 |
 | 16 | Dados do AR (1.2) | Administrativo / Gerente | → 2 / 18 / 17 / 30 |
 | 17 | Publicação do edital | Gerente / Administrativo | → 2 (NP) ou 18 (Auto) |
-| 18 | Andamento do AI | Gerente / Jurídico | por Auto: → 19 / 28 / 29 / 26 |
+| 18 | Andamento do AI | Gerente / Jurídico / Administrativo | por Auto: → 19 / 28 / 29 / 26 |
 | 19 | Parecer Jurídico | Jurídico / Interface Jurídica | → 21, 22 (voltam à 19) ou 24 |
 | 20 | Arquivamento do AI | Gerente | arquiva (encerra) ou desfaz → 18 |
 | 21 | Comunicação Interna (Fiscal) | Fiscal | → 19 |
@@ -563,6 +565,7 @@ aviso mostra "x de 3"). **1 no fluxo do Auto**, que vai direto ao Edital.
 | Efetivado, fluxo Auto | 18 (prazo de defesa do Auto) |
 | Sem sucesso, esgotadas as tentativas | 17 |
 | 15 dias do cadastro do AR sem recebimento | 30 (automático) |
+| Mais de 30 dias esperando a nova tentativa de entrega | 30 (automático, com aviso ao Gerente) |
 
 ### Etapa 17 — Gerência Gera o Edital
 

@@ -46,7 +46,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     },
     {
         codigo: 'MA-02',
-        rotulo: 'Bota-fora – descarte de resíduos sólidos em logradouros públicos',
+        rotulo: 'Bota-fora – descarte de resíduos sólidos em logradouro público',
         descricao: 'Descarte irregular de resíduos sólidos em logradouro público.',
         dispositivo: 'Lei Municipal nº 5451/2002 e artigos 53, 56 e 135, alínea “m”, do Decreto Municipal nº 4748/2002.',
         providencias: [
@@ -140,7 +140,7 @@ const INFRACOES_MEIO_AMBIENTE = [
         dispositivo: 'Lei Municipal nº 5451/2002, artigos 9 e 135, alínea “c”, do Decreto Municipal nº 4748/2002.',
         providencias: ['Apresentar dados e/ou informações solicitadas pelo órgão competente e/ou CODEMA.'],
         valor: 11980.00,
-        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong> para infrações graves.'
+        penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002, multa no importe de <strong>R$ {VALOR}</strong>.'
     },
     {
         // Uma infração só, com o tipo de efluente escolhido pelo fiscal
@@ -176,28 +176,28 @@ const INFRACOES_MEIO_AMBIENTE = [
     },
     {
         codigo: 'MA-15',
-        rotulo: 'Deixar de executar análise ou medição solicitada pela FUMED (alínea h)',
+        rotulo: 'Deixar de executar análise ou medição solicitada pela FUMED (ALÍNEA H – RESOLUÇÃO CODEMA)',
         descricao: 'Deixar de executar análise ou medição solicitada pelo órgão competente.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 13 e seguintes e 135, “h”, do Decreto Municipal nº 4748/2002 e da Lei Municipal nº 5380/2002.',
-        providencias: ['Considerando a necessidade de comprovação da adequação dos níveis de emissão sonora decorrente dos equipamentos instalados na área externa do estabelecimento, FICA O RESPONSÁVEL AUTUADO A APRESENTAR LAUDO TÉCNICO DE RUÍDO, elaborado por profissional habilitado, contendo a avaliação dos níveis de pressão sonora emitidos pelos equipamentos utilizados no estabelecimento, de acordo com as legislações vigentes referentes ao tema.'],
+        providencias: ['APRESENTAR LAUDO TÉCNICO DE RUÍDO, elaborado por profissional habilitado, contendo a avaliação dos níveis de pressão sonora emitidos pelos equipamentos utilizados no estabelecimento, de acordo com as legislações vigentes referentes ao tema, uma vez que há necessidade de comprovação da adequação dos níveis de emissão sonora decorrente dos equipamentos instalados na área externa do estabelecimento.'],
         valor: 571.00,
         penalidade: `${PENALIDADE_CODEMA} por solicitação não cumprida.`
     },
     {
         codigo: 'MA-16',
-        rotulo: 'Ausência de mecanismos de estabilidade de taludes, rampas e platôs',
+        rotulo: 'Ausência de mecanismos de manutenção de estabilidade de taludes, rampas e platôs',
         descricao: 'Ausência de mecanismos de manutenção da estabilidade de taludes, rampas e platôs.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigo 135, “n”, do Decreto Municipal nº 4748/2002.',
         providencias: ['Apresentar o cumprimento dos mecanismos de manutenção da estabilidade de taludes, rampas e platôs.'],
         valor: 11980.00,
-        penalidade: `${PENALIDADE_ART133_II} para infrações graves.`
+        penalidade: `${PENALIDADE_ART133_II}.`
     },
     {
         codigo: 'MA-17',
         rotulo: 'Solicitação de análise de água',
         descricao: 'Irregularidade relativa ao uso/proteção/conservação dos recursos hídricos.',
         dispositivo: 'Lei Municipal nº 5451/2002 e artigo 12, Parágrafo único, do Decreto Municipal nº 4748/2002.',
-        providencias: ['Análise da água, diante da necessidade de esclarecimento técnico uma vez que foram constatadas irregularidades'],
+        providencias: ['Análise da água, diante da necessidade de esclarecimento técnico;'],
         atencao: 'essa análise deverá observar as determinações e as especificações estabelecidas pelo órgão ambiental municipal.',
         valor: 11980.00,
         penalidade: 'O <strong>NÃO CUMPRIMENTO</strong> do presente Auto de Fiscalização sujeitará o infrator às penalidades previstas no Art. 135, “p”, do Decreto Municipal nº 4748/2002 multa no importe de <strong>R$ {VALOR}</strong>.'
@@ -205,7 +205,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     {
         codigo: 'MA-18',
         rotulo: 'Outdoor – poluição visual',
-        descricao: 'Constatamos outdoor em desacordo com a legislação ambiental.',
+        descricao: 'Outdoor em desacordo com a legislação ambiental.',
         dispositivo: 'Lei Municipal nº 5451/2002; artigo 64 do Decreto Municipal nº 4748/2002 (CAPÍTULO V – DA POLUIÇÃO VISUAL EM LOGRADOUROS PÚBLICOS); artigos 11, inciso I e 16 do Decreto 9493/2010 e artigo 111 e seguintes da Lei 6.907/2008.',
         providencias: ['Proceder com a imediata retirada do outdoor no local autuado, instalado no passeio público em desconformidade com a legislação vigente.'],
         upfmd: 10,
@@ -214,7 +214,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     {
         codigo: 'MA-19',
         rotulo: 'Depósito ou queima de lixo ao ar livre',
-        descricao: 'Em vistoria, constatamos o depósito e/ou queima de lixo ao ar livre.',
+        descricao: 'Depósito e/ou queima de lixo ao ar livre.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigo 135, “n”, do Decreto Municipal nº 4748/2002.',
         providencias: ['Paralisar e retirar o depósito e/ou queima de lixo ao ar livre.'],
         valor: 570.00,
@@ -249,10 +249,10 @@ const INFRACOES_MEIO_AMBIENTE = [
     },
     {
         codigo: 'MA-23',
-        rotulo: 'Deixar de executar análise ou medição solicitada pela FUMED (alínea p)',
+        rotulo: 'Deixar de executar análise ou medição solicitada pela FUMED (ALÍNEA P)',
         descricao: 'Pertubação do sossego/emissão de ruídos provenientes do endereço identificado acima.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 13 e seguintes e 135, “p”, do Decreto Municipal nº 4748/2002 e da Lei Municipal nº 5380/2002.',
-        providencias: ['Comprovação da adequação dos níveis de emissão sonora decorrente dos equipamentos instalados na área externa do estabelecimento;'],
+        providencias: ['Comprovar a adequação dos níveis de emissão sonora decorrente dos equipamentos instalados na área externa do estabelecimento;'],
         atencao: 'FICA O RESPONSÁVEL/AUTUADO A APRESENTAR LAUDO TÉCNICO DE RUÍDO, elaborado por profissional habilitado, contendo a avaliação dos níveis de pressão sonora emitidos pelos equipamentos utilizados no estabelecimento, de acordo com as legislações vigentes.',
         valor: 571.00,
         penalidade: `${PENALIDADE_ART133_II}.`
@@ -262,7 +262,7 @@ const INFRACOES_MEIO_AMBIENTE = [
         rotulo: 'Utilização ou detonação de explosivos sem autorização da FUMED',
         descricao: 'Utilização\detonação de explosivos ou similares sem autorização da FUMED.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 16 e 135, “i”, do Decreto Municipal nº 4748/2002.',
-        providencias: ['Paralisar a utilização ou detonação de explosivos ou similares no local.'],
+        providencias: [' <strong>Atenção: <strong> paralisar a utilização ou detonação de explosivos ou similares no local.'],
         valor: 571.00,
         penalidade: `${PENALIDADE_ART133_II}.`
     },
@@ -278,7 +278,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     {
         codigo: 'MA-26',
         rotulo: 'Ruído de 10 dB a 40 dB acima do permitido',
-        descricao: 'Fica demonstrador pelo laudo que foi gerado ruído de 10 dB a 40 dB acima do permitido.',
+        descricao: 'Pelo laudo foi constatado que foi gerado ruído de 10 dB a 40 dB acima do permitido.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 14, 15 e 135, “k”, do Decreto Municipal nº 4748/2002 e Lei Municipal nº 5380/2002.',
         providencias: ['Suspender o ruído gerado acima do permitido, conforme dispõe o artigo 131, III, do Decreto Municipal nº 4748/2002.'],
         valor: 6275.50,
@@ -298,7 +298,7 @@ const INFRACOES_MEIO_AMBIENTE = [
     },
     {
         codigo: 'MA-28',
-        rotulo: 'Edificação em área com vegetação arbórea sem anuência da FUMED',
+        rotulo: 'Edificação em área, total ou parcialmente, com vegetação arbórea sem anuência da FUMED',
         descricao: 'Implantação de edificações em áreas revestidas, total ou parcialmente, por vegetação de porte arbórea sem a prévia anuência do órgão competente.',
         dispositivo: 'Lei Municipal nº 5451/ 2002, artigos 70 e 135, “o”, do Decreto Municipal nº 4748/2002.',
         providencias: ['Suspender a atividade, conforme determina o artigo 131, III, do Decreto Municipal nº 4748/2002 e apresentar a autorização do órgão ambiental competente.'],
@@ -313,9 +313,9 @@ const INFRACOES_MEIO_AMBIENTE = [
 const AI_CODEMA = ', conforme Anexo único da Resolução CODEMA nº 01 de 27 de abril de 2023.';
 const AI_CODEMA_DISPOE = ', conforme dispõe o Anexo único da Resolução CODEMA nº 01 de 27 de abril de 2023.';
 const AI_ART133_II = ', penalidade prevista pelo artigo 133, II, do Decreto Municipal nº 4748/2002.';
-const AI_ART133_II_GRAVES = ' para infrações graves, penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002.';
+const AI_ART133_II_GRAVES = ', penalidades previstas pelo artigo 133, II, do Decreto Municipal nº 4748/2002.';
 const AI_ART133_III = ', conforme art. 133, III do Decreto 4748/2002.';
-const AI_GRAVISSIMAS = ', conforme art. 133, III do Decreto 4748/2002, para infrações gravíssimas.';
+const AI_GRAVISSIMAS = ', conforme art. 133, III do Decreto 4748/2002.';
 
 const TEXTOS_AUTO_INFRACAO_MA = {
     'MA-01': { penalidade: AI_CODEMA },
@@ -324,7 +324,7 @@ const TEXTOS_AUTO_INFRACAO_MA = {
     'MA-04': { penalidade: AI_CODEMA },
     'MA-05': { penalidade: AI_CODEMA },
     'MA-06': { penalidade: AI_CODEMA },
-    'MA-07': { penalidade: ' para infrações leves, conforme às penalidades previstas pelo artigo 133, I, do Decreto Municipal nº 4748/2002.' },
+    'MA-07': { penalidade: ' , conforme às penalidades previstas pelo artigo 133, I, do Decreto Municipal nº 4748/2002.' },
     'MA-08': { penalidade: ' por ato' + AI_CODEMA },
     'MA-09': { penalidade: ' por ato' + AI_CODEMA },
     'MA-10': { penalidade: ' por indivíduo' + AI_CODEMA },
@@ -351,55 +351,55 @@ INFRACOES_MEIO_AMBIENTE.forEach(i => { i.ai = TEXTOS_AUTO_INFRACAO_MA[i.codigo] 
 // O processo nasce na Etapa 14. {REDS} vira o nº do REDS informado pelo fiscal.
 const lei5451 = (resto) => `Lei Municipal nº 5451/2002 e ${resto}`;
 const INFRACOES_MA_DIRETO_AI = [
-    ['MA-29', 'Queimada (REDS)', 'Efetuou limpeza do seu imóvel através de queimada, conforme REDS nº {REDS}.',
+    ['MA-29', 'Queimada (REDS)', 'Efetuou limpeza do imóvel através de queimada, conforme REDS nº {REDS}.',
         'Lei 5451/2002 e artigos 134, alínea "h" e 140, parágrafo único, do Decreto 4748/2002.', 570.00, AI_CODEMA, { reds: true }],
-    ['MA-30', 'Queimada vegetação arbórea (REDS)', 'Efetuou limpeza do seu imóvel através de queimada com vegetação de porte arbóreo, conforme REDS nº {REDS}.',
+    ['MA-30', 'Queimada vegetação arbórea (REDS)', 'Efetuou limpeza do imóvel com vegetação de porte arbóreo por meio de queimada, conforme REDS nº {REDS}.',
         lei5451('artigos 135, alínea "q" e 140, parágrafo único, do Decreto 4748/2002.'), 6275.00, AI_CODEMA, { reds: true }],
-    ['MA-31', 'Queimada (denúncia)', 'Efetuou limpeza do seu imóvel através de queimada, conforme constatado em vistoria no local após denúncia.',
+    ['MA-31', 'Queimada (denúncia)', 'Efetuou limpeza do imóvel por meio de queimada, constatado em vistoria no local após denúncia.',
         'Lei Municipal 5451/2002 e artigos 134, alínea "h" e 140 do Decreto Municipal nº 4748/2002.', 570.00, AI_CODEMA],
-    ['MA-32', 'Queimada vegetação arbórea (denúncia)', 'Efetuou limpeza do seu imóvel através de queimada com vegetação de porte arbóreo.',
+    ['MA-32', 'Queimada vegetação arbórea (denúncia)', 'Efetuou limpeza do imóvel com vegetação de porte arbóreo por meio de queimada, constatado em vistoria no local após denúncia.',
         lei5451('artigos 135, alínea "q" e 140 do Decreto Municipal nº 4748/2002.'), 6275.00, AI_CODEMA],
     ['MA-33', 'Deixar de executar análise ou medição solicitada pela FUMED (laudo de medição não apresentado)', 'Deixar de executar análise ou medição solicitada pela FUMED.',
         'Lei Municipal nº 5451/2002, artigos 13 e seguintes do Decreto Municipal nº 4.748/2002 e artigos 1º e 2º §§ 1º a 4º da Lei Municipal nº 5.380/2002.', 11980.00, ', conforme dispõe nos artigos 133, II e 135, “p” do Decreto 4748/2002.'],
     ['MA-34', 'Descumprimento de condicionantes do licenciamento ambiental (CODEMA)', 'Descumprir determinação formulada pela plenária do CODEMA, inclusive Plano de Controle Ambiental, medidas mitigadoras, de monitoração, ou equivalentes, aprovadas quando do licenciamento.',
         'Lei 5451/2002 e artigos 136, alínea "b" do Decreto 4748/2002.', 25000.00, AI_ART133_III],
-    ['MA-35', 'Intervenção/degradar área de preservação permanente', 'Degradar área de preservação permanente.',
+    ['MA-35', 'Intervir/degradar área de preservação permanente', 'Degradar área de preservação permanente.',
         'Lei 5451/2002 e artigos 65, VIII e 136, alínea "t".', 18490.50, AI_CODEMA],
-    ['MA-36', 'Iniciar atividades sem licença ambiental de operação', 'Dar início ou prosseguir atividade efetiva ou potencialmente poluidora, ou degradadora do meio ambiente sem a Licença de Operação.',
+    ['MA-36', 'Iniciar atividades sem licença ambiental de operação', 'Iniciar/prosseguir atividade efetiva ou potencialmente poluidora, ou degradadora do meio ambiente sem a Licença de Operação.',
         lei5451('artigo 102 e seguintes (Título V – Da Licença Ambiental) e 136, alínea “a”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_ART133_III],
     ['MA-37', 'Descumprir total ou parcialmente Termo de Compromisso ou de Ajustamento de Conduta', 'Descumprimento do Termo de Compromisso e/ou de Ajustamento de Conduta.',
         lei5451('artigo 136, alínea “c”, do Decreto Municipal nº 4748/2002.'), 11981.00, AI_GRAVISSIMAS],
-    ['MA-38', 'Obstar ou dificultar ação fiscalizadora', 'Obstou/dificultou a ação fiscalizadora.',
+    ['MA-38', 'Obstar ou dificultar ação fiscalizadora', 'Obstar/dificultar a ação fiscalizadora.',
         lei5451('artigos 9 e 136, alínea “d”, do Decreto Municipal nº 4748/2002.'), 11981.00, AI_GRAVISSIMAS],
     ['MA-39', 'Prestar informação falsa ou adulterar dado técnico', 'Prestar informação falsa e/ou adulterar dado técnico.',
         lei5451('artigos 128 e seguintes (Título VII – Dos registros dos Técnicos e Empresas) e 136, alínea “e”, do Decreto Municipal nº 4748/2002.'), 11981.00, AI_GRAVISSIMAS],
-    ['MA-40', 'Causar poluição ou degradação que provoque mortandade de mamíferos, aves, répteis, anfíbios ou peixes', 'Causar poluição ou degradação que provoque mortandade de mamíferos, aves, répteis, anfíbios ou peixes.',
+    ['MA-40', 'Causar poluição ou degradação que provoque extermínio de mamíferos, aves, répteis, anfíbios ou peixes', 'Causar poluição ou degradação que provoque extermínio de mamíferos, aves, répteis, anfíbios ou peixes.',
         lei5451('artigos 44, parágrafo único e 136, alínea “g”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-41', 'Causar poluição ou degradação com efeitos adversos à biota nativa, plantas cultivadas ou criações de animais', 'Causar poluição ou degradação que provoque destruição ou outros efeitos adversos a biota nativa ou às plantas cultivadas e às criações de animais.',
+    ['MA-41', 'Causar poluição ou degradação que provoque destruição ou outros efeitos adversos à fauna e flora nativa, plantas cultivadas e/ou criações de animais', 'Causar poluição ou degradação que provoque destruição ou outros efeitos adversos a fauna e flora nativa, às plantas cultivadas e/ou às criações de animais.',
         lei5451('artigos 65 (Capítulo I – Da Fauna e Flora) e 136, alínea “f”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
     ['MA-42', 'Causar poluição ou degradação ambiental que possa trazer dano à saúde humana', 'Causar poluição ou degradação ambiental que possa trazer dano a saúde humana',
         lei5451('artigos 2º, III, “a”, 3º e 136, alínea “h”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
     ['MA-43', 'Causar poluição hídrica que torne necessária a interrupção do abastecimento público de água', 'Causar poluição hídrica que torne necessária a interrupção do abastecimento público de água',
         lei5451('artigos 2º, III, “g”, 3º e 136, alínea “i”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-44', 'Causar poluição atmosférica que provoque a retirada dos habitantes de um quarteirão ou comunidade', 'Causar poluição atmosférica que provoque a retirada ainda que momentânea dos habitantes de um quarteirão urbana ou comunidade equivalente.',
+    ['MA-44', 'Causar poluição atmosférica que provoque a retirada dos habitantes, ainda que momentânea, de um quarteirão ou comunidade', 'Causar poluição atmosférica que provoque a retirada ainda que momentânea dos habitantes de um quarteirão urbana ou comunidade equivalente.',
         lei5451('artigos 2º, III, “a”, 3º e 136, alínea “j”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-45', 'Causar poluição ou degradação do solo que torne a área imprópria para a ocupação humana', 'Causar poluição ou degradação do solo, que torne uma área urbana ou rural, imprópria para a ocupação humana',
+    ['MA-45', 'Causar poluição ou degradação do solo que torne a área imprópria para a ocupação humana', 'Causar poluição ou degradação do solo que torne uma área urbana ou rural imprópria para a ocupação humana',
         lei5451('artigos 2º, III, “a”, 3º e 136, alínea “k”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-46', 'Ferir, matar ou capturar espécies raras da biota regional nas Unidades de Conservação', 'Ferir, matar ou capturar por quaisquer meios nas Unidades de Conservação, exemplar de espécies consideradas raras da biota regional',
+    ['MA-46', 'Ferir, matar ou capturar exemplares de espécies raras da fauna e flora regional nas Unidades de Conservação', 'Ferir, matar ou capturar exemplares de espécies consideradas raras da fauna e flora regional por quaisquer meios nas Unidades de Conservação',
         lei5451('artigos 2º, VII, 3º e 136, alínea “l”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-47', 'Degradação por assoreamento ou erosão acelerada nas Unidades de Conservação', 'Realizar atividades que causam degradação ambiental, mediante assoreamento de coleções de água ou erosão acelerada nas Unidades de Conservação',
+    ['MA-47', 'Degradação por assoreamento ou erosão acelerada nas Unidades de Conservação', 'Realizar atividades que causem degradação ambiental, mediante assoreamento de coleções de água ou erosão acelerada nas Unidades de Conservação',
         lei5451('artigos 2º, VII, 3º e 136, alínea “m”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
     ['MA-48', 'Maltrato de árvores (sem Auto de Fiscalização)', 'Maltrato de árvores.',
         'Lei Municipal nº 5451/2002, artigos 134, alínea “e” e 140 do Decreto Municipal nº 4748/2002.', 312.50, ' por ato' + AI_CODEMA_DISPOE],
     ['MA-49', 'Praticar ato que inicie ou possa iniciar incêndio em formações vegetais nas Unidades de Conservação', 'Praticar ato que inicie ou possa iniciar incêndio em formações vegetais nas Unidades de Conservação.',
         lei5451('artigos 2º, VII, 3º e 136, alínea “n”, do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-50', 'Desrespeitar intervenção de uso ou de passagem nas Unidades de Conservação', 'Desrespeitar intervenção de uso, de passagem, ou outras estabelecidas administrativamente nas Unidades de Conservação.',
+    ['MA-50', 'Desrespeitar intervenções de uso ou de passagem nas Unidades de Conservação', 'Desrespeitar intervenção de uso, de passagem, ou outras estabelecidas administrativamente nas Unidades de Conservação.',
         lei5451('artigos 2º, VII, 3º e 136, alínea “o” do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
     ['MA-51', 'Suprimir ou danificar árvore declarada imune de corte', 'Desrespeitar intervenção de uso, de passagem, ou outras estabelecidas administrativamente nas Unidades de Conservação.',
         lei5451('artigos 81, 136, alínea “p” e 140 do Decreto Municipal nº 4748/2002.'), 18490.50, AI_CODEMA_DISPOE],
     ['MA-52', 'Transportar, estocar ou manipular explosivos ou materiais perigosos sem autorização da FUMED', 'Transportar, estocar e manipular explosivos, materiais tóxicos, radioativos ou potencialmente perigosos à saúde pública ou ao bem-estar da comunidade, sem autorização do órgão competente.',
         lei5451('artigos 16 e 136, alínea “q” do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-53', 'Emitir mais de 40 dB acima do limite permitido', 'Emitir mais de 40 dB (quarenta decibéis) acima do limite permitido.',
+    ['MA-53', 'Emitir mais de 40 dB acima do limite permitido', 'Emitir mais de 40 dB acima do limite permitido.',
         lei5451('artigos 16 e 136, alínea “r” do Decreto Municipal nº 4748/2002.'), 18490.50, AI_CODEMA_DISPOE],
     ['MA-54', 'Implantação de projetos de parcelamento de solo sem autorização do CODEMA', 'Implantação de projetos de parcelamento de solo sem autorização do CODEMA.',
         lei5451('artigo 136, alínea “s” do Decreto Municipal nº 4748/2002.'), 25000.00, AI_CODEMA_DISPOE],
@@ -420,7 +420,7 @@ const INFRACOES_MA_DIRETO_AI = [
         }],
     ['MA-57', 'Alterar edificação ou local especialmente protegido sem autorização', 'Alterar o aspecto ou estrutura de edificação ou local especialmente protegido por lei, ato administrativo ou decisão judicial, em razão de seu valor paisagístico, ecológico, turístico, artístico, histórico, cultural, religioso, arqueológico, etnográfico ou monumental, sem autorização de autoridade competente ou em desacordo com a concedida.',
         lei5451('artigo 136, alínea “v” do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
-    ['MA-58', 'Pichar, grafitar ou conspurcar edificação ou monumento urbano', 'Pichar, grafitar ou por outro meio conspurcar edificação ou monumento urbano.',
+    ['MA-58', 'Pichar, grafitar ou conspurcar edificação ou monumento urbano', 'Pichar, grafitar ou por outro meio sujar e manchar edificação ou monumento urbano.',
         lei5451('artigo 136, alínea “x” do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS],
     ['MA-59', 'Promover construção em solo não edificável sem autorização', 'Promover construção em solo não edificável, ou no seu entorno, assim considerado em razão de seu valor paisagístico, ecológico, turístico, artístico, histórico, cultural, religioso, arqueológico, etnográfico ou monumental, sem autorização de autoridade competente ou em desacordo com a concedida.',
         lei5451('artigo 136, alínea “y” do Decreto Municipal nº 4748/2002.'), 25000.00, AI_GRAVISSIMAS]
