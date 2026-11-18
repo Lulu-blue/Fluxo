@@ -2245,15 +2245,8 @@ async function finalizarSolicitacao() {
                         const prazoDias = nasceNoAuto
                             ? PRAZO_DEFESA_AUTO_DIAS_NOVA_SOLICITACAO
                             : (prazoAF ? prazoAF.dias : obterPrazoNotificacaoNovaSolicitacao(descricaoCat));
-                        const dataVenc = new Date(dataInicio);
-                        if (prazoAF && prazoAF.uteis) {
-                            for (let somados = 0; somados < prazoDias;) {
-                                dataVenc.setDate(dataVenc.getDate() + 1);
-                                if (dataVenc.getDay() !== 0 && dataVenc.getDay() !== 6) somados++;
-                            }
-                        } else {
-                            dataVenc.setDate(dataVenc.getDate() + prazoDias);
-                        }
+                        // Fins de semana e feriados: calcularVencimentoPrazo (prazos.js)
+                        const dataVenc = window.calcularVencimentoPrazo(dataInicio, prazoDias, !!(prazoAF && prazoAF.uteis));
 
                         const { data: notif, error: errNotif } = await supabaseClient
                             .from('notificacoes')
@@ -2488,18 +2481,39 @@ function obterPrazoNotificacaoNovaSolicitacao(descricao) {
         return 0;
     }
 
+    // Má conservação de passeio (120000241): 8 dias corridos. Vem antes das
+    // palavras-chave: o texto fala em "passeio" (inexistência de passeio, 60 dias).
+    if (descStr.includes('120000241') || descStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('ma conservacao de passeio')) {
+        return 8;
+    }
+
     // 1. Códigos numéricos explícitos (Prioridade Máxima)
-    if (descStr.includes('120000226') || descStr.includes('120000211') || descStr.includes('120000228') || descStr.includes('120000227')) {
+    // Reincidência: 30 dias corridos, improrrogáveis, multa em dobro (Lei 7.174/2010,
+    // art. 2º, I; Decreto 17.326/2026)
+    if (descStr.includes('120000228') || descStr.includes('120000227')) {
+        return 30;
+    }
+    if (descStr.includes('120000226') || descStr.includes('120000211')) {
         return 60;
     }
     if (descStr.includes('120000232') || descStr.includes('120000229') || descStr.includes('120000240')) {
         return 15;
     }
-    if (descStr.includes('120000233') || descStr.includes('120000237') || descStr.includes('120000239') || descStr.includes('120000236') || descStr.includes('120000234') || descStr.includes('120000230')) {
+    // Reparos por concessionárias: 10 dias corridos do fim da obra (Lei 7.174/2010, § 3º)
+    if (descStr.includes('120000234')) {
         return 10;
     }
+    // Regra geral da NP no Código de Posturas: até 8 dias (Lei 6.907/2008, art. 218)
+    if (descStr.includes('120000233') || descStr.includes('120000237') || descStr.includes('120000239') || descStr.includes('120000236') || descStr.includes('120000230')) {
+        return 8;
+    }
 
-    // 2. Infringimentos de 60 Dias: Inexistência de Passeio / Cercamento e Reincidências
+    // 2. Reincidência (30 dias) antes da inexistência (60 dias)
+    if ((descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))) {
+        return 30;
+    }
+
+    // Infringimentos de 60 Dias: Inexistência de Passeio / Cercamento
     const ehInexistenciaPasseioOuCercamento = (
         (descStr.includes('inexistência') || descStr.includes('inexistencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
     ) || (
@@ -2512,16 +2526,18 @@ function obterPrazoNotificacaoNovaSolicitacao(descricao) {
         return 60;
     }
 
-    // 3. Infringimentos de 10 Dias
+    // 3. Concessionárias: 10 dias; as demais do Código de Posturas: 8 dias
+    if (descStr.includes('concessionária') || descStr.includes('concessionaria')) {
+        return 10;
+    }
     if (
         descStr.includes('quintal') ||
         descStr.includes('obstáculo') || descStr.includes('obstaculo') ||
         descStr.includes('água servida') || descStr.includes('agua servida') ||
         descStr.includes('alvará') || descStr.includes('alvara') ||
-        descStr.includes('concessionária') || descStr.includes('concessionaria') ||
         descStr.includes('piso tátil') || descStr.includes('piso tatil')
     ) {
-        return 10;
+        return 8;
     }
 
     // 4. Infringimentos de 15 Dias
@@ -2547,16 +2563,17 @@ const MAPA_TEXTOS_NOTIFICACAO = {
     '120000232': `1) Falta de limpeza e conservação de imóvel não edificado: infração aos artigos 1º e 2º, III, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as Providências:\n- Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.\n- Proibido: queimadas, cortar árvores e movimentação de terra (terraplanagem).`,
     '120000211': `2) Inexistência de cercamento: infração ao artigo 1º da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\n- Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010: muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.\n- Não autorizado: arames lisos e farpados, e cerca viva.`,
     '120000226': `3) Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.`,
-    '120000228': `4) Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\n Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
-    '120000227': `5) Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 60 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.\n Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
+    '120000228': `4) Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.\nPrazo: 30 DIAS para tomar as providências:\n- Executar o serviço de construção de muro do imóvel de sua propriedade.\n Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
+    '120000227': `5) Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.\nPrazo: 30 DIAS para tomar as providências:\n- Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.\n Atenção: na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`,
     '120000229': `6) Reconstrução e/ou reparo de muro: infração ao artigo 2º, II, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as providências:\n- Executar o serviço de reconstrução de muro pela testada do imóvel de sua propriedade.`,
     '120000240': `7) Reconstrução e/ou reparo de passeio: infração ao artigo 1º, § 1º e artigo 2º, II, da Lei 7.174/2010.\nPrazo: 15 DIAS para tomar as providências:\n- Executar o serviço de reconstrução de passeio/calçada pela testada do imóvel de sua propriedade.`,
-    '120000233': `9) Limpeza de quintal: infração aos artigos 14 e 15 da Lei nº 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.\n- Proibido: Queimadas, cortar árvores e movimentação de terra (terraplanagem).`,
-    '120000237': `10) Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Retirar os obstáculos do passeio.`,
-    '120000239': `11) Água servida: infração ao artigo 6, inciso IV da Lei nº 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Ligação da água servida à rede de esgoto.`,
-    '120000236': `12) Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Regularizar o alvará de funcionamento e localização.`,
+    '120000233': `9) Limpeza de quintal: infração aos artigos 14 e 15 da Lei nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.\n- Proibido: Queimadas, cortar árvores e movimentação de terra (terraplanagem).`,
+    '120000237': `10) Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Retirar os obstáculos do passeio.`,
+    '120000239': `11) Água servida: infração ao artigo 6, inciso IV da Lei nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Ligação da água servida à rede de esgoto.`,
+    '120000236': `12) Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Regularizar o alvará de funcionamento e localização.`,
     '120000234': `13) Reparos por concessionárias: infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.\nPrazo: 10 DIAS, a contar do término de sua respectiva obra e serviço:\n- Executar serviço de reconstrução de muros e passeios danificados.`,
-    '120000230': `14) Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.\nPrazo: 10 DIAS para tomar as providências:\n- Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.`,
+    '120000230': `14) Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.`,
+    '120000241': `Má Conservação de Passeio: infração ao artigo 66º da Lei Nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar o serviço de reparo de passeio pela testada do imóvel de sua propriedade.`,
     'ALVARA-PJ': `Exercer atividade sem o licenciamento de alvará de localização e funcionamento: infração ao Artigo 190 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.`
 };
 
@@ -3127,8 +3144,7 @@ function construirHtmlRelatorioFiscalDecreto(numeroRelatorio, numeroProcesso, pr
         }
 
         if (y && m !== undefined && d) {
-            const dtDec = new Date(y, m, d);
-            dtDec.setDate(dtDec.getDate() + prazoDias);
+            const dtDec = window.calcularVencimentoPrazo(new Date(y, m, d, 12), prazoDias, false);
             const diaV = String(dtDec.getDate()).padStart(2, '0');
             const mesV = String(dtDec.getMonth() + 1).padStart(2, '0');
             const anoV = dtDec.getFullYear();

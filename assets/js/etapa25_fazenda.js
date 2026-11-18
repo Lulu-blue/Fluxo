@@ -333,10 +333,9 @@ Atenciosamente,`
         return { tipo: 'retoma', dias: faltam };
     }
 
+    // Dias corridos com fins de semana e feriados (calcularVencimentoPrazo, prazos.js)
     function somarDiasCorridos(dias) {
-        const data = new Date();
-        data.setDate(data.getDate() + (parseInt(dias, 10) || 0));
-        return data.toISOString();
+        return window.calcularVencimentoPrazo(new Date(), parseInt(dias, 10) || 0, false).toISOString();
     }
 
     // Aplica o plano de prazo ao entrar na Etapa 31.

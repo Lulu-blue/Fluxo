@@ -90,6 +90,7 @@ assets/
     chat_juridico.js       chat com o Gerente de Interface Jurídica
     oficio-modelo.js       papel timbrado do Ofício SEMAC – GFP
     ar-nova-tentativa.js   AR esperando a nova tentativa de entrega (prazo parado; 30 dias → Etapa 30)
+    prazos.js              contagem de prazos (corridos/úteis) com fins de semana, feriados e pontos facultativos
     oficio-avulso.js       ofícios avulsos (aba Ofícios do painel)
     brasao-base64.js       brasão embutido para os PDFs
 banco_de_dados.sql         esquema do banco (Supabase)
@@ -225,7 +226,11 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
   processo vai direto para o Auto de Infração. Sem ele não imprime o AF/AI nem avança a etapa.
   Fica em `dados.protocolo_defesa` (um para o processo) e sai em "protocolada via protocolo
   municipal n° …" no Auto de Fiscalização e no Auto de Infração. Processos antigos continuam
-  com o número por infração (`config_af.protocolo`).
+  com o número por infração (`config_af.protocolo`). Equivale ao protocolo de defesa de Posturas
+  (Etapas 2 e 18): acompanha o processo como **"Protocolo Nº …"** no cabeçalho da etapa, ao lado do
+  número do processo, e nos textos que usam o protocolo (`obterProtocoloDoProcesso`; o da Etapa 18,
+  se houver, tem prioridade). O protocolo da Etapa 2 de Posturas (`protocolo_np`) também aparece
+  ali quando não há o da 18; na tela do processo, junta os das NPs dele.
 - **Nome nas telas:** em processo de Meio Ambiente, tudo que a tela chama de "Notificação
   Preliminar" (nomes de etapa, avisos, botões, alerts, situação no painel) aparece como
   "Auto de Fiscalização", com a concordância ajustada (`ativarTermosAutoFiscalizacaoNaPagina`
@@ -263,24 +268,41 @@ Antiga `etapas/Vencimentos.docx`, hoje em `obterPrazoNotificacao` (`etapa.js`):
 | Falta de limpeza e conservação de imóvel não edificado | 120000232 | 15 dias |
 | Inexistência de cercamento | 120000211 | 60 dias |
 | Inexistência de passeio | 120000226 | 60 dias |
-| Reincidência na inexistência de cercamento (e/ou passeio) | 120000228 | 60 dias |
-| Reincidência na inexistência de passeio | 120000227 | 60 dias |
+| Reincidência na inexistência de cercamento (e/ou passeio) | 120000228 | 30 dias, improrrogáveis (sem dilação) |
+| Reincidência na inexistência de passeio | 120000227 | 30 dias, improrrogáveis (sem dilação) |
 | Reconstrução e/ou reparo de muro | 120000229 | 15 dias |
 | Reconstrução e/ou reparo de passeio | 120000240 | 15 dias |
-| Limpeza de quintal | 120000233 | 10 dias |
-| Obstáculos em calçadas | 120000237 | 10 dias |
-| Água servida | 120000239 | 10 dias |
-| Estabelecimento sem alvará | 120000236 | 10 dias |
-| Reparos por concessionárias | 120000234 | 10 dias |
-| Piso tátil | 120000230 | 10 dias |
+| Má conservação de passeio (art. 66 da Lei 6.907/2008; multa de 15 UPFMD) | 120000241 | 8 dias |
+| Limpeza de quintal | 120000233 | 8 dias |
+| Obstáculos em calçadas | 120000237 | 8 dias |
+| Água servida | 120000239 | 8 dias |
+| Estabelecimento sem alvará | 120000236 | 8 dias |
+| Reparos por concessionárias | 120000234 | 10 dias (do fim da obra) |
+| Piso tátil | 120000230 | 8 dias |
 
-Sem correspondência, o padrão é 15 dias. **Depois de Edital (Etapa 17), o prazo da NP passa a ser 20 dias.**
+Todos em **dias corridos** (até 2026-11 o de 10 dias contava em úteis). Fontes: reincidência, Lei 7.174/2010, art. 2º, I e Decreto 17.326/2026; concessionárias, Lei 7.174/2010, § 3º; as de 8 dias, regra geral da NP do Código de Posturas (Lei 6.907/2008, art. 218). Sem correspondência, o padrão é 15 dias. **Depois de Edital (Etapa 17), o prazo da NP passa a ser 20 dias.**
 
 ### 5.2 Prazo de defesa do Auto de Infração
 
 `obterPrazoDefesaAutoInfracao`: **10 dias úteis** para quintal, obstáculos em calçadas,
 água servida, estabelecimento sem alvará, reparos por concessionárias e piso tátil;
 **20 dias** para as demais.
+
+### 5.2.1 Como o vencimento é contado (`prazos.js`)
+
+- **Dias corridos** (ex.: NP de 8 dias): início + 1 dia; caindo em dia sem expediente, avança
+  até o próximo dia útil (Dia 1); soma prazo − 1 dias corridos; caindo o último dia em dia sem
+  expediente, avança até o próximo dia útil.
+- **Dias úteis** (ex.: defesa de 10 dias úteis): a partir do dia seguinte ao início, conta só os
+  dias com expediente até completar o prazo.
+- **Prazo 0** (de imediato): vence no próprio dia.
+- **Dia sem expediente:** sábado, domingo, feriados nacionais (fixos, Sexta-feira Santa),
+  Corpus Christi, feriados municipais de Divinópolis (01/06 e 08/12, Lei 744/1967) e os pontos
+  facultativos do decreto anual (`PONTOS_FACULTATIVOS_DIVINOPOLIS`; 2026: Decreto 17.080/2025).
+  **Todo ano é preciso cadastrar os pontos facultativos do novo decreto.**
+- Vale para o vencimento da NP/AF, a dilação, a defesa do Auto (20 dias corridos), a data de
+  defesa da Certidão, o prazo do decreto e a nova multa da Etapa 25/31. Vencimentos já gravados
+  não são recalculados.
 
 ### 5.3 Quando o prazo começa (`obterInicioPrazoAR`)
 
@@ -930,6 +952,7 @@ canvas deve ser completado.
 | Reincidência na inexistência de passeio | 120000227 |
 | Reconstrução de/ou reparo de muro | 120000229 |
 | Reconstrução e/ou reparo de passeio | 120000240 |
+| Má conservação de passeio | 120000241 |
 | Limpeza de quintal | 120000233 |
 | Obstáculos em calçadas | 120000237 |
 | Água servida | 120000239 |

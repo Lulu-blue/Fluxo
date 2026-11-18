@@ -3673,8 +3673,9 @@ async function avancarEtapa5() {
     let motivo = 'Dilação deferida';
 
     if (decisao === 'defere') {
+        // Dilação: os dias correm a partir do vencimento atual (mesma contagem dos prazos)
         let atualVenc = notificacaoAtual.data_vencimento ? new Date(notificacaoAtual.data_vencimento) : new Date();
-        atualVenc.setDate(atualVenc.getDate() + dias);
+        atualVenc = window.calcularVencimentoPrazo(atualVenc, dias, false);
         notificacaoAtual.data_vencimento = atualVenc.toISOString();
         notificacaoAtual.status = 'pendente';
         notificacaoAtual.dados.etapa2_ja_pediu_dilacao = true;
@@ -5205,6 +5206,29 @@ function ehInfracaoAlvaraPJ(texto) {
 }
 window.ehInfracaoAlvaraPJ = ehInfracaoAlvaraPJ;
 
+// ── Má conservação de passeio (120000241) ─────────────────────────────────
+// Artigo 66 da Lei 6.907/2008, sob pena do artigo 74. Prazo de 8 dias corridos
+// e multa fixa de 15 UPFMD. Vem antes das palavras-chave nas listas: o texto
+// fala em "passeio" (60 dias, 120000226) e em "má conservação" (muro danificado).
+const CODIGO_INFRACAO_MA_CONSERVACAO_PASSEIO = '120000241';
+const TITULO_INFRACAO_MA_CONSERVACAO_PASSEIO = 'Má conservação de passeio';
+
+function ehInfracaoMaConservacaoPasseio(texto) {
+    const t = String(texto || '');
+    if (/\b120000241\b/.test(t)) return true;
+    return t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .includes('ma conservacao de passeio');
+}
+window.ehInfracaoMaConservacaoPasseio = ehInfracaoMaConservacaoPasseio;
+
+// Partes do texto da Notificação Preliminar
+const TEXTO_NP_MA_CONSERVACAO_PASSEIO = {
+    titulo: 'Má Conservação de Passeio: infração ao artigo 66º da Lei Nº 6.907/2008.',
+    prazo: '08 DIAS',
+    itens: '<li>Executar o serviço de reparo de passeio pela testada do imóvel de sua propriedade.</li>',
+    penalidade: (valFormatado) => `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei Nº 6.907/2008, artigo 74º e outras legislações. MULTA NO VALOR 15 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`
+};
+
 // ── Helper para Converter Números com Vírgula ou Ponto com Segurança ──────
 function parseNumberSafe(val, defaultVal = 0) {
     if (val === null || val === undefined || val === '') return defaultVal;
@@ -5262,6 +5286,7 @@ function calcularValorNumDefaultMulta(dispLow, areaNum, testadaNum, profundidade
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(dispLow) : null;
     if (itemMA) return window.valorPadraoMultaMeioAmbiente(itemMA, upfmdVal);
     if (ehInfracaoAlvaraPJ(dispLow)) return upfmdVal * 50;
+    if (ehInfracaoMaConservacaoPasseio(dispLow)) return upfmdVal * 15;
 
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(dispLow) : '';
     const area = parseNumberSafe(areaNum);
@@ -5321,6 +5346,7 @@ function obterNomeCompletoInfracao(disp) {
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
     if (itemMA) return `${itemMA.rotulo} (${itemMA.codigo})`;
     if (ehInfracaoAlvaraPJ(disp)) return `${TITULO_INFRACAO_ALVARA_PJ} (${CODIGO_INFRACAO_ALVARA_PJ})`;
+    if (ehInfracaoMaConservacaoPasseio(disp)) return `${TITULO_INFRACAO_MA_CONSERVACAO_PASSEIO} (${CODIGO_INFRACAO_MA_CONSERVACAO_PASSEIO})`;
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
     const dispLow = disp.toLowerCase();
 
@@ -8265,7 +8291,7 @@ function preencherCabecalhoPagina(proc) {
         elBadgeSt.style.background = bg;
         elBadgeSt.style.color = color;
 
-        // Nº do protocolo (Etapa 18), logo ao lado da situação
+        // Nº do protocolo (Etapa 18; sem ele, o da Etapa 2 ou, em Meio Ambiente, o da 1/14), logo ao lado da situação
         const protocolo = obterProtocoloDoProcesso(proc);
         let elProtocolo = document.getElementById('etapaProtocoloBadge');
         if (protocolo) {
@@ -8529,9 +8555,14 @@ function gerarBlocoInfracao(proc, disp, index) {
     const dataAI = proc.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
     const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`;
 
-    if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
+    if (ehInfracaoMaConservacaoPasseio(disp)) {
+        titulo = TEXTO_NP_MA_CONSERVACAO_PASSEIO.titulo;
+        prazo = TEXTO_NP_MA_CONSERVACAO_PASSEIO.prazo;
+        itens = TEXTO_NP_MA_CONSERVACAO_PASSEIO.itens;
+        penalidade = TEXTO_NP_MA_CONSERVACAO_PASSEIO.penalidade(valFormatado);
+    } else if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
         titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
-        prazo = '60 DIAS';
+        prazo = '30 DIAS';
         itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
                  <li><strong>Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010:</strong> muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.</li>
                  <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
@@ -8539,7 +8570,7 @@ function gerarBlocoInfracao(proc, disp, index) {
         obsFiscal = textoObsReincidencia;
     } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio') || dispLow.includes('reincidencia na inexistencia de passeio')) {
         titulo = 'Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
-        prazo = '60 DIAS';
+        prazo = '30 DIAS';
         itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, II, da Lei 7.174/2010 e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong> (valor dobrado em face da reincidência na infração).`;
         obsFiscal = textoObsReincidencia;
@@ -8580,23 +8611,23 @@ function gerarBlocoInfracao(proc, disp, index) {
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela 7.174/2010, artigo 3º, III e outras legislações. MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000233') || dispLow.includes('limpeza de quintal')) {
         titulo = 'Limpeza de quintal: infração aos artigos 14 e 15 da Lei nº 6.907/2008.';
-        prazo = '10 DIAS';
+        prazo = '08 DIAS';
         itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
                  <li><strong>Proibido:</strong> Queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 18 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000237') || dispLow.includes('obstáculos em calçadas')) {
         titulo = 'Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
-        prazo = '10 DIAS ÚTEIS';
+        prazo = '08 DIAS';
         itens = `<li>Retirar os obstáculos do passeio.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000239') || dispLow.includes('água servida')) {
         titulo = 'Água servida: infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
-        prazo = '10 DIAS';
+        prazo = '08 DIAS';
         itens = `<li>Ligação da água servida à rede de esgoto.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008 e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
         titulo = 'Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.';
-        prazo = '10 DIAS';
+        prazo = '08 DIAS';
         itens = `<li>Regularizar o alvará de funcionamento e localização.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 195, LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, E OUTRAS LEGISLAÇÕES. MULTA NO VALOR DE: 50 UPFMD, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000234') || dispLow.includes('reparos por concessionárias')) {
@@ -8606,7 +8637,7 @@ function gerarBlocoInfracao(proc, disp, index) {
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 172 da Lei 6907/2008 e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000230') || dispLow.includes('piso tátil')) {
         titulo = 'Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.';
-        prazo = '10 DIAS';
+        prazo = '08 DIAS';
         itens = `<li>Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 142 da Lei nº 6.907/ 2008 e outras legislações. MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else {
@@ -8766,6 +8797,8 @@ window.salvarProtocoloDefesaMA = async function (valor, etapa) {
         alert('Não foi possível salvar o Nº do protocolo: ' + (err?.message || err));
         return;
     }
+    // "Protocolo Nº …" ao lado do número do processo, no cabeçalho
+    if (typeof preencherCabecalhoPagina === 'function') preencherCabecalhoPagina(processoAtual);
     if (etapa === 14 && typeof window.gerarAutoDeInfracao === 'function') {
         window.gerarAutoDeInfracao(true);
     } else if (typeof renderizarDocumentoOficial === 'function') {
@@ -9220,6 +9253,15 @@ function renderizarDocumentoOficial(proc, opcoes = {}) {
 // ETAPA 2 — DEFESA OU DILAÇÃO DE PRAZO (Fiscal de Postura)
 // ============================================================================
 
+// Reincidência (120000227 / 120000228): prazo de 30 dias improrrogável (Lei
+// 7.174/2010, art. 2º, I; Decreto 17.326/2026). No quadro da Etapa 2 a opção
+// "Dilação de prazo" fica bloqueada.
+function infracaoComPrazoImprorrogavel(descricao) {
+    const d = String(descricao || '').toLowerCase();
+    if (/\b12000022[78]\b/.test(d)) return true;
+    return (d.includes('reincidência') || d.includes('reincidencia')) && (d.includes('passeio') || d.includes('cercamento'));
+}
+
 function obterPrazoNotificacao(descricao) {
     if (!descricao) return 15;
     // Auto de Fiscalização: prazo escolhido pelo fiscal no Novo Processo
@@ -9227,20 +9269,37 @@ function obterPrazoNotificacao(descricao) {
     if (prazoAF) return prazoAF.dias;
     // Alvará (empresa): cessar as atividades de imediato
     if (ehInfracaoAlvaraPJ(descricao)) return 0;
+    // Má conservação de passeio: 8 dias corridos
+    if (ehInfracaoMaConservacaoPasseio(descricao)) return 8;
     const descStr = String(descricao).toLowerCase();
 
     // 1. Códigos numéricos explícitos (Prioridade Máxima)
-    if (descStr.includes('120000226') || descStr.includes('120000211') || descStr.includes('120000228') || descStr.includes('120000227')) {
+    // Reincidência: 30 dias corridos, improrrogáveis, multa em dobro (Lei 7.174/2010,
+    // art. 2º, I; Decreto 17.326/2026)
+    if (descStr.includes('120000228') || descStr.includes('120000227')) {
+        return 30;
+    }
+    if (descStr.includes('120000226') || descStr.includes('120000211')) {
         return 60;
     }
     if (descStr.includes('120000232') || descStr.includes('120000229') || descStr.includes('120000240')) {
         return 15;
     }
-    if (descStr.includes('120000233') || descStr.includes('120000237') || descStr.includes('120000239') || descStr.includes('120000236') || descStr.includes('120000234') || descStr.includes('120000230')) {
+    // Reparos por concessionárias: 10 dias corridos do fim da obra (Lei 7.174/2010, § 3º)
+    if (descStr.includes('120000234')) {
         return 10;
     }
+    // Regra geral da NP no Código de Posturas: até 8 dias (Lei 6.907/2008, art. 218)
+    if (descStr.includes('120000233') || descStr.includes('120000237') || descStr.includes('120000239') || descStr.includes('120000236') || descStr.includes('120000230')) {
+        return 8;
+    }
 
-    // 2. Infringimentos de 60 Dias: Inexistência de Passeio / Cercamento e Reincidências
+    // 2. Reincidência (30 dias) antes da inexistência (60 dias)
+    if ((descStr.includes('reincidência') || descStr.includes('reincidencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))) {
+        return 30;
+    }
+
+    // Infringimentos de 60 Dias: Inexistência de Passeio / Cercamento
     const ehInexistenciaPasseioOuCercamento = (
         (descStr.includes('inexistência') || descStr.includes('inexistencia')) && (descStr.includes('passeio') || descStr.includes('cercamento'))
     ) || (
@@ -9253,16 +9312,18 @@ function obterPrazoNotificacao(descricao) {
         return 60;
     }
 
-    // 3. Infringimentos de 10 Dias
+    // 3. Concessionárias: 10 dias; as demais do Código de Posturas: 8 dias
+    if (descStr.includes('concessionária') || descStr.includes('concessionaria')) {
+        return 10;
+    }
     if (
         descStr.includes('quintal') ||
         descStr.includes('obstáculo') || descStr.includes('obstaculo') ||
         descStr.includes('água servida') || descStr.includes('agua servida') ||
         descStr.includes('alvará') || descStr.includes('alvara') ||
-        descStr.includes('concessionária') || descStr.includes('concessionaria') ||
         descStr.includes('piso tátil') || descStr.includes('piso tatil')
     ) {
-        return 10;
+        return 8;
     }
 
     // 4. Infringimentos de 15 Dias
@@ -9362,9 +9423,10 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
     });
 }
 
-// emDiasUteis: true conta só dias úteis; false conta corridos. Sem informar,
-// mantém a regra antiga (10 = úteis, demais = corridos), usada pelos prazos de
-// CUMPRIMENTO da Notificação Preliminar.
+// emDiasUteis: true conta só dias úteis; false (ou sem informar) conta corridos.
+// Os prazos de cumprimento da NP de Posturas são todos corridos; só o Auto de
+// Fiscalização (escolha do fiscal) passa emDiasUteis. A contagem, com fins de
+// semana e feriados, é a de calcularVencimentoPrazo (prazos.js).
 // Prazos de DEFESA: 10 dias ÚTEIS na Notificação Preliminar e 20 dias CORRIDOS
 // no Auto de Infração.
 function calcularDataVencimento(dataInicio, dias, emDiasUteis) {
@@ -9375,22 +9437,7 @@ function calcularDataVencimento(dataInicio, dias, emDiasUteis) {
     // 0 é prazo válido ("de imediato", no Auto de Fiscalização): vence no próprio dia
     const diasInformados = parseInt(dias, 10);
     const numDias = Number.isNaN(diasInformados) ? 20 : diasInformados;
-    const contarUteis = (emDiasUteis === undefined) ? (numDias === 10) : !!emDiasUteis;
-
-    if (contarUteis) {
-        // Dias úteis: desconsidera sábados (6) e domingos (0)
-        let diasUteisAdicionados = 0;
-        while (diasUteisAdicionados < numDias) {
-            data.setDate(data.getDate() + 1);
-            const diaSemana = data.getDay();
-            if (diaSemana !== 0 && diaSemana !== 6) {
-                diasUteisAdicionados++;
-            }
-        }
-    } else {
-        data.setDate(data.getDate() + numDias);
-    }
-    return data.toISOString();
+    return window.calcularVencimentoPrazo(data, numDias, !!emDiasUteis).toISOString();
 }
 
 // Prazo de DEFESA do Auto de Infração: 20 dias corridos, para qualquer infração
@@ -9658,6 +9705,8 @@ function ligarEventosBlocoDefesa() {
             if (e.target.matches('[data-defesa-protocolo]')) {
                 await gravarCampoNaNotificacao(bloco.dataset.notifId, 'protocolo_np', e.target.value.trim());
                 if (status) status.textContent = 'Protocolo salvo.';
+                // "Protocolo Nº …" ao lado do número do processo, no cabeçalho
+                if (typeof preencherCabecalhoPagina === 'function') preencherCabecalhoPagina(processoAtual);
             } else if (e.target.matches('[data-defesa-texto]')) {
                 const texto = e.target.value;
                 await salvarDefesaDoBloco(bloco, d => ({ ...d, texto }));
@@ -9877,8 +9926,8 @@ async function renderizarEtapa2(proc) {
                         <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px;">
                             <input type="radio" name="statusNotif_${n.index}" value="defesa" ${n.status === 'defesa' ? 'checked' : ''} data-index="${n.index}"> Defesa
                         </label>
-                        <label style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px; ${n.dados?.etapa2_ja_pediu_dilacao ? 'opacity:0.5; cursor:not-allowed; pointer-events:none;' : ''}">
-                            <input type="radio" name="statusNotif_${n.index}" value="dilacao" ${n.status === 'dilacao' ? 'checked' : ''} data-index="${n.index}" ${n.dados?.etapa2_ja_pediu_dilacao ? 'disabled' : ''}> Dilação de Prazo
+                        <label title="${infracaoComPrazoImprorrogavel(n.descricao) ? 'Reincidência: o prazo de 30 dias é improrrogável' : ''}" style="display:flex; align-items:center; gap:6px; font-size:0.88rem; color:#334155; cursor:pointer; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px; ${(n.dados?.etapa2_ja_pediu_dilacao || infracaoComPrazoImprorrogavel(n.descricao)) ? 'opacity:0.5; cursor:not-allowed; pointer-events:none;' : ''}">
+                            <input type="radio" name="statusNotif_${n.index}" value="dilacao" ${n.status === 'dilacao' ? 'checked' : ''} data-index="${n.index}" ${(n.dados?.etapa2_ja_pediu_dilacao || infracaoComPrazoImprorrogavel(n.descricao)) ? 'disabled' : ''}> Dilação de Prazo${infracaoComPrazoImprorrogavel(n.descricao) ? ' <span style="font-size:0.75rem; color:#64748b;">(improrrogável)</span>' : ''}
                         </label>
                     </div>`;
 
@@ -10553,12 +10602,20 @@ function obterProtocoloDoAuto(auto) {
     return String(auto?.dados?.numero_protocolo || auto?.numero_protocolo || '').trim();
 }
 
+// Ordem: o da Etapa 18 (defesa do Auto); sem ele, o da defesa da NP/AF: o da
+// Etapa 2 em Posturas (notificacoes.dados.protocolo_np) ou, em Meio Ambiente, o
+// digitado na Etapa 1 (ou na 14, direto para o Auto). Na tela do processo, sem
+// NP em foco, junta os da Etapa 2 das NPs dele (números diferentes, separados).
 function obterProtocoloDoProcesso(proc) {
     const p = proc || processoAtual;
-    const daNotificacao = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
-        ? notificacaoAtual.dados?.numero_protocolo
-        : null;
-    return String(daNotificacao || p?.dados?.numero_protocolo || '').trim();
+    const emFoco = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual) ? notificacaoAtual : null;
+    const daEtapa18 = emFoco ? emFoco.dados?.numero_protocolo : null;
+    const meioAmbiente = (window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(p) && window.protocolosAutoFiscalizacao)
+        ? window.protocolosAutoFiscalizacao(p).join(', ')
+        : '';
+    const notifsEtapa2 = emFoco ? [emFoco] : (p?.notificacoes || []);
+    const daEtapa2 = [...new Set(notifsEtapa2.map(n => String(n?.dados?.protocolo_np || '').trim()).filter(Boolean))].join(', ');
+    return String(daEtapa18 || p?.dados?.numero_protocolo || meioAmbiente || daEtapa2 || '').trim();
 }
 window.obterProtocoloDoProcesso = obterProtocoloDoProcesso;
 
@@ -14176,9 +14233,14 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
         const dataAI = proc?.campos?.auto_infracao_anterior_data || 'XX/ XX/ 20XX';
         const textoObsReincidencia = `Na hipótese de reincidência, aplicar-se-á em dobro a multa respectivamente prevista no art. 4º da Lei 7.174/2010.`;
 
-        if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
+        if (ehInfracaoMaConservacaoPasseio(disp)) {
+            titulo = TEXTO_NP_MA_CONSERVACAO_PASSEIO.titulo;
+            prazo = TEXTO_NP_MA_CONSERVACAO_PASSEIO.prazo;
+            itens = TEXTO_NP_MA_CONSERVACAO_PASSEIO.itens;
+            penalidade = TEXTO_NP_MA_CONSERVACAO_PASSEIO.penalidade(valFormatado);
+        } else if (disp.includes('120000228') || dispLow.includes('reincidência na inexistência de cercamento') || dispLow.includes('reincidencia na inexistencia de cercamento')) {
             titulo = 'Reincidência na Inexistência de Cercamento: Infração ao artigo 2º, I, da Lei 7.174/2010.';
-            prazo = '60 DIAS';
+            prazo = '30 DIAS';
             itens = `<li>Executar os serviço de construção de muro do imóvel de sua propriedade.</li>
                      <li><strong>Autorizado pelo artigo 1°, § 2°, da Lei 7.174/2010:</strong> muro de chapa, alvenaria, tela grossa de arame ou grades de ferro.</li>
                      <li><strong>Não autorizado:</strong> arames lisos e farpado, e cerca viva.</li>`;
@@ -14186,7 +14248,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             obsFiscal = textoObsReincidencia;
         } else if (disp.includes('120000227') || dispLow.includes('reincidência na inexistência de passeio') || dispLow.includes('reincidencia na inexistencia de passeio')) {
             titulo = 'Reincidência na Inexistência de passeio: infração ao artigo 1º, § 1º e artigo 2º, I, da Lei 7.174/2010.';
-            prazo = '60 DIAS';
+            prazo = '30 DIAS';
             itens = `<li>Executar o serviço de construção de passeio pela testada do imóvel de sua propriedade.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 3º, II, da Lei 7.174/2010 e outras legislações. MULTA NO VALOR 01 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada multiplicado por 2 (dois), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong> (valor dobrado em face da reincidência na infração).`;
             obsFiscal = textoObsReincidencia;
@@ -14229,7 +14291,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 7.174/2010, artigo 3º, III e outras legislações. MULTA NO VALOR 50% da UPFMD (Unidade Padrão Fiscal do Município de Divinópolis) por metro linear de testada, atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000233') || dispLow.includes('limpeza de quintal')) {
             titulo = 'Limpeza de quintal: infração aos artigos 14 e 15 da Lei nº 6.907/2008.';
-            prazo = '10 DIAS';
+            prazo = '08 DIAS';
             itens = `<li>Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.</li>
                      <li><strong>Proibido:</strong> Queimadas, cortar árvores e movimentação de terra (terraplanagem).</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 18 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
@@ -14240,12 +14302,12 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondente ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000239') || dispLow.includes('água servida')) {
             titulo = 'Água servida: infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
-            prazo = '10 DIAS';
+            prazo = '08 DIAS';
             itens = `<li>Ligação da água servida à rede de esgoto.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008 e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
             titulo = 'Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.';
-            prazo = '10 DIAS';
+            prazo = '08 DIAS';
             itens = `<li>Regularizar o alvará de funcionamento e localização.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 195, LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, E OUTRAS LEGISLAÇÕES. MULTA NO VALOR DE: 50 UPFMD, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000234') || dispLow.includes('reparos por concessionárias')) {
@@ -14255,12 +14317,12 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 172 da Lei 6907/2008 e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000230') || dispLow.includes('piso tátil')) {
             titulo = 'Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.';
-            prazo = '10 DIAS';
+            prazo = '08 DIAS';
             itens = `<li>Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 142 da Lei nº 6.907/ 2008 e outras legislações. MULTA NO VALOR DE 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000237') || dispLow.includes('obstáculos em calçadas')) {
             titulo = 'Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.';
-            prazo = '10 DIAS ÚTEIS';
+            prazo = '08 DIAS';
             itens = `<li>Retirar os obstáculos do passeio.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
@@ -14766,9 +14828,8 @@ function datasCienciaEDefesaDaNotificacao() {
         const dCiencia = new Date(String(dataRecebimento).includes('T') ? dataRecebimento : dataRecebimento + 'T12:00:00');
         if (!isNaN(dCiencia.getTime())) {
             ciencia = dCiencia.toLocaleDateString('pt-BR');
-            // Prazo de defesa da Notificação Preliminar: 10 dias
-            const dDefesa = new Date(dCiencia);
-            dDefesa.setDate(dDefesa.getDate() + 10);
+            // Prazo de defesa da Notificação Preliminar: 10 dias úteis
+            const dDefesa = window.calcularVencimentoPrazo(dCiencia, 10, true);
             defesa = dDefesa.toLocaleDateString('pt-BR');
         }
     }
@@ -14980,8 +15041,8 @@ window.gerarCertidaoSemDefesa = async function (auto = false) {
         const dCiencia = new Date(dataRecebimento.includes('T') ? dataRecebimento : dataRecebimento + 'T12:00:00');
         dataCienciaFmt = dCiencia.toLocaleDateString('pt-BR');
 
-        const dDefesa = new Date(dCiencia);
-        dDefesa.setDate(dDefesa.getDate() + 10);
+        // Prazo de defesa da Notificação Preliminar: 10 dias úteis
+        const dDefesa = window.calcularVencimentoPrazo(dCiencia, 10, true);
         dataDefesaFmt = dDefesa.toLocaleDateString('pt-BR');
     }
 
@@ -15205,6 +15266,7 @@ window.extrairCodigoSubprocesso = function (disp) {
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(str) : null;
     if (itemMA) return itemMA.codigo;
     if (ehInfracaoAlvaraPJ(str)) return CODIGO_INFRACAO_ALVARA_PJ;
+    if (ehInfracaoMaConservacaoPasseio(str)) return CODIGO_INFRACAO_MA_CONSERVACAO_PASSEIO;
 
     const low = str.toLowerCase();
     if (low.includes('limpeza') && (low.includes('não edificado') || low.includes('nao edificado'))) return '120000232';
@@ -15229,6 +15291,7 @@ window.obterDescricaoInfracao = function (disp) {
     const itemMA = window.encontrarInfracaoMeioAmbiente ? window.encontrarInfracaoMeioAmbiente(disp) : null;
     if (itemMA) return itemMA.rotulo;
     if (ehInfracaoAlvaraPJ(disp)) return TITULO_INFRACAO_ALVARA_PJ;
+    if (ehInfracaoMaConservacaoPasseio(disp)) return TITULO_INFRACAO_MA_CONSERVACAO_PASSEIO;
     const cod = window.extrairCodigoSubprocesso ? window.extrairCodigoSubprocesso(disp) : '';
     const dispStr = String(disp).trim();
     const dispLow = dispStr.toLowerCase();
@@ -15276,6 +15339,7 @@ window.obterPrazoDefesaAutoInfracao = function () {
 
 window.obterFundamentoLegalDecreto = function (infracaoDesc) {
     if (ehInfracaoAlvaraPJ(infracaoDesc)) return 'Artigo 190 e seguintes da Lei 6.907/2008. Sob pena do artigo 195 da Lei 6.907/2008.';
+    if (ehInfracaoMaConservacaoPasseio(infracaoDesc)) return 'artigo 66 da Lei nº 6.907/2008. Sob pena do artigo 74 da Lei nº 6.907/2008.';
     const cod = window.extrairCodigoSubprocesso(infracaoDesc);
     const dispLow = (infracaoDesc || '').toLowerCase();
 
@@ -15412,6 +15476,12 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         leiBase = 'legislação ambiental municipal';
         dispositivoTexto = itemMA.ai?.dispositivo || window.resolverInfracaoMeioAmbiente(p, itemMA).dispositivo;
         multaTextoHeader = `MULTA NO VALOR DE: <strong>R$ ${valFormatado}</strong>.`;
+
+        // 120000241 - Má conservação de passeio (antes das palavras-chave de passeio)
+    } else if (cod === CODIGO_INFRACAO_MA_CONSERVACAO_PASSEIO || ehInfracaoMaConservacaoPasseio(dispItem)) {
+        leiBase = 'Lei nº 6.907/2008';
+        dispositivoTexto = 'infração ao artigo 66º da Lei Nº 6.907/2008.';
+        multaTextoHeader = `MULTA NO VALOR DE 15 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // Exercer atividade sem alvará (empresa, ALVARA-PJ)
     } else if (cod === CODIGO_INFRACAO_ALVARA_PJ || ehInfracaoAlvaraPJ(dispItem)) {
@@ -15804,8 +15874,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                         numAutoInfracao = numReservado;
 
                         const dataEmissao = new Date();
-                        const dataVenc = new Date();
-                        dataVenc.setDate(dataVenc.getDate() + 20);
+                        const dataVenc = window.calcularVencimentoPrazo(new Date(), 20, false);
 
                         const { error: errInsertAuto } = await supabaseClient
                             .from('autos_infracao')
@@ -15918,7 +15987,7 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 dDec = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
             }
             if (dDec && !isNaN(dDec.getTime())) {
-                dDec.setDate(dDec.getDate() + prazoDiasDecreto);
+                dDec = window.calcularVencimentoPrazo(dDec, prazoDiasDecreto, false);
                 const dd = String(dDec.getDate()).padStart(2, '0');
                 const mm = String(dDec.getMonth() + 1).padStart(2, '0');
                 const yyyy = dDec.getFullYear();
