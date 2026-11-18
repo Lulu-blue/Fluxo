@@ -604,7 +604,16 @@ function registrarDataPublicacaoEdital(ciclo) {
 function obterInicioPrazoAR(proc, notif = null) {
     const ar = obterDadosARProcesso(proc, notif);
 
-    const recebimento = dataLocalMeioDiaISO(ar.data_recebimento || ar.data_recebimento_proprietario);
+    // `ar.data_recebimento` é gravado em TODA tentativa (sucesso ou não) — é o mesmo
+    // campo de formulário preenchido nos dois casos. Só `data_recebimento_proprietario`
+    // é confirmada de verdade (ver registrarDataRecebimentoAR, chamada só quando
+    // notificacao_efetivada === 'sim'). Sem essa confirmação, só usa `data_recebimento`
+    // quando a última tentativa NÃO foi sem sucesso — senão a data de uma tentativa que
+    // nem chegou ao proprietário dispararia a contagem do prazo por engano.
+    const retornouSemSucesso = ar.retorno_sem_sucesso === 'sim' || ar.notificacao_efetivada === 'nao';
+    const recebimento = dataLocalMeioDiaISO(
+        ar.data_recebimento_proprietario || (!retornouSemSucesso ? ar.data_recebimento : '')
+    );
     if (recebimento) return { dataISO: recebimento, origem: 'recebimento' };
 
     const cadastroBruto = ar.data_insercao_ar;
@@ -1191,6 +1200,9 @@ function renderizarFormularioDinamico(etapaNum) {
         conteudo = `
             <!-- Painel da Etapa 1: Controle de Multas & Anexo da Notificação Assinada -->
             <div id="painelAcoesEtapa1" class="etapa1-control-panel">
+                <!-- Meio Ambiente: Nº do protocolo da defesa, antes de gerar o Auto de Fiscalização -->
+                ${htmlCampoProtocoloDefesaMA(1)}
+
                 <!-- Bloco 1: Valores das Multas (card compartilhado com a Etapa 14) -->
                 ${window.obterHtmlCardCalculoMulta({ suffix: '' })}
 
@@ -1801,6 +1813,8 @@ function renderizarFormularioDinamico(etapaNum) {
                     </select>
                     <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">Esta informação será exibida na Capa do Processo ("Autuado não apresentou defesa" ou "Autuado apresentou defesa").</p>
                 </div>
+
+                ${htmlCampoProtocoloDefesaMA(14)}
 
                 ${htmlCampoDataVerificacaoAutoMA()}
 
@@ -7901,6 +7915,7 @@ window.carregarEExibirAnexoRelatorioAssinado = async function () {
 // ── Avançar da Etapa 1 para a Etapa 1.2 (Dados do AR) ─────────────────────
 async function avancarEtapa1() {
     if (!processoAtual) return;
+    if (!exigirProtocoloDefesaMA(1, 'avançar')) return;
 
     const anexoNP = processoAtual.campos?.anexo_np_assinada;
     const anexoRF = processoAtual.campos?.anexo_rf_assinado;
@@ -8699,6 +8714,78 @@ function htmlObservacoesFiscal(proc, estiloParagrafo) {
     return htmlTextoNotaFiscal(obterObservacoesFiscal(proc), estiloParagrafo);
 }
 window.htmlObservacoesFiscal = htmlObservacoesFiscal;
+
+// ── Nº do protocolo da defesa (Meio Ambiente) ─────────────────────────────
+// "protocolada via protocolo municipal n° …" no Auto de Fiscalização e no Auto
+// de Infração. O fiscal digita na Etapa 1, antes de gerar o AF; quando o
+// processo vai direto para o Auto de Infração (não passa pela Etapa 1), na
+// Etapa 14. Fica em dados.protocolo_defesa e vale para o processo todo: o Auto
+// que vem depois do AF usa o mesmo número. Antes era pedido por infração no
+// Novo processo (config_af[codigo].protocolo), que continua valendo nos
+// processos antigos (protocolosAutoFiscalizacao, meio-ambiente.js).
+function processoMeioAmbienteNasceNoAuto(proc) {
+    const dispositivos = obterDispositivosDoProcesso(proc);
+    return dispositivos.length > 0 && dispositivos.every(d => window.infracaoMeioAmbienteVaiDiretoAoAuto(d));
+}
+
+function etapaPedeProtocoloDefesaMA(etapa) {
+    if (!(window.processoEhMeioAmbiente && window.processoEhMeioAmbiente(processoAtual))) return false;
+    if (etapa === 1) return true;
+    return etapa === 14 && processoMeioAmbienteNasceNoAuto(processoAtual);
+}
+
+function protocoloDefesaMA() {
+    return (window.protocolosAutoFiscalizacao ? window.protocolosAutoFiscalizacao(processoAtual) : []).join(', ');
+}
+
+function htmlCampoProtocoloDefesaMA(etapa) {
+    if (!etapaPedeProtocoloDefesaMA(etapa)) return '';
+    if (typeof podeGerenciarEtapaAtual === 'function' && !podeGerenciarEtapaAtual()) return '';
+    const valor = protocoloDefesaMA().replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const documento = etapa === 1 ? 'Auto de Fiscalização' : 'Auto de Infração';
+    return `
+        <div id="campoProtocoloDefesaMA" style="margin: 0 0 20px 0; padding: 18px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px;">
+            <label for="inputProtocoloDefesaMA" style="display: block; font-weight: 700; color: #1e293b; margin-bottom: 8px; font-size: 0.95rem;">Nº do protocolo <span style="color: #ef4444;">*</span></label>
+            <input type="text" id="inputProtocoloDefesaMA" value="${valor}" placeholder="Ex: 2026/000915"
+                onchange="window.salvarProtocoloDefesaMA(this.value, ${etapa})" autocomplete="off"
+                style="width: 100%; max-width: 320px; padding: 10px 14px; border: 1px solid #94a3b8; border-radius: 8px; font-size: 0.95rem; background: white; color: #0f172a;">
+            <p style="margin: 6px 0 0 0; color: #64748b; font-size: 0.82rem;">Sai no ${documento} em "protocolada via protocolo municipal n° …". Obrigatório para imprimir o ${documento}.</p>
+        </div>`;
+}
+
+window.salvarProtocoloDefesaMA = async function (valor, etapa) {
+    if (!processoAtual) return;
+    const numero = String(valor || '').trim();
+    try {
+        processoAtual.dados = processoAtual.dados || {};
+        processoAtual.dados.protocolo_defesa = numero;
+        const { error } = await supabaseClient.from('processos').update({ dados: processoAtual.dados }).eq('id', processoAtual.id);
+        if (error) throw error;
+    } catch (err) {
+        console.error('Erro ao salvar o Nº do protocolo:', err);
+        alert('Não foi possível salvar o Nº do protocolo: ' + (err?.message || err));
+        return;
+    }
+    if (etapa === 14 && typeof window.gerarAutoDeInfracao === 'function') {
+        window.gerarAutoDeInfracao(true);
+    } else if (typeof renderizarDocumentoOficial === 'function') {
+        renderizarDocumentoOficial(processoAtual);
+    }
+};
+
+// true quando pode seguir; sem o número, avisa e leva o fiscal até o campo
+function exigirProtocoloDefesaMA(etapa, acao) {
+    if (!etapaPedeProtocoloDefesaMA(etapa)) return true;
+    const campo = document.getElementById('inputProtocoloDefesaMA');
+    // Quem não gerencia a etapa não vê o campo: não trava a impressão dele
+    if (!campo) return true;
+    if (campo.value.trim() || protocoloDefesaMA()) return true;
+    const documento = etapa === 1 ? 'Auto de Fiscalização' : 'Auto de Infração';
+    alert(`Informe o Nº do protocolo antes de ${acao || `gerar o ${documento}`}.`);
+    campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    campo.focus();
+    return false;
+}
 
 // ── Nota do fiscal da Notificação Preliminar / Auto de Fiscalização ────────
 // Escrita na Etapa 1 (tela da etapa ou Editar dados), como a do Auto na Etapa 14.
@@ -13777,6 +13864,7 @@ async function imprimirDocumentoOficial() {
     const isAuto = (typeof notificacaoAtual !== 'undefined' && notificacaoAtual)
         ? ehStatusAutoInfracao(notificacaoAtual, processoAtual)
         : window.etapaIndicaAutoInfracao(etapaAtual, processoAtual);
+    if (!exigirProtocoloDefesaMA(etapaAtual)) return;
     const numNotifLimpo = (notificacaoAtual?.numero || processoAtual?.numero_processo || '2026-000001').replace(/[\/\\]/g, '-');
 
     // ── Notificação com status de Auto de Infração ──
@@ -16405,6 +16493,7 @@ window.carregarEExibirAnexoAIAssinado = async function () {
 
 window.avancarEtapa14 = async function () {
     if (!processoAtual) return;
+    if (!exigirProtocoloDefesaMA(14, 'avançar')) return;
 
     // Auto vindo de uma NP/AF: o Relatório Fiscal do Auto assinado é obrigatório
     if (etapa14TemRelatorioDoAuto() && !dadosRelatorioAuto().anexo?.url) {

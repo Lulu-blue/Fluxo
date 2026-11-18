@@ -220,9 +220,12 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
   "Fazer o Relatório Fiscal?". **Não** só pode ser escolhido com o REDS anexado. Com **Não**, o passo 5 sai do assistente, o processo não
   reserva número de relatório e fica com `dados.relatorio_fiscal.dispensado = true`: o botão
   do relatório some da etapa. O `MA-56` pede a alínea (I ou II).
-- **Protocolo da defesa:** o fiscal informa o nº do protocolo em cada infração
-  (`config_af.protocolo`). Ele sai em "protocolada via protocolo municipal n° …" no
-  Auto de Fiscalização (os números diferentes, juntos) e no Auto de Infração da infração.
+- **Protocolo da defesa:** não é mais pedido no Novo processo. O fiscal digita o nº do
+  protocolo na **Etapa 1**, antes de gerar o Auto de Fiscalização, ou na **Etapa 14** quando o
+  processo vai direto para o Auto de Infração. Sem ele não imprime o AF/AI nem avança a etapa.
+  Fica em `dados.protocolo_defesa` (um para o processo) e sai em "protocolada via protocolo
+  municipal n° …" no Auto de Fiscalização e no Auto de Infração. Processos antigos continuam
+  com o número por infração (`config_af.protocolo`).
 - **Nome nas telas:** em processo de Meio Ambiente, tudo que a tela chama de "Notificação
   Preliminar" (nomes de etapa, avisos, botões, alerts, situação no painel) aparece como
   "Auto de Fiscalização", com a concordância ajustada (`ativarTermosAutoFiscalizacaoNaPagina`
@@ -293,6 +296,7 @@ Notificações `encerrada`, `atendida` ou `pagamento` não contam prazo.
 
 - **AR sem retorno:** 15 dias depois de cadastrado o número do AR sem data de recebimento, o processo vai **sozinho** para a Etapa 30 (verificado ao abrir a Etapa 16). Para testar, use `?teste_prazo_ar=<segundos>` na URL.
 - **AR esperando a nova tentativa de entrega** (NP/AF, depois de um retorno sem sucesso): o prazo do contribuinte **não corre**. Sem o AR recebido, só a **data de publicação do Edital** inicia o prazo; a data da tentativa e a do cadastro do AR não contam (`obterInicioPrazoAR`). Parado **mais de 30 dias** (contados do registro do último retorno sem sucesso), o processo vai para a Etapa 30 e o Gerente recebe um aviso no sino. A verificação roda ao abrir a Etapa 1.2 e também no painel, no máximo a cada 6 horas por navegador (`ar-nova-tentativa.js`).
+- **NP / Auto de Fiscalização vencidos:** quando o prazo que começou pelo **recebimento do proprietário** ou pela **publicação do Edital** vence (dia seguinte ao último dia, como o "Vencido há N dias" do painel), o **fiscal que criou o processo** recebe um aviso no sino (`tipo: 'prazo_vencido'`, `destinatario_id = fiscal_id`). Não avisa NP/AF encerrados, atendidos, em pagamento ou que viraram Auto de Infração, nem processos cancelados/encerrados/arquivados. Cada vencimento avisa uma vez (`notificacoes.dados.aviso_vencimento_enviado`); se o prazo mudar, avisa de novo. Função do banco `avisar_prazos_vencidos()`, chamada pelo painel no máximo uma vez por hora por navegador (pode ser agendada no pg_cron).
 - **Etapa 25:** redução de 50% e alteração de valor **reiniciam** o prazo com 30 dias (a partir da entrada na Etapa 31). Continuidade na cobrança **retoma** os dias que faltavam e nunca reinicia: se já venceu, continua vencido. Origem gravada: `prazo_origem = 'etapa25'`.
 - **Dilação:** deferida pelo Fiscal (Etapa 5), soma N dias ao vencimento. A Etapa 2 deixa de oferecer "Dilação" para aquela notificação.
 
@@ -385,7 +389,9 @@ Primeira tela depois do login (`painel.html`, `assets/js/solicitacoes.js`).
 
 **Filtros:** Protocolo, Nº Relatório Fiscal, Nº Auto de Infração, Nº Notificação / Auto de
 Fiscalização (aceita os dois formatos de número), Nome do Solicitante, CPF/CNPJ do
-contribuinte, Código reduzido do imóvel, Fiscal responsável, Data início/fim, Etapa,
+contribuinte, Código reduzido do imóvel, Endereço (logradouro, número e bairro; vale o endereço do
+imóvel ou o do contribuinte, os três têm de bater no mesmo endereço; logradouro e bairro palavra por
+palavra, número exato), Fiscal responsável, Data início/fim, Etapa,
 Situação, Decreto (todos, só por decreto ou só sem decreto), Etapa (pela etapa de cada NP/AF e Auto; o processo em si só conta quando não tem notificação, já que ele fica parado na 2), **Com você** (processos cujo trabalho está numa etapa em que o seu cargo age; regra de `etapasInternasDoProcesso`: com o processo num painel — Etapa 2 ou 18 — vale a etapa de cada NP/AF/Auto em aberto; fora deles, quem anda é o processo e vale a etapa dele, ex.: notificação parada na 14 com o processo na 15 — as mesmas etapas que liberam a edição, `ETAPAS_POR_CARGO`; o Fiscal de Posturas ou de Meio Ambiente vê só os processos que ele abriu; Dev vê todos), Tipo de infração (várias) e
 Ordenar por (prazo). Acima da tabela aparece o total de processos do filtro (ex.: "Total: 42
 processos por decreto"), além de quantos já foram carregados; com o filtro Responsável, que é

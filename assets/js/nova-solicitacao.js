@@ -577,8 +577,7 @@ function renderizarConfigAutoFiscalizacao() {
             variante: card.querySelector('.af-variante')?.value,
             reds: card.querySelector('.af-reds')?.value,
             // O próprio <input type="file">: o arquivo escolhido não dá para recolocar
-            arquivoReds: card.querySelector('.af-reds-arquivo'),
-            protocolo: card.querySelector('.af-protocolo')?.value
+            arquivoReds: card.querySelector('.af-reds-arquivo')
         };
     });
 
@@ -637,10 +636,6 @@ function renderizarConfigAutoFiscalizacao() {
                 <div class="form-row">
                     ${campoVariante}
                     ${campoReds}
-                    <div class="form-group fg-medium">
-                        <label>Nº do protocolo <span class="required">*</span></label>
-                        <input type="text" class="af-protocolo" value="${escaparHtmlWizard(ant.protocolo || '')}" placeholder="Ex: 2026/000915">
-                    </div>
                     <div class="form-group fg-medium af-prazo-grupo">
                         <label>Prazo das providências</label>
                         <select class="af-modo">
@@ -795,8 +790,8 @@ function coletarConfigAutoFiscalizacao() {
             dias: parseInt(card.querySelector('.af-dias').value, 10) || 0,
             uteis: card.querySelector('.af-uteis').value === 'sim',
             ...(card.querySelector('.af-variante') ? { variante: card.querySelector('.af-variante').value } : {}),
-            ...(card.querySelector('.af-reds') ? { reds: card.querySelector('.af-reds').value.trim() } : {}),
-            protocolo: card.querySelector('.af-protocolo').value.trim()
+            ...(card.querySelector('.af-reds') ? { reds: card.querySelector('.af-reds').value.trim() } : {})
+            // O Nº do protocolo é pedido na Etapa 1 (ou na 14, direto para o Auto): ver etapa.js
         };
         multas[index] = parseFloat(card.querySelector('.af-multa').value) || 0;
     });
@@ -844,12 +839,6 @@ function validarConfigAutoFiscalizacao() {
         if (reds && !reds.value.trim()) {
             alert(`${codigo}: informe o número do REDS.`);
             reds.focus();
-            return false;
-        }
-        const protocolo = card.querySelector('.af-protocolo');
-        if (protocolo && !protocolo.value.trim()) {
-            alert(`${codigo}: informe o número do protocolo.`);
-            protocolo.focus();
             return false;
         }
         const modo = card.querySelector('.af-modo');

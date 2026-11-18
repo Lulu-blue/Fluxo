@@ -8,7 +8,7 @@
     <meta name="description" content="Painel de controle do Sistema Fluxograma de Processos - Fiscalização de Posturas">
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
-    <link rel="stylesheet" href="assets/css/painel.css?v=20261112">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261118a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -206,6 +206,20 @@
                             <label for="filtroCodigoReduzido">Código reduzido do imóvel</label>
                             <input type="text" id="filtroCodigoReduzido" name="filtro_codigo_reduzido_search" placeholder="Código reduzido..."
                                 autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                        </div>
+                        <div class="filter-group filtro-endereco">
+                            <label for="filtroEnderecoLogradouro">Endereço do imóvel ou do contribuinte</label>
+                            <div class="filtro-endereco-campos">
+                                <input type="text" id="filtroEnderecoLogradouro" name="filtro_endereco_logradouro_search"
+                                    placeholder="Rua / logradouro..." aria-label="Logradouro"
+                                    autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                                <input type="text" id="filtroEnderecoNumero" name="filtro_endereco_numero_search"
+                                    placeholder="Nº" aria-label="Número"
+                                    autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                                <input type="text" id="filtroEnderecoBairro" name="filtro_endereco_bairro_search"
+                                    placeholder="Bairro..." aria-label="Bairro"
+                                    autocomplete="new-password" data-lpignore="true" spellcheck="false">
+                            </div>
                         </div>
                         <div class="filter-group">
                             <label for="filtroFiscal">Fiscal responsável</label>
@@ -1588,10 +1602,10 @@
     <script src="assets/js/supabase-config.js"></script>
     <script src="assets/js/cloudinary-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="assets/js/meio-ambiente.js?v=20261022"></script>
-    <script src="assets/js/solicitacoes.js?v=20261117b"></script>
+    <script src="assets/js/meio-ambiente.js?v=20261118a"></script>
+    <script src="assets/js/solicitacoes.js?v=20261118d"></script>
     <script src="assets/js/instrucoes.js?v=20261117"></script>
-    <script src="assets/js/nova-solicitacao.js?v=20261117"></script>
+    <script src="assets/js/nova-solicitacao.js?v=20261118a"></script>
     <script src="assets/js/oficio-modelo.js?v=20261116"></script>
     <script src="assets/js/ar-nova-tentativa.js?v=20261117"></script>
     <script src="assets/js/oficio-avulso.js?v=20261116"></script>

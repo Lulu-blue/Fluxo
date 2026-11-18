@@ -566,10 +566,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.verificarARsAguardandoNovaTentativa(window.currentUserProfile?.id)
                 .then(movidos => { if (movidos > 0) carregarSolicitacoes(); });
         }
+        // NP / Auto de Fiscalização com o prazo vencido → aviso no sino do fiscal que criou o processo
+        avisarPrazosVencidos();
     }
 
     setTimeout(limparAutofillInvasivoFiltros, 300);
 });
+
+// ── Aviso de prazo vencido (NP e Auto de Fiscalização) ─────────
+// Quem decide e grava o aviso é a função avisar_prazos_vencidos do banco
+// (banco_de_dados.sql): o prazo tem de ter começado pelo recebimento ou pelo
+// Edital, cada vencimento avisa uma vez só e o aviso vai para o fiscal que criou
+// o processo (destinatario_id = fiscal_id). Qualquer pessoa que abre o painel
+// dispara a verificação, no máximo uma vez por hora por navegador.
+const CHAVE_VERIFICACAO_PRAZOS_VENCIDOS = 'semac_verificacao_prazos_vencidos';
+const INTERVALO_VERIFICACAO_PRAZOS_VENCIDOS_MS = 60 * 60 * 1000;
+
+async function avisarPrazosVencidos() {
+    try {
+        const ultima = Number(localStorage.getItem(CHAVE_VERIFICACAO_PRAZOS_VENCIDOS) || 0);
+        if (Date.now() - ultima < INTERVALO_VERIFICACAO_PRAZOS_VENCIDOS_MS) return;
+    } catch (e) { /* sem armazenamento: verifica assim mesmo */ }
+
+    try {
+        const { data: avisados, error } = await supabaseClient.rpc('avisar_prazos_vencidos');
+        if (error) {
+            // Não marca a hora: na próxima abertura do painel tenta de novo
+            console.warn('[PRAZO] Não foi possível verificar os prazos vencidos (a função avisar_prazos_vencidos já foi criada no banco?):', error.message);
+            return;
+        }
+        try { localStorage.setItem(CHAVE_VERIFICACAO_PRAZOS_VENCIDOS, String(Date.now())); } catch (e) { /* sem armazenamento */ }
+        // Os processos avisados mudaram (updated_at): o sino busca o aviso novo
+        if (avisados > 0) sincronizarNotificacoesPainel();
+    } catch (e) {
+        console.warn('[PRAZO] Erro ao verificar os prazos vencidos:', e);
+    }
+}
 
 // ── Auxiliar para limpar tokens de autenticação corrompidos ────
 function limparTokensAutenticacao() {
@@ -991,6 +1023,9 @@ async function carregarSolicitacoes(append = false, tentativa = 1) {
             if (unicosImovel.length > 0) orCodigo += `,id.in.(${unicosImovel.join(',')})`;
             query = query.or(orCodigo);
         }
+        if (filtros.endereco?.logradouro || filtros.endereco?.numero || filtros.endereco?.bairro) {
+            query = query.or(await montarFiltroEndereco(filtros.endereco));
+        }
         if (filtros.fiscal) {
             query = query.eq('fiscal_id', filtros.fiscal);
         }
@@ -1398,6 +1433,73 @@ async function carregarOpcoesFiscaisFiltro() {
     }
 }
 
+// ── Filtro de endereço ──────────────────────────────────────
+// Procura no endereço do imóvel e no do contribuinte (autuado). Logradouro,
+// número e bairro têm de bater no MESMO endereço: rua do imóvel com bairro do
+// contribuinte não conta. Logradouro e bairro valem palavra por palavra, em
+// qualquer ordem ("orozimbo marcolino" acha "Rua OROZIMBO JOSE MARCOLINO");
+// o número tem de ser exato (181 não traz 1810).
+function palavrasFiltroEndereco(texto) {
+    return String(texto || '')
+        .replace(/[,().:"%*\\]/g, ' ')
+        // Letra acentuada vira curinga de um caractere: "São" acha "SAO" e "SÃO"
+        .replace(/[^\x00-\x7F]/g, '_')
+        .split(/\s+/)
+        .filter(Boolean);
+}
+
+async function montarFiltroEndereco(endereco) {
+    const ruas = palavrasFiltroEndereco(endereco.logradouro);
+    const bairros = palavrasFiltroEndereco(endereco.bairro);
+    const numero = String(endereco.numero || '').replace(/[^0-9A-Za-z\-\/]/g, '');
+
+    const condicoes = (prefixo) => [
+        ...ruas.map(p => `${prefixo}logradouro.ilike.%${p}%`),
+        ...(numero ? [`${prefixo}numero.ilike.${numero}`] : []),
+        ...bairros.map(p => `${prefixo}bairro.ilike.%${p}%`)
+    ];
+    const lista = condicoes('');
+    if (lista.length === 0) return 'id.eq.00000000-0000-0000-0000-000000000000';
+
+    const partes = [
+        `and(${condicoes('dados->imovel->>').join(',')})`,
+        `and(${condicoes('dados->contribuinte->>').join(',')})`
+    ];
+
+    // Cadastros de imóveis e de contribuintes ligados ao processo. Só entra se
+    // a busca for específica o bastante: uma lista enorme de ids estoura a URL
+    // (o endereço também está copiado no processo, que já é pesquisado acima)
+    const LIMITE_IDS = 300;
+    const filtrarTabela = (tabela) => {
+        let q = supabaseClient.from(tabela).select('id').limit(LIMITE_IDS + 1);
+        ruas.forEach(p => { q = q.ilike('logradouro', `%${p}%`); });
+        if (numero) q = q.ilike('numero', numero);
+        bairros.forEach(p => { q = q.ilike('bairro', `%${p}%`); });
+        return q;
+    };
+    try {
+        const [{ data: imoveis }, { data: contribs }] = await Promise.all([
+            filtrarTabela('imoveis'),
+            filtrarTabela('contribuintes')
+        ]);
+        const consultas = [];
+        if (imoveis?.length && imoveis.length <= LIMITE_IDS) {
+            consultas.push(supabaseClient.from('processos').select('id')
+                .in('imovel_id', imoveis.map(i => i.id)).limit(LIMITE_IDS + 1));
+        }
+        if (contribs?.length && contribs.length <= LIMITE_IDS) {
+            consultas.push(supabaseClient.from('processos').select('id')
+                .in('contribuinte_id', contribs.map(c => c.id)).limit(LIMITE_IDS + 1));
+        }
+        const ids = new Set();
+        (await Promise.all(consultas)).forEach(({ data }) => (data || []).forEach(p => ids.add(p.id)));
+        if (ids.size > 0 && ids.size <= LIMITE_IDS) partes.push(`id.in.(${[...ids].join(',')})`);
+    } catch (eEndereco) {
+        console.warn('Filtro de endereço: falha ao consultar os cadastros de imóveis/contribuintes:', eEndereco);
+    }
+    return partes.join(',');
+}
+
 // ── Coletar valores dos filtros ─────────────────────────────
 function coletarFiltros() {
     limparAutofillInvasivoFiltros();
@@ -1411,6 +1513,11 @@ function coletarFiltros() {
         nome: document.getElementById('filtroNome')?.value.trim() || '',
         cpf: document.getElementById('filtroCpf')?.value.trim() || '',
         codigoReduzido: document.getElementById('filtroCodigoReduzido')?.value.trim() || '',
+        endereco: {
+            logradouro: document.getElementById('filtroEnderecoLogradouro')?.value.trim() || '',
+            numero: document.getElementById('filtroEnderecoNumero')?.value.trim() || '',
+            bairro: document.getElementById('filtroEnderecoBairro')?.value.trim() || ''
+        },
         fiscal: elFiscal ? elFiscal.value : '',
         status: document.getElementById('filtroStatus')?.value || '',
         dataInicio: document.getElementById('filtroDataInicio')?.value || '',
@@ -1617,6 +1724,10 @@ function bindEventos() {
         if (document.getElementById('filtroNome')) document.getElementById('filtroNome').value = '';
         if (document.getElementById('filtroCpf')) document.getElementById('filtroCpf').value = '';
         if (document.getElementById('filtroCodigoReduzido')) document.getElementById('filtroCodigoReduzido').value = '';
+        ['filtroEnderecoLogradouro', 'filtroEnderecoNumero', 'filtroEnderecoBairro'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
         if (document.getElementById('filtroFiscal')) document.getElementById('filtroFiscal').value = '';
         if (document.getElementById('filtroDataInicio')) document.getElementById('filtroDataInicio').value = '';
         if (document.getElementById('filtroDataFim')) document.getElementById('filtroDataFim').value = '';
@@ -2221,6 +2332,24 @@ window.atualizarInterfaceNotificacoesPainel = function () {
     listDiv.innerHTML = html;
 };
 
+// Mesma regra do quadro da Etapa 2 (etapa.js): a NP/AF que ainda está na Etapa 1
+// ou 2 é trabalhada na tela do processo; aberta "em foco" (&notificacao=) a
+// página fica sem ações. Só abre em foco quando ela já andou sozinha (etapa > 2).
+async function abrirComNotificacaoEmFoco(notificacaoId) {
+    try {
+        const { data } = await supabaseClient
+            .from('notificacoes')
+            .select('etapa_atual_id, etapas(numero)')
+            .eq('id', notificacaoId)
+            .maybeSingle();
+        if (!data) return false;
+        const etapa = Array.isArray(data.etapas) ? data.etapas[0] : data.etapas;
+        return parseInt(etapa?.numero || data.etapa_atual_id || 2, 10) > 2;
+    } catch (e) {
+        return true;
+    }
+}
+
 window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId, idx) {
     let eChatJuridico = false;
     let itemAlterado = null;
@@ -2256,7 +2385,8 @@ window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId
     }
 
     let url = `etapa.html?processo=${processoId}`;
-    if (notificacaoId && String(notificacaoId).trim() !== '' && String(notificacaoId) !== 'undefined' && String(notificacaoId) !== 'null') {
+    if (notificacaoId && String(notificacaoId).trim() !== '' && String(notificacaoId) !== 'undefined' && String(notificacaoId) !== 'null'
+        && await abrirComNotificacaoEmFoco(notificacaoId)) {
         url += `&notificacao=${notificacaoId}`;
     }
     if (eChatJuridico) {

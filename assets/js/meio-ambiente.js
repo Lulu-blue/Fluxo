@@ -493,11 +493,16 @@ window.obterConfigAutoFiscalizacao = function (proc, item) {
     };
 };
 
-// Nº do protocolo municipal da defesa ("protocolada via protocolo municipal n° …"),
-// informado pelo fiscal em cada infração. O Auto de Fiscalização tem uma linha só
-// para todas as infrações: junta os números diferentes.
+// Nº do protocolo municipal da defesa ("protocolada via protocolo municipal n° …").
+// O fiscal informa na Etapa 1, antes de gerar o Auto de Fiscalização, ou na
+// Etapa 14 quando o processo vai direto para o Auto de Infração; fica em
+// dados.protocolo_defesa e vale para o AF e para o Auto do processo. Processos
+// antigos têm um por infração (config_af[codigo].protocolo, pedido no Novo
+// processo): o AF tem uma linha só para todas, então junta os diferentes.
 window.protocolosAutoFiscalizacao = function (proc) {
     const p = proc || (typeof processoAtual !== 'undefined' ? processoAtual : null);
+    const atual = String(p?.dados?.protocolo_defesa || '').trim();
+    if (atual) return [atual];
     const config = p?.dados?.infracoes?.config_af || {};
     const disps = p?.dados?.infracoes?.dispositivos || Object.keys(config);
     return [...new Set(disps.map(c => String(config[c]?.protocolo || '').trim()).filter(Boolean))];
@@ -589,7 +594,7 @@ window.montarCorpoAutoInfracaoMA = function (proc, itemCatalogo, opts = {}) {
             <p style="margin: 0 0 10px 0; text-align: justify; font-weight: bold;">${escaparHtmlMA(multa)}</p>
             ${opts.observacoesHtml || ''}
             <p style="margin: 0 0 8px 0; text-align: justify;">
-                O autuado tem o prazo de <strong>${escaparHtmlMA(opts.prazoDefesa || '20 DIAS')}</strong> para apresentação de defesa, protocolada via protocolo municipal n° <strong>${escaparHtmlMA(cfg.protocolo || opts.numeroProtocolo || 'XXX')}</strong>.
+                O autuado tem o prazo de <strong>${escaparHtmlMA(opts.prazoDefesa || '20 DIAS')}</strong> para apresentação de defesa, protocolada via protocolo municipal n° <strong>${escaparHtmlMA(String(proc?.dados?.protocolo_defesa || '').trim() || cfg.protocolo || opts.numeroProtocolo || 'XXX')}</strong>.
             </p>
             <div style="margin: 0 0 10px 0;">${window.htmlInstrucoesDefesaMeioAmbiente()}</div>
         </div>

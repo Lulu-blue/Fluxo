@@ -587,6 +587,82 @@ END;
 $function$
 ;
 
+-- Aviso no sino do fiscal que criou o processo quando a Notificação Preliminar
+-- ou o Auto de Fiscalização vence. Só conta o prazo que de fato começou a
+-- correr (recebimento pelo proprietário ou publicação do Edital) e vence no dia
+-- seguinte ao último dia do prazo, como o "Vencido há N dias" do painel.
+-- Cada vencimento avisa uma vez só (marca em notificacoes.dados); se o prazo
+-- mudar (novo vencimento), avisa de novo. O painel chama esta função, e ela pode
+-- também ser agendada no pg_cron (ver o fim do arquivo).
+CREATE OR REPLACE FUNCTION public.avisar_prazos_vencidos()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+    r RECORD;
+    v_total INTEGER := 0;
+    v_hoje DATE := (now() AT TIME ZONE 'America/Sao_Paulo')::date;
+    v_doc TEXT;
+    v_origem TEXT;
+BEGIN
+    FOR r IN
+        SELECT n.id, n.numero, n.processo_id, n.situacao, n.prazo_origem, n.prazo_dias,
+               n.data_inicio, n.data_vencimento, p.numero_processo, p.fiscal_id
+        FROM notificacoes n
+        JOIN processos p ON p.id = n.processo_id
+        WHERE n.situacao IN ('notificacao_preliminar', 'auto_fiscalizacao')
+          AND n.prazo_origem IN ('recebimento', 'edital')
+          AND n.data_vencimento IS NOT NULL
+          AND (n.data_vencimento AT TIME ZONE 'America/Sao_Paulo')::date < v_hoje
+          AND lower(COALESCE(n.status, '')) NOT IN ('encerrada', 'atendida', 'pagamento', 'auto_infracao')
+          AND lower(COALESCE(p.status, '')) NOT IN ('cancelado', 'encerrado', 'arquivado', 'finalizado')
+          AND p.fiscal_id IS NOT NULL
+          AND COALESCE(n.dados ->> 'aviso_vencimento_enviado', '') <> n.data_vencimento::text
+        FOR UPDATE OF n SKIP LOCKED
+    LOOP
+        v_doc := CASE WHEN r.situacao = 'auto_fiscalizacao' THEN 'Auto de Fiscalização' ELSE 'Notificação Preliminar' END;
+        v_origem := CASE WHEN r.prazo_origem = 'edital' THEN 'da publicação do Edital' ELSE 'do recebimento pelo proprietário' END;
+
+        UPDATE notificacoes
+        SET dados = COALESCE(dados, '{}'::jsonb)
+                    || jsonb_build_object('aviso_vencimento_enviado', r.data_vencimento::text)
+        WHERE id = r.id;
+
+        UPDATE processos
+        SET dados = jsonb_set(
+                COALESCE(dados, '{}'::jsonb),
+                '{notificacoes_menu}',
+                CASE WHEN jsonb_typeof(dados -> 'notificacoes_menu') = 'array'
+                     THEN dados -> 'notificacoes_menu' ELSE '[]'::jsonb END
+                || jsonb_build_array(jsonb_build_object(
+                    'id', gen_random_uuid(),
+                    'tipo', 'prazo_vencido',
+                    'titulo', 'Prazo vencido: ' || v_doc,
+                    'mensagem', 'O prazo ' || CASE WHEN r.situacao = 'auto_fiscalizacao' THEN 'do ' ELSE 'da ' END
+                        || v_doc || ' ' || r.numero
+                        || ' venceu em ' || to_char(r.data_vencimento AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY')
+                        || COALESCE(' (' || r.prazo_dias || ' dias contados ' || v_origem
+                            || ' em ' || to_char(r.data_inicio AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YYYY') || ').', '.'),
+                    'processo_id', r.processo_id,
+                    'numero_processo', COALESCE(r.numero_processo, ''),
+                    'notificacao_id', r.id,
+                    'destinatario_cargo', NULL,
+                    'destinatario_id', r.fiscal_id,
+                    'lida', false,
+                    'created_at', now()
+                ))
+            )
+        WHERE id = r.processo_id;
+
+        v_total := v_total + 1;
+    END LOOP;
+    RETURN v_total;
+END;
+$function$
+;
+
 CREATE OR REPLACE FUNCTION public.atualizar_notificacoes_processo(p_processo_id uuid, p_notificacoes jsonb)
  RETURNS void
  LANGUAGE plpgsql

@@ -519,6 +519,35 @@ body {
     background-color: var(--bg-white);
 }
 
+/* Endereço: logradouro, número e bairro lado a lado, ocupando duas colunas */
+.filter-group.filtro-endereco {
+    grid-column: span 2;
+}
+
+.filtro-endereco-campos {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) 64px minmax(0, 1.4fr);
+    gap: 6px;
+}
+
+.filtro-endereco-campos input {
+    min-width: 0;
+}
+
+@media (max-width: 520px) {
+    .filter-group.filtro-endereco {
+        grid-column: auto;
+    }
+
+    .filtro-endereco-campos {
+        grid-template-columns: minmax(0, 1fr) 64px;
+    }
+
+    .filtro-endereco-campos input:last-child {
+        grid-column: 1 / -1;
+    }
+}
+
 .filter-group input::placeholder {
     color: var(--text-muted);
 }
