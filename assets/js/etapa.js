@@ -5196,7 +5196,7 @@ window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
 // em "alvará" e, pelas palavras-chave, seria confundida com a 120000236.
 // Multa: 50 UPFMD. Providência imediata (prazo 0).
 const CODIGO_INFRACAO_ALVARA_PJ = 'ALVARA-PJ';
-const TITULO_INFRACAO_ALVARA_PJ = 'Exercer atividade sem o licenciamento de alvará de localização e funcionamento';
+const TITULO_INFRACAO_ALVARA_PJ = 'Falta de alvará ou incompatibilidade do uso e ocupação do solo';
 
 function ehInfracaoAlvaraPJ(texto) {
     const t = String(texto || '');
@@ -7221,7 +7221,7 @@ function montarHtmlRelatorioFiscalAuto(numero) {
     const fNome = fProc.nome || fProc.fiscNome || fiscAutor.nome || perfilAtual?.nome || 'Nome do Fiscal';
     const fCargo = fProc.cargo || fiscAutor.cargo || perfilAtual?.cargo || 'Cargo do Fiscal';
     const fMatricula = fProc.matricula || fProc.fiscMatricula || fiscAutor.matricula || perfilAtual?.matricula || 'XXXXXXXX';
-    const assinaturasComContribuidor = (window.htmlAssinaturasRelatorioComContribuidor && window.processoEhMeioAmbiente?.(processoAtual))
+    const assinaturasComContribuidor = window.htmlAssinaturasRelatorioComContribuidor /* contribuidores do Fiscal de Meio Ambiente, também em infração de Posturas */
         ? window.htmlAssinaturasRelatorioComContribuidor({ nome: fNome, cargo: fCargo, matricula: fMatricula }, window.contribuidoresDoProcesso(d))
         : '';
 
@@ -8726,7 +8726,7 @@ function htmlBlocoInfracaoAlvaraPJ(valFormatado) {
             <p style="margin:4px 0;"><strong>${TITULO_INFRACAO_ALVARA_PJ}: infração ao Artigo 190 e seguintes da Lei 6.907/2008.</strong></p>
             <p style="margin:10px 0 6px 0;">O autuado tem que tomar as providências:</p>
             <ul style="margin: 6px 0 10px 0; padding-left: 20px;">
-                <li>Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.</li>
+                <li>Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e/ou do não cumprimento das condições previstas no art. 191 da Lei 6907/08 (Incompatibilidade com a lei de uso e ocupação do solo).</li>
             </ul>
             <p style="margin:10px 0 0 0; text-align:justify;">O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 6.907/2008, Artigo 195, e outras legislações. MULTA NO VALOR DE 50 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.</p>`;
 }
@@ -13655,7 +13655,7 @@ async function baixarRelatorioFiscalPdfEtapa() {
             const fCargo = fProc.cargo || fiscAutor.cargo || (typeof perfilAtual !== 'undefined' && perfilAtual?.cargo) || 'Cargo do Fiscal';
             const fMatricula = fProc.matricula || fProc.fiscMatricula || processoAtual.fiscal_matricula || fiscAutor.matricula || (typeof perfilAtual !== 'undefined' && perfilAtual?.matricula) || 'XXXXXXXX';
             // Fiscal de Meio Ambiente: assinatura do fiscal contribuidor ao lado
-            const assinaturasComContribuidor = (window.htmlAssinaturasRelatorioComContribuidor && window.processoEhMeioAmbiente?.(processoAtual))
+            const assinaturasComContribuidor = window.htmlAssinaturasRelatorioComContribuidor /* contribuidores do Fiscal de Meio Ambiente, também em infração de Posturas */
                 ? window.htmlAssinaturasRelatorioComContribuidor({ nome: fNome, cargo: fCargo, matricula: fMatricula }, window.contribuidoresDoProcesso(dProc))
                 : '';
 

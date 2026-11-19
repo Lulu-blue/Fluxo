@@ -544,9 +544,10 @@ function meioAmbienteVaiDiretoAoAuto() {
     return codigos.length > 0 && codigos.every(c => window.infracaoMeioAmbienteVaiDiretoAoAuto(c));
 }
 
-// Fiscais contribuidores marcados, na ordem da lista
+// Fiscais contribuidores marcados, na ordem da lista. Valem para o Fiscal de
+// Meio Ambiente mesmo quando ele marca uma infração de Posturas.
 function obterFiscaisContribuidoresSelecionados() {
-    if (!processoNovoEhMeioAmbiente()) return [];
+    if (!wizardMeioAmbiente) return [];
     const ids = Array.from(document.querySelectorAll('#fiscContribuidores input[type="checkbox"]:checked')).map(cb => String(cb.value));
     return fiscaisMeioAmbienteCache
         .filter(f => ids.includes(String(f.id)))
@@ -1941,10 +1942,10 @@ async function finalizarSolicitacao() {
                 // Fiscal de Meio Ambiente. Os contribuidores só assinam o Relatório
                 // Fiscal; ficam aqui para o SEMAC pontuar todos os fiscais.
                 // fiscal_contribuidor (o primeiro) fica por compatibilidade.
-                ...(dados.meio_ambiente ? {
-                    setor: 'meio_ambiente',
-                    fiscais_contribuidores: dados.meio_ambiente.fiscais_contribuidores,
-                    fiscal_contribuidor: dados.meio_ambiente.fiscais_contribuidores[0] || null
+                ...(dados.meio_ambiente ? { setor: 'meio_ambiente' } : {}),
+                ...((dados.fiscais_contribuidores || []).length ? {
+                    fiscais_contribuidores: dados.fiscais_contribuidores,
+                    fiscal_contribuidor: dados.fiscais_contribuidores[0] || null
                 } : {})
             }
         };
@@ -2574,7 +2575,7 @@ const MAPA_TEXTOS_NOTIFICACAO = {
     '120000234': `13) Reparos por concessionárias: infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.\nPrazo: 10 DIAS, a contar do término de sua respectiva obra e serviço:\n- Executar serviço de reconstrução de muros e passeios danificados.`,
     '120000230': `14) Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.`,
     '120000241': `Má Conservação de Passeio: infração ao artigo 66º da Lei Nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar o serviço de reparo de passeio pela testada do imóvel de sua propriedade.`,
-    'ALVARA-PJ': `Exercer atividade sem o licenciamento de alvará de localização e funcionamento: infração ao Artigo 190 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.`
+    'ALVARA-PJ': `Falta de alvará ou incompatibilidade do uso e ocupação do solo: infração ao Artigo 190 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.`
 };
 
 function atualizarDescricaoFiscalizacaoPadrao() {
@@ -2653,6 +2654,8 @@ function coletarTodosDados() {
             fiscais_contribuidores: obterFiscaisContribuidoresSelecionados(),
             multas: configAF.multas
         } : null,
+        // Fiscal de Meio Ambiente com infração de Posturas também pode ter contribuidores
+        fiscais_contribuidores: obterFiscaisContribuidoresSelecionados(),
         contribuinte: {
             nome: document.getElementById('contNome').value,
             cpf_cnpj: document.getElementById('contCpfCnpj').value,
@@ -2875,7 +2878,7 @@ function construirHtmlRelatorioFiscal(numeroRelatorio, numeroProcesso, procObj =
         || (typeof window.processoEhMeioAmbiente === 'function' && window.processoEhMeioAmbiente(proc));
     const selecionados = obterFiscaisContribuidoresSelecionados();
     const contribuidores = selecionados.length ? selecionados : window.contribuidoresDoProcesso?.(dProc) || [];
-    const assinaturasComContribuidor = (relatorioEhMeioAmbiente && typeof window.htmlAssinaturasRelatorioComContribuidor === 'function')
+    const assinaturasComContribuidor = (typeof window.htmlAssinaturasRelatorioComContribuidor === 'function')
         ? window.htmlAssinaturasRelatorioComContribuidor(
             { nome: fiscalData.nome || 'Nome do Fiscal', cargo: fiscalData.cargo, matricula: fiscalData.matricula },
             contribuidores)

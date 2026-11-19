@@ -195,7 +195,8 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
   Precisam estar no `infracoes_catalogo`. Não há
   Decreto de notificação. No fim da lista vem o grupo **Posturas**, com as infrações de
   Posturas: marcando uma delas, o processo é de Posturas (sem `setor = 'meio_ambiente'`,
-  Notificação Preliminar, prazos, textos e multas de Posturas, sem fiscais contribuidores).
+  Notificação Preliminar, prazos, textos e multas de Posturas; os fiscais contribuidores
+  continuam valendo no Relatório Fiscal).
   Posturas e Meio Ambiente não vão no mesmo processo. No filtro Responsável → "Minha
   responsabilidade", o processo de Posturas aberto pelo próprio Fiscal de Meio Ambiente
   continua aparecendo para ele.
@@ -246,7 +247,8 @@ mesmas etapas e permissões do Fiscal de Postura. O que muda está em
   **só o Relatório Fiscal** (assinaturas de 2 em 2 por linha). Ficam em
   `processos.dados.fiscais_contribuidores` (lista de `id`, `nome`, `cpf`, `matricula`, `cargo`)
   para o SEMAC pontuar todos; `dados.fiscal_contribuidor` guarda o primeiro, por
-  compatibilidade. O processo continua sendo de quem criou.
+  compatibilidade. O processo continua sendo de quem criou. Vale também quando o Fiscal de
+  Meio Ambiente marca uma infração de Posturas.
 - **Situação:** enquanto não vira Auto de Infração, a situação de processo e notificação
   de Meio Ambiente é `auto_fiscalizacao` (não `notificacao_preliminar`), calculada pelo
   banco (função `processo_eh_meio_ambiente`).
