@@ -278,7 +278,7 @@ Antiga `etapas/Vencimentos.docx`, hoje em `obterPrazoNotificacao` (`etapa.js`):
 | Limpeza de quintal | 120000233 | 8 dias |
 | Obstáculos em calçadas | 120000237 | 8 dias |
 | Água servida | 120000239 | 8 dias |
-| Estabelecimento sem alvará | 120000236 | 8 dias |
+| Renovação de alvará ou estabelecimento sem alvará | 120000236 | 8 dias |
 | Reparos por concessionárias | 120000234 | 10 dias (do fim da obra) |
 | Piso tátil | 120000230 | 8 dias |
 
@@ -287,7 +287,7 @@ Todos em **dias corridos** (até 2026-11 o de 10 dias contava em úteis). Fontes
 ### 5.2 Prazo de defesa do Auto de Infração
 
 `obterPrazoDefesaAutoInfracao`: **10 dias úteis** para quintal, obstáculos em calçadas,
-água servida, estabelecimento sem alvará, reparos por concessionárias e piso tátil;
+água servida, renovação de alvará ou estabelecimento sem alvará, reparos por concessionárias e piso tátil;
 **20 dias** para as demais.
 
 ### 5.2.1 Como o vencimento é contado (`prazos.js`)
@@ -320,6 +320,7 @@ Notificações `encerrada`, `atendida` ou `pagamento` não contam prazo.
 
 - **AR sem retorno:** 15 dias depois de cadastrado o número do AR sem data de recebimento, o processo vai **sozinho** para a Etapa 30 (verificado ao abrir a Etapa 16). Para testar, use `?teste_prazo_ar=<segundos>` na URL.
 - **AR esperando a nova tentativa de entrega** (NP/AF, depois de um retorno sem sucesso): o prazo do contribuinte **não corre**. Sem o AR recebido, só a **data de publicação do Edital** inicia o prazo; a data da tentativa e a do cadastro do AR não contam (`obterInicioPrazoAR`). Parado **mais de 30 dias** (contados do registro do último retorno sem sucesso), o processo vai para a Etapa 30 e o Gerente recebe um aviso no sino. A verificação roda ao abrir a Etapa 1.2 e também no painel, no máximo a cada 6 horas por navegador (`ar-nova-tentativa.js`).
+- **Volta da Etapa 30 para a 16:** quem volta a etapa dá ao AR um **prazo extra de 5 dias corridos**, contados da volta (`etapa16.prazo_extra_ar_ate`). Só depois dele o processo vai de novo, sozinho, para a Etapa 30. Vale para a espera da nova tentativa (30 dias) e para os 15 dias do cadastro do AR, tanto no AR da Notificação Preliminar quanto no do Auto. O selo da Etapa 16 mostra "prazo extra: N dias restantes".
 - **NP / Auto de Fiscalização vencidos:** quando o prazo que começou pelo **recebimento do proprietário** ou pela **publicação do Edital** vence (dia seguinte ao último dia, como o "Vencido há N dias" do painel), o **fiscal que criou o processo** recebe um aviso no sino (`tipo: 'prazo_vencido'`, `destinatario_id = fiscal_id`). Não avisa NP/AF encerrados, atendidos, em pagamento ou que viraram Auto de Infração, nem processos cancelados/encerrados/arquivados. Cada vencimento avisa uma vez (`notificacoes.dados.aviso_vencimento_enviado`); se o prazo mudar, avisa de novo. Função do banco `avisar_prazos_vencidos()`, chamada pelo painel no máximo uma vez por hora por navegador (pode ser agendada no pg_cron).
 - **Etapa 25:** redução de 50% e alteração de valor **reiniciam** o prazo com 30 dias (a partir da entrada na Etapa 31). Continuidade na cobrança **retoma** os dias que faltavam e nunca reinicia: se já venceu, continua vencido. Origem gravada: `prazo_origem = 'etapa25'`.
 - **Dilação:** deferida pelo Fiscal (Etapa 5), soma N dias ao vencimento. A Etapa 2 deixa de oferecer "Dilação" para aquela notificação.
@@ -436,7 +437,7 @@ documentos das etapas (ver [seção 9](#9-telas-do-painel)).
 **Quem:** Fiscal de Postura ou de Meio Ambiente. **Código:** `nova-solicitacao.js` (assistente) + `etapa.js` (tela da etapa).
 
 **Assistente "Novo Processo", em 5 passos:** Contribuinte → Imóvel → Fiscal → Infrações → Relatório Fiscal.
-- **Anexo BIC** (Espelho Cadastral de Imóveis, PDF), obrigatório. No mesmo campo pode ir o **Comprovante de Inscrição no CNPJ** da Receita, reconhecido pelo texto (`ehComprovanteCnpj`), tanto em Posturas quanto em Meio Ambiente: o nome empresarial vai para o nome do contribuinte, o CNPJ para o CPF/CNPJ e para a inscrição do imóvel (sem setor/zona/quadra/lote), e o endereço do comprovante para o imóvel. Com ele, endereço do contribuinte, código reduzido, área, testada e profundidade ficam opcionais; o anexo é gravado como `Comprovante de Inscrição CNPJ`. Os campos opcionais vazios nem aparecem no formulário, e só com esse documento aparece, na lista de Posturas, a infração **ALVARA-PJ** ("Exercer atividade sem o licenciamento de alvará de localização e funcionamento", art. 190 e seguintes da Lei 6.907/2008; multa de 50 UPFMD; providência imediata), cadastrada no `infracoes_catalogo`. Na Notificação Preliminar e no Auto de Infração, dado do contribuinte ou do imóvel que não foi preenchido não aparece.
+- **Anexo BIC** (Espelho Cadastral de Imóveis, PDF), obrigatório. No mesmo campo pode ir o **Comprovante de Inscrição no CNPJ** da Receita, reconhecido pelo texto (`ehComprovanteCnpj`), tanto em Posturas quanto em Meio Ambiente: o nome empresarial vai para o nome do contribuinte, o CNPJ para o CPF/CNPJ e para a inscrição do imóvel (sem setor/zona/quadra/lote), e o endereço do comprovante para o imóvel. Com ele, endereço do contribuinte, código reduzido, área, testada e profundidade ficam opcionais; o anexo é gravado como `Comprovante de Inscrição CNPJ`. Os campos opcionais vazios nem aparecem no formulário, e só com esse documento aparece, na lista de Posturas, a infração **ALVARA-PJ** ("Incompatibilidade do uso e ocupação do solo", art. 190 e seguintes da Lei 6.907/2008; multa de 50 UPFMD; providência imediata), cadastrada no `infracoes_catalogo`. Na Notificação Preliminar e no Auto de Infração, dado do contribuinte ou do imóvel que não foi preenchido não aparece.
 - **Contribuinte:** nome, CPF/CNPJ, logradouro, número, complemento, bairro, município, CEP e e-mail (opcional).
 - **Imóvel:** código reduzido, inscrição imobiliária, logradouro, número, complemento, bairro, área total (m²), testada (m) e profundidade. A inscrição `01.036.00181.00300.00000.0` é quebrada em **Setor** (01), **Zona** (036), **Quadra** (00181) e **Lote** (00300).
 - **Fiscal:** nome e matrícula (do usuário logado), data da vistoria (hoje, editável para trás), descrição da fiscalização, imagens da vistoria, **outros documentos** (quantos forem, ou nenhum; cada um com Visualizar e Excluir, gravados como `Outro documento`; no PDF do processo entram logo abaixo do Relatório Fiscal e aparecem no índice, logo depois da capa, como **Anexo N**). A pergunta **"Decorrente de Decreto de Notificação?"** está desativada (comentada em `painel.html`, com `fiscDecreto` fixo em "nao"): todo processo novo é sem decreto. Os processos por decreto já cadastrados seguem o fluxo deles.
@@ -958,7 +959,7 @@ canvas deve ser completado.
 | Limpeza de quintal | 120000233 |
 | Obstáculos em calçadas | 120000237 |
 | Água servida | 120000239 |
-| Estabelecimento sem alvará | 120000236 |
+| Renovação de alvará ou estabelecimento sem alvará | 120000236 |
 | Reparos por concessionárias | 120000234 |
 | Piso tátil | 120000230 |
 

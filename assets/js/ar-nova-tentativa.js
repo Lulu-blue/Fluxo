@@ -13,6 +13,37 @@
 
 window.AR_DIAS_ESPERA_NOVA_TENTATIVA = 30;
 
+// Processo que voltou da Etapa 30 para a 16 ganha mais 5 dias (corridos, contados
+// da volta) antes de ir de novo para a Etapa 30. A data fica em
+// etapa16.prazo_extra_ar_ate e vale tanto para a espera da nova tentativa (30
+// dias) quanto para o prazo de 15 dias do cadastro do AR.
+window.AR_DIAS_PRAZO_EXTRA_VOLTA_ETAPA30 = 5;
+
+window.prazoExtraARAte = function (e16) {
+    const d = new Date(e16?.prazo_extra_ar_ate || '');
+    return isNaN(d.getTime()) ? null : d;
+};
+
+// Fim de um prazo do AR: o limite normal ou o prazo extra da volta da Etapa 30,
+// o que for mais tarde.
+window.fimPrazoARComExtra = function (fimNormal, e16) {
+    const extra = window.prazoExtraARAte(e16);
+    if (!fimNormal) return extra;
+    return (extra && extra > fimNormal) ? extra : fimNormal;
+};
+
+// Data em que a espera pela nova tentativa estoura (null se não está esperando)
+window.fimEsperaNovaTentativaAR = function (e16) {
+    if (!window.arAguardandoNovaTentativa(e16)) return null;
+    const inicio = window.inicioEsperaNovaTentativaAR(e16);
+    if (!inicio) return null;
+    const teste = parseInt(new URLSearchParams(window.location.search).get('teste_prazo_ar'), 10);
+    const limiteMs = isNaN(teste)
+        ? window.AR_DIAS_ESPERA_NOVA_TENTATIVA * 24 * 60 * 60 * 1000
+        : teste * 1000;
+    return window.fimPrazoARComExtra(new Date(inicio.getTime() + limiteMs), e16);
+};
+
 window.tentativasARSemSucesso = function (e16) {
     const lista = e16?.retornos_sem_sucesso;
     return Array.isArray(lista) ? lista : [];
@@ -35,16 +66,11 @@ window.inicioEsperaNovaTentativaAR = function (e16) {
     return isNaN(d.getTime()) ? null : d;
 };
 
-// true quando passou do limite. ?teste_prazo_ar=N (segundos) encurta para testes.
+// true quando passou do limite (ou do prazo extra da volta da Etapa 30).
+// ?teste_prazo_ar=N (segundos) encurta o limite normal para testes.
 window.esperaNovaTentativaARExpirou = function (e16) {
-    if (!window.arAguardandoNovaTentativa(e16)) return false;
-    const inicio = window.inicioEsperaNovaTentativaAR(e16);
-    if (!inicio) return false;
-    const teste = parseInt(new URLSearchParams(window.location.search).get('teste_prazo_ar'), 10);
-    const limiteMs = isNaN(teste)
-        ? window.AR_DIAS_ESPERA_NOVA_TENTATIVA * 24 * 60 * 60 * 1000
-        : teste * 1000;
-    return (Date.now() - inicio.getTime()) >= limiteMs;
+    const fim = window.fimEsperaNovaTentativaAR(e16);
+    return !!fim && Date.now() >= fim.getTime();
 };
 
 async function idDaEtapaAR(numero) {

@@ -2476,7 +2476,7 @@ function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     if (!descricao) return 15;
     const descStr = String(descricao).toLowerCase();
 
-    // Exercer atividade sem alvará (empresa, ALVARA-PJ): cessar de imediato.
+    // Incompatibilidade do uso e ocupação do solo (empresa, ALVARA-PJ): cessar de imediato.
     // Vem antes das palavras-chave: o texto fala em "alvará" (120000236, 10 dias).
     if (descStr.includes('alvara-pj') || descStr.includes('exercer atividade sem o licenciamento')) {
         return 0;
@@ -2571,11 +2571,11 @@ const MAPA_TEXTOS_NOTIFICACAO = {
     '120000233': `9) Limpeza de quintal: infração aos artigos 14 e 15 da Lei nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar o serviço de limpeza e remoção do lixo doméstico e entulhos (quando houver) do imóvel de sua propriedade.\n- Proibido: Queimadas, cortar árvores e movimentação de terra (terraplanagem).`,
     '120000237': `10) Obstáculos em calçadas impedindo o livre trânsito de pedestres e veículos: infração ao artigo 6°, XIII, XIV da Lei 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Retirar os obstáculos do passeio.`,
     '120000239': `11) Água servida: infração ao artigo 6, inciso IV da Lei nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Ligação da água servida à rede de esgoto.`,
-    '120000236': `12) Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Regularizar o alvará de funcionamento e localização.`,
+    '120000236': `12) Renovação de alvará ou estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Regularizar o alvará de funcionamento e localização.`,
     '120000234': `13) Reparos por concessionárias: infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.\nPrazo: 10 DIAS, a contar do término de sua respectiva obra e serviço:\n- Executar serviço de reconstrução de muros e passeios danificados.`,
     '120000230': `14) Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.`,
     '120000241': `Má Conservação de Passeio: infração ao artigo 66º da Lei Nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar o serviço de reparo de passeio pela testada do imóvel de sua propriedade.`,
-    'ALVARA-PJ': `Falta de alvará ou incompatibilidade do uso e ocupação do solo: infração ao Artigo 190 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.`
+    'ALVARA-PJ': `Incompatibilidade do uso e ocupação do solo: infração ao Artigo 190 e Artigo 191 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.`
 };
 
 function atualizarDescricaoFiscalizacaoPadrao() {

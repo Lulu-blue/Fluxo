@@ -4912,6 +4912,31 @@ async function cancelarProcesso() {
     }
 }
 
+// ── Prazo extra ao voltar da Etapa 30 para a 16 ───────────────────────────
+// Grava em etapa16.prazo_extra_ar_ate (do ciclo do AR aberto na tela) a data
+// de hoje + 5 dias. As verificações do AR (ar-nova-tentativa.js e
+// verificarPrazo15DiasEtapa16) só mandam de novo para a Etapa 30 depois dela.
+function marcarPrazoExtraVoltaEtapa30() {
+    const ciclo = camposCicloAR(processoAtual);
+    ciclo.etapa16 = ciclo.etapa16 || {};
+    const ate = new Date();
+    ate.setDate(ate.getDate() + (window.AR_DIAS_PRAZO_EXTRA_VOLTA_ETAPA30 || 5));
+    ciclo.etapa16.prazo_extra_ar_ate = ate.toISOString();
+    processoAtual.dados = processoAtual.dados || {};
+    processoAtual.dados.campos = processoAtual.campos;
+}
+
+// Mesma coisa, gravando já no processo (caminho da notificação, que só
+// atualiza a tabela notificacoes)
+async function registrarPrazoExtraVoltaEtapa30() {
+    marcarPrazoExtraVoltaEtapa30();
+    const { error } = await supabaseClient
+        .from('processos')
+        .update({ dados: processoAtual.dados })
+        .eq('id', processoAtual.id);
+    if (error) throw error;
+}
+
 // ── Move o processo para uma etapa de destino ─────────────────────────────
 async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
     if (!processoAtual) return;
@@ -4946,6 +4971,11 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
             if (numeroEtapaDestino === 2) {
                 updates.status = 'pendente';
                 notificacaoAtual.status = 'pendente';
+            }
+            // Voltou da Etapa 30 para a 16 (AR do Auto): mais 5 dias antes de
+            // ir de novo para a Etapa 30
+            if (numeroEtapaDestino === 16 && etapaAtualNum === 30) {
+                await registrarPrazoExtraVoltaEtapa30();
             }
 
             // Grava no JSON o histórico da notificação
@@ -5004,7 +5034,13 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
         // Determina se o status deve mudar e se precisamos resetar dados do AR (Transições do Processo Geral)
         const updates = { etapa_atual_id: etapaDestId };
 
-        if (numeroEtapaDestino === 16) {
+        if (numeroEtapaDestino === 16 && etapaAtualNum === 30) {
+            updates.status = 'aguardando_ar';
+            // Voltou da Etapa 30: mais 5 dias antes de ir de novo para a Etapa 30
+            // (vale para a espera da nova tentativa e para o prazo de 15 dias)
+            marcarPrazoExtraVoltaEtapa30();
+            updates.dados = processoAtual.dados;
+        } else if (numeroEtapaDestino === 16) {
             updates.status = 'aguardando_ar';
             // Reseta a data de inserção do AR para agora para dar novo prazo e evitar loop de redirecionamento
             if (processoAtual.campos && processoAtual.campos.etapa16) {
@@ -5196,7 +5232,7 @@ window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
 // em "alvará" e, pelas palavras-chave, seria confundida com a 120000236.
 // Multa: 50 UPFMD. Providência imediata (prazo 0).
 const CODIGO_INFRACAO_ALVARA_PJ = 'ALVARA-PJ';
-const TITULO_INFRACAO_ALVARA_PJ = 'Falta de alvará ou incompatibilidade do uso e ocupação do solo';
+const TITULO_INFRACAO_ALVARA_PJ = 'Incompatibilidade do uso e ocupação do solo';
 
 function ehInfracaoAlvaraPJ(texto) {
     const t = String(texto || '');
@@ -5373,7 +5409,7 @@ function obterNomeCompletoInfracao(disp) {
     } else if (cod === '120000239' || dispLow.includes('água servida')) {
         return 'Água servida (120000239)';
     } else if (cod === '120000236' || dispLow.includes('estabelecimento sem alvará')) {
-        return 'Estabelecimento sem alvará (120000236)';
+        return 'Renovação de alvará ou estabelecimento sem alvará (120000236)';
     } else if (cod === '120000234' || dispLow.includes('reparos por concessionárias')) {
         return 'Reparos por concessionárias (120000234)';
     } else if (cod === '120000230' || dispLow.includes('piso tátil')) {
@@ -8535,7 +8571,7 @@ function gerarBlocoInfracao(proc, disp, index) {
     `;
     }
 
-    // Exercer atividade sem alvará (empresa, ALVARA-PJ): providência imediata
+    // Incompatibilidade do uso e ocupação do solo (empresa, ALVARA-PJ): providência imediata
     if (ehInfracaoAlvaraPJ(disp)) {
         return `
         <div class="doc-infracao-bloco" data-notificacao-index="${index}">
@@ -8626,7 +8662,7 @@ function gerarBlocoInfracao(proc, disp, index) {
         itens = `<li>Ligação da água servida à rede de esgoto.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008 e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
     } else if (disp.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
-        titulo = 'Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.';
+        titulo = 'Renovação de alvará ou estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.';
         prazo = '08 DIAS';
         itens = `<li>Regularizar o alvará de funcionamento e localização.</li>`;
         penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 195, LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, E OUTRAS LEGISLAÇÕES. MULTA NO VALOR DE: 50 UPFMD, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
@@ -8723,7 +8759,7 @@ function textoAberturaNotificacaoPreliminar(imv) {
 // Texto da infração ALVARA-PJ na Notificação Preliminar
 function htmlBlocoInfracaoAlvaraPJ(valFormatado) {
     return `
-            <p style="margin:4px 0;"><strong>${TITULO_INFRACAO_ALVARA_PJ}: infração ao Artigo 190 e seguintes da Lei 6.907/2008.</strong></p>
+            <p style="margin:4px 0;"><strong>${TITULO_INFRACAO_ALVARA_PJ}: infração ao Artigo 190 e Artigo 191 seguintes da Lei 6.907/2008.</strong></p>
             <p style="margin:10px 0 6px 0;">O autuado tem que tomar as providências:</p>
             <ul style="margin: 6px 0 10px 0; padding-left: 20px;">
                 <li>Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e/ou do não cumprimento das condições previstas no art. 191 da Lei 6907/08 (Incompatibilidade com a lei de uso e ocupação do solo).</li>
@@ -11441,10 +11477,12 @@ function verificarPrazoAR(proc, dadosAR) {
 
     // Esperando a nova tentativa de entrega: conta o limite de 30 dias parado
     if (window.arAguardandoNovaTentativa && window.arAguardandoNovaTentativa(dadosAR)) {
-        const inicioEspera = window.inicioEsperaNovaTentativaAR(dadosAR);
-        const dias = inicioEspera ? Math.floor((Date.now() - inicioEspera.getTime()) / 86400000) : 0;
+        const fimEspera = window.fimEsperaNovaTentativaAR(dadosAR);
+        const restantes = fimEspera ? Math.max(0, Math.ceil((fimEspera.getTime() - Date.now()) / 86400000)) : 0;
         const limite = window.AR_DIAS_ESPERA_NOVA_TENTATIVA;
-        badge.textContent = `Aguardando nova tentativa (${Math.max(0, limite - dias)} de ${limite} dias restantes)`;
+        badge.textContent = window.prazoExtraARAte(dadosAR) && fimEspera?.getTime() === window.prazoExtraARAte(dadosAR).getTime()
+            ? `Aguardando nova tentativa (prazo extra: ${restantes} dia${restantes === 1 ? '' : 's'} restante${restantes === 1 ? '' : 's'})`
+            : `Aguardando nova tentativa (${restantes} de ${limite} dias restantes)`;
         badge.style.background = '#fef3c7';
         badge.style.color = '#92400e';
         return;
@@ -11454,11 +11492,14 @@ function verificarPrazoAR(proc, dadosAR) {
     if (!dataAR) return;
 
     const inicio = new Date(dataAR);
-    const hoje = new Date();
-    const diffDias = Math.floor((hoje - inicio) / (1000 * 60 * 60 * 24));
+    const fimNormal = new Date(inicio.getTime() + 15 * 86400000);
+    // Voltou da Etapa 30: vale o prazo extra, se for mais tarde
+    const fim = window.fimPrazoARComExtra(fimNormal, dadosAR);
+    const comExtra = fim.getTime() !== fimNormal.getTime();
+    const restantes = Math.ceil((fim.getTime() - Date.now()) / 86400000);
 
-    if (diffDias > 15) {
-        badge.textContent = 'Prazo de 15 dias expirado';
+    if (restantes < 0) {
+        badge.textContent = comExtra ? 'Prazo extra expirado' : 'Prazo de 15 dias expirado';
         badge.style.background = '#fecaca';
         badge.style.color = '#991b1b';
     } else if (dadosAR.data_recebimento) {
@@ -11466,7 +11507,9 @@ function verificarPrazoAR(proc, dadosAR) {
         badge.style.background = '#bbf7d0';
         badge.style.color = '#166534';
     } else {
-        badge.textContent = `Aguardando AR (${15 - diffDias} dias restantes)`;
+        badge.textContent = comExtra
+            ? `Aguardando AR (prazo extra: ${restantes} dia${restantes === 1 ? '' : 's'} restante${restantes === 1 ? '' : 's'})`
+            : `Aguardando AR (${restantes} dias restantes)`;
     }
 }
 
@@ -11489,10 +11532,10 @@ async function verificarPrazo15DiasEtapa16(proc) {
     if (!dataInsercao) return false;
 
     const inicio = new Date(dataInsercao);
-    const agora = new Date();
-    const diffMs = agora - inicio;
+    // Voltou da Etapa 30: só vai de novo depois do prazo extra
+    const fim = window.fimPrazoARComExtra(new Date(inicio.getTime() + prazoMs), dadosAR);
 
-    if (diffMs >= prazoMs) {
+    if (Date.now() >= fim.getTime()) {
         try {
             const { data: etapa30 } = await supabaseClient
                 .from('etapas')
@@ -11524,7 +11567,9 @@ async function verificarPrazo15DiasEtapa16(proc) {
                     etapa_de_id: proc.etapa_atual_id,
                     etapa_para_id: etapa30Id,
                     usuario_id: perfilAtual?.id,
-                    condicao_aplicada: 'Prazo de 15 dias do AR expirado',
+                    condicao_aplicada: window.prazoExtraARAte(dadosAR)
+                        ? `Prazo extra de ${window.AR_DIAS_PRAZO_EXTRA_VOLTA_ETAPA30} dias do AR expirado (após volta da Etapa 30)`
+                        : 'Prazo de 15 dias do AR expirado',
                     observacao: `Nº AR: ${dadosAR.numero_ar} | Inserido em: ${new Date(dataInsercao).toLocaleString('pt-BR')}`,
                     dados_etapa: { etapa16: dadosAR }
                 }]);
@@ -14306,7 +14351,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             itens = `<li>Ligação da água servida à rede de esgoto.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008 e outras legislações. MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
         } else if (disp.includes('120000236') || dispLow.includes('estabelecimento sem alvará')) {
-            titulo = 'Estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.';
+            titulo = 'Renovação de alvará ou estabelecimento sem alvará: infração ao artigo 190 da Lei nº 6.907/2008.';
             prazo = '08 DIAS';
             itens = `<li>Regularizar o alvará de funcionamento e localização.</li>`;
             penalidade = `O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pelo artigo 195, LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008, E OUTRAS LEGISLAÇÕES. MULTA NO VALOR DE: 50 UPFMD, atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
@@ -15319,7 +15364,7 @@ window.obterDescricaoInfracao = function (disp) {
     } else if (cod === '120000239' || dispStr === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
         return 'Água servida';
     } else if (cod === '120000236' || dispStr === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
-        return 'Estabelecimento sem alvará';
+        return 'Renovação de alvará ou estabelecimento sem alvará';
     } else if (cod === '120000234' || dispStr === '120000234' || dispLow.includes('concessionária') || dispLow.includes('concessionaria')) {
         return 'Reparos por concessionárias';
     } else if (cod === '120000230' || dispStr === '120000230' || dispLow.includes('piso tátil') || dispLow.includes('piso tatil')) {
@@ -15383,7 +15428,7 @@ window.obterFundamentoLegalDecreto = function (infracaoDesc) {
     } else if (cod === '120000239' || dispLow.includes('água servida') || dispLow.includes('agua servida')) {
         return 'artigo 6, inciso IV da Lei nº 6.907/2008. Sob pena do artigo 11 da LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
 
-        // 11) 120000236 - Estabelecimento sem alvará
+        // 11) 120000236 - Renovação de alvará ou estabelecimento sem alvará
     } else if (cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
         return 'artigo 190 da Lei nº 6.907/2008. Sob pena do artigo 195, LEI Nº 6.907, DE 22 DE DEZEMBRO DE 2008.';
 
@@ -15483,10 +15528,10 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         dispositivoTexto = 'infração ao artigo 66º da Lei Nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR DE 15 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
-        // Exercer atividade sem alvará (empresa, ALVARA-PJ)
+        // Incompatibilidade do uso e ocupação do solo (empresa, ALVARA-PJ)
     } else if (cod === CODIGO_INFRACAO_ALVARA_PJ || ehInfracaoAlvaraPJ(dispItem)) {
         leiBase = 'Lei nº 6.907/2008';
-        dispositivoTexto = 'infração ao Artigo 190 e seguintes da Lei 6.907/2008.';
+        dispositivoTexto = 'infração ao Artigo 190 e Artigo 191 e seguintes da Lei 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR DE 50 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
         // 1) 120000232 - Falta de limpeza e conservação de imóvel não edificado
@@ -15557,7 +15602,7 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         dispositivoTexto = 'infração ao artigo 6, inciso IV da Lei nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR de 10 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
-        // 12) 120000236 - Estabelecimento sem alvará
+        // 12) 120000236 - Renovação de alvará ou estabelecimento sem alvará
     } else if (cod === '120000236' || dispLow.includes('alvará') || dispLow.includes('alvara')) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao artigo 190 da Lei nº 6.907/2008.';
