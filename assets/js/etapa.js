@@ -5225,20 +5225,23 @@ window.obterObrigacaoPelaInfracaoText = function (infraTexto) {
     return partes.join(' e ');
 };
 
-// ── Infração de Posturas para empresa (CNPJ) sem alvará ───────────────────
+// ── Incompatibilidade do uso e ocupação do solo (120000242) ───────────────
+// Infração de Posturas para empresa (CNPJ), usada quando o processo é aberto com
+// o Comprovante de Inscrição no CNPJ. Antes tinha o código ALVARA-PJ (e o nome
 // "Exercer atividade sem o licenciamento de alvará de localização e
-// funcionamento" (código ALVARA-PJ). É usada quando o processo é aberto com o
-// Comprovante de Inscrição no CNPJ. Tem tratamento próprio porque o texto fala
-// em "alvará" e, pelas palavras-chave, seria confundida com a 120000236.
+// funcionamento"): os processos antigos continuam reconhecidos por esse código
+// e por esse nome. Tem tratamento próprio, antes das palavras-chave, porque o
+// texto fala em "alvará" e seria confundida com a 120000236.
 // Multa: 50 UPFMD. Providência imediata (prazo 0).
-const CODIGO_INFRACAO_ALVARA_PJ = 'ALVARA-PJ';
+const CODIGO_INFRACAO_ALVARA_PJ = '120000242';
 const TITULO_INFRACAO_ALVARA_PJ = 'Incompatibilidade do uso e ocupação do solo';
 
 function ehInfracaoAlvaraPJ(texto) {
     const t = String(texto || '');
-    if (/ALVARA-PJ/i.test(t)) return true;
-    return t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .includes('exercer atividade sem o licenciamento');
+    if (/ALVARA-PJ/i.test(t) || /\b120000242\b/.test(t)) return true;
+    const n = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return n.includes('incompatibilidade do uso e ocupacao do solo')
+        || n.includes('exercer atividade sem o licenciamento');
 }
 window.ehInfracaoAlvaraPJ = ehInfracaoAlvaraPJ;
 
@@ -8571,7 +8574,7 @@ function gerarBlocoInfracao(proc, disp, index) {
     `;
     }
 
-    // Incompatibilidade do uso e ocupação do solo (empresa, ALVARA-PJ): providência imediata
+    // Incompatibilidade do uso e ocupação do solo (empresa, 120000242): providência imediata
     if (ehInfracaoAlvaraPJ(disp)) {
         return `
         <div class="doc-infracao-bloco" data-notificacao-index="${index}">
@@ -8756,7 +8759,7 @@ function textoAberturaNotificacaoPreliminar(imv) {
     return `Verificamos que o imóvel de sua propriedade${local}${trechoBairro} necessita da(s) seguinte(s) regularização(es):`;
 }
 
-// Texto da infração ALVARA-PJ na Notificação Preliminar
+// Texto da infração 120000242 (antiga ALVARA-PJ) na Notificação Preliminar
 function htmlBlocoInfracaoAlvaraPJ(valFormatado) {
     return `
             <p style="margin:4px 0;"><strong>${TITULO_INFRACAO_ALVARA_PJ}: infração ao Artigo 190 e Artigo 191 seguintes da Lei 6.907/2008.</strong></p>
@@ -15528,7 +15531,7 @@ window.obterDadosLegaisEValoresAuto = function (infracaoDesc, fisc, proc) {
         dispositivoTexto = 'infração ao artigo 66º da Lei Nº 6.907/2008.';
         multaTextoHeader = `MULTA NO VALOR DE 15 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.`;
 
-        // Incompatibilidade do uso e ocupação do solo (empresa, ALVARA-PJ)
+        // Incompatibilidade do uso e ocupação do solo (empresa, 120000242)
     } else if (cod === CODIGO_INFRACAO_ALVARA_PJ || ehInfracaoAlvaraPJ(dispItem)) {
         leiBase = 'Lei nº 6.907/2008';
         dispositivoTexto = 'infração ao Artigo 190 e Artigo 191 e seguintes da Lei 6.907/2008.';

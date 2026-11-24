@@ -8,7 +8,7 @@
     <meta name="description" content="Painel de controle do Sistema Fluxograma de Processos - Fiscalização de Posturas">
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
-    <link rel="stylesheet" href="assets/css/painel.css?v=20261118a">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261123a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -313,7 +313,7 @@
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000237"> Obstáculos em calçadas</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000239"> Água servida</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000236"> Renovação de alvará ou estabelecimento sem alvará</label>
-                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="ALVARA-PJ"> Incompatibilidade do uso e ocupação do solo</label>
+                                <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000242"> Incompatibilidade do uso e ocupação do solo</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000234"> Reparos por concessionárias</label>
                                 <label class="filtro-dropdown-item"><input type="checkbox" class="chk-filtro-infracao" value="120000230"> Piso tátil</label>
                             </div>
@@ -878,6 +878,8 @@
                             <button type="button" class="btn-remove-file" id="btnRemoveBic" title="Remover">✕</button>
                         </div>
                         <div id="bicFeedback" class="field-feedback"></div>
+                        <!-- Processos já cadastrados com a inscrição do BIC (mostrarProcessosMesmaInscricao) -->
+                        <div class="processos-mesma-inscricao" style="display:none;"></div>
                     </div>
                     <div class="step-section">
                         <h3>Dados do contribuinte</h3>
@@ -958,6 +960,7 @@
                                 <div id="imvFeedback" class="field-feedback"></div>
                             </div>
                         </div>
+                        <div class="processos-mesma-inscricao" style="display:none;"></div>
                         <!-- Campos decompostos (auto-preenchidos) -->
                         <div class="inscription-breakdown" id="inscriptionBreakdown" style="display:none;">
                             <div class="breakdown-item"><label>Setor</label><span id="imvSetor">—</span></div>
@@ -1314,9 +1317,8 @@
                                 <label class="checkbox-card"><input type="checkbox" name="infracao"
                                         value="120000236"><span class="cb-label">Renovação de alvará ou estabelecimento sem alvará</span><span
                                         class="cb-code">120000236</span></label>
-                                <!-- Só com o Comprovante de CNPJ anexado (atualizarAvisosDocumentoCadastro) -->
-                                <label class="checkbox-card" data-somente-cnpj style="display:none;"><input type="checkbox" name="infracao"
-                                        value="ALVARA-PJ"><span class="cb-label">Incompatibilidade do uso e ocupação do solo</span><span class="cb-code">ALVARA-PJ</span></label>
+                                <label class="checkbox-card"><input type="checkbox" name="infracao"
+                                        value="120000242"><span class="cb-label">Incompatibilidade do uso e ocupação do solo</span><span class="cb-code">120000242</span></label>
                                 <label class="checkbox-card"><input type="checkbox" name="infracao"
                                         value="120000234"><span class="cb-label">Reparos por concessionárias</span><span
                                         class="cb-code">120000234</span></label>
@@ -1608,8 +1610,8 @@
     <script src="assets/js/prazos.js?v=20261118a"></script>
     <script src="assets/js/meio-ambiente.js?v=20261118a"></script>
     <script src="assets/js/solicitacoes.js?v=20261123b"></script>
-    <script src="assets/js/instrucoes.js?v=20261123a"></script>
-    <script src="assets/js/nova-solicitacao.js?v=20261119b"></script>
+    <script src="assets/js/instrucoes.js?v=20261124b"></script>
+    <script src="assets/js/nova-solicitacao.js?v=20261124b"></script>
     <script src="assets/js/oficio-modelo.js?v=20261116"></script>
     <script src="assets/js/ar-nova-tentativa.js?v=20261123a"></script>
     <script src="assets/js/oficio-avulso.js?v=20261116"></script>

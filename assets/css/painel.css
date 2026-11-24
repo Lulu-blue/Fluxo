@@ -2473,3 +2473,19 @@ body {
         gap: 2px;
     }
 }
+
+/* Novo processo: processos já cadastrados com a mesma inscrição do BIC */
+.processos-mesma-inscricao {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    border-radius: 10px;
+    font-size: 0.86rem;
+    color: #1e293b;
+}
+.processos-mesma-inscricao .pmi-titulo { font-weight: 700; color: #92400e; }
+.processos-mesma-inscricao ul { margin: 8px 0 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.processos-mesma-inscricao a { font-weight: 700; color: #1d4ed8; text-decoration: none; }
+.processos-mesma-inscricao a:hover { text-decoration: underline; }
+.processos-mesma-inscricao .pmi-item.vencido { color: #b91c1c; font-weight: 600; }

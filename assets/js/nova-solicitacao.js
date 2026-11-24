@@ -193,6 +193,7 @@ async function abrirModal() {
 // com o anexo já descartado — e a validação reclamava que faltava o BIC.
 function limparAnexoBicUI() {
     bicArquivoAnexado = null;
+    limparProcessosMesmaInscricao();
     documentoCadastroTipo = null;
     if (typeof atualizarAvisosDocumentoCadastro === 'function') atualizarAvisosDocumentoCadastro();
 
@@ -2476,9 +2477,12 @@ function obterPrazoNotificacaoNovaSolicitacao(descricao) {
     if (!descricao) return 15;
     const descStr = String(descricao).toLowerCase();
 
-    // Incompatibilidade do uso e ocupação do solo (empresa, ALVARA-PJ): cessar de imediato.
+    // Incompatibilidade do uso e ocupação do solo (empresa, 120000242; antes
+    // ALVARA-PJ): cessar de imediato.
     // Vem antes das palavras-chave: o texto fala em "alvará" (120000236, 10 dias).
-    if (descStr.includes('alvara-pj') || descStr.includes('exercer atividade sem o licenciamento')) {
+    if (descStr.includes('120000242') || descStr.includes('alvara-pj')
+        || descStr.normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('incompatibilidade do uso e ocupacao do solo')
+        || descStr.includes('exercer atividade sem o licenciamento')) {
         return 0;
     }
 
@@ -2575,7 +2579,7 @@ const MAPA_TEXTOS_NOTIFICACAO = {
     '120000234': `13) Reparos por concessionárias: infração ao artigo 163 da Lei 6.907/2008 e ao artigo 1º, §3º, da Lei nº 7.174/2010.\nPrazo: 10 DIAS, a contar do término de sua respectiva obra e serviço:\n- Executar serviço de reconstrução de muros e passeios danificados.`,
     '120000230': `14) Inexistência de sinalização adequada piso tátil: infração ao artigo 106, IV, da Lei 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar a sinalização adequada no piso de acordo com as normas vigentes com alerta para portadores de deficiência.`,
     '120000241': `Má Conservação de Passeio: infração ao artigo 66º da Lei Nº 6.907/2008.\nPrazo: 08 DIAS para tomar as providências:\n- Executar o serviço de reparo de passeio pela testada do imóvel de sua propriedade.`,
-    'ALVARA-PJ': `Incompatibilidade do uso e ocupação do solo: infração ao Artigo 190 e Artigo 191 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e do não cumprimento das condições previstas no art. 191 da Lei 6907/08.`
+    '120000242': `Incompatibilidade do uso e ocupação do solo: infração ao Artigo 190 e Artigo 191 e seguintes da Lei 6.907/2008.\nO autuado tem que tomar as providências:\n- Cessar imediatamente as atividades exercidas no local em face da incompatibilidade com a lei de uso e ocupação do solo previstas no art. 191 da Lei 6907/2008.`
 };
 
 function atualizarDescricaoFiscalizacaoPadrao() {
@@ -3666,7 +3670,10 @@ function bindWizardEventos() {
         imvInscEl.addEventListener('input', (e) => {
             decomporInscricao(e.target.value);
         });
-        imvInscEl.addEventListener('blur', () => buscarImovelNoBanco(true));
+        imvInscEl.addEventListener('blur', () => {
+            buscarImovelNoBanco(true);
+            mostrarProcessosMesmaInscricao();
+        });
         imvInscEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); buscarImovelNoBanco(false); }
         });
@@ -3912,6 +3919,7 @@ function bindWizardEventos() {
             if (dropEl) dropEl.style.display = 'flex';
             const feedbackEl = document.getElementById('bicFeedback');
             if (feedbackEl) { feedbackEl.textContent = ''; feedbackEl.className = 'field-feedback'; }
+            limparProcessosMesmaInscricao();
         });
     }
 
@@ -4372,6 +4380,113 @@ async function buscarImovelNoBanco(silencioso = false) {
 
 
 
+// ── Processos já cadastrados com a mesma inscrição imobiliária ──────────
+// Depois de importar o BIC (ou ao sair do campo Inscrição), lista os processos
+// do sistema com essa inscrição e, em cada um, as transgressões (notificações)
+// com a situação e os dias que faltam para o vencimento. Ex.:
+//   2026/000415: AI → Inexistência de passeio (12 dias); NP → Limpeza de quintal (vencido há 3 dias)
+// Aparece no passo 1 (abaixo do BIC) e no passo 2 (abaixo da inscrição).
+const SIGLAS_SITUACAO_NOTIFICACAO = {
+    notificacao_preliminar: 'NP',
+    auto_fiscalizacao: 'AF',
+    auto_infracao: 'AI',
+    cancelado: 'Cancelada',
+    encerrado: 'Encerrada',
+    arquivado: 'Arquivada'
+};
+let inscricaoProcessosConsultada = '';
+let consultaProcessosInscricaoId = 0;
+
+function caixasProcessosMesmaInscricao() {
+    return document.querySelectorAll('.processos-mesma-inscricao');
+}
+
+function limparProcessosMesmaInscricao() {
+    inscricaoProcessosConsultada = '';
+    consultaProcessosInscricaoId++;
+    caixasProcessosMesmaInscricao().forEach(el => { el.innerHTML = ''; el.style.display = 'none'; });
+}
+
+function escHtmlInscricao(v) {
+    return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Dias até o vencimento, contando datas do calendário (sem hora)
+function textoDiasTransgressao(n) {
+    const sit = String(n.situacao || '').toLowerCase();
+    const st = String(n.status || '').toLowerCase();
+    if (['cancelado', 'encerrado', 'arquivado'].includes(sit) || ['encerrada', 'atendida'].includes(st)) return '';
+    if (!n.data_vencimento) return 'prazo não iniciado';
+    const venc = new Date(n.data_vencimento);
+    if (isNaN(venc.getTime())) return 'prazo não iniciado';
+    const hoje = new Date();
+    const dia = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    const dias = Math.round((dia(venc) - dia(hoje)) / 86400000);
+    if (dias > 0) return `${dias} dia${dias === 1 ? '' : 's'}`;
+    if (dias === 0) return 'vence hoje';
+    return `vencido há ${-dias} dia${dias === -1 ? '' : 's'}`;
+}
+
+async function mostrarProcessosMesmaInscricao() {
+    const insc = (document.getElementById('imvInscricao')?.value || '').trim();
+    // CNPJ no lugar da inscrição (comprovante de CNPJ) também serve: é o que fica gravado
+    if (!insc || insc.replace(/\D/g, '').length < 6) { limparProcessosMesmaInscricao(); return; }
+    if (insc === inscricaoProcessosConsultada) return;
+    inscricaoProcessosConsultada = insc;
+    const minhaConsulta = ++consultaProcessosInscricaoId;
+
+    const caixas = caixasProcessosMesmaInscricao();
+    const pintar = html => caixas.forEach(el => { el.innerHTML = html; el.style.display = html ? 'block' : 'none'; });
+    pintar('<div class="pmi-titulo">Procurando processos com esta inscrição...</div>');
+
+    try {
+        const { data: procs, error } = await supabaseClient
+            .from('processos')
+            .select('id, numero_processo, status, created_at')
+            .eq('dados->imovel->>inscricao', insc)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        if (minhaConsulta !== consultaProcessosInscricaoId) return;
+
+        if (!procs || procs.length === 0) {
+            pintar(`<div class="pmi-titulo">Nenhum processo cadastrado com a inscrição ${escHtmlInscricao(insc)}.</div>`);
+            return;
+        }
+
+        const { data: notifs, error: errN } = await supabaseClient
+            .from('notificacoes')
+            .select('processo_id, numero, descricao, situacao, status, data_vencimento')
+            .in('processo_id', procs.map(p => p.id))
+            .order('numero', { ascending: true });
+        if (errN) throw errN;
+        if (minhaConsulta !== consultaProcessosInscricaoId) return;
+
+        const porProcesso = {};
+        (notifs || []).forEach(n => { (porProcesso[n.processo_id] = porProcesso[n.processo_id] || []).push(n); });
+
+        const linhas = procs.map(p => {
+            const lista = porProcesso[p.id] || [];
+            const itens = lista.length
+                ? lista.map(n => {
+                    const sit = String(n.situacao || '').toLowerCase();
+                    const sigla = SIGLAS_SITUACAO_NOTIFICACAO[sit] || n.situacao || n.status || '—';
+                    const dias = textoDiasTransgressao(n);
+                    const vencido = dias.startsWith('vencido');
+                    return `<span class="pmi-item${vencido ? ' vencido' : ''}">${escHtmlInscricao(sigla)} → ${escHtmlInscricao(n.descricao || 'Transgressão')}${dias ? ` (${escHtmlInscricao(dias)})` : ''}</span>`;
+                }).join('; ')
+                : `<span class="pmi-item">${String(p.status || '').toLowerCase() === 'cancelado' ? 'Cancelado' : 'sem transgressões'}</span>`;
+            return `<li><a href="etapa.html?processo=${encodeURIComponent(p.id)}" target="_blank" rel="noopener">${escHtmlInscricao(p.numero_processo || 'Sem número')}</a>: ${itens}</li>`;
+        }).join('');
+
+        pintar(`<div class="pmi-titulo">${procs.length} processo${procs.length === 1 ? '' : 's'} já cadastrado${procs.length === 1 ? '' : 's'} com a inscrição ${escHtmlInscricao(insc)}:</div><ul>${linhas}</ul>`);
+    } catch (err) {
+        console.warn('[NOVO PROCESSO] Erro ao buscar processos da inscrição:', err);
+        if (minhaConsulta !== consultaProcessosInscricaoId) return;
+        inscricaoProcessosConsultada = '';
+        pintar('<div class="pmi-titulo">Não foi possível buscar os processos desta inscrição.</div>');
+    }
+}
+
 // ── Extração de texto de PDF usando PDF.js ──────────────────────
 async function extrairTextoPdf(file) {
     const arrayBuffer = await file.arrayBuffer();
@@ -4578,8 +4693,7 @@ const CAMPOS_OPCIONAIS_COM_CNPJ = [
     'imvCodigo', 'imvComplemento', 'imvAreaTotal', 'imvTestada', 'imvProfundidade'
 ];
 
-// Avisos dos passos 1 e 2, campos opcionais vazios escondidos e a infração
-// de alvará para empresa (ALVARA-PJ), que só aparece com o comprovante de CNPJ
+// Avisos dos passos 1 e 2 e campos opcionais vazios escondidos (comprovante de CNPJ)
 function atualizarAvisosDocumentoCadastro() {
     const ehCnpj = documentoCadastroEhCnpj();
     ['avisoCnpjContribuinte', 'avisoCnpjImovel'].forEach(id => {
@@ -4592,21 +4706,6 @@ function atualizarAvisosDocumentoCadastro() {
         const grupo = campo?.closest('.form-group');
         if (!grupo) return;
         grupo.style.display = (ehCnpj && !String(campo.value || '').trim()) ? 'none' : '';
-    });
-
-    // O checkbox pode estar fora da tela (lista de Meio Ambiente aberta)
-    const opcoesCnpj = new Set([
-        ...document.querySelectorAll('[data-somente-cnpj]'),
-        ...(typeof nosInfracoesPosturas !== 'undefined' && nosInfracoesPosturas
-            ? nosInfracoesPosturas.filter(n => n.matches?.('[data-somente-cnpj]')) : [])
-    ]);
-    opcoesCnpj.forEach(label => {
-        label.style.display = ehCnpj ? '' : 'none';
-        const cb = label.querySelector('input[name="infracao"]');
-        if (!ehCnpj && cb && cb.checked) {
-            cb.checked = false;
-            cb.dispatchEvent(new Event('change', { bubbles: true }));
-        }
     });
 }
 
@@ -4772,6 +4871,7 @@ async function handleArquivoBic(file) {
         }
 
         mostrarFeedback('bicFeedback', '✓ Dados do contribuinte e imóvel importados do BIC com sucesso!', 'success');
+        mostrarProcessosMesmaInscricao();
     } catch (err) {
         console.error('Erro ao ler PDF do BIC:', err);
         mostrarFeedback('bicFeedback', 'Erro ao ler arquivo PDF do BIC: ' + err.message, 'error');
