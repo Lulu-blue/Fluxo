@@ -300,6 +300,11 @@ Atenciosamente,`
     // ou no que a própria Etapa 31 já tiver guardado.
     function vencimentoAtual() {
         const notif = notificacaoDoAuto();
+        // Prazo parado durante a análise (Defesa/Desconto do Auto): o vencimento
+        // com o tempo que faltava quando parou
+        if (notif?.dados?.prazo_pausado_analise && window.vencimentoRetomadoAnalise) {
+            return window.vencimentoRetomadoAnalise(notif);
+        }
         if (notif?.data_vencimento) return notif.data_vencimento;
 
         const autosEtapa18 = processoAtual?.campos?.etapa18?.autos || [];
@@ -339,6 +344,18 @@ Atenciosamente,`
     }
 
     // Aplica o plano de prazo ao entrar na Etapa 31.
+    // O prazo parado durante a análise termina aqui: tira a marca da pausa da
+    // notificação e grava o vencimento que vale a partir de agora.
+    async function encerrarPausaDoPrazo(vencimento) {
+        const notif = notificacaoDoAuto();
+        if (!notif?.id || !notif.dados?.prazo_pausado_analise) return;
+        const dados = { ...notif.dados };
+        delete dados.prazo_pausado_analise;
+        await atualizarNotificacaoNoBanco(notif.id, { dados, data_vencimento: vencimento || null });
+        notif.dados = dados;
+        notif.data_vencimento = vencimento || null;
+    }
+
     async function aplicarPrazoParaEtapa31(plano) {
         const alvo31 = dados31();
         alvo31.prazo_plano = plano.tipo;
@@ -348,6 +365,7 @@ Atenciosamente,`
         if (plano.tipo === 'mantem' || plano.tipo === 'sem') {
             alvo31.data_vencimento = plano.vencimento || null;
             alvo31.dias_vencidos = plano.tipo === 'mantem' ? Math.abs(plano.dias) : null;
+            await encerrarPausaDoPrazo(plano.vencimento || null);
             return { prazo_dias: null };
         }
 
@@ -373,6 +391,7 @@ Atenciosamente,`
             }
             Object.assign(notif, campos);
         }
+        await encerrarPausaDoPrazo(vencimento);
 
         alvo31.prazo_dias = plano.dias;
         alvo31.data_inicio = agora;
@@ -697,8 +716,7 @@ Atenciosamente,`
             return;
         }
         if (config.exigeNovaMulta && (dados25().anexos || []).length === 0) {
-            alert('Anexe a nova multa emitida pela Fazenda antes de avançar (item 6).');
-            return;
+            if ((window.bloquearSemAnexo ? window.bloquearSemAnexo('Anexe a nova multa emitida pela Fazenda antes de avançar (item 6).') : (alert('Anexe a nova multa emitida pela Fazenda antes de avançar (item 6).'), true))) return;
         }
 
         mostrarCarregamento('Registrando o cumprimento...');

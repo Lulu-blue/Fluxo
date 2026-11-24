@@ -561,6 +561,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sessaoValida = await verificarSessao();
     if (sessaoValida) {
         await carregarSolicitacoes();
+        // Sino: avisos não lidos em processos que não estão na lista
+        carregarAvisosDoSinoForaDaLista(true);
         // AR parado mais de 30 dias esperando a nova tentativa → Etapa 30 + aviso ao Gerente
         if (typeof window.verificarARsAguardandoNovaTentativa === 'function') {
             window.verificarARsAguardandoNovaTentativa(window.currentUserProfile?.id)
@@ -2175,8 +2177,11 @@ function registrarInteracaoUsuario() {
 }
 
 async function sincronizarNotificacoesPainel() {
-    if (document.hidden || sincronizandoNotificacoes || !dadosTabela || dadosTabela.length === 0) return;
+    if (document.hidden || sincronizandoNotificacoes) return;
     if (Date.now() - ultimaInteracaoUsuario > INATIVIDADE_MAXIMA_PAINEL_MS) return;
+    // Avisos de processos que não estão na lista (no máximo 1 vez por minuto)
+    carregarAvisosDoSinoForaDaLista();
+    if (!dadosTabela || dadosTabela.length === 0) return;
 
     if (!marcoSincronizacaoNotificacoes) {
         marcoSincronizacaoNotificacoes = dadosTabela.reduce((max, i) => (i.updated_at && i.updated_at > max ? i.updated_at : max), '');
@@ -2251,6 +2256,55 @@ function iniciarSincronizacaoNotificacoesPainel() {
     });
 }
 
+// ── Avisos do sino em processos fora da lista ─────────────────────────────
+// O sino olhava só os processos carregados na tabela (os 50 primeiros). A
+// função notificacoes_menu_do_usuario (banco_de_dados.sql, com índice GIN em
+// dados->'notificacoes_menu') devolve os processos com aviso NÃO LIDO para o
+// usuário (pela pessoa ou pelo cargo), em qualquer lugar da lista. Eles ficam
+// em processosSinoExtras, no mesmo formato dos itens da tabela.
+let processosSinoExtras = [];
+let ultimaBuscaSinoExtras = 0;
+let sinoExtrasIndisponivel = false;
+const INTERVALO_SINO_EXTRAS_MS = 60000;
+
+function itensDoSino() {
+    const naTabela = new Set((dadosTabela || []).map(i => i.id));
+    return [...(dadosTabela || []), ...processosSinoExtras.filter(p => !naTabela.has(p.id))];
+}
+
+async function carregarAvisosDoSinoForaDaLista(forcar = false) {
+    if (sinoExtrasIndisponivel) return;
+    if (!forcar && Date.now() - ultimaBuscaSinoExtras < INTERVALO_SINO_EXTRAS_MS) return;
+    const usr = window.currentUserProfile || window.perfilAtual || null;
+    if (!usr?.id) return;
+    ultimaBuscaSinoExtras = Date.now();
+
+    const cargos = [...new Set([usr.cargo, usr.cargo ? normalizarCargo(usr.cargo) : null].filter(Boolean))];
+    try {
+        const { data, error } = await supabaseClient.rpc('notificacoes_menu_do_usuario', {
+            p_destinatario_id: usr.id,
+            p_cargos: cargos
+        });
+        if (error) {
+            // Função ainda não criada no banco: fica só com os da lista
+            console.warn('[SINO] notificacoes_menu_do_usuario indisponível (rode o SQL do banco_de_dados.sql):', error.message);
+            sinoExtrasIndisponivel = true;
+            return;
+        }
+        const novos = (data || []).map(p => ({
+            id: p.id,
+            numero_processo: p.numero_processo,
+            dados: { notificacoes_menu: Array.isArray(p.notificacoes_menu) ? p.notificacoes_menu : [] }
+        }));
+        if (JSON.stringify(novos) !== JSON.stringify(processosSinoExtras)) {
+            processosSinoExtras = novos;
+            if (window.atualizarInterfaceNotificacoesPainel) window.atualizarInterfaceNotificacoesPainel();
+        }
+    } catch (e) {
+        console.warn('[SINO] Erro ao buscar avisos fora da lista:', e);
+    }
+}
+
 // Lista exibida no sino. Guarda as mesmas referências de item.dados.notificacoes_menu,
 // para que as ações localizem a notificação certa mesmo com a lista filtrada e ordenada.
 let notificacoesPainelVisiveis = [];
@@ -2258,7 +2312,7 @@ let notificacoesPainelVisiveis = [];
 function localizarNotificacaoPainel(idx) {
     const n = notificacoesPainelVisiveis[idx];
     if (!n) return null;
-    for (const item of (dadosTabela || [])) {
+    for (const item of itensDoSino()) {
         const pos = (item?.dados?.notificacoes_menu || []).indexOf(n);
         if (pos >= 0) return { item, pos, n };
     }
@@ -2272,7 +2326,7 @@ window.atualizarInterfaceNotificacoesPainel = function () {
 
     let todanotifs = [];
 
-    (dadosTabela || []).forEach(item => {
+    itensDoSino().forEach(item => {
         const procNotifs = item?.dados?.notificacoes_menu || [];
         procNotifs.forEach(n => {
             if (notificacaoEhParaMim(n)) todanotifs.push(n);
@@ -2396,7 +2450,7 @@ window.abrirNotificacaoEPromoverLida = async function (processoId, notificacaoId
 };
 
 window.marcarTodasNotificacoesLidasPainel = async function () {
-    (dadosTabela || []).forEach(async (item) => {
+    itensDoSino().forEach(async (item) => {
         if (item?.dados?.notificacoes_menu) {
             let alterou = false;
             item.dados.notificacoes_menu.forEach(n => {
@@ -2421,7 +2475,7 @@ window.marcarTodasNotificacoesLidasPainel = async function () {
 };
 
 window.limparAntigasNotificacoesPainel = async function () {
-    (dadosTabela || []).forEach(async (item) => {
+    itensDoSino().forEach(async (item) => {
         if (item?.dados?.notificacoes_menu) {
             const antes = item.dados.notificacoes_menu.length;
             // Remove só as lidas que são do usuário; as de outras pessoas/cargos ficam

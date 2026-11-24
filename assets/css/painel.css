@@ -713,11 +713,14 @@ body {
 }
 
 /* ── TABELA ───────────────────────────────────────────────── */
+/* Tabela mais larga que a tela: rolagem para os lados dentro do quadro (e a
+   barra de cima, .rolagem-topo, que painel-layout.js mantém igual à de baixo) */
 .table-container {
     background-color: var(--bg-white);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     box-shadow: var(--shadow-md);
 }
 
@@ -2489,3 +2492,79 @@ body {
 .processos-mesma-inscricao a { font-weight: 700; color: #1d4ed8; text-decoration: none; }
 .processos-mesma-inscricao a:hover { text-decoration: underline; }
 .processos-mesma-inscricao .pmi-item.vencido { color: #b91c1c; font-weight: 600; }
+
+/* ── MENU LATERAL RECOLHÍVEL E ROLAGEM LATERAL (painel-layout.js) ───── */
+.header-titulo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+.btn-toggle-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-white);
+    color: var(--text-color);
+    cursor: pointer;
+}
+.btn-toggle-menu:hover { background: var(--accent-light); }
+
+.btn-fechar-menu {
+    position: absolute;
+    top: 14px;
+    right: 12px;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+    cursor: pointer;
+    z-index: 2;
+}
+.btn-fechar-menu:hover { background: rgba(255, 255, 255, 0.25); }
+.sidebar-logo { position: relative; }
+
+/* Tela grande: o menu some e a área principal ocupa a largura toda */
+.dashboard-layout.menu-recolhido .sidebar { display: none; }
+
+.sidebar-fundo { display: none; }
+
+/* Tela pequena: o menu começa fechado e abre por cima do conteúdo */
+@media (max-width: 768px) {
+    .dashboard-layout.menu-aberto .sidebar {
+        display: flex;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 260px;
+        min-width: 260px;
+        z-index: 1000;
+    }
+    .dashboard-layout.menu-aberto .sidebar-fundo {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        z-index: 999;
+    }
+}
+
+/* Barra de rolagem lateral em cima da tabela (só quando a tabela não cabe) */
+.rolagem-topo {
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 14px;
+    margin-bottom: 6px;
+}
+.rolagem-topo > div { height: 1px; }

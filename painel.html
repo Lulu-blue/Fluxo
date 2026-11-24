@@ -8,7 +8,7 @@
     <meta name="description" content="Painel de controle do Sistema Fluxograma de Processos - Fiscalização de Posturas">
     <link rel="icon" type="image/png" href="assets/img/icone.png">
     <link rel="apple-touch-icon" href="assets/img/icone.png">
-    <link rel="stylesheet" href="assets/css/painel.css?v=20261123a">
+    <link rel="stylesheet" href="assets/css/painel.css?v=20261124a">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -19,6 +19,9 @@
         <!-- Menu Lateral -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">
+                <button type="button" class="btn-fechar-menu" id="btnFecharMenu" title="Fechar menu" aria-label="Fechar menu">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
                 <h2>SISTEMA</h2>
                 <span class="sidebar-subtitle">Fiscalização de Posturas e Meio Ambiente</span>
             </div>
@@ -120,14 +123,21 @@
                 </button>
             </div>
         </aside>
+        <!-- Fundo escuro do menu aberto em tela pequena (clicar fecha) -->
+        <div class="sidebar-fundo" id="sidebarFundo"></div>
 
         <!-- Conteúdo Principal -->
         <div class="main-wrapper">
             <!-- Sub-bar / Header -->
             <header class="painel-header">
-                <div class="header-left">
-                    <h1 id="pageTitle">Painel de processos</h1>
-                    <span class="header-breadcrumb">Painel / Painel de processos</span>
+                <div class="header-titulo">
+                    <button type="button" class="btn-toggle-menu" id="btnToggleMenu" title="Abrir/fechar menu" aria-label="Abrir/fechar menu" aria-controls="sidebar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                    </button>
+                    <div class="header-left">
+                        <h1 id="pageTitle">Painel de processos</h1>
+                        <span class="header-breadcrumb">Painel / Painel de processos</span>
+                    </div>
                 </div>
                 <div class="header-actions">
                     <button class="btn-icon" id="btnToggleFilters" title="Mostrar/esconder filtros">
@@ -1609,7 +1619,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/prazos.js?v=20261118a"></script>
     <script src="assets/js/meio-ambiente.js?v=20261118a"></script>
-    <script src="assets/js/solicitacoes.js?v=20261123b"></script>
+    <script src="assets/js/painel-layout.js?v=20261124a"></script>
+    <script src="assets/js/solicitacoes.js?v=20261124a"></script>
     <script src="assets/js/instrucoes.js?v=20261124b"></script>
     <script src="assets/js/nova-solicitacao.js?v=20261124b"></script>
     <script src="assets/js/oficio-modelo.js?v=20261116"></script>

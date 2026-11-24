@@ -90,6 +90,7 @@ assets/
     chat_juridico.js       chat com o Gerente de Interface Jurídica
     oficio-modelo.js       papel timbrado do Ofício SEMAC – GFP
     ar-nova-tentativa.js   AR esperando a nova tentativa de entrega (prazo parado; 30 dias → Etapa 30)
+    painel-layout.js       Painel: menu lateral recolhível (☰) e rolagem lateral das tabelas
     prazos.js              contagem de prazos (corridos/úteis) com fins de semana, feriados e pontos facultativos
     oficio-avulso.js       ofícios avulsos (aba Ofícios do painel)
     brasao-base64.js       brasão embutido para os PDFs
@@ -178,6 +179,11 @@ Regras extras:
   fila (`devolver_numero`) e `dados.numeracao_dispensada` impede reservar outro
   (`oferecerNaoGastarNumeracaoDev`). O número do **Auto de Infração** não entra nisso: ele é
   obrigatório no registro do Auto (`autos_infracao.numero`).
+- **Dev ao avançar sem anexo:** onde o avanço exige um anexo (NP e Relatório Fiscal assinados
+  na Etapa 1, AR, Edital, Réplica, Certidão, Relatório Fiscal e Auto assinados na 14, multa na
+  15, defesa marcada sem a defesa registrada, resposta ao jurídico, Despacho, nova multa da
+  Fazenda), o Dev recebe o aviso com a pergunta "avançar mesmo assim, sem o anexo?" e pode
+  seguir (`bloquearSemAnexo`). Os outros cargos continuam bloqueados.
 - O cargo é normalizado pelo texto: "interface" ou "gerente + jurídic" = Gerente de Interface Jurídica; "admin" = Administrativo; "diretor + meio ambiente" = Gerente (mesmas opções do Gerente de Posturas: etapas, ofícios, destaque de multa, chat como Gerência); e assim por diante.
 - No painel, as linhas são coloridas pelo cargo responsável pela etapa atual (Gerente, Jurídico, Administrativo, Secretário).
 
@@ -423,6 +429,8 @@ Ordenar por (prazo). Acima da tabela aparece o total de processos do filtro (ex.
 processos por decreto"), além de quantos já foram carregados; com o filtro Responsável, que é
 aplicado no navegador, só a quantidade carregada.
 
+**Menu e rolagem:** o botão ☰ no cabeçalho abre e fecha o menu lateral (e o "‹" dentro dele fecha). Em tela grande, o menu fechado fica fechado da próxima vez (salvo no navegador). Em tela de até 768px, o menu começa fechado e abre por cima do conteúdo. Quando a tabela não cabe na tela, ela rola para os lados, com uma barra em cima e outra embaixo que andam juntas (`painel-layout.js`).
+
 **Tabela:** Protocolo, Código reduzido, Nome do Solicitante, Data Início, Data Final, Dias p/
 Vencimento, Fiscal, Situação (etiquetas por notificação), Etapa e Detalhes (abre o
 processo na etapa em que parou). A etapa exibida é a mais avançada entre as notificações
@@ -645,6 +653,31 @@ para avançar.
 | Defere | 25 (Gerente Cumpre o Decreto) | O valor da multa é ajustado lá, pelo desfecho escolhido |
 | Indefere | 18 | O Auto volta ao painel com o card em branco, para outra opção |
 
+**Prazo parado durante a análise:** marcada "Defesa" ou "Dilação de prazo" na Etapa 2, o
+vencimento da notificação para de correr (`dados.prazo_pausado_analise`, `data_vencimento`
+vazio: o painel, o sino de prazo vencido e a ida automática para o Auto deixam de contar). Na
+decisão da Etapa 5 (dilação) ou da 13 (defesa), ou se a notificação volta para a Etapa 2, o
+prazo é retomado com o tempo que faltava quando parou; a dilação deferida soma os dias a esse
+vencimento retomado. Prazo que ainda não tinha começado (sem recebimento/Edital) não é tocado.
+No **Auto de Infração**, vale para as opções "Defesa" e "Desconto" da Etapa 18: o prazo fica
+parado durante o Jurídico/Secretário (19 a 24) ou a Análise de desconto (26) e é retomado na
+Etapa 25 (o "retoma os dias que faltavam" conta a partir do que faltava quando parou) ou
+quando o Auto volta para a Etapa 18 (desconto indeferido, volta de etapa).
+
+**Solicitar parecer (Etapas 5 e 13):** no lugar do "Paralisar aguardando o Jurídico", o quadro
+"Solicitar parecer" tem os botões **Gerente** e **Jurídico**. O pedido grava
+`dados.pareceres_solicitados` na notificação, manda no chat do processo a mensagem "Solicito
+parecer do Gerente" / "Solicito parecer do Jurídico" e avisa no sino o Gerente (de Posturas)
+ou o Gerente de Interface Jurídica. Quem foi chamado (ou o Dev) vê, na mesma etapa, o botão
+**Anexar parecer** (PDF, Word ou imagem, enviado ao Cloudinary); ao anexar, o fiscal
+responsável recebe aviso no sino e no chat para voltar e gerar a Réplica. O prazo já fica
+parado durante a análise (ver acima), por isso não há mais o botão de paralisar nessas etapas.
+
+**Texto adicional do deferimento (Etapas 5, 13 e 26):** com "Defere", aparece um campo de
+texto opcional. O que o fiscal escrever entra na Réplica logo abaixo da frase do deferimento
+("…prorrogado por mais N dias.", "…defesa… foi deferido.", "…desconto… foi deferido.") e
+fica em `dados.etapa5/13/26.observacao_deferimento`.
+
 **Outros documentos (Etapas 5, 13 e 26):** abaixo do anexo da Réplica, o mesmo bloco da
 defesa (anexar, arrastar, colar com Ctrl+V, Visualizar e Excluir), só com arquivos e opcional.
 Fica em `notificacoes.dados.anexos_replica` e na tabela `documentos` com o tipo
@@ -747,6 +780,7 @@ negrito. Se os modelos não estiverem no banco, a tela usa uma cópia embutida d
 
 **Quem:** Fiscal (e Gerente). Encerramento positivo: cumprimento, defesa deferida, pagamento ou cancelamento.
 - **PDF completo** com a **Certidão de Encerramento no final**. Depois de anexada, a certidão assinada entra no lugar da gerada.
+- **Texto adicional da Certidão** (primeiro campo da tela, opcional, só na Certidão de cumprimento da NP): entra logo abaixo de "Certifico o cumprimento da obrigação, dá-se por encerrado a Notificação Preliminar." e fica em `dados.certidao_texto_adicional`. Some depois que a notificação é encerrada (o texto continua na Certidão).
 - Baixar Certidão de Encerramento, Relatório de Etapas e pacote **.ZIP** com todos os documentos.
 - Anexo da **Certidão assinada** (obrigatório) e tabela com as etapas percorridas.
 - **"Sim, Encerrar Definitivamente":** a notificação/Auto fica `encerrada`. Antes disso, o
@@ -850,6 +884,11 @@ Menu lateral de `painel.html`:
   mesma ordem de documentos; se ela já está encerrada, sai como a cópia do encerramento.
   Link: `etapa.html?processo=<id>&notificacao=<id>&pdf_unido=1`.
 - **Notificações:** sino com avisos ao usuário (ex.: devolução do AR, gerente pediu certidão).
+  Os avisos ficam em `processos.dados.notificacoes_menu`, para uma pessoa (`destinatario_id`)
+  ou um cargo (`destinatario_cargo`). Além dos processos da lista, o sino busca os avisos
+  **não lidos** da pessoa em todos os processos (`notificacoes_menu_do_usuario`, com índice GIN
+  em `dados->'notificacoes_menu'`), na abertura do painel e no máximo 1 vez por minuto. Abrir
+  um processo marca como lidos só os avisos de quem abriu.
 - **Ofícios:** ofícios SEMAC – GFP avulsos, com número, data, origem, assunto, autor e situação. Visível e gerado por Gerente de Posturas, Diretor(a) de Meio Ambiente, Administrativo e Dev. Imagens vão para o Cloudinary.
 - **Instruções:** índice com uma instrução por etapa (objetivo, passos, checklist próprio salvo no navegador e "Próxima etapa" com os caminhos possíveis), em **Lista** ou **Fluxograma** (da esquerda para a direita, em 3 faixas; cards com etapa e cargo, setas a partir de `PROXIMAS_ETAPAS`; clicar no card abre a instrução). Filtro "só as etapas do meu cargo". O "Processo já existente" tem instrução própria, só na lista. Conteúdo em `assets/js/instrucoes.js`.
 - **Apuração de dados:** gráficos de processos e valor de multas por fiscal. O valor vem de

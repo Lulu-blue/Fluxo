@@ -1151,8 +1151,7 @@
             const texto = (document.getElementById(`${pre}Resposta`)?.value || '').trim();
             const anexos = dadosEtapa(etapa).anexos || [];
             if (!texto && !anexos.length) {
-                alert('Escreva a resposta ao jurídico ou anexe ao menos um documento.');
-                return;
+                if ((window.bloquearSemAnexo ? window.bloquearSemAnexo('Escreva a resposta ao jurídico ou anexe ao menos um documento.') : (alert('Escreva a resposta ao jurídico ou anexe ao menos um documento.'), true))) return;
             }
 
             mostrarCarregamento('Devolvendo ao Jurídico...');

@@ -654,8 +654,7 @@
             return;
         }
         if (!form.despacho_texto.trim() && !(dados24().anexos || []).length) {
-            alert('Gere o Despacho Administrativo (item 4) ou anexe o documento assinado (item 3).');
-            return;
+            if ((window.bloquearSemAnexo ? window.bloquearSemAnexo('Gere o Despacho Administrativo (item 4) ou anexe o documento assinado (item 3).') : (alert('Gere o Despacho Administrativo (item 4) ou anexe o documento assinado (item 3).'), true))) return;
         }
         // Colchetes pendentes barram o avanço, igual ao parecer da Etapa 19.
         const pendencias = P().listarPendencias(form.despacho_texto);

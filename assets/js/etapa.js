@@ -1380,6 +1380,11 @@ function renderizarFormularioDinamico(etapaNum) {
                         <input type="number" id="inputDiasDilacao" class="form-input" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:white;" value="${notificacaoAtual?.dados?.etapa5?.dias || 0}">
                     </div>
 
+                    <div id="blocoObsDeferimento" style="display: ${decisaoAnterior === 'defere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label for="txtObsDeferimento" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Texto adicional (opcional):</label>
+                        <textarea id="txtObsDeferimento" class="form-input" onchange="window.gerarReplica()" placeholder="Entra na Réplica logo abaixo do deferimento..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${escaparHtmlObsDeferimento(notificacaoAtual?.dados?.etapa5?.observacao_deferimento || '')}</textarea>
+                    </div>
+
                     <div id="blocoJustificativaDilacao" style="display: ${(decisaoAnterior === 'indefere' || decisaoAnterior === 'gerente') ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
                         <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo (pois):</label>
                         <textarea id="txtJustificativaDilacao" class="form-input" placeholder="Descreva o motivo..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${justificativaAnterior}</textarea>
@@ -1395,7 +1400,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
                 <div style="margin-top:16px;">${(ligarEventosBlocoDefesa(), htmlBlocoDefesaNotificacao(notificacaoAtual, 'replica'))}</div>
-                ${htmlBotaoParalisarJuridico()}
+                ${htmlBlocoSolicitarParecer()}
             </div>
         `;
     } else if (etapaNum === 26) {
@@ -1436,6 +1441,11 @@ function renderizarFormularioDinamico(etapaNum) {
                             <option value="defere" ${decisaoAnterior === 'defere' ? 'selected' : ''}>Defere</option>
                             <option value="indefere" ${decisaoAnterior === 'indefere' ? 'selected' : ''}>Indefere</option>
                         </select>
+                    </div>
+
+                    <div id="blocoObsDeferimento" style="display: ${decisaoAnterior === 'defere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label for="txtObsDeferimento" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Texto adicional (opcional):</label>
+                        <textarea id="txtObsDeferimento" class="form-input" onchange="window.gerarReplica()" placeholder="Entra na Réplica logo abaixo do deferimento..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${escaparHtmlObsDeferimento(notificacaoAtual?.dados?.etapa26?.observacao_deferimento || '')}</textarea>
                     </div>
 
                     <div id="blocoJustificativaDesconto" style="display: ${decisaoAnterior === 'indefere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
@@ -1601,6 +1611,11 @@ function renderizarFormularioDinamico(etapaNum) {
                         </select>
                     </div>
 
+                    <div id="blocoObsDeferimento" style="display: ${decisaoAnterior === 'defere' ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <label for="txtObsDeferimento" style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Texto adicional (opcional):</label>
+                        <textarea id="txtObsDeferimento" class="form-input" onchange="window.gerarReplica()" placeholder="Entra na Réplica logo abaixo do deferimento..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${escaparHtmlObsDeferimento(notificacaoAtual?.dados?.etapa13?.observacao_deferimento || '')}</textarea>
+                    </div>
+
                     <div id="blocoJustificativaDilacao" style="display: ${(decisaoAnterior === 'indefere' || decisaoAnterior === 'gerente') ? 'block' : 'none'}; background:#f8fafc; padding:16px; border-radius:10px; border:1px solid #e2e8f0;">
                         <label style="display:block; font-size:0.9rem; font-weight:600; color:#334155; margin-bottom:8px;">Motivo (pois):</label>
                         <textarea id="txtJustificativaDilacao" class="form-input" placeholder="Descreva o motivo..." rows="4" style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical;">${justificativaAnterior}</textarea>
@@ -1616,7 +1631,7 @@ function renderizarFormularioDinamico(etapaNum) {
                 </div>
                 ${gerarHtmlBlocoAnexoReplica()}
                 <div style="margin-top:16px;">${(ligarEventosBlocoDefesa(), htmlBlocoDefesaNotificacao(notificacaoAtual, 'replica'))}</div>
-                ${htmlBotaoParalisarJuridico()}
+                ${htmlBlocoSolicitarParecer()}
             </div>
         `;
     } else if (etapaNum === 7) {
@@ -2260,6 +2275,8 @@ function renderizarFormularioDinamico(etapaNum) {
                         <p style="margin:4px 0 0 0; color:#64748b; font-size:0.95rem;">Verifique os documentos e o relatório de etapas antes de concluir definitivamente.</p>
                     </div>
                 </div>
+
+                ${htmlCampoTextoAdicionalCertidao()}
 
                 <!-- Documento Completo do Processo -->
                 <div style="background:linear-gradient(135deg, #1e293b, #0f172a); border-radius:14px; padding:24px; color:white; margin-bottom:24px; box-shadow:0 6px 16px rgba(15,23,42,0.15);">
@@ -2912,23 +2929,25 @@ async function carregarProcessoCompleto(processoId) {
         proc.etapa_atual = etapaAtual;
         if (notificacaoAtual) proc.etapa_atual_id = notificacaoAtual.etapa_atual_id || etapaAtual;
 
-        // Marca a notificação como lida automaticamente ao abrir a página do processo
+        // Marca como lidas, ao abrir a página do processo, só as notificações do
+        // sino que são para quem abriu. Antes marcava todas: o fiscal que pedia um
+        // parecer recarregava a página e o aviso do Gerente/Jurídico já nascia lido.
         let alterouLida = false;
         if (notificacaoAtual?.dados?.notificacoes_menu) {
             notificacaoAtual.dados.notificacoes_menu.forEach(n => {
-                if (!n.lida) { n.lida = true; alterouLida = true; }
+                if (!n.lida && notificacaoMenuEhParaMim(n)) { n.lida = true; alterouLida = true; }
             });
         }
         if (proc?.dados?.notificacoes_menu) {
             proc.dados.notificacoes_menu.forEach(n => {
-                if (!n.lida) { n.lida = true; alterouLida = true; }
+                if (!n.lida && notificacaoMenuEhParaMim(n)) { n.lida = true; alterouLida = true; }
             });
         }
         if (proc?.notificacoes) {
             proc.notificacoes.forEach(sub => {
                 if (sub?.dados?.notificacoes_menu) {
                     sub.dados.notificacoes_menu.forEach(n => {
-                        if (!n.lida) { n.lida = true; alterouLida = true; }
+                        if (!n.lida && notificacaoMenuEhParaMim(n)) { n.lida = true; alterouLida = true; }
                     });
                 }
             });
@@ -3506,6 +3525,66 @@ function dadosDaReincidencia(proc) {
 }
 window.dadosDaReincidencia = dadosDaReincidencia;
 
+// ── Prazo parado durante a análise de Defesa ou Dilação ────────────────────
+// Marcada "Defesa" ou "Dilação de prazo" na Etapa 2 (ao salvar/avançar), ou
+// "Defesa" ou "Desconto" no Auto de Infração (Etapa 18), o
+// vencimento da notificação para de correr: a data é guardada em
+// dados.prazo_pausado_analise e data_vencimento fica vazio (o painel, o sino de
+// prazo vencido e o Auto deixam de contar). Na decisão (Etapas 5 e 13), na
+// Etapa 25 (cumprimento do despacho/desconto), ou se a notificação volta para a
+// Etapa 2 ou 18, o prazo é retomado com o tempo que faltava.
+const STATUS_QUE_PARAM_PRAZO = ['defesa', 'dilacao'];
+const OPCOES_AUTO_QUE_PARAM_PRAZO = ['defesa', 'desconto'];
+
+function prazoPausadoPorAnalise(notif) {
+    return notif?.dados?.prazo_pausado_analise || null;
+}
+window.prazoPausadoPorAnalise = prazoPausadoPorAnalise;
+// vencimentoRetomadoAnalise (função declarada abaixo) já fica em window: por ser
+// declarada no topo do script, é global. Reatribuir window.vencimentoRetomadoAnalise
+// a um embrulho que chama ela mesma substituía a função e virava recursão infinita.
+
+// Campos para gravar a pausa. null quando não há o que pausar (já pausado ou
+// prazo ainda não começou).
+function camposPausarPrazoAnalise(notif, status, dadosBase) {
+    // Só o vencimento gravado no banco: o calculado para a tela (prazo que ainda
+    // não começou) não pode virar prazo correndo na retomada
+    const venc = notif && ('data_vencimento_banco' in notif) ? notif.data_vencimento_banco : notif?.data_vencimento;
+    if (!notif || prazoPausadoPorAnalise(notif) || !venc) return null;
+    return {
+        dados: {
+            ...(dadosBase || notif.dados || {}),
+            prazo_pausado_analise: {
+                em: new Date().toISOString(),
+                vencimento_pausado: venc,
+                status
+            }
+        },
+        data_vencimento: null
+    };
+}
+
+// Vencimento com o tempo que faltava quando o prazo parou (agora + restante).
+// Se já estava vencido ao parar, continua vencido pelos mesmos dias.
+function vencimentoRetomadoAnalise(notif) {
+    const info = prazoPausadoPorAnalise(notif);
+    if (!info) return notif?.data_vencimento || null;
+    if (!info.vencimento_pausado) return null;
+    const restanteMs = new Date(info.vencimento_pausado).getTime() - new Date(info.em).getTime();
+    if (isNaN(restanteMs)) return info.vencimento_pausado;
+    return new Date(Date.now() + restanteMs).toISOString();
+}
+
+// Retoma na própria notificação (objeto em memória): data_vencimento volta e a
+// marca da pausa sai de dados. Grave depois com data_vencimento e dados.
+function retomarPrazoAnalise(notif) {
+    if (!prazoPausadoPorAnalise(notif)) return false;
+    notif.data_vencimento = vencimentoRetomadoAnalise(notif);
+    notif.dados = { ...(notif.dados || {}) };
+    delete notif.dados.prazo_pausado_analise;
+    return true;
+}
+
 // ── Paralisação aguardando o Jurídico ──────────────────────────────────────
 // A conversa com o Jurídico acontece no chat. Enquanto ela não volta, o fiscal
 // pode paralisar o processo: o prazo para de correr e todo mundo vê o aviso.
@@ -3555,6 +3634,273 @@ function htmlBotaoParalisarJuridico() {
         </div>`;
 }
 window.htmlBotaoParalisarJuridico = htmlBotaoParalisarJuridico;
+
+// ── Solicitar parecer (Etapas 5 e 13) ─────────────────────────────────────
+// O fiscal pede o parecer do Gerente (Gerente de Posturas) ou do Jurídico
+// (Gerente de Interface Jurídica). O pedido vai como mensagem no chat do
+// processo ("Solicito parecer do ...") e no sino do cargo. Quem foi chamado vê,
+// na mesma etapa, o campo para anexar o parecer; ao anexar, o fiscal
+// responsável é avisado no sino (e no chat) para voltar e gerar a Réplica.
+// Fica em notificacoes.dados.pareceres_solicitados = [{ id, destino, etapa,
+//   solicitado_em, solicitado_por, solicitado_por_nome,
+//   anexos: [{ nome, url, tipo, enviado_em, enviado_por }] }]
+const PARECER_DESTINOS = {
+    gerente: {
+        rotulo: 'Gerente',
+        mensagem: 'Solicito parecer do Gerente',
+        cargoSino: 'Gerente',
+        cargos: ['Gerente'],
+        papelChat: 'gerente'
+    },
+    juridico: {
+        rotulo: 'Jurídico',
+        mensagem: 'Solicito parecer do Jurídico',
+        cargoSino: 'Gerente de Interface Jurídica',
+        cargos: ['Gerente de Interface Jurídica', 'Jurídico'],
+        papelChat: 'juridico'
+    }
+};
+
+function pareceresSolicitados() {
+    const lista = notificacaoAtual?.dados?.pareceres_solicitados;
+    return Array.isArray(lista) ? lista : [];
+}
+
+function usuarioEhDestinoDoParecer(destino) {
+    if (usuarioEhDev()) return true;
+    const cfg = PARECER_DESTINOS[destino];
+    return !!cfg && cfg.cargos.includes(normalizarCargo(perfilAtual?.cargo));
+}
+
+function dataHoraCurta(iso) {
+    const d = new Date(iso || '');
+    return isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function htmlBlocoSolicitarParecer() {
+    if (!notificacaoAtual) return '';
+    const esc = escaparHtmlObsDeferimento;
+    const podeSolicitar = podeGerenciarEtapaAtual();
+    const botao = 'padding:9px 18px; border-radius:8px; border:1px solid #6366f1; background:#eef2ff; color:#3730a3; font-weight:700; font-size:0.85rem; cursor:pointer;';
+
+    const itens = pareceresSolicitados().map(p => {
+        const cfg = PARECER_DESTINOS[p.destino] || { rotulo: p.destino };
+        const anexos = Array.isArray(p.anexos) ? p.anexos : [];
+        const listaAnexos = anexos.map(a => `
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.85rem; margin-top:6px;">
+                    <a href="${esc(a.url)}" target="_blank" rel="noopener" style="color:#1d4ed8; font-weight:600;">${esc(a.nome || 'Parecer')}</a>
+                    <span style="color:#64748b;">anexado por ${esc(a.enviado_por || '—')} em ${dataHoraCurta(a.enviado_em)}</span>
+                </div>`).join('');
+        const situacao = anexos.length
+            ? '<span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:10px; font-size:0.75rem; font-weight:700;">Parecer anexado</span>'
+            : '<span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:10px; font-size:0.75rem; font-weight:700;">Aguardando parecer</span>';
+        const campoAnexar = usuarioEhDestinoDoParecer(p.destino) ? `
+                <div style="margin-top:10px;">
+                    <label style="display:inline-flex; align-items:center; gap:6px; ${botao} border-color:#10b981; background:#ecfdf5; color:#047857;">
+                        Anexar parecer
+                        <input type="file" accept=".pdf,.doc,.docx,image/*" style="display:none;" onchange="window.anexarParecerSolicitado('${esc(p.id)}', this)">
+                    </label>
+                </div>` : '';
+        return `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; margin-top:10px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <strong style="color:#334155; font-size:0.9rem;">Parecer do ${esc(cfg.rotulo)}</strong>
+                    ${situacao}
+                </div>
+                <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">Solicitado em ${dataHoraCurta(p.solicitado_em)} por ${esc(p.solicitado_por_nome || '—')}</div>
+                ${listaAnexos}
+                ${campoAnexar}
+            </div>`;
+    }).join('');
+
+    if (!podeSolicitar && !itens) return '';
+    return `
+        <div style="margin-top:16px; padding:14px 16px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:10px;">
+            <div style="font-weight:700; color:#334155; font-size:0.95rem;">Solicitar parecer</div>
+            ${podeSolicitar ? `
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+                <button type="button" onclick="window.solicitarParecer('gerente')" style="${botao}">Gerente</button>
+                <button type="button" onclick="window.solicitarParecer('juridico')" style="${botao}">Jurídico</button>
+            </div>` : ''}
+            ${itens}
+        </div>`;
+}
+window.htmlBlocoSolicitarParecer = htmlBlocoSolicitarParecer;
+
+// Mensagem automática no chat do processo (chats_interface_juridica). Falha no
+// chat não impede o pedido: o aviso do sino é o que garante a notificação.
+async function enviarMensagemChatAutomatica(texto, destino) {
+    try {
+        const paraFiscal = destino === 'fiscal';
+        const fiscal = paraFiscal ? window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual) : null;
+        const ehFiscal = normalizarCargo(perfilAtual?.cargo) === 'Fiscal de Postura';
+        const msg = {
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+            sender_id: perfilAtual?.id || null,
+            sender_nome: perfilAtual?.nome || 'Usuário',
+            sender_cargo: perfilAtual?.cargo || '',
+            destinatario: destino,
+            destinatario_id: paraFiscal ? (processoAtual.fiscal_id || null) : null,
+            destinatario_nome: paraFiscal ? (fiscal?.nome || null) : null,
+            texto,
+            anexos: [],
+            created_at: new Date().toISOString()
+        };
+        const { data: chat } = await supabaseClient
+            .from('chats_interface_juridica')
+            .select('id, mensagens')
+            .eq('processo_id', processoAtual.id)
+            .maybeSingle();
+        if (chat) {
+            await supabaseClient
+                .from('chats_interface_juridica')
+                .update({
+                    mensagens: [...(chat.mensagens || []), msg],
+                    lida_gerente: !ehFiscal,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', chat.id);
+        } else {
+            await supabaseClient
+                .from('chats_interface_juridica')
+                .insert({
+                    processo_id: processoAtual.id,
+                    notificacao_id: notificacaoAtual?.id || null,
+                    solicitante_id: perfilAtual?.id || null,
+                    solicitante_nome: perfilAtual?.nome || 'Usuário',
+                    solicitante_cargo: perfilAtual?.cargo || '',
+                    mensagens: [msg],
+                    lida_gerente: !ehFiscal
+                });
+        }
+    } catch (e) {
+        console.warn('[Parecer] Mensagem automática no chat não foi gravada:', e);
+    }
+}
+
+// Aviso no sino, lendo o menu atual do banco (para não apagar avisos novos)
+async function enviarAvisoSinoProcesso(aviso) {
+    const { data: proc } = await supabaseClient
+        .from('processos')
+        .select('notificacoes_menu:dados->notificacoes_menu')
+        .eq('id', processoAtual.id)
+        .maybeSingle();
+    const menu = Array.isArray(proc?.notificacoes_menu) ? proc.notificacoes_menu : [];
+    menu.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        processo_id: processoAtual.id,
+        numero_processo: processoAtual.numero_processo || '',
+        notificacao_id: notificacaoAtual?.id || null,
+        lida: false,
+        created_at: new Date().toISOString(),
+        ...aviso
+    });
+    const { error } = await supabaseClient.rpc('atualizar_notificacoes_processo', {
+        p_processo_id: processoAtual.id,
+        p_notificacoes: menu
+    });
+    if (error) throw error;
+}
+
+function etapaAtualDaNotificacao() {
+    return parseInt(notificacaoAtual?.etapas?.numero || notificacaoAtual?.etapa_atual || notificacaoAtual?.etapa_atual_id || 0, 10);
+}
+
+window.solicitarParecer = async function (destino) {
+    const cfg = PARECER_DESTINOS[destino];
+    if (!cfg || !notificacaoAtual) return;
+    if (!confirm(`Solicitar o parecer do ${cfg.rotulo}?\n\nA mensagem "${cfg.mensagem}" será enviada e o ${cfg.cargoSino} será notificado.`)) return;
+
+    mostrarCarregamento('Solicitando parecer...');
+    try {
+        const etapa = etapaAtualDaNotificacao();
+        const pedido = {
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+            destino,
+            etapa,
+            solicitado_em: new Date().toISOString(),
+            solicitado_por: perfilAtual?.id || null,
+            solicitado_por_nome: perfilAtual?.nome || '',
+            anexos: []
+        };
+        const dados = { ...(notificacaoAtual.dados || {}) };
+        dados.pareceres_solicitados = [...pareceresSolicitados(), pedido];
+        await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados });
+        notificacaoAtual.dados = dados;
+
+        await enviarAvisoSinoProcesso({
+            tipo: 'parecer_solicitado',
+            titulo: `${cfg.mensagem}`,
+            mensagem: `${perfilAtual?.nome || 'O fiscal'} solicita o parecer do ${cfg.rotulo} no processo ${processoAtual.numero_processo || ''} (notificação ${notificacaoAtual.numero || ''}, Etapa ${etapa}). Abra o processo para anexar o parecer.`,
+            destinatario_cargo: cfg.cargoSino,
+            destinatario_id: null
+        });
+        await enviarMensagemChatAutomatica(cfg.mensagem, cfg.papelChat);
+        location.reload();
+    } catch (err) {
+        console.error('[Parecer] Erro ao solicitar:', err);
+        alert('Não foi possível solicitar o parecer.\n\n' + (err?.message || err));
+        ocultarCarregamento();
+    }
+};
+
+window.anexarParecerSolicitado = async function (pedidoId, input) {
+    const file = input?.files?.[0];
+    if (!file || !notificacaoAtual) return;
+    const lista = pareceresSolicitados();
+    const pedido = lista.find(p => String(p.id) === String(pedidoId));
+    if (!pedido) return;
+    if (!usuarioEhDestinoDoParecer(pedido.destino)) {
+        alert('Só o cargo de quem o parecer foi solicitado pode anexá-lo.');
+        return;
+    }
+    const cfg = PARECER_DESTINOS[pedido.destino];
+
+    mostrarCarregamento('Enviando o parecer...');
+    try {
+        const url = typeof window.uploadParaCloudinary === 'function'
+            ? await window.uploadParaCloudinary(file, 'pareceres')
+            : null;
+        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+            throw new Error('O envio do arquivo não funcionou. Recarregue a página (Ctrl+F5) e tente de novo.');
+        }
+
+        const novaLista = lista.map(p => String(p.id) === String(pedidoId)
+            ? {
+                ...p,
+                anexos: [...(p.anexos || []), {
+                    nome: file.name,
+                    url,
+                    tipo: file.type || '',
+                    enviado_em: new Date().toISOString(),
+                    enviado_por: perfilAtual?.nome || ''
+                }]
+            }
+            : p);
+        const dados = { ...(notificacaoAtual.dados || {}), pareceres_solicitados: novaLista };
+        await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados });
+        notificacaoAtual.dados = dados;
+
+        // Aviso ao fiscal responsável (quem criou o processo)
+        if (processoAtual.fiscal_id) {
+            await enviarAvisoSinoProcesso({
+                tipo: 'parecer_anexado',
+                titulo: `Parecer do ${cfg.rotulo} anexado`,
+                mensagem: `${perfilAtual?.nome || 'O ' + cfg.rotulo} anexou o parecer do ${cfg.rotulo} no processo ${processoAtual.numero_processo || ''} (notificação ${notificacaoAtual.numero || ''}). Volte ao processo para gerar a Réplica.`,
+                destinatario_cargo: 'Fiscal de Postura',
+                destinatario_id: processoAtual.fiscal_id
+            });
+        }
+        await enviarMensagemChatAutomatica(`Parecer do ${cfg.rotulo} anexado na Etapa ${etapaAtualDaNotificacao()}. Pode gerar a Réplica.`, 'fiscal');
+        location.reload();
+    } catch (err) {
+        console.error('[Parecer] Erro ao anexar:', err);
+        alert('Não foi possível anexar o parecer.\n\n' + (err?.message || err));
+        ocultarCarregamento();
+    } finally {
+        if (input) input.value = '';
+    }
+};
 
 window.paralisarProcessoJuridico = async function () {
     if (!notificacaoAtual) return;
@@ -3655,14 +4001,13 @@ async function avancarEtapa5() {
     }
 
     if (!temAnexoReplica) {
-        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.');
-        return;
+        if (bloquearSemAnexo('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.')) return;
     }
 
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
-    notificacaoAtual.dados.etapa5 = { decisao, justificativa, dias, data_decisao: new Date().toISOString() };
+    notificacaoAtual.dados.etapa5 = { decisao, justificativa, dias, observacao_deferimento: decisao === 'defere' ? lerObsDeferimento() : '', data_decisao: new Date().toISOString() };
 
     // Atualiza/Gera e salva a Réplica HTML no banco antes de mover de etapa
     if (typeof window.gerarReplica === 'function') {
@@ -3673,7 +4018,9 @@ async function avancarEtapa5() {
     let motivo = 'Dilação deferida';
 
     if (decisao === 'defere') {
-        // Dilação: os dias correm a partir do vencimento atual (mesma contagem dos prazos)
+        // Dilação: os dias correm a partir do vencimento atual (mesma contagem dos
+        // prazos). O prazo estava parado durante a análise: volta com o que faltava.
+        retomarPrazoAnalise(notificacaoAtual);
         let atualVenc = notificacaoAtual.data_vencimento ? new Date(notificacaoAtual.data_vencimento) : new Date();
         atualVenc = window.calcularVencimentoPrazo(atualVenc, dias, false);
         notificacaoAtual.data_vencimento = atualVenc.toISOString();
@@ -3686,6 +4033,8 @@ async function avancarEtapa5() {
         // volta para a Etapa 2 para cumprir a notificação. Só vai para a análise
         // da Etapa 7 quando o prazo já venceu. Sem vencimento (prazo ainda não
         // começou ou processo paralisado), trata como dentro do prazo.
+        // O prazo estava parado durante a análise: volta com o que faltava.
+        retomarPrazoAnalise(notificacaoAtual);
         const prazo = notificacaoAtual.data_vencimento
             ? formatarDiasRestantes(notificacaoAtual.data_vencimento)
             : { vencido: false };
@@ -3742,14 +4091,13 @@ async function avancarEtapa26() {
     }
 
     if (!temAnexoReplica) {
-        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.');
-        return;
+        if (bloquearSemAnexo('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.')) return;
     }
 
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
-    notificacaoAtual.dados.etapa26 = { decisao, justificativa, data_decisao: new Date().toISOString() };
+    notificacaoAtual.dados.etapa26 = { decisao, justificativa, observacao_deferimento: decisao === 'defere' ? lerObsDeferimento() : '', data_decisao: new Date().toISOString() };
 
     // Atualiza/Gera e salva a Réplica HTML no banco antes de mover de etapa
     if (typeof window.gerarReplica === 'function') {
@@ -3804,14 +4152,13 @@ async function avancarEtapa13() {
     }
 
     if (!temAnexoReplica) {
-        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.');
-        return;
+        if (bloquearSemAnexo('Anexo obrigatório!\n\nPor favor, anexe o PDF da Réplica assinada antes de avançar a etapa.')) return;
     }
 
     mostrarCarregamento('Avançando etapa...');
 
     notificacaoAtual.dados = notificacaoAtual.dados || {};
-    notificacaoAtual.dados.etapa13 = { decisao, justificativa, data_decisao: new Date().toISOString() };
+    notificacaoAtual.dados.etapa13 = { decisao, justificativa, observacao_deferimento: decisao === 'defere' ? lerObsDeferimento() : '', data_decisao: new Date().toISOString() };
 
     // Atualiza/Gera e salva a Réplica HTML no banco antes de mover de etapa
     if (typeof window.gerarReplica === 'function') {
@@ -3821,6 +4168,8 @@ async function avancarEtapa13() {
     // Sem a Etapa 10: deferida encerra (29). Indeferida segue o prazo da notificação:
     // vencido → Auto de Infração (14); ainda no prazo → volta para a Etapa 2, para o
     // contribuinte cumprir. Sem vencimento (não começou ou paralisado), conta como no prazo.
+    // O prazo estava parado durante a análise da defesa: volta com o que faltava.
+    retomarPrazoAnalise(notificacaoAtual);
     const prazo13 = notificacaoAtual.data_vencimento
         ? formatarDiasRestantes(notificacaoAtual.data_vencimento)
         : { vencido: false };
@@ -3839,7 +4188,7 @@ async function avancarEtapa13() {
         motivo = 'Defesa indeferida pelo Fiscal (ainda no prazo)';
     }
 
-    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, status: notificacaoAtual.status });
+    await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados, status: notificacaoAtual.status, data_vencimento: notificacaoAtual.data_vencimento });
     await moverProcessoParaEtapa(proxEtapa, motivo);
 }
 
@@ -3920,6 +4269,8 @@ async function avancarEtapa11() {
         motivo = 'Gerente dilatou prazo';
 
         notificacaoAtual.data_vencimento = dataVencimento + 'T23:59:59Z';
+        // A data nova substitui o prazo que estava parado durante a análise
+        if (notificacaoAtual.dados) delete notificacaoAtual.dados.prazo_pausado_analise;
         // Impede que o fiscal peça nova dilação na Etapa 2
         notificacaoAtual.dados.etapa2_ja_pediu_dilacao = true;
     } else if (decisao === 'retorna_fiscal') {
@@ -4015,10 +4366,11 @@ async function finalizarEBaixarZipNotificacao() {
 
     // Só encerra depois da Certidão Assinada anexada
     if (typeof window.certidaoAssinadaAnexada === 'function' && !(await window.certidaoAssinadaAnexada())) {
-        alert(`Anexe a Certidão Assinada antes de encerrar ${doc.artigo === 'o' ? 'o' : 'a'} ${doc.rotulo.toLowerCase()}.`);
-        const areaDrop = document.getElementById('areaDropCertidaoAssinada');
-        if (areaDrop) areaDrop.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
+        if (bloquearSemAnexo(`Anexe a Certidão Assinada antes de encerrar ${doc.artigo === 'o' ? 'o' : 'a'} ${doc.rotulo.toLowerCase()}.`)) {
+            const areaDrop = document.getElementById('areaDropCertidaoAssinada');
+            if (areaDrop) areaDrop.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
     }
 
     if (!confirm(`Tem certeza que deseja encerrar ${doc.esteEsta.toLowerCase()} ${doc.rotulo.toLowerCase()} definitivamente?`)) {
@@ -4972,6 +5324,10 @@ async function moverProcessoParaEtapa(numeroEtapaDestino, motivo) {
                 updates.status = 'pendente';
                 notificacaoAtual.status = 'pendente';
             }
+            // Voltou para a Etapa 2 (NP) ou 18 (Auto) com o prazo parado: retoma
+            const retomouPrazo = (numeroEtapaDestino === 2 || numeroEtapaDestino === 18)
+                && retomarPrazoAnalise(notificacaoAtual);
+            if (retomouPrazo) updates.data_vencimento = notificacaoAtual.data_vencimento;
             // Voltou da Etapa 30 para a 16 (AR do Auto): mais 5 dias antes de
             // ir de novo para a Etapa 30
             if (numeroEtapaDestino === 16 && etapaAtualNum === 30) {
@@ -6023,6 +6379,18 @@ function numeroDocumentoCanonico(a, b) {
 function usuarioEhDev() {
     return typeof normalizarCargo === 'function' && normalizarCargo(perfilAtual?.cargo) === 'Dev';
 }
+
+// Anexo obrigatório faltando ao avançar: os outros cargos recebem o aviso e
+// ficam bloqueados (devolve true); o Dev pode escolher avançar sem o anexo
+// (devolve false quando ele confirma).
+function bloquearSemAnexo(mensagem) {
+    if (!usuarioEhDev()) {
+        alert(mensagem);
+        return true;
+    }
+    return !confirm(`${mensagem}\n\nVocê está como Dev: quer avançar mesmo assim, sem o anexo?`);
+}
+window.bloquearSemAnexo = bloquearSemAnexo;
 
 // Tira o filtro de formato (accept) do seletor de arquivos na hora do clique
 document.addEventListener('click', (e) => {
@@ -7989,8 +8357,7 @@ async function avancarEtapa1() {
         let msg = 'Atenção: Para avançar da Etapa 1, é obrigatório anexar os seguintes documentos no 2º passo:';
         if (!anexoNP) msg += '\n• Notificação Preliminar assinada';
         if (!anexoRF) msg += '\n• Relatório Fiscal assinado';
-        alert(msg);
-        return;
+        if (bloquearSemAnexo(msg)) return;
     }
 
     if (!confirm('Deseja avançar o processo para a Etapa 1.2 (Dados do AR)?\nApós o avanço, o Administrativo de Posturas fará o registro do AR.')) {
@@ -8765,7 +9132,7 @@ function htmlBlocoInfracaoAlvaraPJ(valFormatado) {
             <p style="margin:4px 0;"><strong>${TITULO_INFRACAO_ALVARA_PJ}: infração ao Artigo 190 e Artigo 191 seguintes da Lei 6.907/2008.</strong></p>
             <p style="margin:10px 0 6px 0;">O autuado tem que tomar as providências:</p>
             <ul style="margin: 6px 0 10px 0; padding-left: 20px;">
-                <li>Cessar imediatamente as atividades exercidas no local em face da não apresentação de Alvará de Localização e Funcionamento e/ou do não cumprimento das condições previstas no art. 191 da Lei 6907/08 (Incompatibilidade com a lei de uso e ocupação do solo).</li>
+                <li>Cessar imediatamente as atividades exercidas no local em face do não cumprimento das condições previstas no art. 191 da Lei 6907/08 (Incompatibilidade com a lei de uso e ocupação do solo).</li>
             </ul>
             <p style="margin:10px 0 0 0; text-align:justify;">O <strong>NÃO CUMPRIMENTO</strong> da presente notificação preliminar sujeitará o infrator às penalidades previstas pela Lei 6.907/2008, Artigo 195, e outras legislações. MULTA NO VALOR DE 50 UPFMD (Unidade Padrão Fiscal do Município de Divinópolis), atualmente correspondendo ao valor de: <strong>R$ ${valFormatado}</strong>.</p>`;
 }
@@ -9444,7 +9811,10 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
         const etapaNumero = parseInt(n.etapas?.numero || n.etapa_atual || 2, 10);
         const dataInicio = n.data_inicio || dataInicioGlobal;
         const prazoDias = n.prazo_dias || obterPrazoNotificacao(n.descricao);
-        const dataVencimento = n.data_vencimento || calcularDataVencimento(dataInicio, prazoDias);
+        // Prazo parado durante a análise de Defesa/Dilação: sem vencimento (não
+        // usa o calculado, senão parece que o prazo está correndo)
+        const pausado = !!n.dados?.prazo_pausado_analise;
+        const dataVencimento = pausado ? null : (n.data_vencimento || calcularDataVencimento(dataInicio, prazoDias));
         return {
             id: n.id,
             index,
@@ -9453,6 +9823,8 @@ function normalizarNotificacoesTabela(proc, notificacoes) {
             prazo_dias: prazoDias,
             data_inicio: dataInicio,
             data_vencimento: dataVencimento,
+            // O gravado no banco (null = prazo ainda não começou ou parado)
+            data_vencimento_banco: n.data_vencimento || null,
             status: n.status || 'pendente',
             etapa_atual: etapaNumero,
             data_movimentacao: n.data_movimentacao || null,
@@ -9487,6 +9859,8 @@ function calcularVencimentoDefesaAuto(dataInicio) {
 }
 
 function formatarDiasRestantes(dataVencimentoISO) {
+    // Sem vencimento (prazo parado ou ainda não começou): não está vencido
+    if (!dataVencimentoISO) return { texto: 'Prazo parado', vencido: false, dias: null, semVencimento: true };
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     const vencimento = new Date(dataVencimentoISO);
@@ -10154,7 +10528,16 @@ async function salvarEtapa2() {
             const n = notificacoesAtuais[i];
             const novoStatus = statusList[i] || n.status;
             if (n.id) {
-                await atualizarNotificacaoNoBanco(n.id, { status: novoStatus });
+                const upd = { status: novoStatus };
+                if (STATUS_QUE_PARAM_PRAZO.includes(novoStatus)) {
+                    // Defesa / Dilação: o prazo para enquanto é analisado
+                    Object.assign(upd, camposPausarPrazoAnalise(n, novoStatus) || {});
+                } else if (retomarPrazoAnalise(n)) {
+                    // Desmarcou Defesa/Dilação: o prazo volta a correr
+                    upd.dados = n.dados;
+                    upd.data_vencimento = n.data_vencimento;
+                }
+                await atualizarNotificacaoNoBanco(n.id, upd);
             }
         }
 
@@ -10266,8 +10649,8 @@ async function avancarEtapa2() {
         && !defesaTemConteudo(obterDefesaNotificacao(n, 'np')));
     if (semDefesaRegistrada.length) {
         ocultarCarregamento();
-        alert(`Marcada como "Defesa" sem a defesa registrada: ${semDefesaRegistrada.map(n => n.numero).join(', ')}.\n\nAnexe o arquivo ou escreva o texto da defesa no quadro da notificação.`);
-        return;
+        if (bloquearSemAnexo(`Marcada como "Defesa" sem a defesa registrada: ${semDefesaRegistrada.map(n => n.numero).join(', ')}.\n\nAnexe o arquivo ou escreva o texto da defesa no quadro da notificação.`)) return;
+        mostrarCarregamento('Avançando etapa...');
     }
 
     const temDefesa = notificacoes.some(n => n.status === 'defesa');
@@ -10440,8 +10823,7 @@ async function avancarNotificacaoEtapa2(index) {
     const isVencida = info.vencido;
 
     if (statusSelecionado === 'defesa' && !defesaTemConteudo(obterDefesaNotificacao(notif, 'np'))) {
-        alert('Para avançar com "Defesa", anexe o arquivo da defesa ou escreva o texto dela no quadro desta notificação.');
-        return;
+        if (bloquearSemAnexo('Para avançar com "Defesa", anexe o arquivo da defesa ou escreva o texto dela no quadro desta notificação.')) return;
     }
 
     if (!statusSelecionado || statusSelecionado === 'pendente') {
@@ -10511,13 +10893,18 @@ async function avancarNotificacaoEtapa2(index) {
                 usuario: perfilAtual?.nome || 'Sistema'
             });
 
-            await atualizarNotificacaoNoBanco(notif.id, {
+            const updNotif = {
                 status: statusSelecionado,
                 etapa_atual_id: proxEtapaId,
                 data_movimentacao: dataMov,
                 dados: notifDados
-            });
-            notif.dados = notifDados;
+            };
+            // Defesa / Dilação: o prazo para enquanto é analisado
+            if (STATUS_QUE_PARAM_PRAZO.includes(statusSelecionado)) {
+                Object.assign(updNotif, camposPausarPrazoAnalise(notif, statusSelecionado, notifDados) || {});
+            }
+            await atualizarNotificacaoNoBanco(notif.id, updNotif);
+            notif.dados = updNotif.dados;
         }
 
         // Atualiza cache JSONB
@@ -10701,7 +11088,10 @@ function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
             ? n.data_inicio
             : (obterInicioPrazoAR(proc, n)?.dataISO || dataInicioGlobal);
         const prazoDias = prazoGravado ? (n.prazo_dias || determinarPrazoAutoInfracao()) : determinarPrazoAutoInfracao();
-        const dataVencimento = prazoGravado ? n.data_vencimento : calcularVencimentoDefesaAuto(dataInicio);
+        // Prazo parado durante a análise (Defesa / Desconto): sem vencimento
+        const dataVencimento = n.dados?.prazo_pausado_analise
+            ? null
+            : (prazoGravado ? n.data_vencimento : calcularVencimentoDefesaAuto(dataInicio));
         const numAuto = n.dados?.etapa14?.numero_auto_infracao || proc.campos?.etapa14?.numero_auto_infracao || proc.dados?.etapa14?.numero_auto_infracao || n.numero || `${proc.numero_processo || 'S/N'}/${String(index + 1).padStart(2, '0')}`;
         return {
             id: n.id,
@@ -10711,6 +11101,9 @@ function normalizarAutosTabelaEtapa18(proc, notificacoes, dataArEnviado) {
             prazo_dias: prazoDias,
             data_inicio: dataInicio,
             data_vencimento: dataVencimento,
+            // O gravado no banco: o Auto já nasce com o vencimento da defesa, mesmo
+            // sem prazo_origem
+            data_vencimento_banco: n.data_vencimento || null,
             status: n.status || 'pendente',
             etapa_atual: etapaNumero,
             data_movimentacao: n.data_movimentacao || null,
@@ -10999,8 +11392,7 @@ async function avancarAutoEtapa18(index) {
     // A defesa (ou o pedido de desconto) é registrada no próprio cartão
     const defesaAuto = obterDefesaNotificacao(item, 'ai');
     if (opcao === 'defesa' && !defesaTemConteudo(defesaAuto)) {
-        alert('Para avançar com "Defesa", anexe o arquivo da defesa ou escreva o texto dela no quadro deste Auto de Infração.');
-        return;
+        if (bloquearSemAnexo('Para avançar com "Defesa", anexe o arquivo da defesa ou escreva o texto dela no quadro deste Auto de Infração.')) return;
     }
     if (opcao === 'desconto' && !defesaTemConteudo(defesaAuto)
         && !confirm('Não há pedido de desconto registrado no quadro deste Auto. Avançar mesmo assim?')) {
@@ -11054,11 +11446,16 @@ async function avancarAutoEtapa18(index) {
         const dataMov = new Date().toISOString();
 
         if (item.id) {
-            await atualizarNotificacaoNoBanco(item.id, {
+            const updAuto = {
                 status: opcao,
                 etapa_atual_id: proxEtapaId,
                 data_movimentacao: dataMov
-            });
+            };
+            // Defesa / Desconto: o prazo do Auto para enquanto é analisado
+            if (OPCOES_AUTO_QUE_PARAM_PRAZO.includes(opcao)) {
+                Object.assign(updAuto, camposPausarPrazoAnalise(item, opcao) || {});
+            }
+            await atualizarNotificacaoNoBanco(item.id, updAuto);
         }
 
         processoAtual.campos = processoAtual.campos || {};
@@ -11711,8 +12108,7 @@ async function persistirAnexosAR(exigirObrigatorio = false) {
     processoAtual._arAnexosLocais = processoAtual._arAnexosLocais || [];
 
     if (exigirObrigatorio && processoAtual._arAnexosLocais.length === 0) {
-        alert('O anexo do AR é OBRIGATÓRIO para avançar de etapa!\n\nPor favor, adicione pelo menos um anexo do AR antes de avançar.');
-        return false;
+        if (bloquearSemAnexo('O anexo do AR é OBRIGATÓRIO para avançar de etapa!\n\nPor favor, adicione pelo menos um anexo do AR antes de avançar.')) return false;
     }
 
     const perfilId = (typeof perfilAtual !== 'undefined' && perfilAtual?.id) ? perfilAtual.id : null;
@@ -12374,8 +12770,7 @@ async function avancarEtapa17() {
     const ciclo = camposCicloAR(processoAtual);
     const anexo = ciclo.etapa17?.anexo_edital;
     if (!anexo) {
-        alert('Anexe o edital gerado para avançar.');
-        return;
+        if (bloquearSemAnexo('Anexe o edital gerado para avançar.')) return;
     }
 
     // Guarda a data de publicação digitada, mesmo sem passar pelo "Salvar Edital"
@@ -14901,6 +15296,52 @@ function certidaoEhDeCumprimentoDeNotificacao() {
 }
 window.certidaoEhDeCumprimentoDeNotificacao = certidaoEhDeCumprimentoDeNotificacao;
 
+// ── Texto adicional da Certidão (Etapa 29, cumprimento da NP) ─────────────
+// Campo opcional, o primeiro da tela de encerramento. O texto entra na Certidão
+// logo abaixo de "Certifico o cumprimento da obrigação, dá-se por encerrado a
+// Notificação Preliminar." e fica em dados.certidao_texto_adicional. Depois de
+// encerrada a notificação o campo some (o texto continua na Certidão).
+function textoAdicionalCertidao() {
+    const campo = document.getElementById('txtCertidaoTextoAdicional');
+    return (campo ? campo.value : (notificacaoAtual?.dados?.certidao_texto_adicional || '')).trim();
+}
+
+function htmlTextoAdicionalNaCertidao() {
+    const t = textoAdicionalCertidao();
+    if (!t) return '';
+    return `
+        <p style="margin: 18px 0 0 0; text-align: justify; line-height: 1.6;">
+            ${escaparHtmlObsDeferimento(t).replace(/\n/g, '<br>')}
+        </p>`;
+}
+
+function htmlCampoTextoAdicionalCertidao() {
+    if (!notificacaoAtual || notificacaoAtual.status === 'encerrada') return '';
+    if (!certidaoEhDeCumprimentoDeNotificacao()) return '';
+    const valor = notificacaoAtual.dados?.certidao_texto_adicional || '';
+    return `
+                <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:24px;">
+                    <label for="txtCertidaoTextoAdicional" style="display:block; font-size:0.95rem; font-weight:700; color:#0f172a; margin-bottom:4px;">Texto adicional da Certidão (opcional)</label>
+                    <p style="margin:0 0 8px 0; color:#64748b; font-size:0.85rem;">Entra na Certidão logo abaixo de "Certifico o cumprimento da obrigação, dá-se por encerrado a Notificação Preliminar."</p>
+                    <textarea id="txtCertidaoTextoAdicional" class="form-input" rows="4" onchange="window.salvarTextoAdicionalCertidao(this.value)" placeholder="Escreva aqui, se precisar..." style="width:100%; padding:12px; border-radius:8px; border:1px solid #cbd5e1; background:white; font-size:0.95rem; color:#1e293b; resize:vertical; box-sizing:border-box;">${escaparHtmlObsDeferimento(valor)}</textarea>
+                </div>`;
+}
+
+window.salvarTextoAdicionalCertidao = async function (valor) {
+    if (!notificacaoAtual || notificacaoAtual.status === 'encerrada') return;
+    const texto = String(valor || '').trim();
+    // Em memória antes de gravar: o download logo em seguida já usa o texto novo
+    notificacaoAtual.dados = { ...(notificacaoAtual.dados || {}), certidao_texto_adicional: texto };
+    try {
+        await atualizarNotificacaoNoBanco(notificacaoAtual.id, { dados: notificacaoAtual.dados });
+        if (document.getElementById('containerDocumentoOficial') && typeof window.gerarCertidaoPagamento === 'function') {
+            await window.gerarCertidaoPagamento();
+        }
+    } catch (err) {
+        alert('Não foi possível salvar o texto da Certidão.\n\n' + (err?.message || err));
+    }
+};
+
 async function montarHtmlCertidaoEncerramento() {
     if (!processoAtual) return '';
 
@@ -14971,6 +15412,7 @@ async function montarHtmlCertidaoEncerramento() {
         <p style="margin: 18px 0 0 0; text-align: justify; line-height: 1.6;">
             Certifico o cumprimento da obrigação, dá-se por <strong>encerrado</strong> a Notificação Preliminar.
         </p>
+        ${htmlTextoAdicionalNaCertidao()}
     ` : `
         <p style="margin: 0; text-align: justify; line-height: 1.6;">
             Certifico, para os devidos fins, que o autuado <strong>${nomeAutuado}</strong>, inscrito no
@@ -15274,8 +15716,7 @@ window.avancarEtapa10 = async function () {
     }
 
     if (!temAnexoCertidao) {
-        alert('Anexo Obrigatório!\n\nPor favor, anexe o PDF da Certidão Assinada antes de avançar a etapa.');
-        return;
+        if (bloquearSemAnexo('Anexo Obrigatório!\n\nPor favor, anexe o PDF da Certidão Assinada antes de avançar a etapa.')) return;
     }
 
     mostrarCarregamento('Avançando etapa...');
@@ -16614,8 +17055,7 @@ window.avancarEtapa14 = async function () {
 
     // Auto vindo de uma NP/AF: o Relatório Fiscal do Auto assinado é obrigatório
     if (etapa14TemRelatorioDoAuto() && !dadosRelatorioAuto().anexo?.url) {
-        alert('Anexo obrigatório!\n\nAnexe o Relatório Fiscal do Auto de Infração assinado antes de avançar para a Etapa 15.');
-        return;
+        if (bloquearSemAnexo('Anexo obrigatório!\n\nAnexe o Relatório Fiscal do Auto de Infração assinado antes de avançar para a Etapa 15.')) return;
     }
 
     // Relatório Fiscal assinado obrigatório quando o processo nasceu na Etapa 14 com relatório próprio
@@ -16640,8 +17080,7 @@ window.avancarEtapa14 = async function () {
         }
 
         if (!temAnexoRF) {
-            alert('Anexo obrigatório!\n\nPor favor, anexe o PDF do Relatório Fiscal assinado antes de avançar para a Etapa 15.');
-            return;
+            if (bloquearSemAnexo('Anexo obrigatório!\n\nPor favor, anexe o PDF do Relatório Fiscal assinado antes de avançar para a Etapa 15.')) return;
         }
     }
 
@@ -16664,8 +17103,7 @@ window.avancarEtapa14 = async function () {
     }
 
     if (!temAnexoAI) {
-        alert('Anexo obrigatório!\n\nPor favor, anexe o PDF do Auto de Infração assinado antes de avançar para a Etapa 15.');
-        return;
+        if (bloquearSemAnexo('Anexo obrigatório!\n\nPor favor, anexe o PDF do Auto de Infração assinado antes de avançar para a Etapa 15.')) return;
     }
 
     mostrarCarregamento('Avançando para Etapa 15 (multa do AI)...');
@@ -18263,8 +18701,7 @@ window.avancarEtapa15 = async function () {
     }
 
     if (!docMulta) {
-        alert('É OBRIGATÓRIO anexar o documento da multa antes de avançar a Etapa 15!');
-        return;
+        if (bloquearSemAnexo('É OBRIGATÓRIO anexar o documento da multa antes de avançar a Etapa 15!')) return;
     }
 
     mostrarCarregamento('Avançando para Etapa 16 (dados do AR)...');
@@ -18378,6 +18815,23 @@ window.toggleOpcoesGerente = function () {
     if (blocoJust) blocoJust.style.display = (val !== '') ? 'block' : 'none';
 };
 
+// ── Texto adicional do deferimento (Etapas 5, 13 e 26) ───────────────────
+// Campo opcional que aparece com "Defere". O texto entra na Réplica logo
+// abaixo da frase do deferimento e fica em dados.etapaX.observacao_deferimento.
+function escaparHtmlObsDeferimento(v) {
+    return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function lerObsDeferimento() {
+    return (document.getElementById('txtObsDeferimento')?.value || '').trim();
+}
+
+// Parágrafo para a Réplica (vazio quando não há texto)
+function htmlObsDeferimentoReplica(texto) {
+    const t = String(texto || '').trim();
+    return t ? `<br><br>${escaparHtmlObsDeferimento(t).replace(/\n/g, '<br>')}` : '';
+}
+
 window.toggleOpcoesDilacao = function () {
     const val = document.getElementById('selectDecisaoDilacao')?.value;
     const blocoDias = document.getElementById('blocoDiasDilacao');
@@ -18385,6 +18839,8 @@ window.toggleOpcoesDilacao = function () {
 
     if (blocoDias) blocoDias.style.display = (val === 'defere') ? 'block' : 'none';
     if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere') ? 'block' : 'none';
+    const blocoObs = document.getElementById('blocoObsDeferimento');
+    if (blocoObs) blocoObs.style.display = (val === 'defere') ? 'block' : 'none';
 
     window.gerarReplica();
 };
@@ -18395,6 +18851,8 @@ window.toggleOpcoesDesconto = function () {
     const blocoJustificativa = document.getElementById('blocoJustificativaDesconto');
 
     if (blocoJustificativa) blocoJustificativa.style.display = (val === 'indefere') ? 'block' : 'none';
+    const blocoObs = document.getElementById('blocoObsDeferimento');
+    if (blocoObs) blocoObs.style.display = (val === 'defere') ? 'block' : 'none';
 
     window.gerarReplica();
 };
@@ -18567,13 +19025,30 @@ window.gerarReplica = async function () {
     const d5 = notificacaoAtual?.dados?.etapa5 || {};
     const d26 = notificacaoAtual?.dados?.etapa26 || {};
 
-    const decisao = selectDecisao ? selectDecisao.value : (d13.decisao || d5.decisao || d26.decisao || '');
-    const txtJustificativa = campoJustificativa ? campoJustificativa.value : (d13.justificativa || d5.justificativa || d26.justificativa || '');
+    // Qual análise a Réplica mostra: a da etapa aberta (5 dilação, 13/11 defesa,
+    // 26 desconto). Fora delas (réplica vista depois, PDF unido), a decisão mais
+    // recente: a mesma notificação pode ter passado pela dilação e depois pela
+    // defesa, e antes a dilação sempre ganhava.
+    let tipoAnalise = '';
+    if (etapaAtual === 26) tipoAnalise = 'desconto';
+    else if (etapaAtual === 5) tipoAnalise = 'dilacao';
+    else if (etapaAtual === 13 || etapaAtual === 11) tipoAnalise = 'defesa';
+    else {
+        const decididas = [['dilacao', d5], ['defesa', d13], ['desconto', d26]].filter(([, d]) => d.decisao);
+        decididas.sort((a, b) => (new Date(b[1].data_decisao || 0).getTime() || 0) - (new Date(a[1].data_decisao || 0).getTime() || 0));
+        tipoAnalise = decididas[0]?.[0] || '';
+    }
+    const dadosAnalise = { dilacao: d5, defesa: d13, desconto: d26 }[tipoAnalise] || {};
+    const decisao = selectDecisao ? selectDecisao.value : (dadosAnalise.decisao || '');
+    const txtJustificativa = campoJustificativa ? campoJustificativa.value : (dadosAnalise.justificativa || '');
     const dias = document.getElementById('inputDiasDilacao') ? document.getElementById('inputDiasDilacao').value : (d5.dias || 0);
+    // Texto adicional do deferimento: o da tela, ou o gravado na etapa
+    const campoObsDef = document.getElementById('txtObsDeferimento');
+    const obsDeferimento = (etapa) => htmlObsDeferimentoReplica(campoObsDef ? campoObsDef.value : (etapa?.observacao_deferimento || ''));
 
     const textoDoDesconto = (dec, just) => {
         if (dec === 'defere') {
-            return 'Após análise do pedido de desconto informamos que seu pedido foi deferido.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,';
+            return `Após análise do pedido de desconto informamos que seu pedido foi deferido.${obsDeferimento(d26)}<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         }
         if (dec === 'indefere') {
             return `Após análise do pedido de desconto informamos que seu pedido foi indeferido, pois ${just}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
@@ -18582,25 +19057,20 @@ window.gerarReplica = async function () {
     };
 
     let textoDecisao = '';
-    // A Etapa 26 vem antes na ordem porque a mesma notificação pode ter passado
-    // pela Etapa 5 (dilação) antes de virar Auto e pedir desconto
-    if (etapaAtual === 26) {
+    if (tipoAnalise === 'desconto') {
         textoDecisao = textoDoDesconto(decisao, txtJustificativa);
-    } else if (etapaAtual === 5 || d5.decisao) {
+    } else if (tipoAnalise === 'dilacao') {
         if (decisao === 'defere') {
-            textoDecisao = `Após análise da dilação informamos que seu pedido foi deferido. O prazo foi prorrogado por mais ${dias} dias.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
+            textoDecisao = `Após análise da dilação informamos que seu pedido foi deferido. O prazo foi prorrogado por mais ${dias} dias.${obsDeferimento(d5)}<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
             textoDecisao = `Após análise da dilação informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         }
-    } else if (etapaAtual === 13 || etapaAtual === 11 || d13.decisao) {
+    } else if (tipoAnalise === 'defesa') {
         if (decisao === 'defere') {
-            textoDecisao = `Após análise da defesa informamos que seu pedido foi deferido.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
+            textoDecisao = `Após análise da defesa informamos que seu pedido foi deferido.${obsDeferimento(d13)}<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         } else if (decisao === 'indefere') {
             textoDecisao = `Após análise da defesa informamos que seu pedido foi indeferido, pois ${txtJustificativa}.<br><br>Sem mais para o momento, estamos à disposição para maiores esclarecimentos.<br><br>Atenciosamente,`;
         }
-    } else if (d26.decisao) {
-        // Réplica do desconto vista depois (Etapa 25, PDF unido...)
-        textoDecisao = textoDoDesconto(d26.decisao, d26.justificativa || '');
     }
 
     const fiscAutor = window.obterFiscalAutorDoProcesso(processoAtual, notificacaoAtual);
@@ -18748,6 +19218,18 @@ window.toggleDropdownNotificacoes = function () {
     }
 };
 
+// Notificação do sino endereçada ao usuário logado: pela pessoa (destinatario_id)
+// ou pelo cargo (destinatario_cargo). Sem destinatário, vale para todos.
+// Mesma regra do sino do painel (notificacaoEhParaMim, solicitacoes.js).
+function notificacaoMenuEhParaMim(n) {
+    if (!n) return false;
+    if (n.destinatario_id) return !!perfilAtual?.id && String(n.destinatario_id) === String(perfilAtual.id);
+    if (n.destinatario_cargo && perfilAtual?.cargo) {
+        return normalizarCargo(n.destinatario_cargo) === normalizarCargo(perfilAtual.cargo);
+    }
+    return true;
+}
+
 window.atualizarInterfaceNotificacoes = function () {
     const listDiv = document.getElementById('listaNotificacoesMenu');
     const badgeEl = document.getElementById('badgeContadorNotificacoes');
@@ -18774,7 +19256,8 @@ window.atualizarInterfaceNotificacoes = function () {
     todanotifs.sort((a, b) => new Date(b.data) - new Date(a.data));
 
     if (badgeEl) {
-        const naoLidas = todanotifs.filter(n => !n.lida).length;
+        // O número vermelho conta só as não lidas que são para quem está logado
+        const naoLidas = todanotifs.filter(n => !n.lida && notificacaoMenuEhParaMim(n)).length;
         if (naoLidas > 0) {
             badgeEl.textContent = naoLidas;
             badgeEl.style.display = 'inline-block';

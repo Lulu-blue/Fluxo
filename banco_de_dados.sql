@@ -676,6 +676,32 @@ END;
 $function$
 ;
 
+-- Sino: avisos não lidos do usuário em TODOS os processos (não só os da lista)
+CREATE INDEX IF NOT EXISTS idx_processos_notificacoes_menu
+    ON public.processos USING gin ((dados -> 'notificacoes_menu') jsonb_path_ops);
+
+CREATE OR REPLACE FUNCTION public.notificacoes_menu_do_usuario(p_destinatario_id uuid, p_cargos text[])
+ RETURNS TABLE(id uuid, numero_processo text, notificacoes_menu jsonb)
+ LANGUAGE sql
+ STABLE
+ SECURITY INVOKER
+ SET search_path TO 'public'
+AS $function$
+    WITH alvos AS (
+        SELECT jsonb_build_array(jsonb_build_object('destinatario_id', p_destinatario_id::text, 'lida', false)) AS j
+         WHERE p_destinatario_id IS NOT NULL
+        UNION ALL
+        SELECT jsonb_build_array(jsonb_build_object('destinatario_cargo', c, 'lida', false))
+          FROM unnest(COALESCE(p_cargos, '{}'::text[])) AS c
+    )
+    SELECT DISTINCT p.id, p.numero_processo::text, p.dados -> 'notificacoes_menu'
+      FROM alvos
+      JOIN public.processos p ON (p.dados -> 'notificacoes_menu') @> alvos.j
+     LIMIT 200;
+$function$;
+
+GRANT EXECUTE ON FUNCTION public.notificacoes_menu_do_usuario(uuid, text[]) TO authenticated;
+
 CREATE OR REPLACE FUNCTION public.atualizar_prazo_processo(p_id uuid)
  RETURNS void
  LANGUAGE plpgsql
