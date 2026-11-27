@@ -9059,7 +9059,7 @@ function gerarBlocoInfracao(proc, disp, index) {
         <div class="doc-infracao-bloco" data-notificacao-index="${index}">
             <div class="doc-infracao-titulo">NOTIFICAÇÃO PRELIMINAR N° ${numNotif}</div>
             <p style="margin:4px 0;"><strong>${titulo}</strong></p>
-            <p style="margin:10px 0 6px 0;">O autuado tem o prazo de até <strong>${prazo}</strong> para tomar as providências:</p>
+            <p style="margin:10px 0 6px 0;">O autuado tem o prazo de até <strong>${prazo}</strong>, a contar da data do recebimento, para tomar as providências:</p>
             <ul class="doc-infracao-ul">
                 ${itens}
             </ul>
@@ -14782,7 +14782,7 @@ function gerarHtmlCompativelComWordDoc(proc, brasaoSrc) {
             <div style="margin: 24px 0; font-size: 11pt; line-height: 1.45;">
                 <div style="font-size: 13pt; font-weight: bold; text-transform: uppercase; margin-bottom: 6px;">NOTIFICAÇÃO PRELIMINAR N° ${numNotif}</div>
                 <p style="margin:4px 0;"><strong>${titulo}</strong></p>
-                <p style="margin:10px 0 6px 0;">O autuado tem o prazo de até <strong>${prazo}</strong> para tomar as providências:</p>
+                <p style="margin:10px 0 6px 0;">O autuado tem o prazo de até <strong>${prazo}</strong>, a contar da data do recebimento, para tomar as providências:</p>
                 <ul style="margin: 8px 0 12px 0; padding-left: 20px;">
                     ${itens}
                 </ul>
@@ -16549,6 +16549,13 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 ${htmlObservacoesFiscalAuto('margin: 0 0 10px 0; text-align: justify;')}
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
+                    
+                <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
+
+                </p>
+
+                <p style="margin: 0 0 10px 0; text-align: justify;">
+                    
                     O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, protocolada via protocolo municipal. 
                 </p>
 
@@ -16594,6 +16601,13 @@ window.gerarAutoDeInfracao = async function (auto = false) {
                 ${htmlObservacoesFiscalAuto('margin: 0 0 10px 0; text-align: justify;')}
 
                 <p style="margin: 0 0 10px 0; text-align: justify;">
+                    
+                <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
+
+                </p>
+                
+                <p style="margin: 0 0 10px 0; text-align: justify;">
+                    
                     O autuado tem o prazo de <strong>${textoPrazoDefesaAuto}</strong> para apresentação de defesa, protocolada via protocolo municipal.
                 </p>
 

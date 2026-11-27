@@ -545,7 +545,7 @@ window.montarTextoAutoFiscalizacao = function (proc, itemCatalogo, valorMulta) {
     let prazoHtml = '';
     if (providencias.length) {
         prazoHtml = cfg.modo === 'prazo'
-            ? `<p style="margin:10px 0 6px 0;">O autuado tem o prazo de até <strong>${cfg.dias} DIAS${cfg.uteis ? ' ÚTEIS' : ''}</strong> para tomar as providências:</p>`
+            ? `<p style="margin:10px 0 6px 0;">O autuado tem o prazo de até <strong>${cfg.dias} DIAS${cfg.uteis ? ' ÚTEIS' : ''}</strong>, a contar da data do recebimento, para tomar as providências:</p>`
             : '<p style="margin:10px 0 6px 0;">O autuado deverá adotar <strong>de imediato</strong> as providências exigidas:</p>';
         prazoHtml += `<ul style="margin: 6px 0 10px 0; padding-left: 20px;">${providencias.map(p => `<li>${escaparHtmlMA(p)}</li>`).join('')}</ul>`;
     }
@@ -593,6 +593,11 @@ window.montarCorpoAutoInfracaoMA = function (proc, itemCatalogo, opts = {}) {
             <p style="margin: 0 0 8px 0; text-align: justify;">O motivo da infração é baseado na <strong>${escaparHtmlMA(dispositivo)}</strong></p>
             <p style="margin: 0 0 10px 0; text-align: justify; font-weight: bold;">${escaparHtmlMA(multa)}</p>
             ${opts.observacoesHtml || ''}
+
+            <p style="margin: 0 0 10px 0; text-align: justify;">
+                <p>Observação: o prazo é contado <strong>a partir da data do recebimento.</strong></p>
+            </p>
+
             <p style="margin: 0 0 8px 0; text-align: justify;">
                 O autuado tem o prazo de <strong>${escaparHtmlMA(opts.prazoDefesa || '20 DIAS')}</strong> para apresentação de defesa, protocolada via protocolo municipal n° <strong>${escaparHtmlMA(String(proc?.dados?.protocolo_defesa || '').trim() || cfg.protocolo || opts.numeroProtocolo || 'XXX')}</strong>.
             </p>
